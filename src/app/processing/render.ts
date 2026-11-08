@@ -1,83 +1,44 @@
 import { formatEtaRemaining } from '../../lib/format/eta';
-import type { StatusViewStore } from './view';
-import type { SessionOutput } from '../../types/session';
-import type { WorkProgressStage } from '../../types/workRuntime';
-import { isWorkRunning } from '../workOperations';
+import { coverSrc } from '../../lib/tauri/coverSrc';
+import type { OutputSnapshot } from '../../lib/generated/tauri';
+import { childCancelling, operationStatusLabel, stageStatusText } from '../workOperations';
+import type { JobListItem, StatusView } from './view';
 
-export type ConcurrencyRead = {
-	readonly selection: string;
-	readonly effective: number;
-};
+type PreviewRun = NonNullable<OutputSnapshot['previewRun']>;
 
-export type StatusLine = {
-	readonly stage: WorkProgressStage;
-	readonly percentage: number;
-	readonly message: string;
-	readonly etaSeconds?: number | null;
-};
-
-function stageText(stage: WorkProgressStage): string {
-	switch (stage) {
-		case 'pending':
-		case 'analyzing':
-			return 'Analyzing';
-		case 'converting':
-			return 'Converting';
-		case 'writing':
-		case 'cleaning':
-			return 'Writing Metadata';
-		case 'complete':
-			return 'Completed';
-		case 'cancelled':
-			return 'Cancelled';
-		case 'failed':
-			return 'Failed';
-	}
+function previewStatusText({ status, progress }: PreviewRun['operation']): string {
+	if (status === 'mixed' || status === 'cancelling') return operationStatusLabel(status);
+	const text = stageStatusText(progress.stage);
+	return progress.stage === 'converting' && progress.etaSeconds != null
+		? `${text} · ${formatEtaRemaining(progress.etaSeconds)}`
+		: text;
 }
 
-export function renderStatus(view: StatusViewStore, status: StatusLine): void {
-	view.setProgressPercentage(status.percentage);
-	const text = stageText(status.stage);
-	view.setStatusText(
-		status.stage === 'converting' && status.etaSeconds != null
-			? `${text} · ${formatEtaRemaining(status.etaSeconds)}`
-			: text,
-	);
-	view.setStepText(`Current Step: ${status.message}`);
-	view.setStepColor('var(--text-primary)');
-	view.setProgressActive(false);
+function previewJobItems({ children }: PreviewRun['operation']): JobListItem[] {
+	return children.map((child, index) => ({
+		childJobId: child.childJobId,
+		label: child.label,
+		status: child.status,
+		statusText: childCancelling(child)
+			? operationStatusLabel('cancelling')
+			: child.status === 'queued'
+				? `Queued • #${index + 1} of ${children.length}`
+				: (child.message ?? child.progress.message),
+		stage: child.progress.stage,
+		percentage: child.progress.percentage,
+		canCancel: child.cancellable,
+	}));
 }
 
-export function renderConcurrencyStatus(view: StatusViewStore, concurrency: ConcurrencyRead): void {
-	const suffix = concurrency.selection === 'auto' ? ' (Auto)' : '';
-	view.setConcurrencyText(`Max jobs: ${concurrency.effective}${suffix}`);
-}
-
-export function renderPreview(view: StatusViewStore, preview: SessionOutput['previewRun']): void {
-	if (!preview) return;
+export function previewView(preview: PreviewRun): Omit<StatusView, 'concurrencyText'> {
 	const { operation } = preview;
-	const active =
-		operation.status === 'accepted' ||
-		operation.status === 'running' ||
-		operation.status === 'cancelling';
-	renderStatus(view, operation.progress);
-	view.setProgressActive(isWorkRunning(operation.status));
-	if (operation.status === 'mixed') view.setStatusText('Mixed result');
-	if (operation.status === 'cancelling') view.setStatusText('Cancelling');
-	view.setJobItems(
-		operation.children.map((child, index) => ({
-			childJobId: child.childJobId,
-			label: child.label,
-			status: child.status,
-			statusText:
-				child.cancelRequested && active
-					? 'Cancelling'
-					: child.status === 'queued'
-						? `Queued • #${index + 1} of ${operation.children.length}`
-						: (child.message ?? child.progress.message),
-			stage: child.progress.stage,
-			percentage: child.progress.percentage,
-			canCancel: child.cancellable,
-		})),
-	);
+	return {
+		coverArtSrc: preview.cover ? coverSrc(preview.cover) : null,
+		jobItems: previewJobItems(operation),
+		progressPercentage: operation.progress.percentage,
+		statusText: previewStatusText(operation),
+		stepText: `Current Step: ${operation.progress.message}`,
+		stepTone: 'normal',
+		progressActive: operation.phase === 'active',
+	};
 }

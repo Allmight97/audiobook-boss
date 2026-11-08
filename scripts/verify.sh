@@ -11,12 +11,13 @@ core_crates=(
 
 usage() {
 	cat <<'USAGE'
-Usage: bash scripts/verify.sh [lane ...] | --changed <base>
+Usage: bash scripts/verify.sh [lane ...] | --changed <base> | --describe
 
 Lanes: frontend, core, engine, media, host, apple, decrypt, tooling, supply-chain
 No argument runs every lane this OS supports (apple is skipped on Linux).
 supply-chain runs when named or selected by changed dependency/policy files.
 --changed runs only affected lanes without a current passing input receipt.
+--describe prints one line per lane: name, CI job on Linux, platforms CI runs it on, tools.
 USAGE
 }
 
@@ -24,10 +25,32 @@ is_darwin() {
 	[[ "$(uname -s)" == Darwin ]]
 }
 
-default_lanes=(frontend core engine media host apple decrypt tooling)
-all_lanes=("${default_lanes[@]}" supply-chain)
-if [[ "${1:-}" == --list ]]; then
-	printf '%s\n' "${all_lanes[@]}"
+rust_tools=(rustc cargo clang mold)
+native_tools=("${rust_tools[@]}" cc opus ffmpeg ffprobe sdk)
+join_words() {
+	local IFS=,
+	printf '%s' "$*"
+}
+
+lane_table=(
+	"frontend frontend linux bun,node"
+	"core core linux,darwin bun,$(join_words "${rust_tools[@]}"),lizard"
+	"engine rust linux,darwin bun,$(join_words "${native_tools[@]}")"
+	"media rust linux,darwin bun,$(join_words "${native_tools[@]}")"
+	"host rust linux,darwin bun,node,$(join_words "${native_tools[@]}")"
+	"apple rust darwin bun,$(join_words "${native_tools[@]}")"
+	"decrypt rust linux,darwin bun,$(join_words "${native_tools[@]}"),dotnet,helper"
+	"tooling tooling linux bun,node,zizmor,actionlint,shellcheck"
+	"supply-chain supply-chain linux bun,$(join_words "${rust_tools[@]}"),cargo-audit,cargo-deny"
+)
+all_lanes=()
+default_lanes=()
+for row in "${lane_table[@]}"; do
+	all_lanes+=("${row%% *}")
+	[[ "${row%% *}" == supply-chain ]] || default_lanes+=("${row%% *}")
+done
+if [[ "${1:-}" == --describe ]]; then
+	printf '%s\n' "${lane_table[@]}"
 	exit 0
 fi
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
@@ -36,7 +59,7 @@ if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
 fi
 eval "$(scripts/setup.sh --print-env)"
 
-lane_known() {
+is_known_lane() {
 	local name="$1" lane
 	for lane in "${all_lanes[@]}"; do
 		if [[ "${lane}" == "${name}" ]]; then
@@ -199,7 +222,7 @@ lane_tooling() {
 
 lane_supply_chain() {
 	if ! cargo audit --version >/dev/null 2>&1 || ! cargo deny --version >/dev/null 2>&1; then
-		printf 'MISSING cargo-audit and/or cargo-deny (CI installs them in the supply-chain job)\n' >&2
+		printf 'MISSING cargo-audit and/or cargo-deny\nInstall with: bash scripts/setup.sh supply-chain\n' >&2
 		return 1
 	fi
 	local status=0
@@ -227,7 +250,7 @@ else
 				exit 0
 				;;
 		esac
-		if ! lane_known "${arg}"; then
+		if ! is_known_lane "${arg}"; then
 			printf 'error: unknown lane %s\n' "${arg}" >&2
 			usage >&2
 			exit 2

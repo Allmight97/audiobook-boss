@@ -6,13 +6,26 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 
 - Import metadata boundary symbols from `crate::metadata`; the strip is the
   `pub use` list in `metadata/mod.rs`. `passthrough` and `mp4ameta_bridge` stay
-  private. `chapter_count` holds the one rule for when a multi-source output
-  gets one synthesized chapter per source; the session count and both
-  synthesis sites call it.
+  private. `join_chapters` (in `chapter_count`) holds the one rule for when a
+  multi-source output gets one synthesized chapter per source, builds those
+  chapters (title from the file name, a source with no length skipped with a
+  warning), and counts what the output carries. Passthrough extraction, which
+  the preserved merge also calls, and the session's chapter count both use
+  it.
 - The app reads tags from session snapshots and changes them through session
   intents; `abb-dev` reads through `Engine::read_audio_metadata`. Real file
   saves route through `save_metadata_intent`, so series validation can see
   source metadata.
+- `read_chapters` is the one reader of a file's chapters (titles from the
+  `title` tag, starts and ends rounded to milliseconds); import, passthrough
+  and verification call it, so they agree. `ResolvedCover` is the one choice
+  of the cover to embed (the output's own cover, else the source's) with its
+  failure rule: a failed source cover warns and the title continues, a failed
+  chosen cover fails the title. The native encoder and the remux both use it.
+- `container::Container` names a file's container once, from an FFmpeg demuxer
+  or muxer name or an extension (MP4 family, Matroska, MP3, other). Ask it
+  whether chapter ends are stored, which album-sort key applies and which
+  muxer writes it; never compare FFmpeg name strings.
 - Audio maps `AudioFile` to `PassthroughSource` at call sites
   (`check-known-mistakes.ts` rejects `crate::audio::AudioFile` here).
 - `finish_artifact_tags` is the last step after a native mux or a remux:
@@ -60,13 +73,24 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 
 ## Private Cluster
 
-- `field_schema` + `metadata_ops` own container-neutral tag mapping, read
-  aliases, clear groups, and field op planning (fan-outs, track/disk tuples).
+- `field_schema` holds one row per field (`TextField`, `PositionField` from
+  `abb-metadata-core`) with each backend's keys: FFmpeg read aliases in
+  precedence order, write keys, keys a Set drops, keys a Clear drops, and the
+  mp4ameta freeform names. `MetadataWritePlan` (in `abb-metadata-core`) holds
+  the typed field ops, already projected (series fields joined with their
+  sub-series) and in write order; `from_patch` builds it from a validated edit,
+  `from_metadata` from tags read off a real file or built by processing
+  (blank text, number 0 and an empty cover mean clear; only a date is trimmed).
   Container adapters (`ffmpeg_dict`, `mp4ameta_bridge`, `reader`) apply ops
-  only.
-- `cover_art` and the audiobook media type (`MetadataOp::SetMediaTypeAudiobook`)
-  stay sink-owned outside the neutral field-op loop (encode-path embed vs mp4
-  artwork; unconditional audiobook media type).
+  and read through the rows; they hold no key lists of their own. Adding a
+  field or alias means one row, plus the MP4 atom effects in `metadata_sinks`.
+- FFmpeg dictionary write order is part of the file (replacing a key moves the
+  last entry into its slot), so sinks write in op order: title, artist,
+  album_artist, album, composer, genre, date, year, comment, description,
+  series, series-part, track, disc, media_type, then the album sort.
+- `cover_art` and the audiobook media type stay sink-owned outside the field
+  ops (encode-path embed vs mp4 artwork; every write sets the audiobook media
+  type).
   `prepare_output_cover_art` prepares write-ready cover bytes once after merge:
   JPEG already at the write target (JPEG, 800px or smaller) stays as is; other
   covers go through `optimize_cover_art` before native mux, remux, or
@@ -81,6 +105,10 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   `cover_source.rs` when the user loads a file or URL cover. Covers embedded in
   source files stay unconverted until write-prep, so displays show the source's
   real bytes.
+- A cover the user picks is written as the front cover: MP3 (ID3 APIC) and
+  FLAC take the picture type from the stream's `comment` tag, so
+  `add_cover_art_stream_pre_header` sets `Cover (front)` there. Without it the
+  muxers write type 0 "Other".
 - Cover intent comes only from cover actions (load, drop, clear). A text edit
   or Lookup apply that keeps the cover leaves cover intent absent, so a save
   does not rewrite unchanged art.
@@ -102,12 +130,19 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Processing writes only a derived album sort: an underivable one already
   equals the source's own value, so writing it would rewrite tags for no
   change.
-- Keep `AlbumSortWriteAction` on `MetadataWritePlan` as its own action, apart
-  from generic field set/clear ops. Why: its key depends on the output
-  container, and a Save keeps it unless told otherwise.
+- Keep the album sort on `MetadataWritePlan` as its own `Option<PatchOp>`,
+  apart from the field ops. Why: its key depends on the output container, and
+  a Save keeps it unless told otherwise.
 - Track/disk are read-compatible passthrough fields: the form never edits them,
   `MetadataIntentPatch` carries them only as explicit artifact set/clear intent,
   and full `AudiobookMetadata` writes them when present.
+- One cover choice (`cover_choice`): the front cover (ID3 APIC or FLAC picture
+  type 3; a Matroska attachment whose name `matroska_cover::is_cover` accepts),
+  else the first picture (Matroska: the first image attachment; MP4: the first
+  `covr`). The bounded thumbnail readers and the FFmpeg path (`read_metadata`,
+  passthrough extraction) both use it. Why: an export keeps the cover the app
+  shows. A new reader or container offers its pictures in file order to
+  `CoverChoice`; it adds no rule of its own.
 - Thumbnail ingestion stays allocation-bounded before decode or demux:
   `mp4_covr` bounds MP4 payload, nesting, and atom traversal; `embedded_cover`
   reads bounded ID3/FLAC/WAVE picture records without opening FFmpeg.
@@ -123,20 +158,29 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   files on each affected route. Direct engine tests with supplied metadata
   cannot prove planner forwarding. Also prove source tags stay untouched by
   processing and retain Save's distinct policy.
+- `tests/snapshots/tag-interop/` pins what every tag-writing route leaves in a
+  seeded file: Save, encode, preserved remux, container change, and preserved
+  merge, for M4B, MP3, FLAC, and MKA sources (MP4 Saves by SHA-256). A refactor
+  leaves each snapshot identical. Rewrite one with `ABB_BLESS_TAG_SNAPSHOTS=1`
+  only for an intended output change, and name that change in the commit.
 - Keep `set | clear | absent` field semantics (absent keeps the source value)
   across save, processing projection, naming projection, write plans,
   validation/normalization, and cover-art handling. Clear intent is the
   explicit blank field action, never a sentinel value.
 - Publication-date and series/subseries sequence validation stay in this
-  boundary.- FFmpeg COMM reads prefer `comment`, then undescribed language keys, then
+  boundary.
+- FFmpeg COMM reads prefer `comment`, then undescribed language keys, then
   described comments, with lexical key order breaking ties. Explicit comment
   set/clear removes those user-comment aliases; an absent field preserves them.
   `iTun*` COMM descriptors are technical passthrough records, never display or
   clear candidates. This policy lives in `field_schema::comment_key_rank`.
 - `----:com.apple.iTunes:SERIES` / `SERIES-PART` are FFmpeg read and clear
   keys, never write keys; the mp4ameta sink writes the MP4 mirrors. So a stray
-  tag from an older ABB still reads and a series edit removes it. Series
-  strategy: the `audiobook-metadata` skill.
+  tag from an older ABB still reads, and clearing the series removes it on
+  FFmpeg backends. A series Set there replaces only `series` /
+  `series-part` and leaves the stray key; mp4ameta's Set removes both mirrors
+  and `tvsh`/`sosn` (`tves`/`tven` for the number). Series strategy: the
+  `audiobook-metadata` skill.
 - MP4 artist and composer reads join repeated values with `;`, matching
   FFmpeg's text projection. Artist values take precedence over album-artist
   fallback. Unrelated save intent preserves repeated source values; processing
@@ -183,7 +227,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   does not model, so an MP4 is remuxed only for a real chapter change. A
   same-container remux carries no cover, so every picture the file holds is
   copied (the first is not a chosen cover); a container change carries the
-  first picture over as the cover.
+  file's cover (the choice above) over.
 
 ## Opus Container Timing
 

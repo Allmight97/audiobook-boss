@@ -30,15 +30,3 @@ fn supported_audio_formats_accept_extension_case_variants() {
         }
     }
 }
-
-#[test]
-fn supported_audio_extensions_come_from_canonical_format_table() {
-    let extensions = SUPPORTED_AUDIO_FORMATS
-        .iter()
-        .map(|format| format.extension)
-        .collect::<Vec<_>>();
-    assert_eq!(
-        extensions,
-        ["mka", "mp3", "m4a", "m4b", "aac", "wav", "flac"]
-    );
-}

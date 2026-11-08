@@ -1,38 +1,8 @@
+use super::job_state::Registered;
+use super::test_support::MemoryVault;
 use super::*;
 use abb_remote_source_core::{acquisition_progress, AcquisitionStage};
-use secrecy::SecretString;
-use std::collections::HashMap;
 use tempfile::TempDir;
-
-#[derive(Default)]
-pub(crate) struct MemoryVault {
-    pub(crate) secrets: Mutex<HashMap<String, SecretString>>,
-    pub(crate) reads: Arc<std::sync::atomic::AtomicUsize>,
-    pub(crate) fail_writes: bool,
-}
-
-impl vault::SecretVault for MemoryVault {
-    fn get_secret(&self, key: &str) -> Result<Option<SecretString>> {
-        self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        Ok(self.secrets.lock().expect("test vault").get(key).cloned())
-    }
-
-    fn set_secret(&self, key: &str, value: SecretString) -> Result<()> {
-        if self.fail_writes {
-            return Err(AppError::General("vault unavailable".to_string()));
-        }
-        self.secrets
-            .lock()
-            .expect("test vault")
-            .insert(key.into(), value);
-        Ok(())
-    }
-
-    fn delete_secret(&self, key: &str) -> Result<()> {
-        self.secrets.lock().expect("test vault").remove(key);
-        Ok(())
-    }
-}
 
 pub(crate) fn test_runtime(root: &TempDir) -> RemoteSourceRuntime {
     test_runtime_with(root, None, None)
@@ -120,14 +90,47 @@ fn build_runtime(
                 ui,
                 acquire.unwrap_or_else(session_lifecycle::audible_acquire),
             ),
-            pending_audible_auth: Mutex::new(None),
             indexer_adapter: ReqwestProwlarrAdapter::new(),
-            tasks: crate::engine::EngineTasks::default(),
+            tasks: crate::engine_tasks::EngineTasks::default(),
             handoff: OnceLock::new(),
             indexer_turn: Arc::default(),
             sent_releases: Mutex::default(),
         }),
     }
+}
+
+fn register(runtime: &RemoteSourceRuntime, job_id: &str) {
+    runtime
+        .inner
+        .lifecycle
+        .jobs
+        .lock()
+        .expect("jobs lock")
+        .insert(job_id.to_string(), Registered::new(job_id));
+}
+
+fn one_file_outcome(path: PathBuf) -> AcquisitionOutcome {
+    AcquisitionOutcome {
+        files: vec![types::MaterializedSourceFile {
+            input_id: "input-1".to_string(),
+            title_id: "B000000001".to_string(),
+            path,
+            size_bytes: 7,
+            sha256: String::new(),
+        }],
+        ..AcquisitionOutcome::default()
+    }
+}
+
+fn handoff_job(runtime: &RemoteSourceRuntime, job_id: &str) -> Option<types::AcquisitionJob> {
+    runtime
+        .inner
+        .lifecycle
+        .jobs
+        .lock()
+        .expect("jobs lock")
+        .get(job_id)?
+        .job_for_handoff()
 }
 
 fn published_job(runtime: &RemoteSourceRuntime) -> AcquisitionSnapshot {
@@ -138,19 +141,6 @@ fn published_job(runtime: &RemoteSourceRuntime) -> AcquisitionSnapshot {
         .expect("acquisition part")
         .job
         .expect("published job")
-}
-
-fn acquisition_job(job_id: &str, status: types::RemoteAcquisitionStatus) -> RemoteAcquisitionJob {
-    RemoteAcquisitionJob {
-        job_id: job_id.to_string(),
-        provider_id: RemoteProviderId::Audible,
-        status,
-        progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
-        materialized_files: Vec::new(),
-        supplemental_assets: Vec::new(),
-        diagnostics: Vec::new(),
-        handoff: None,
-    }
 }
 
 #[test]
@@ -210,16 +200,16 @@ async fn a_download_counts_as_running_until_its_job_ends() {
         .jobs
         .lock()
         .expect("jobs lock")
-        .insert(
-            job_id.to_string(),
-            acquisition_job(job_id, types::RemoteAcquisitionStatus::Acquiring),
-        );
+        .insert(job_id.to_string(), Registered::new(job_id));
     assert_eq!(runtime.running_acquisitions().len(), 1);
 
-    runtime
-        .inner
-        .lifecycle
-        .mark_job_failed(job_id, "failed at once".to_string());
+    runtime.inner.lifecycle.apply_outcome(
+        job_id,
+        AcquisitionOutcome::failed(
+            types::RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
+            "failed at once".to_string(),
+        ),
+    );
     assert!(runtime.running_acquisitions().is_empty());
 }
 
@@ -241,10 +231,7 @@ fn cancelled_job_keeps_terminal_state_when_background_result_arrives() {
         .jobs
         .lock()
         .expect("jobs lock")
-        .insert(
-            job_id.to_string(),
-            acquisition_job(job_id, types::RemoteAcquisitionStatus::Acquiring),
-        );
+        .insert(job_id.to_string(), Registered::new(job_id));
 
     runtime
         .cancel_acquisition(job_id)
@@ -256,20 +243,19 @@ fn cancelled_job_keeps_terminal_state_when_background_result_arrives() {
     runtime
         .inner
         .lifecycle
-        .replace_job_if_active(acquisition_job(
-            job_id,
-            types::RemoteAcquisitionStatus::Validated,
-        ));
-    runtime
-        .inner
-        .lifecycle
-        .mark_job_failed(job_id, "late provider failure".to_string());
+        .apply_outcome(job_id, one_file_outcome(job_dir.join("download.m4b")));
+    runtime.inner.lifecycle.apply_outcome(
+        job_id,
+        AcquisitionOutcome::failed(
+            types::RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
+            "late provider failure".to_string(),
+        ),
+    );
 
     let job = published_job(&runtime);
     assert!(!job_dir.exists());
     assert_eq!(job.status, types::RemoteAcquisitionStatus::Cancelled);
     assert_eq!(job.progress.stage, AcquisitionStage::Cancelled);
-    assert!(job.materialized_files.is_empty());
     assert!(job
         .diagnostics
         .iter()
@@ -281,15 +267,8 @@ fn cancelling_a_finished_acquisition_keeps_its_files_for_the_session() {
     let root = TempDir::new().expect("temp root");
     let runtime = test_runtime(&root);
     let job_id = "remote-job-handoff";
-    let mut job = acquisition_job(job_id, types::RemoteAcquisitionStatus::Validated);
-    job.materialized_files.push(types::MaterializedSourceFile {
-        input_id: "input-1".to_string(),
-        title_id: "B000000001".to_string(),
-        path: root.path().join("book.m4b"),
-        size_bytes: 42,
-        sha256: "abc123".to_string(),
-    });
-    job.supplemental_assets.push(types::SupplementalAsset {
+    let mut outcome = one_file_outcome(root.path().join("book.m4b"));
+    outcome.assets.push(types::SupplementalAsset {
         asset_id: "asset-1".to_string(),
         input_id: "input-1".to_string(),
         title_id: "B000000001".to_string(),
@@ -298,16 +277,20 @@ fn cancelling_a_finished_acquisition_keeps_its_files_for_the_session() {
         size_bytes: 24,
         sha256: "def456".to_string(),
     });
-    runtime.inner.lifecycle.replace_job_if_active(job);
+    register(&runtime, job_id);
+    runtime.inner.lifecycle.apply_outcome(job_id, outcome);
 
     let answered = runtime
         .cancel_acquisition(job_id)
         .expect("cancel acquisition");
 
-    assert_eq!(answered.status, types::RemoteAcquisitionStatus::Validated);
-    let stored = published_job(&runtime);
-    assert_eq!(stored.materialized_files.len(), 1);
-    assert_eq!(stored.supplemental_assets.len(), 1);
+    assert_eq!(
+        answered.job.status,
+        types::RemoteAcquisitionStatus::Validated
+    );
+    let kept = handoff_job(&runtime, job_id).expect("the files still wait for the session");
+    assert_eq!(kept.materialized_files.len(), 1);
+    assert_eq!(kept.supplemental_assets.len(), 1);
 }
 
 #[tokio::test]
@@ -332,27 +315,31 @@ async fn a_finished_job_records_its_handoff() {
             .expect("job dir");
         let audio = job_dir.join("book.m4b");
         std::fs::write(&audio, b"payload").expect("write staged file");
-        let mut job = acquisition_job(job_id, types::RemoteAcquisitionStatus::Validated);
-        job.materialized_files.push(types::MaterializedSourceFile {
-            input_id: "input-1".to_string(),
-            title_id: "B000000001".to_string(),
-            path: audio.clone(),
-            size_bytes: 7,
-            sha256: String::new(),
-        });
+        register(&runtime, job_id);
+        runtime
+            .inner
+            .lifecycle
+            .apply_outcome(job_id, one_file_outcome(audio.clone()));
         let answered = answer.clone();
         runtime.set_handoff(Arc::new(move |_| {
             let answered = answered.clone();
             Box::pin(async move { answered })
         }));
-        runtime.inner.lifecycle.replace_job_if_active(job.clone());
 
-        runtime.inner.lifecycle.hand_off(&runtime, job).await;
+        runtime.inner.lifecycle.hand_off(&runtime, job_id).await;
 
         let stored = published_job(&runtime);
         assert_eq!(stored.handoff, Some(answer));
         assert!(audio.exists());
-        assert_eq!(stored.materialized_files.is_empty(), !kept);
+        let held = runtime
+            .inner
+            .lifecycle
+            .jobs
+            .lock()
+            .expect("jobs lock")
+            .get(job_id)
+            .is_some_and(Registered::holds_staged_files);
+        assert_eq!(held, kept);
     }
 }
 
@@ -437,15 +424,9 @@ async fn no_credential_read_starts_once_the_engine_is_closing() {
         "[indexer]\nurl = \"http://indexer.test\"\ncategories = [3000]\n",
     )
     .expect("write connection");
-    let reads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let runtime = test_runtime_with(
-        &root,
-        Some(Box::new(MemoryVault {
-            reads: reads.clone(),
-            ..Default::default()
-        })),
-        None,
-    );
+    let vault = MemoryVault::default();
+    let reads = vault.read_counter();
+    let runtime = test_runtime_with(&root, Some(Box::new(vault)), None);
     runtime.inner.tasks.close();
 
     let result = runtime
@@ -479,7 +460,7 @@ fn releasing_a_download_forgets_its_job() {
         .expect("jobs lock")
         .insert(
             job_id.to_string(),
-            acquisition_job(job_id, types::RemoteAcquisitionStatus::ImportedToFileList),
+            job_state::tests::imported(job_id, 1, Vec::new()),
         );
 
     runtime.purge_session(job_id).expect("download removed");
@@ -517,29 +498,15 @@ async fn logout_keeps_materialized_handoff_sessions_but_purges_unmaterialized_se
     std::fs::write(unmaterialized_job_dir.join("source.aax"), b"protected")
         .expect("write protected source");
 
-    let mut materialized_job = acquisition_job(
-        materialized_job_id,
-        types::RemoteAcquisitionStatus::ImportedToFileList,
-    );
-    materialized_job
-        .materialized_files
-        .push(types::MaterializedSourceFile {
-            input_id: "input-1".to_string(),
-            title_id: "B000000001".to_string(),
-            path: materialized_path.clone(),
-            size_bytes: 5,
-            sha256: "abc123".to_string(),
-        });
-    materialized_job.handoff = Some(AcquisitionHandoff::Imported { count: 1 });
+    let mut materialized_job = Registered::new(materialized_job_id);
+    materialized_job.finish(one_file_outcome(materialized_path.clone()));
+    materialized_job.handoff_done(AcquisitionHandoff::Imported { count: 1 });
     {
         let mut jobs = runtime.inner.lifecycle.jobs.lock().expect("jobs lock");
         jobs.insert(materialized_job_id.to_string(), materialized_job);
         jobs.insert(
             unmaterialized_job_id.to_string(),
-            acquisition_job(
-                unmaterialized_job_id,
-                types::RemoteAcquisitionStatus::Failed,
-            ),
+            job_state::tests::failed(unmaterialized_job_id, Vec::new()),
         );
     }
 
@@ -591,14 +558,8 @@ fn logout_cleanup_attempts_remaining_sessions_after_purge_failure() {
     .expect("create bad session symlink");
 
     let mut jobs = runtime.inner.lifecycle.jobs.lock().expect("jobs lock");
-    jobs.insert(
-        bad_job_id.to_string(),
-        acquisition_job(bad_job_id, types::RemoteAcquisitionStatus::Acquiring),
-    );
-    jobs.insert(
-        good_job_id.to_string(),
-        acquisition_job(good_job_id, types::RemoteAcquisitionStatus::Acquiring),
-    );
+    jobs.insert(bad_job_id.to_string(), Registered::new(bad_job_id));
+    jobs.insert(good_job_id.to_string(), Registered::new(good_job_id));
     drop(jobs);
 
     let error = runtime

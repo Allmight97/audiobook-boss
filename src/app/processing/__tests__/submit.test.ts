@@ -33,11 +33,30 @@ describe('submission snapshot adapter', () => {
 			expect(app.processing.status().stepText).toContain('Choose an output folder'),
 		);
 		expect(app.processing.isProcessing()).toBe(true);
-		expect(app.settings.concurrency().controlsEnabled).toBe(false);
+	});
+
+	it('locks the job count while the engine publishes its concurrency lock, not while a submit is in progress', async () => {
+		const engine = createFakeEngine();
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		expect(app.settings.concurrency().locked).toBe(false);
+
+		engine.change((state) => {
+			state.output.submissionInProgress = true;
+		});
+		await vi.waitFor(() => expect(app.processing.isProcessing()).toBe(true));
+		expect(app.settings.concurrency().locked).toBe(false);
+
+		engine.publishConcurrencyLock(true);
+		await vi.waitFor(() => expect(app.settings.concurrency().locked).toBe(true));
 		engine.change((state) => {
 			state.output.submissionInProgress = false;
 		});
-		await vi.waitFor(() => expect(app.settings.concurrency().controlsEnabled).toBe(true));
+		await vi.waitFor(() => expect(app.processing.isProcessing()).toBe(false));
+		expect(app.settings.concurrency().locked).toBe(true);
+
+		engine.publishConcurrencyLock(false);
+		await vi.waitFor(() => expect(app.settings.concurrency().locked).toBe(false));
 	});
 
 	it('says how many invalid files a Submit left out', async () => {
@@ -99,5 +118,26 @@ describe('submission snapshot adapter', () => {
 			{ kind: 'preview' },
 			{ kind: 'restartTitle', titleId: 'alpha', revision: 3 },
 		]);
+	});
+
+	it('drops a failed send from the status line once the engine reports a new submission', async () => {
+		const engine = createFakeEngine();
+		engine.respond = (intent) =>
+			intent.kind === 'submit'
+				? {
+						kind: 'rejected',
+						error: { code: 'io_error', category: 'io', message: 'Disk full', detail: null },
+					}
+				: undefined;
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		await app.processing.start();
+		expect(app.processing.status().stepText).toBe('Error: Processing failed: Disk full');
+		expect(app.processing.status().stepTone).toBe('error');
+		engine.change((state) => {
+			state.output.submission = { kind: 'preparing', preview: false };
+		});
+		await vi.waitFor(() => expect(app.processing.status().stepText).toBe('Current Step: Ready'));
+		expect(app.processing.status().stepTone).toBe('normal');
 	});
 });

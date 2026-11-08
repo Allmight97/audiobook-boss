@@ -1,5 +1,7 @@
+// oxlint-disable-next-line eslint/no-restricted-imports -- the recorded workflows replay the raw IPC wire.
 import { invoke } from '@tauri-apps/api/core';
 import { expect, vi } from 'vitest';
+import type { TauriCommandName } from '../tauriCommandNames';
 import sessionFresh from '../../lib/generated/fixtures/session-fresh.json';
 import sessionScenarios from '../../lib/generated/fixtures/session-scenarios.json';
 import settingsFresh from '../../lib/generated/fixtures/settings-fresh.json';
@@ -33,7 +35,8 @@ export function replayInvoke(
 	const scenario = scenarios.find((candidate) => candidate.name === name);
 	if (!scenario) throw new Error(`no recorded scenario named ${name}`);
 	const steps = scenario.steps.slice(0, options.through ?? scenario.steps.length);
-	const wanted = engine === 'session' ? 'session_dispatch' : 'settings_dispatch';
+	const wanted: TauriCommandName = engine === 'session' ? 'session_dispatch' : 'settings_dispatch';
+	const attach: TauriCommandName = 'attach_frontend';
 	const mismatches: string[] = [];
 	const fallback = vi.mocked(invoke).getMockImplementation();
 	let delivered = 0;
@@ -43,7 +46,7 @@ export function replayInvoke(
 	});
 
 	vi.mocked(invoke).mockImplementation(async (command, args) => {
-		if (command === 'attach_frontend') {
+		if (command === attach) {
 			return {
 				client: 1,
 				session: sessionFresh,

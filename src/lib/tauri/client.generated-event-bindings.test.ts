@@ -1,6 +1,5 @@
-import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { describe, expectTypeOf, it } from 'vitest';
 
-import { EVENTS } from '../../types/events';
 import type {
 	AcquisitionProgress,
 	ChapterSpec,
@@ -12,29 +11,6 @@ import type {
 } from '../generated/tauri';
 
 describe('tauriClient generated event bindings', () => {
-	beforeEach(() => {
-		vi.resetModules();
-		vi.clearAllMocks();
-		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
-	});
-
-	it('routes app events through generated tauri listeners', async () => {
-		const { listen } = await import('@tauri-apps/api/event');
-		const tauriListen = vi.mocked(listen);
-		const { tauriClient } = await import('./client');
-
-		await tauriClient.listen(EVENTS.SESSION_UPDATE, () => {});
-		await tauriClient.listen(EVENTS.WORK_OPERATIONS_UPDATE, () => {});
-
-		expect(tauriListen).toHaveBeenNthCalledWith(1, EVENTS.SESSION_UPDATE, expect.any(Function));
-		expect(tauriListen).toHaveBeenNthCalledWith(
-			2,
-			EVENTS.WORK_OPERATIONS_UPDATE,
-			expect.any(Function),
-		);
-		expect(tauriListen).toHaveBeenCalledTimes(2);
-	});
-
 	it('keeps bounded wide Rust values in the numeric IPC contract', () => {
 		expectTypeOf<AcquisitionProgress['percentage']>().toEqualTypeOf<number>();
 		expectTypeOf<ChapterSpec['startMs']>().toEqualTypeOf<number>();

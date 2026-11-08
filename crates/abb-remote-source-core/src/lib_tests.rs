@@ -1,60 +1,33 @@
 use super::*;
 
-#[cfg(unix)]
-use std::ffi::OsString;
-#[cfg(unix)]
-use std::os::unix::ffi::OsStringExt;
-#[cfg(unix)]
-use std::path::PathBuf;
-
 #[test]
-fn materialized_sources_classify_and_only_m4b_family_is_import_ready() {
-    let cases = [
-        ("book.m4b", MaterializedSourceKind::ImportReadyM4b, true),
-        ("book.m4a", MaterializedSourceKind::ImportReadyM4b, true),
-        ("book.aax", MaterializedSourceKind::EncryptedAax, false),
-        ("book.aaxc", MaterializedSourceKind::EncryptedAaxc, false),
-        ("book.pdf", MaterializedSourceKind::SupplementalPdf, false),
-        ("book.mpd", MaterializedSourceKind::Unsupported, false),
-        ("book.mp3", MaterializedSourceKind::Unsupported, false),
-    ];
-
-    for (path, kind, import_ready) in cases {
-        assert_eq!(
-            classify_materialized_source_path(Path::new(path)),
-            kind,
-            "{path}"
-        );
-        assert_eq!(
-            materialized_source_is_import_ready(kind),
-            import_ready,
-            "{path}"
-        );
+fn progress_never_goes_backward_across_stages() {
+    let mut last = 0.0;
+    for stage in [
+        AcquisitionStage::License,
+        AcquisitionStage::Download,
+        AcquisitionStage::Decryption,
+        AcquisitionStage::Validation,
+        AcquisitionStage::ImportHandoff,
+    ] {
+        for fraction in [0.0, 0.5, 1.0] {
+            let percentage = acquisition_progress(stage, Some(fraction), None, None).percentage;
+            assert!(
+                percentage >= last,
+                "{stage:?} at {fraction} went back from {last} to {percentage}"
+            );
+            last = percentage;
+        }
     }
-
-    #[cfg(unix)]
-    {
-        let path = PathBuf::from(OsString::from_vec(b"book.\xFFaax".to_vec()));
-        let kind = classify_materialized_source_path(&path);
-        assert_eq!(kind, MaterializedSourceKind::Unsupported);
-        assert!(!materialized_source_is_import_ready(kind));
-    }
+    assert!(last <= 100.0);
 }
 
 #[test]
-fn progress_plan_uses_truthful_stage_bands() {
-    let licensing = acquisition_progress(AcquisitionStage::License, Some(0.5), None, None);
+fn a_stage_keeps_its_byte_counts_and_a_title_scope_names_its_place_in_the_batch() {
     let downloading =
         acquisition_progress(AcquisitionStage::Download, Some(0.5), Some(50), Some(100));
     let decrypting = acquisition_progress(AcquisitionStage::Decryption, Some(0.5), None, None);
-    let validating = acquisition_progress(AcquisitionStage::Validation, Some(0.5), None, None);
-    let importing = acquisition_progress(AcquisitionStage::ImportHandoff, Some(0.5), None, None);
 
-    assert!((0.0..=15.0).contains(&licensing.percentage));
-    assert!((15.0..=65.0).contains(&downloading.percentage));
-    assert!((65.0..=90.0).contains(&decrypting.percentage));
-    assert!((90.0..=97.0).contains(&validating.percentage));
-    assert!((97.0..=100.0).contains(&importing.percentage));
     assert_eq!(downloading.bytes_downloaded, Some(50));
     assert_eq!(downloading.bytes_total, Some(100));
     assert!(decrypting.message.to_lowercase().contains("decrypt"));

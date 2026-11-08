@@ -41,7 +41,7 @@ impl StagedTempFile {
 
     pub(crate) async fn rename_and_commit(self, is_cancelled: impl Fn() -> bool) -> Result<()> {
         if is_cancelled() {
-            return Err(AppError::cancelled());
+            return Err(super::cancellation::remote_acquisition_cancelled());
         }
         if !tokio::fs::try_exists(&self.partial_path)
             .await

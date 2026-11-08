@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, vi } from 'vitest';
-import { audioFile, fakeEngine, resetFakeEngine } from './fixtures/fakeEngine';
+import { fakeEngine, resetFakeEngine } from './fixtures/fakeEngine';
+import type { TauriCommandName } from './tauriCommandNames';
 
 type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
 const eventListeners = new Map<string, Set<TestEventHandler>>();
@@ -16,7 +17,7 @@ function emitTestEvent(event: string, payload: unknown): void {
 vi.mock('@tauri-apps/api/core', () => ({
 	convertFileSrc: (path: string, protocol: string) =>
 		`${protocol}://localhost/${encodeURIComponent(path)}`,
-	invoke: vi.fn().mockImplementation((cmd: string, _args?: unknown) => {
+	invoke: vi.fn().mockImplementation((cmd: TauriCommandName, _args?: unknown) => {
 		const engineArgs = _args as {
 			client: number;
 			sequence: number;
@@ -75,30 +76,9 @@ Object.defineProperty(window, '__TAURI_INTERNALS__', {
 function startFakeEngine(): void {
 	resetFakeEngine();
 	const engine = fakeEngine();
-	engine.analyze = () => [
-		audioFile('/mock/path/chapter1.mp3', {
-			inputId: 'mock-input-1',
-			size: 15 * 1024 * 1024,
-			duration: 300,
-			bitrate: 64,
-			sampleRate: 44100,
-			channels: 1,
-			format: 'mp3',
-			codecLabel: 'MP3',
-			selectedDecoder: 'ffmpeg',
-		}),
-		audioFile('/mock/path/chapter2.mp3', {
-			inputId: 'mock-input-2',
-			size: 20 * 1024 * 1024,
-			duration: 400,
-			bitrate: 64,
-			sampleRate: 44100,
-			channels: 1,
-			format: 'mp3',
-			codecLabel: 'MP3',
-			selectedDecoder: 'ffmpeg',
-		}),
-	];
+	engine.analyze = () => {
+		throw new Error('seed analyze');
+	};
 	void engine.listenSessionUpdates((update) => emitTestEvent('session-update', update));
 }
 

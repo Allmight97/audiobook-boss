@@ -1,11 +1,14 @@
 import { toUserMessage } from '../../lib/tauri/appError';
-import type { SubmissionStatus, SubmitRefusal } from '../../types/session';
+import type { SubmissionStatus, SubmitRefusal } from '../../lib/generated/tauri';
 
-export interface SubmissionDisplay {
-	showStep: (message: string) => void;
-	showCompleted: (message: string) => void;
-	resetToIdle: () => void;
-	showError: (message: string) => void;
+export type SubmissionLine = {
+	readonly kind: 'step' | 'completed' | 'error';
+	readonly text: string;
+};
+
+export function processingFailure(error: unknown): string {
+	const message = toUserMessage(error, { fallback: '' });
+	return message ? `Processing failed: ${message}` : 'Processing failed.';
 }
 
 function refusalText(reason: SubmitRefusal): string {
@@ -46,46 +49,30 @@ function submittedText(leftOut: number): string {
 	return `Submitted to Work Center. ${files} left out.`;
 }
 
-export function renderSubmission(
-	display: SubmissionDisplay,
-	status: SubmissionStatus | null,
-): void {
+export function submissionLine(status: SubmissionStatus | null): SubmissionLine | null {
 	switch (status?.kind) {
 		case undefined:
 		case 'previewing':
 		case 'previewFinished':
 		case 'reviewRequired':
-			return;
 		case 'preparing':
-			display.resetToIdle();
-			return;
-		case 'submitted':
-			display.resetToIdle();
-			display.showStep(submittedText(status.leftOut));
-			return;
-		case 'finishedBeforeRestart':
-			display.showCompleted(
-				status.outputs.failed > 0
-					? 'The title finished before it could restart, and its tags could not be updated there. Save again to retry.'
-					: 'The title finished before it could restart; its tags were updated where it is.',
-			);
-			return;
-		case 'refused':
-			display.resetToIdle();
-			display.showError(refusalText(status.reason));
-			return;
-		case 'blocked':
-			display.resetToIdle();
-			display.showError(status.message);
-			return;
-		case 'failed':
-			display.resetToIdle();
-			display.showError(
-				`Processing failed: ${toUserMessage(status.error, { fallback: 'Processing failed.' })}`,
-			);
-			return;
 		case 'cancelled':
-			display.resetToIdle();
-			return;
+			return null;
+		case 'submitted':
+			return { kind: 'step', text: submittedText(status.leftOut) };
+		case 'finishedBeforeRestart':
+			return {
+				kind: 'completed',
+				text:
+					status.outputs.failed > 0
+						? 'The title finished before it could restart, and its tags could not be updated there. Save again to retry.'
+						: 'The title finished before it could restart; its tags were updated where it is.',
+			};
+		case 'refused':
+			return { kind: 'error', text: refusalText(status.reason) };
+		case 'blocked':
+			return { kind: 'error', text: status.message };
+		case 'failed':
+			return { kind: 'error', text: processingFailure(status.error) };
 	}
 }

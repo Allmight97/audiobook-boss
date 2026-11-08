@@ -1,30 +1,5 @@
 use super::*;
-use secrecy::SecretString;
-
-#[derive(Default)]
-struct TestVault {
-    secret: Option<SecretString>,
-    ephemeral: bool,
-}
-
-impl SecretVault for TestVault {
-    fn survives_restart(&self) -> bool {
-        !self.ephemeral
-    }
-
-    fn get_secret(&self, key: &str) -> Result<Option<SecretString>> {
-        assert!(key.starts_with("indexer.api_key:"));
-        Ok(self.secret.clone())
-    }
-
-    fn set_secret(&self, _key: &str, _value: SecretString) -> Result<()> {
-        Ok(())
-    }
-
-    fn delete_secret(&self, _key: &str) -> Result<()> {
-        Ok(())
-    }
-}
+use crate::remote_source::test_support::MemoryVault;
 
 #[test]
 fn account_state_requires_both_url_and_current_host_key() {
@@ -42,10 +17,9 @@ fn account_state_requires_both_url_and_current_host_key() {
             RemoteAccountStatus::Connected,
         ),
     ] {
-        let vault = TestVault {
-            secret: secret.map(|key| SecretString::from(key.to_string())),
-            ephemeral: false,
-        };
+        let vault = secret.map_or_else(MemoryVault::default, |key| {
+            MemoryVault::default().with_secret("indexer.api_key:http://indexer.test", key)
+        });
         let connection = IndexerConnection {
             base_url: url.map(str::to_string),
             ..IndexerConnection::default()
@@ -59,10 +33,7 @@ fn account_state_requires_both_url_and_current_host_key() {
 
 #[test]
 fn account_state_says_the_key_will_not_be_remembered_when_the_store_does_not_survive_restart() {
-    let vault = TestVault {
-        ephemeral: true,
-        ..TestVault::default()
-    };
+    let vault = MemoryVault::default().ephemeral();
     let needs_key = IndexerProvider::account_state(&IndexerConnection::default(), &vault)
         .expect("read account state");
     assert_eq!(
@@ -77,10 +48,9 @@ fn account_state_says_the_key_will_not_be_remembered_when_the_store_does_not_sur
         base_url: Some("http://indexer.test".to_string()),
         ..IndexerConnection::default()
     };
-    let vault = TestVault {
-        secret: Some(SecretString::from("key".to_string())),
-        ephemeral: true,
-    };
+    let vault = MemoryVault::default()
+        .with_secret("indexer.api_key:http://indexer.test", "key")
+        .ephemeral();
     let connected =
         IndexerProvider::account_state(&connection, &vault).expect("read account state");
     assert_eq!(connected.status, RemoteAccountStatus::Connected);

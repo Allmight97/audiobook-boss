@@ -1,6 +1,4 @@
-import type { AudioFile } from '../../types/audio';
-
-type InputSortDirection = 'none' | 'ascending' | 'descending';
+import type { AudioFile, SortDirection } from '../../lib/generated/tauri';
 
 export type SelectionModifiers = {
 	readonly multi: boolean;
@@ -11,6 +9,7 @@ export type InputView = {
 	readonly files: ReadonlyArray<AudioFile>;
 	readonly sourceFiles: ReadonlyArray<AudioFile>;
 	readonly selectedSourceFiles: ReadonlyArray<AudioFile>;
+	readonly selectedTitles: ReadonlyArray<AudioFile>;
 	readonly selectedIndices: ReadonlyArray<number>;
 	readonly selectedAnchor: number;
 	readonly fileCount: number;
@@ -19,7 +18,7 @@ export type InputView = {
 	readonly errorMessage: string;
 	readonly isDragOver: boolean;
 	readonly supportText: string;
-	readonly sortDirection: InputSortDirection;
+	readonly sortDirection: SortDirection;
 	readonly sortLabel: string;
 	readonly orderDiffersFromImport: boolean;
 	readonly showSortButton: boolean;

@@ -80,32 +80,3 @@ fn a_result_supplies_only_the_fields_it_has() {
         }
     );
 }
-
-#[test]
-fn opening_with_several_titles_queues_them_and_opening_with_none_says_so() {
-    let mut lookup = LookupState::default();
-    let queued = |name: &str| QueuedTitle {
-        title_id: name.to_string(),
-        path: PathBuf::from(format!("/books/{name}.m4b")),
-        label: name.to_string(),
-    };
-
-    lookup.open(
-        vec![queued("a"), queued("b")],
-        Some(&stored(Some("A"), None)),
-    );
-    let snapshot = lookup.snapshot(1);
-    assert!(snapshot.open && snapshot.is_queue_mode);
-    assert_eq!(snapshot.apply_mode, LookupApplyMode::Queue);
-    assert_eq!(snapshot.title_query, "A");
-    assert_eq!(
-        snapshot.queue_position.map(|position| position.total),
-        Some(2)
-    );
-
-    lookup.open(Vec::new(), None);
-    let snapshot = lookup.snapshot(2);
-    assert_eq!(snapshot.status, Some(LookupStatus::NoValidTitle));
-    assert_eq!(snapshot.apply_mode, LookupApplyMode::Current);
-    assert!(snapshot.queue_position.is_none());
-}

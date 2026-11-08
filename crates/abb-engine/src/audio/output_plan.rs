@@ -1,9 +1,19 @@
-use super::{EncoderSettings, EncoderType, FileListInfo, SampleRateConfig};
-use crate::{
-    errors::{AppError, Result},
-    processing::AudioHandling,
-};
+use super::{AudioFile, EncoderSettings, FileListInfo, SampleRateConfig};
+use crate::errors::{AppError, Result};
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(tag = "handling", rename_all = "camelCase")]
+pub enum AudioHandling {
+    Encode { settings: EncoderSettings },
+    Preserve,
+}
+
+impl AudioHandling {
+    pub fn preserves(&self) -> bool {
+        matches!(self, Self::Preserve)
+    }
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -15,14 +25,10 @@ pub enum AudiobookFormat {
 }
 impl AudiobookFormat {
     pub fn extension(self) -> &'static str {
-        match self {
-            Self::M4b => "m4b",
-            Self::M4aOpus => "m4a",
-            Self::MkaOpus => "mka",
-        }
+        self.spec().extension
     }
     pub fn is_opus(self) -> bool {
-        matches!(self, Self::M4aOpus | Self::MkaOpus)
+        self.spec().codec_family == super::CodecFamily::Opus
     }
 }
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -32,6 +38,9 @@ pub enum AudioIntent {
     Auto,
     Preserve,
     Encode,
+}
+impl AudioIntent {
+    pub(crate) const ALL: [Self; 3] = [Self::Auto, Self::Preserve, Self::Encode];
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "format", rename_all = "camelCase")]
@@ -191,9 +200,7 @@ pub fn resolve_title_audio(
         .files
         .iter()
         .any(|file| file.chapter_plan.as_ref().is_some_and(|plan| plan.from_cue));
-    if cue && info.files.len() > 1 {
-        return Err(AppError::InvalidInput("Merging CUE-bearing inputs is not supported. Separate the titles or ignore CUE chapters.".into()).into());
-    }
+    FileListInfo::check_cue_chapters(&info.files)?;
     let mut reason = cue.then(|| "Encoding applies the accepted CUE chapters.".into());
     if !preview && request.intent != AudioIntent::Encode && !cue {
         reason = copy_rejection(request, info)?;
@@ -225,7 +232,7 @@ pub fn resolve_title_audio(
 
 fn copy_rejection(request: &TitleAudioRequest, info: &FileListInfo) -> Result<Option<String>> {
     let format = request.format();
-    let keeping_formats = formats_that_keep(&source_codecs(info)?);
+    let keeping_formats = formats_that_keep(&info.files);
     if !keeping_formats.contains(&format) {
         let extension = format.extension().to_uppercase();
         return Ok(Some(if request.intent != AudioIntent::Preserve {
@@ -274,7 +281,7 @@ fn encoding_plan(
     } else {
         requested.clone()
     };
-    if format.is_opus() != (settings.encoder_type == EncoderType::Opus) {
+    if !format.spec().encoders.contains(&settings.encoder_type) {
         return Err(AppError::InvalidInput(
             "The encoder must match the selected output format.".into(),
         )
@@ -301,7 +308,7 @@ fn encoding_plan(
         encoder_type,
         &settings,
         std::slice::from_ref(info),
-        &SampleRateConfig::Explicit(sample_rate),
+        sample_rate,
     )?;
     Ok(TitleAudioPlan {
         format,
@@ -316,33 +323,15 @@ fn encoding_plan(
     })
 }
 
-fn source_codecs(info: &FileListInfo) -> Result<Vec<Option<ffmpeg_next::codec::Id>>> {
-    info.files
-        .iter()
-        .map(|file| {
-            let path = super::validate_input_audio_path(&file.path)?;
-            let input = ffmpeg_next::format::input(&path)?;
-            Ok(input
-                .streams()
-                .best(ffmpeg_next::media::Type::Audio)
-                .map(|stream| stream.parameters().id()))
+fn formats_that_keep(files: &[AudioFile]) -> Vec<AudiobookFormat> {
+    super::FORMATS
+        .into_iter()
+        .filter(|spec| {
+            files.iter().all(|file| {
+                file.preservation
+                    .is_some_and(|source| source.codec_family == Some(spec.codec_family))
+            })
         })
+        .map(|spec| spec.format)
         .collect()
-}
-
-fn formats_that_keep(codecs: &[Option<ffmpeg_next::codec::Id>]) -> Vec<AudiobookFormat> {
-    [
-        AudiobookFormat::M4b,
-        AudiobookFormat::M4aOpus,
-        AudiobookFormat::MkaOpus,
-    ]
-    .into_iter()
-    .filter(|format| {
-        let expected = match format {
-            AudiobookFormat::M4b => ffmpeg_next::codec::Id::AAC,
-            _ => ffmpeg_next::codec::Id::OPUS,
-        };
-        codecs.iter().all(|codec| *codec == Some(expected))
-    })
-    .collect()
 }

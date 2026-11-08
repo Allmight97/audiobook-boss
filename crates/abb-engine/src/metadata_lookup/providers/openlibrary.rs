@@ -3,8 +3,8 @@ use reqwest::Client;
 use serde::Deserialize;
 
 use super::super::types::{MetadataSource, OnlineMetadataResult};
+use super::ProviderEndpoints;
 
-const OPENLIBRARY_BASE_URL: &str = "https://openlibrary.org";
 const OPENLIBRARY_COVER_URL: &str = "https://covers.openlibrary.org/b/id";
 
 #[derive(Debug, Deserialize)]
@@ -51,13 +51,14 @@ fn map_openlibrary_doc(doc: OpenLibraryDoc) -> OnlineMetadataResult {
 
 pub(in crate::metadata_lookup) async fn fetch_openlibrary_search(
     client: &Client,
+    endpoints: &ProviderEndpoints,
     query: &str,
     limit: u8,
 ) -> Result<Vec<OnlineMetadataResult>> {
     let fields = "key,title,author_name,cover_i,first_publish_year,description";
     let limit = limit.to_string();
     let response = client
-        .get(format!("{OPENLIBRARY_BASE_URL}/search.json"))
+        .get(format!("{}/search.json", endpoints.openlibrary))
         .query(&[("q", query), ("fields", fields), ("limit", limit.as_str())])
         .send()
         .await

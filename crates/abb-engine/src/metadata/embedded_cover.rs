@@ -6,6 +6,7 @@
 //! returns no thumbnail for an unrecognized container rather than taking an
 //! unbounded fallback path.
 
+use super::cover_choice::CoverChoice;
 use super::thumbnail::THUMBNAIL_MAX_ENCODED_BYTES;
 use crate::errors::{AppError, Result};
 use std::fs::File;
@@ -83,12 +84,12 @@ fn read_id3_cover(file: &mut File, start: u64, span_len: u64) -> Result<Option<V
     if header[5] & 0x40 != 0 {
         cursor = skip_id3_extended_header(file, cursor, tag_end, version)?;
     }
-    let mut fallback = None;
+    let mut choice = CoverChoice::default();
 
     for _ in 0..MAX_CONTAINER_RECORDS {
         let header_len = if version == 2 { 6 } else { 10 };
         if cursor.saturating_add(header_len) > tag_end {
-            return Ok(fallback);
+            return Ok(choice.fallback());
         }
         let mut frame_header = [0u8; 10];
         read_exact_at(
@@ -101,7 +102,7 @@ fn read_id3_cover(file: &mut File, start: u64, span_len: u64) -> Result<Option<V
             .iter()
             .all(|byte| *byte == 0)
         {
-            return Ok(fallback);
+            return Ok(choice.fallback());
         }
 
         let (is_picture, frame_size, frame_flags) = id3_frame_fields(&frame_header, version)?;
@@ -125,10 +126,9 @@ fn read_id3_cover(file: &mut File, start: u64, span_len: u64) -> Result<Option<V
                 frame_flags,
                 tag_unsynchronized,
             )? {
-                if picture_type == 3 {
-                    return Ok(Some(image));
+                if let Some(front) = choice.offer(picture_type == 3, image) {
+                    return Ok(Some(front));
                 }
-                fallback.get_or_insert(image);
             }
         }
 
@@ -364,7 +364,7 @@ fn remove_id3_unsynchronization(bytes: &mut Vec<u8>) {
 
 fn read_flac_cover(file: &mut File, file_len: u64) -> Result<Option<Vec<u8>>> {
     let mut cursor = 4u64;
-    let mut fallback = None;
+    let mut choice = CoverChoice::default();
     for _ in 0..MAX_CONTAINER_RECORDS {
         let mut header = [0u8; 4];
         read_exact_at(file, cursor, &mut header, file_len)?;
@@ -390,22 +390,21 @@ fn read_flac_cover(file: &mut File, file_len: u64) -> Result<Option<Vec<u8>>> {
                 }
                 cursor = block_end;
                 if is_last {
-                    return Ok(fallback);
+                    return Ok(choice.fallback());
                 }
                 continue;
             }
             let mut block = vec![0u8; block_len as usize];
             read_exact_at(file, cursor, &mut block, block_end)?;
             if let Some((picture_type, image)) = extract_flac_picture(block)? {
-                if picture_type == 3 {
-                    return Ok(Some(image));
+                if let Some(front) = choice.offer(picture_type == 3, image) {
+                    return Ok(Some(front));
                 }
-                fallback.get_or_insert(image);
             }
         }
         cursor = block_end;
         if is_last {
-            return Ok(fallback);
+            return Ok(choice.fallback());
         }
     }
     Err(cover_error(

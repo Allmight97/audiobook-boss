@@ -1,96 +1,60 @@
-use super::{AlbumSortWriteAction, AudiobookMetadata, MetadataWritePlan};
-use crate::errors::Result;
-use crate::metadata::metadata_sinks::{
-    apply_metadata_field_ops_to_ffmpeg_dict, ExistingKeyRemoval,
-};
+use super::container::Container;
+use super::field_schema::{ALBUM_SORT_KEYS, MP4_ALBUM_SORT_KEY};
+use super::{AudiobookMetadata, MetadataWritePlan};
+use crate::metadata::metadata_sinks::{ffmpeg_dict_for_ops, ExistingKeyRemoval};
+use abb_metadata_core::PatchOp;
 
 use ffmpeg_next as ff;
-
-pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dictionary<'_>> {
-    let mut dict = ff::Dictionary::new();
-    apply_metadata_field_ops_to_ffmpeg_dict(&mut dict, metadata)?;
-    dict.set("media_type", "2");
-
-    if let Some(ref album_sort) = metadata.album_sort {
-        if !album_sort.trim().is_empty() {
-            dict.set("sort_album", album_sort);
-        }
-    }
-
-    Ok(dict)
-}
-
-pub(crate) const MP4_ALBUM_SORT_KEY: &str = "sort_album";
-pub(crate) const ID3_ALBUM_SORT_KEY: &str = "album-sort";
-
-pub(crate) fn album_sort_key(container: &str) -> &'static str {
-    if container == "mp3" {
-        ID3_ALBUM_SORT_KEY
-    } else {
-        MP4_ALBUM_SORT_KEY
-    }
-}
 
 pub(crate) fn merge_metadata_with_plan<'a>(
     existing: ff::Dictionary<'a>,
     plan: &MetadataWritePlan,
-    container: &str,
-) -> Result<ff::Dictionary<'a>> {
-    let metadata = &plan.metadata;
-    let removal = ExistingKeyRemoval::for_metadata(metadata);
-    let overrides = metadata_to_ffmpeg_dict(metadata)?;
+    container: &Container,
+) -> ff::Dictionary<'a> {
+    let removal = ExistingKeyRemoval::for_plan(plan);
     let new_album_sort = match &plan.album_sort {
-        AlbumSortWriteAction::Set(value) if !value.trim().is_empty() => Some(value.as_str()),
-        _ => overrides.get(MP4_ALBUM_SORT_KEY),
+        Some(PatchOp::Set(value)) => Some(value.as_str()),
+        _ => None,
     };
-    let replaces_album_sort =
-        plan.album_sort == AlbumSortWriteAction::Clear || new_album_sort.is_some();
     let mut merged = ff::Dictionary::new();
     for (key, value) in existing.iter() {
-        let is_album_sort = key.eq_ignore_ascii_case(MP4_ALBUM_SORT_KEY)
-            || key.eq_ignore_ascii_case(ID3_ALBUM_SORT_KEY);
-        if (replaces_album_sort && is_album_sort) || removal.removes(key) {
+        let is_album_sort = ALBUM_SORT_KEYS
+            .iter()
+            .any(|sort_key| key.eq_ignore_ascii_case(sort_key));
+        if (plan.album_sort.is_some() && is_album_sort) || removal.removes(key) {
             continue;
         }
         merged.set(key, value);
     }
 
-    for (key, value) in overrides
-        .iter()
-        .filter(|(key, _)| *key != MP4_ALBUM_SORT_KEY)
-    {
+    for (key, value) in ffmpeg_dict_for_ops(&plan.ops).iter() {
         merged.set(key, value);
     }
     if let Some(value) = new_album_sort {
-        merged.set(album_sort_key(container), value);
+        merged.set(container.album_sort_key(), value);
     }
 
-    Ok(merged)
+    merged
 }
 
 pub fn set_container_metadata(
     octx: &mut ff::format::context::Output,
     metadata: &AudiobookMetadata,
-) -> Result<()> {
-    super::metadata_ops::log_field_decisions(
-        metadata,
-        if metadata
-            .album_sort
-            .as_ref()
-            .is_some_and(|s| !s.trim().is_empty())
-        {
-            "set"
-        } else {
-            "preserve"
-        },
-        "ffmpeg_encode",
-        "current_encoder",
-    );
-    let dict = metadata_to_ffmpeg_dict(metadata)?;
+) {
+    let plan = MetadataWritePlan::from_metadata(metadata);
+    let album_sort = if matches!(plan.album_sort, Some(PatchOp::Set(_))) {
+        "set"
+    } else {
+        "preserve"
+    };
+    super::plan_log::log_field_decisions(&plan, album_sort, "ffmpeg_encode", "current_encoder");
+    let mut dict = ffmpeg_dict_for_ops(&plan.ops);
+    if let Some(PatchOp::Set(value)) = &plan.album_sort {
+        dict.set(MP4_ALBUM_SORT_KEY, value);
+    }
     octx.set_metadata(dict);
 
     log::debug!("Container metadata set via ffmpeg-next");
-    Ok(())
 }
 
 #[cfg(test)]

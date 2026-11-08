@@ -4,7 +4,7 @@ import type { JSX } from '@solidjs/web';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, CoverImage, CoverThumb, Dialog } from '../foundation';
 import { coverSrc } from '../../lib/tauri/coverSrc';
-import type { OnlineMetadataResult } from '../../types/metadata';
+import type { OnlineMetadataResult } from '../../lib/generated/tauri';
 import './metadataLookup.css';
 
 function formatPublicationDate(value: string | null): string {
@@ -225,7 +225,10 @@ export function MetadataLookupView(): JSX.Element {
 								data-testid="metadata-lookup-manual-entry-btn"
 								onClick={() => {
 									setRestoreFocus(false);
-									void runLookup({ type: 'manualEntry' });
+									void runLookup({
+										type: 'manualEntry',
+										afterClose: () => document.getElementById('meta-title')?.focus(),
+									});
 								}}
 							>
 								Use Manual Entry

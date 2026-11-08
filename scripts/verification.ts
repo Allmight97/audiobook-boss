@@ -15,6 +15,12 @@ import picomatch from 'picomatch';
 import { isScalar, isSeq, parseDocument } from 'yaml';
 
 type LaneMap = Record<string, string[]>;
+export interface LaneInfo {
+	name: string;
+	job: string;
+	platforms: string[];
+	tools: string[];
+}
 interface RustJob {
 	os: string;
 	lanes: string[];
@@ -59,27 +65,60 @@ export function requiredLanes(map: LaneMap, lanes: string[], files: string[]): s
 	});
 }
 
-const NATIVE_LANES = ['engine', 'media', 'host', 'decrypt'];
+export function parseLaneTable(text: string): LaneInfo[] {
+	return text
+		.trim()
+		.split('\n')
+		.map((line) => {
+			const [name, job, platforms, tools, ...extra] = line.trim().split(/\s+/);
+			if (!name || !job || !platforms || !tools || extra.length > 0)
+				throw new Error(`Invalid lane description: ${line}`);
+			return { name, job, platforms: platforms.split(','), tools: tools.split(',') };
+		});
+}
 
-export function planJobs(lanes: string[]): Jobs {
-	const nativeLanes = lanes.filter((lane) => NATIVE_LANES.includes(lane));
-	const macLanes = [...(lanes.includes('core') ? ['core'] : []), ...nativeLanes];
-	if (nativeLanes.length > 0 || lanes.includes('apple')) macLanes.push('apple');
+function laneInfo(table: LaneInfo[], name: string): LaneInfo {
+	const info = table.find((lane) => lane.name === name);
+	if (!info) throw new Error(`Unknown lane: ${name}`);
+	return info;
+}
+
+function nativeLaneNames(table: LaneInfo[]): string[] {
+	return table
+		.filter((lane) => lane.job === 'rust' && lane.platforms.includes('linux'))
+		.map((lane) => lane.name);
+}
+
+function darwinOnlyLaneNames(table: LaneInfo[]): string[] {
+	return table
+		.filter((lane) => lane.platforms.length === 1 && lane.platforms[0] === 'darwin')
+		.map((lane) => lane.name);
+}
+
+export function planJobs(lanes: string[], table: LaneInfo[]): Jobs {
+	const nativeLanes = lanes.filter((lane) => nativeLaneNames(table).includes(lane));
+	const darwinOnly = darwinOnlyLaneNames(table);
+	const appleLanes = lanes.filter((lane) => darwinOnly.includes(lane));
+	const macLanes = lanes.filter(
+		(lane) => laneInfo(table, lane).platforms.includes('darwin') && !darwinOnly.includes(lane),
+	);
+	if (nativeLanes.length > 0 || appleLanes.length > 0) macLanes.push(...darwinOnly);
+	const needsFrontend = nativeLanes.some((lane) => laneInfo(table, lane).tools.includes('node'));
 	const rust: RustJob[] = [];
 	if (nativeLanes.length > 0) {
 		rust.push({
 			os: 'ubuntu-24.04',
 			lanes: nativeLanes,
 			native: true,
-			frontend: lanes.includes('host'),
+			frontend: needsFrontend,
 		});
 	}
 	if (macLanes.length > 0) {
 		rust.push({
 			os: 'macos-26',
 			lanes: macLanes,
-			native: nativeLanes.length > 0 || lanes.includes('apple'),
-			frontend: lanes.includes('host'),
+			native: nativeLanes.length > 0 || appleLanes.length > 0,
+			frontend: needsFrontend,
 		});
 	}
 	return {
@@ -194,15 +233,20 @@ function git(root: string, args: string[]): string {
 	return execFileSync('git', args, { cwd: root, encoding: 'utf8' });
 }
 
-function config(root: string): { map: LaneMap; lanes: string[] } {
-	const lanes = execFileSync('bash', ['scripts/verify.sh', '--list'], {
-		cwd: root,
-		encoding: 'utf8',
-	})
-		.trim()
-		.split('\n');
+interface Config {
+	map: LaneMap;
+	lanes: string[];
+	table: LaneInfo[];
+}
+
+function config(root: string): Config {
+	const table = parseLaneTable(
+		execFileSync('bash', ['scripts/verify.sh', '--describe'], { cwd: root, encoding: 'utf8' }),
+	);
+	const lanes = table.map((lane) => lane.name);
 	return {
 		lanes,
+		table,
 		map: laneMap(readFileSync(path.join(root, 'scripts/lane-paths.yml'), 'utf8'), lanes),
 	};
 }
@@ -233,39 +277,52 @@ function version(command: string, args: string[]): string {
 	return result.status === 0 ? result.stdout.trim() || result.stderr.trim() : 'unavailable';
 }
 
-function toolIdentity(root: string, lane: string): Record<string, string> {
-	const tools: Record<string, string> = { bun: version('bun', ['--version']) };
-	if (['frontend', 'tooling', 'host'].includes(lane)) tools.node = version('node', ['--version']);
-	if (['core', 'apple', 'supply-chain', ...NATIVE_LANES].includes(lane)) {
-		tools.rustc = version('rustc', ['-vV']);
-		tools.cargo = version('cargo', ['--version']);
-		if (process.platform === 'linux') {
-			tools.clang = version('clang', ['--version']);
-			tools.mold = version('mold', ['--version']);
-		}
-	}
-	if (['apple', ...NATIVE_LANES].includes(lane)) {
-		tools.cc = version(process.env.CC ?? 'cc', ['--version']);
-		tools.opus = version('pkg-config', ['--modversion', 'opus']);
-		tools.ffmpeg = version(process.env.ABB_FFMPEG ?? 'ffmpeg', ['-version']);
-		tools.ffprobe = version(process.env.ABB_FFPROBE ?? 'ffprobe', ['-version']);
-		if (process.platform === 'darwin') tools.sdk = version('xcrun', ['--show-sdk-version']);
-	}
-	if (lane === 'decrypt') {
-		tools.dotnet = version('dotnet', ['--version']);
-		const host = /^host: (.+)$/m.exec(tools.rustc)?.[1];
-		const helper = path.join(root, 'src-tauri/binaries', `abb-aaxclean-helper-${host}`);
-		tools.helper =
-			host && existsSync(helper)
+interface ToolProbe {
+	platform?: NodeJS.Platform;
+	version: (root: string, known: Record<string, string>) => string;
+}
+
+const commandProbe = (name: string, args: string[]): ToolProbe => ({
+	version: () => version(name, args),
+});
+
+export const TOOL_PROBES: Record<string, ToolProbe> = {
+	bun: commandProbe('bun', ['--version']),
+	node: commandProbe('node', ['--version']),
+	rustc: commandProbe('rustc', ['-vV']),
+	cargo: commandProbe('cargo', ['--version']),
+	clang: { platform: 'linux', version: () => version('clang', ['--version']) },
+	mold: { platform: 'linux', version: () => version('mold', ['--version']) },
+	cc: { version: () => version(process.env.CC ?? 'cc', ['--version']) },
+	opus: commandProbe('pkg-config', ['--modversion', 'opus']),
+	ffmpeg: { version: () => version(process.env.ABB_FFMPEG ?? 'ffmpeg', ['-version']) },
+	ffprobe: { version: () => version(process.env.ABB_FFPROBE ?? 'ffprobe', ['-version']) },
+	sdk: { platform: 'darwin', version: () => version('xcrun', ['--show-sdk-version']) },
+	dotnet: commandProbe('dotnet', ['--version']),
+	helper: {
+		version: (root, known) => {
+			const host = /^host: (.+)$/m.exec(known.rustc ?? '')?.[1];
+			const helper = path.join(root, 'src-tauri/binaries', `abb-aaxclean-helper-${host}`);
+			return host && existsSync(helper)
 				? createHash('sha256').update(readFileSync(helper)).digest('hex')
 				: 'unavailable';
-	}
-	if (lane === 'core')
-		tools.lizard = version('bash', ['scripts/check-rust-complexity.sh', '--version']);
-	if (lane === 'tooling') {
-		tools.zizmor = version('bash', ['scripts/check-workflows.sh', '--version']);
-		tools.actionlint = version('actionlint', ['-version']);
-		tools.shellcheck = version('shellcheck', ['--version']);
+		},
+	},
+	'cargo-audit': commandProbe('cargo', ['audit', '--version']),
+	'cargo-deny': commandProbe('cargo', ['deny', '--version']),
+	lizard: commandProbe('bash', ['scripts/check-rust-complexity.sh', '--version']),
+	zizmor: commandProbe('bash', ['scripts/check-workflows.sh', '--version']),
+	actionlint: commandProbe('actionlint', ['-version']),
+	shellcheck: commandProbe('shellcheck', ['--version']),
+};
+
+function toolIdentity(root: string, lane: LaneInfo): Record<string, string> {
+	const tools: Record<string, string> = {};
+	for (const name of lane.tools) {
+		const probe = TOOL_PROBES[name];
+		if (!probe) throw new Error(`Lane ${lane.name} names a tool with no version command: ${name}`);
+		if (probe.platform && probe.platform !== process.platform) continue;
+		tools[name] = probe.version(root, tools);
 	}
 	return tools;
 }
@@ -309,7 +366,7 @@ export function toolingRatchetIdentity(root: string): { head: string; mergeBase:
 	}
 }
 
-function inputs(root: string, lane: string, map: LaneMap): Inputs {
+function inputs(root: string, lane: string, { map, table }: Config): Inputs {
 	const matches = picomatch(map[lane] ?? [], { dot: true });
 	const common = new Set([
 		'scripts/verification.ts',
@@ -319,7 +376,7 @@ function inputs(root: string, lane: string, map: LaneMap): Inputs {
 		'.gitignore',
 	]);
 	const files = repositoryFiles(root).filter((file) => matches(file) || common.has(file));
-	const tools = toolIdentity(root, lane);
+	const tools = toolIdentity(root, laneInfo(table, lane));
 	const environment = Object.fromEntries(
 		[
 			'CC',
@@ -368,13 +425,16 @@ function receiptPath(root: string, lane: string): string {
 	);
 }
 
-function remaining(root: string, map: LaneMap, lanes: string[], files: string[]): string[] {
-	const selected = requiredLanes(map, lanes, files);
-	if (process.platform === 'darwin' && selected.some((lane) => NATIVE_LANES.includes(lane)))
-		selected.push('apple');
+function remaining(root: string, plan: Config, files: string[]): string[] {
+	const selected = requiredLanes(plan.map, plan.lanes, files);
+	if (
+		process.platform === 'darwin' &&
+		selected.some((lane) => nativeLaneNames(plan.table).includes(lane))
+	)
+		selected.push(...darwinOnlyLaneNames(plan.table));
 	return selected.filter(
 		(lane) =>
-			!receiptMatches(readReceipt(receiptPath(root, lane)), inputs(root, lane, map).fingerprint),
+			!receiptMatches(readReceipt(receiptPath(root, lane)), inputs(root, lane, plan).fingerprint),
 	);
 }
 
@@ -387,14 +447,14 @@ function writeJson(file: string, value: unknown): void {
 
 function record(
 	root: string,
-	map: LaneMap,
+	plan: Config,
 	run: string,
 	lane: string,
 	code: string,
 	elapsed: string,
 ): void {
 	const before = JSON.parse(readFileSync(path.join(run, `${lane}.inputs.json`), 'utf8')) as Inputs;
-	const after = inputs(root, lane, map);
+	const after = inputs(root, lane, plan);
 	const durationSeconds = Number(elapsed);
 	if (!Number.isFinite(durationSeconds) || durationSeconds < 0)
 		throw new Error('Invalid proof duration');
@@ -421,7 +481,7 @@ function record(
 		throw new Error(`${lane}: inputs changed during verification; rerun this lane`);
 }
 
-function emitPlan(root: string, map: LaneMap, lanes: string[], base?: string): void {
+function emitPlan(root: string, { map, lanes, table }: Config, base?: string): void {
 	requiredLanes(map, lanes, repositoryFiles(root));
 	const selected =
 		base === '--advisories'
@@ -429,7 +489,7 @@ function emitPlan(root: string, map: LaneMap, lanes: string[], base?: string): v
 			: base
 				? requiredLanes(map, lanes, changedFiles(root, base))
 				: lanes;
-	const jobs = planJobs(selected);
+	const jobs = planJobs(selected, table);
 	const output = {
 		frontend: String(jobs.frontend),
 		core: String(jobs.core),
@@ -471,54 +531,54 @@ function summarize(run: string): void {
 		);
 }
 
-function resolveForHarness(root: string, map: LaneMap, lanes: string[]): void {
+function resolveForHarness(root: string, plan: Config): void {
 	const input = JSON.parse(readFileSync(0, 'utf8')) as { changed?: unknown };
 	if (!Array.isArray(input.changed) || !input.changed.every((file) => typeof file === 'string'))
 		throw new Error('resolve requires changed paths');
-	const needed = remaining(root, map, lanes, input.changed);
+	const needed = remaining(root, plan, input.changed);
 	if (needed.length > 0) console.log(`bash scripts/verify.sh ${needed.join(' ')}`);
 }
 
 function planCommand(
 	root: string,
-	map: LaneMap,
-	lanes: string[],
+	plan: Config,
 	first: string | undefined,
 	second: string | undefined,
 ): void {
 	if (first !== '--explain') {
-		emitPlan(root, map, lanes, first);
+		emitPlan(root, plan, first);
 		return;
 	}
 	if (!second) throw new Error('plan --explain requires a path');
 	const yaml = readFileSync(path.join(root, 'scripts/lane-paths.yml'), 'utf8');
-	console.log(formatExplanation(second, explainPath(yaml, lanes, second)));
+	console.log(formatExplanation(second, explainPath(yaml, plan.lanes, second)));
 }
 
 function main(): void {
 	const root = path.resolve(import.meta.dirname, '..');
-	const { map, lanes } = config(root);
+	const plan = config(root);
+	const { lanes } = plan;
 	const [command, first, second, third, fourth] = process.argv.slice(2);
 	switch (command) {
 		case 'plan':
-			planCommand(root, map, lanes, first, second);
+			planCommand(root, plan, first, second);
 			return;
 		case 'needed':
 			if (!first) throw new Error('needed requires a base revision');
-			console.log(remaining(root, map, lanes, changedFiles(root, first)).join('\n'));
+			console.log(remaining(root, plan, changedFiles(root, first)).join('\n'));
 			return;
 		case 'resolve':
-			resolveForHarness(root, map, lanes);
+			resolveForHarness(root, plan);
 			return;
 		case 'prepare':
 			if (!first || !lanes.includes(second))
 				throw new Error('prepare requires a run directory and known lane');
-			writeJson(path.join(first, `${second}.inputs.json`), inputs(root, second, map));
+			writeJson(path.join(first, `${second}.inputs.json`), inputs(root, second, plan));
 			return;
 		case 'record':
 			if (!first || !lanes.includes(second) || !third || !fourth)
 				throw new Error('record requires a run directory, known lane, exit code, and seconds');
-			record(root, map, first, second, third, fourth);
+			record(root, plan, first, second, third, fourth);
 			return;
 		case 'summarize':
 			if (!first) throw new Error('summarize requires a run directory');

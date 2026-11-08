@@ -1,4 +1,4 @@
-import type { FrontendLogLevel } from '../types/frontendLog';
+import type { FrontendLogLevel } from './generated/tauri';
 import { isAppErrorEnvelope } from './tauri/appError';
 import { tauriClient } from './tauri/client';
 
@@ -43,7 +43,7 @@ function rollRateLimitWindow(nowMs: number): number {
 }
 
 function sendLogFrontend(level: FrontendLogLevel, scope: string, message: string): void {
-	void tauriClient.logFrontend({ level, scope, message }).catch(() => undefined);
+	void tauriClient.commands.logFrontend({ level, scope, message }).catch(() => undefined);
 }
 
 function forward(scope: string, message: string): void {

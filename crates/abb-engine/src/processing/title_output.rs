@@ -4,13 +4,12 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use serde::{Deserialize, Serialize};
 
 use crate::errors::{AppError, Result};
+use crate::execution::{PublishGate, PublishedOutput};
 use crate::metadata::{
-    plan_metadata_outcome_from, AudiobookMetadata, MetadataIntentPatch, MetadataOutcomeRequest,
-    PassthroughSource, PatchOp,
+    plan_metadata_outcome_from, AudiobookMetadata, MetadataIntentPatch, PassthroughSource, PatchOp,
 };
-use crate::output_artifact::{
-    build_output_path_preview, lock_output_file, FileIdentity, OutputNamingConfig,
-};
+use crate::output_artifact::{lock_output_file, FileIdentity, OutputNamingConfig};
+use crate::processing::plan::{output_path_for, NamingInputs};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -57,7 +56,7 @@ pub(crate) struct TitleOutputPlan {
     pub(crate) anchor: PathBuf,
     pub(crate) sources: Vec<PassthroughSource>,
     /// The anchor's own tags as read when the export was planned.
-    pub(crate) base: Option<AudiobookMetadata>,
+    pub(crate) base: AudiobookMetadata,
     pub(crate) accepted: Option<MetadataIntentPatch>,
     pub(crate) output_dir: PathBuf,
     pub(crate) naming: OutputNamingConfig,
@@ -234,35 +233,6 @@ impl TitleOutput {
         Ok(published)
     }
 
-    pub(crate) fn publish<T>(
-        &self,
-        staged: &Path,
-        final_path: &Path,
-        commit: impl FnOnce() -> Result<(T, PathBuf)>,
-    ) -> Result<T> {
-        let _title = self.writing.lock().unwrap_or_else(PoisonError::into_inner);
-        let _file = lock_output_file(final_path);
-        self.write_wanted(staged);
-        let (value, published) = commit()?;
-        let identity = FileIdentity::of(&published)
-            .map_err(|error| {
-                log::warn!("title_output status=identity_unreadable err={error}");
-            })
-            .ok();
-        self.lock().phase = Phase::Published {
-            path: published.clone(),
-            identity,
-        };
-        if identity.is_some() {
-            self.write_wanted(&published);
-            self.record_identity(&published);
-        } else {
-            self.fail_wanted("The output was published, but ABB could not capture its identity. Its tags were not updated after publication.".into());
-        }
-        self.settled.send_replace(Some(true));
-        Ok(value)
-    }
-
     pub(crate) fn apply_published(&self) {
         let _title = self.writing.lock().unwrap_or_else(PoisonError::into_inner);
         let (path, identity) = match &self.lock().phase {
@@ -390,24 +360,52 @@ impl TitleOutput {
     }
 }
 
+impl PublishGate for TitleOutput {
+    fn publish(
+        &self,
+        staged: &Path,
+        final_path: &Path,
+        commit: &mut dyn FnMut() -> Result<PublishedOutput>,
+    ) -> Result<PublishedOutput> {
+        let _title = self.writing.lock().unwrap_or_else(PoisonError::into_inner);
+        let _file = lock_output_file(final_path);
+        self.write_wanted(staged);
+        let value = commit()?;
+        let published = value.path.clone();
+        let identity = FileIdentity::of(&published)
+            .map_err(|error| {
+                log::warn!("title_output status=identity_unreadable err={error}");
+            })
+            .ok();
+        self.lock().phase = Phase::Published {
+            path: published.clone(),
+            identity,
+        };
+        if identity.is_some() {
+            self.write_wanted(&published);
+            self.record_identity(&published);
+        } else {
+            self.fail_wanted("The output was published, but ABB could not capture its identity. Its tags were not updated after publication.".into());
+        }
+        self.settled.send_replace(Some(true));
+        Ok(value)
+    }
+}
+
 impl TitleOutputPlan {
     fn tags(&self, intent: Option<&MetadataIntentPatch>) -> Result<(Tags, PathBuf)> {
-        let outcome = plan_metadata_outcome_from(
-            self.base.clone(),
-            MetadataOutcomeRequest {
-                input_path: Some(&self.anchor),
-                intent_patch: intent,
-            },
-        )?;
-        let mut text = outcome.effective_metadata.unwrap_or_default();
+        let outcome = plan_metadata_outcome_from(self.base.clone(), intent)?;
+        let mut text = outcome.effective_metadata;
         text.cover_art = None;
-        let location = build_output_path_preview(
-            &self.output_dir,
-            outcome.naming_metadata.as_ref(),
-            self.naming.clone(),
-            Some(&self.anchor),
-        )?
-        .with_extension(&self.extension);
+        let location = output_path_for(
+            NamingInputs {
+                base_dir: &self.output_dir,
+                naming: &self.naming,
+                anchor: &self.anchor,
+            },
+            &outcome.naming_metadata,
+            &self.extension,
+        )?;
         let tags = Tags {
             text,
             cover: intent.and_then(|intent| intent.cover_art.clone()),
@@ -433,7 +431,7 @@ impl TitleOutputPlan {
     }
 
     fn source_cover(&self) -> Result<Option<Vec<u8>>> {
-        let own = self.base.as_ref().and_then(|base| base.cover_art.clone());
+        let own = self.base.cover_art.clone();
         let cover =
             own.or_else(|| crate::metadata::extract_passthrough_metadata(&self.sources).cover_art);
         cover

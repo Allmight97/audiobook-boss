@@ -31,39 +31,69 @@ fn error_message(error: &Value) -> &str {
     error["message"].as_str().expect("an error envelope")
 }
 
+struct InvokeApp {
+    app: tauri::App<MockRuntime>,
+    webview: WebviewWindow<MockRuntime>,
+    root: std::path::PathBuf,
+}
+
+impl InvokeApp {
+    fn start(name: &str) -> Self {
+        let root =
+            std::env::temp_dir().join(format!("abb-invoke-test-{name}-{}", std::process::id()));
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "the directory is usually absent before the test"
+        )]
+        let _ = std::fs::remove_dir_all(&root);
+        let engine = Engine::start(EngineConfig {
+            cache_dir: root.join("cache"),
+            config_dir: root.join("config"),
+            app_identifier: "com.audiobook-boss.invoke-test".into(),
+            events: Arc::new(DiscardEvents),
+        })
+        .expect("the engine starts");
+        let app = mock_builder()
+            .invoke_handler(crate::ipc_contract::builder::<MockRuntime>().invoke_handler())
+            .manage(FrontendLink::default())
+            .manage(engine)
+            .build(mock_context(noop_assets()))
+            .expect("the app builds");
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .expect("the window builds");
+        Self { app, webview, root }
+    }
+
+    fn finish(self) {
+        let engine = self.app.state::<Engine>();
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "shutdown outcome is not under test"
+        )]
+        let _ = tauri::async_runtime::block_on(engine.shutdown());
+        drop(self.app);
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "best-effort removal of the test directory"
+        )]
+        let _ = std::fs::remove_dir_all(self.root);
+    }
+}
+
 #[test]
 fn session_and_settings_round_trip_through_the_real_invoke_handler() {
-    let root = std::env::temp_dir().join(format!("abb-invoke-test-{}", std::process::id()));
-    #[expect(
-        clippy::let_underscore_must_use,
-        reason = "the directory is usually absent before the test"
-    )]
-    let _ = std::fs::remove_dir_all(&root);
-    let engine = Engine::start(EngineConfig {
-        cache_dir: root.join("cache"),
-        config_dir: root.join("config"),
-        app_identifier: "com.audiobook-boss.invoke-test".into(),
-        events: Arc::new(DiscardEvents),
-    })
-    .expect("the engine starts");
-    let app = mock_builder()
-        .invoke_handler(crate::ipc_contract::builder::<MockRuntime>().invoke_handler())
-        .manage(FrontendLink::default())
-        .manage(engine)
-        .build(mock_context(noop_assets()))
-        .expect("the app builds");
-    let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
-        .build()
-        .expect("the window builds");
+    let harness = InvokeApp::start("round-trip");
+    let webview = &harness.webview;
 
-    let attached = call(&webview, "attach_frontend", json!({})).expect("attach succeeds");
+    let attached = call(webview, "attach_frontend", json!({})).expect("attach succeeds");
     assert_eq!(attached["client"], 1);
     assert!(attached["session"]["revision"].is_number());
     assert!(attached["settings"]["settings"].is_object());
     assert!(attached["workOperations"]["operations"].is_array());
 
     let applied = call(
-        &webview,
+        webview,
         "session_dispatch",
         json!({
             "client": 1,
@@ -76,7 +106,7 @@ fn session_and_settings_round_trip_through_the_real_invoke_handler() {
     assert_eq!(applied["update"]["output"]["includeYear"], true);
 
     let saved = call(
-        &webview,
+        webview,
         "settings_dispatch",
         json!({
             "client": 1,
@@ -91,7 +121,7 @@ fn session_and_settings_round_trip_through_the_real_invoke_handler() {
     );
 
     let repeated = call(
-        &webview,
+        webview,
         "session_dispatch",
         json!({
             "client": 1,
@@ -104,16 +134,16 @@ fn session_and_settings_round_trip_through_the_real_invoke_handler() {
     assert!(error_message(&repeated).contains("later ones"));
 
     call(
-        &webview,
+        webview,
         "open_preview_output",
         json!({ "client": 1, "sequence": 1, "runId": "none" }),
     )
     .expect("the command takes a camelCase run id");
 
-    let replacement = call(&webview, "attach_frontend", json!({})).expect("attach succeeds");
+    let replacement = call(webview, "attach_frontend", json!({})).expect("attach succeeds");
     assert_eq!(replacement["client"], 2);
     let replaced = call(
-        &webview,
+        webview,
         "session_dispatch",
         json!({
             "client": 1,
@@ -124,16 +154,28 @@ fn session_and_settings_round_trip_through_the_real_invoke_handler() {
     .expect_err("the replaced window is refused");
     assert!(error_message(&replaced).contains("replaced"));
 
-    let engine = app.state::<Engine>();
-    #[expect(
-        clippy::let_underscore_must_use,
-        reason = "shutdown outcome is not under test"
-    )]
-    let _ = tauri::async_runtime::block_on(engine.shutdown());
-    drop(app);
-    #[expect(
-        clippy::let_underscore_must_use,
-        reason = "best-effort removal of the test directory"
-    )]
-    let _ = std::fs::remove_dir_all(root);
+    harness.finish();
+}
+
+#[test]
+fn the_generic_session_route_cannot_claim_a_preview_output() {
+    let harness = InvokeApp::start("claim");
+    call(&harness.webview, "attach_frontend", json!({})).expect("attach succeeds");
+
+    let claimed = call(
+        &harness.webview,
+        "session_dispatch",
+        json!({
+            "client": 1,
+            "sequence": 0,
+            "intent": { "kind": "takePreviewOutput", "runId": "none" }
+        }),
+    )
+    .expect_err("the generic route cannot claim a preview output");
+    assert!(
+        claimed.to_string().contains("takePreviewOutput"),
+        "{claimed}"
+    );
+
+    harness.finish();
 }

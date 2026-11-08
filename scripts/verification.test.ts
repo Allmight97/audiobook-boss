@@ -12,6 +12,7 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 import { PINNED_RUNNERS } from './check-pr-workflow-policy';
 import {
 	requiredLanes,
@@ -23,8 +24,14 @@ import {
 	explainPath,
 	formatExplanation,
 	toolingRatchetIdentity,
+	parseLaneTable,
+	TOOL_PROBES,
 } from './verification';
 
+const repoRoot = path.resolve(import.meta.dirname, '..');
+const described = parseLaneTable(
+	execFileSync('bash', ['scripts/verify.sh', '--describe'], { cwd: repoRoot, encoding: 'utf8' }),
+);
 const lanes = ['frontend', 'core', 'engine', 'tooling'];
 const map = {
 	frontend: ['src/**'],
@@ -35,14 +42,34 @@ const map = {
 	'no-lane': ['LICENSE'],
 };
 
+describe('lane description', () => {
+	it('names exactly the lane functions in verify.sh', () => {
+		const verify = readFileSync(path.join(repoRoot, 'scripts/verify.sh'), 'utf8');
+		const functions = [...verify.matchAll(/^lane_(\w+)\(\) \{/gm)].map((match) =>
+			match[1].replaceAll('_', '-'),
+		);
+		expect(described.map((lane) => lane.name).toSorted()).toEqual(functions.toSorted());
+	});
+
+	it('gives every tool a lane names a version command', () => {
+		for (const lane of described)
+			for (const tool of lane.tools)
+				expect(TOOL_PROBES[tool], `${lane.name} names ${tool}`).toBeDefined();
+	});
+
+	it('matches the ci.yml jobs and the jobs the gate waits for', () => {
+		const workflow = parse(
+			readFileSync(path.join(repoRoot, '.github/workflows/ci.yml'), 'utf8'),
+		) as { jobs: Record<string, { needs?: string[] }> };
+		const jobs = [...new Set(described.map((lane) => lane.job))];
+		for (const job of jobs) expect(Object.keys(workflow.jobs)).toContain(job);
+		expect(workflow.jobs.gate.needs?.toSorted()).toEqual(['changes', ...jobs].toSorted());
+	});
+});
+
 describe('plan --explain', () => {
 	const yaml = readFileSync(path.resolve(import.meta.dirname, 'lane-paths.yml'), 'utf8');
-	const laneNames = execFileSync('bash', ['scripts/verify.sh', '--list'], {
-		cwd: path.resolve(import.meta.dirname, '..'),
-		encoding: 'utf8',
-	})
-		.trim()
-		.split('\n');
+	const laneNames = described.map((lane) => lane.name);
 
 	it('names the lane and pattern for a frontend path, an engine path, and a no-lane file', () => {
 		expect(
@@ -140,7 +167,7 @@ describe('requiredLanes', () => {
 
 describe('platform job planning', () => {
 	it('does not provision an empty Linux Rust job for core-only work', () => {
-		expect(planJobs(['core'])).toEqual({
+		expect(planJobs(['core'], described)).toEqual({
 			frontend: false,
 			core: true,
 			tooling: false,
@@ -149,7 +176,7 @@ describe('platform job planning', () => {
 		});
 	});
 	it('adds Apple proof only when a native engine path is exercised', () => {
-		expect(planJobs(['engine', 'media']).rust).toEqual([
+		expect(planJobs(['engine', 'media'], described).rust).toEqual([
 			{ os: 'ubuntu-24.04', lanes: ['engine', 'media'], native: true, frontend: false },
 			{ os: 'macos-26', lanes: ['engine', 'media', 'apple'], native: true, frontend: false },
 		]);
@@ -157,7 +184,7 @@ describe('platform job planning', () => {
 	it('plans Rust jobs only on the runner labels the workflow policy pins', () => {
 		const pinned = Object.values(PINNED_RUNNERS);
 		const all = ['frontend', 'core', 'engine', 'media', 'host', 'apple', 'decrypt', 'tooling'];
-		for (const job of planJobs(all).rust) expect(pinned).toContain(job.os);
+		for (const job of planJobs(all, described).rust) expect(pinned).toContain(job.os);
 	});
 });
 
@@ -189,7 +216,7 @@ describe('validation boundaries', () => {
 		expect(() => laneMap('no-lane:\n - LICENSE\n', lanes)).toThrow(/reason/);
 	});
 	it('rejects a selected job that was skipped even when every other job passed', () => {
-		const jobs = planJobs(['frontend']);
+		const jobs = planJobs(['frontend'], described);
 		const results = Object.fromEntries(
 			['changes', 'frontend', 'core', 'rust', 'tooling', 'supply-chain'].map((job) => [
 				job,

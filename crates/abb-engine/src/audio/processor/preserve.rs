@@ -1,20 +1,82 @@
-use crate::audio::CleanupGuard;
-use crate::audio::FileListInfo;
+use super::workspace::Workspace;
+use super::AudioRunOutcome;
+use crate::audio::{AudioFile, FileListInfo};
 use crate::errors::{AppError, Result};
-use crate::metadata::MetadataIntentPatch;
-use crate::processing::ProcessingContext;
+use crate::execution::ProcessingContext;
+use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch};
 use std::io::{Read, Write};
+use std::path::PathBuf;
 
-pub(super) fn execute_preserved_audio(
+/// What a preserve route writes once its audio is staged.
+pub(super) enum MetadataStrategy {
+    /// One staged source: move it to the target container and apply the
+    /// planned patch onto its own tags.
+    PatchStagedCopy { patch: Option<MetadataIntentPatch> },
+    /// A join of several sources: write the full effective metadata onto the
+    /// new file.
+    WriteFreshMux {
+        metadata: Option<AudiobookMetadata>,
+        cover_policy: CoverArtPassthroughPolicy,
+    },
+}
+
+impl MetadataStrategy {
+    fn copy_share(&self) -> f32 {
+        match self {
+            Self::PatchStagedCopy { .. } => 1.0,
+            Self::WriteFreshMux { .. } => 0.5,
+        }
+    }
+}
+
+pub(super) fn execute(
     context: ProcessingContext,
     file_info: FileListInfo,
-    metadata_intent: Option<MetadataIntentPatch>,
-) -> Result<String> {
-    if context.preview.is_some() {
-        return Err(AppError::InvalidInput(
-            "Preserve audio cannot be used for a preview.".to_string(),
-        ));
+    strategy: MetadataStrategy,
+) -> Result<AudioRunOutcome> {
+    if matches!(strategy, MetadataStrategy::PatchStagedCopy { .. }) {
+        check_single_source(&file_info)?;
     }
+    let mut workspace = Workspace::open(&context)?;
+    context
+        .new_emitter()
+        .emit_converting_start("Preserving original audio...");
+    let copies = stage_copies(
+        &context,
+        &workspace,
+        &file_info.files,
+        strategy.copy_share(),
+    )?;
+    let (staged, warnings) = match strategy {
+        MetadataStrategy::PatchStagedCopy { patch } => (
+            patch_staged_copy(&context, &copies[0], patch.as_ref())?,
+            Vec::new(),
+        ),
+        MetadataStrategy::WriteFreshMux {
+            metadata,
+            cover_policy,
+        } => super::preserve_merge::write_fresh_mux(
+            &context,
+            &workspace,
+            copies,
+            metadata,
+            cover_policy,
+        )?,
+    };
+    Ok(AudioRunOutcome {
+        message: super::finalize::complete_staged_output(&context, staged, &mut workspace)?,
+        warnings,
+    })
+}
+
+fn missing_source_identity() -> AppError {
+    AppError::InvalidInput(
+        "Preserve audio requires inspected source identity. Remove and import it again."
+            .to_string(),
+    )
+}
+
+fn check_single_source(file_info: &FileListInfo) -> Result<()> {
     let file = file_info.files.first().ok_or_else(|| {
         AppError::InvalidInput("Preserve audio requires one inspected input.".to_string())
     })?;
@@ -24,38 +86,53 @@ pub(super) fn execute_preserved_audio(
             "Preserve audio cannot merge multiple inputs.".to_string(),
         ));
     }
-    let accepted = file.chapter_plan.as_ref().ok_or_else(|| {
-        AppError::InvalidInput(
-            "Preserve audio requires inspected source identity. Remove and import it again."
-                .to_string(),
-        )
-    })?;
+    if file.chapter_plan.is_none() {
+        return Err(missing_source_identity());
+    }
+    Ok(())
+}
 
-    let workspace = super::staging::create_processing_workspace_dir(
-        context.session.uuid(),
-        context.processing_workspace_root(),
-    )?;
-    let mut cleanup = CleanupGuard::new(context.session.id());
-    cleanup.add_path(&workspace);
-    let extension = file
-        .path
-        .extension()
-        .and_then(|value| value.to_str())
-        .ok_or_else(|| {
-            AppError::InvalidInput("Preserve source has no supported extension.".to_string())
-        })?;
-    let staged = workspace.join(format!("preserved.{extension}"));
-    cleanup.add_path(&staged);
-    context
-        .new_emitter()
-        .emit_converting_start("Preserving original audio...");
-    copy_with_cancellation(
-        &file.path,
-        &accepted.source_fingerprint,
-        &staged,
-        &context,
-        0.0..1.0,
-    )?;
+fn stage_copies(
+    context: &ProcessingContext,
+    workspace: &Workspace,
+    files: &[AudioFile],
+    share: f32,
+) -> Result<Vec<AudioFile>> {
+    let mut copies = Vec::with_capacity(files.len());
+    for (index, file) in files.iter().enumerate() {
+        let fingerprint = file
+            .chapter_plan
+            .as_ref()
+            .ok_or_else(missing_source_identity)?
+            .source_fingerprint
+            .as_str();
+        let folder = workspace.dir().join(format!("source-{index}"));
+        std::fs::create_dir_all(&folder).map_err(AppError::Io)?;
+        let path = folder.join(file.path.file_name().unwrap_or_default());
+        copy_with_cancellation(
+            &file.path,
+            fingerprint,
+            &path,
+            context,
+            (share * index as f32 / files.len() as f32)
+                ..(share * (index + 1) as f32 / files.len() as f32),
+        )?;
+        let mut copy = file.clone();
+        copy.path = path;
+        copies.push(copy);
+    }
+    Ok(copies)
+}
+
+fn patch_staged_copy(
+    context: &ProcessingContext,
+    copy: &AudioFile,
+    patch: Option<&MetadataIntentPatch>,
+) -> Result<PathBuf> {
+    let accepted = copy
+        .chapter_plan
+        .as_ref()
+        .ok_or_else(missing_source_identity)?;
     if context.is_cancelled() {
         return Err(AppError::cancelled());
     }
@@ -66,21 +143,21 @@ pub(super) fn execute_preserved_audio(
         .and_then(|ext| ext.to_str())
         .ok_or_else(|| AppError::InvalidInput("Output extension is missing.".into()))?;
     crate::metadata::remux_preserved_audio_container(
-        &staged,
+        &copy.path,
         target_extension,
         &accepted.chapters,
     )?;
-    if let Some(patch) = metadata_intent.as_ref() {
+    if let Some(patch) = patch {
         context
             .new_emitter()
             .emit_metadata_start("Writing metadata...");
-        crate::metadata::save_metadata_intent(&staged, patch)?;
+        crate::metadata::save_metadata_intent(&copy.path, patch)?;
     }
-    crate::metadata::verify_chapters(&staged, &accepted.chapters)?;
+    crate::metadata::verify_chapters(&copy.path, &accepted.chapters)?;
     if context.is_cancelled() {
         return Err(AppError::cancelled());
     }
-    super::finalize::complete_staged_output(&context, staged, &mut cleanup)
+    Ok(copy.path.clone())
 }
 
 pub(super) fn copy_with_cancellation(
@@ -134,7 +211,7 @@ pub(super) fn copy_with_cancellation(
 
 pub(super) fn emit_progress(context: &ProcessingContext, fraction: f32, message: &str) {
     context.new_emitter().emit_converting_progress(
-        crate::processing::converting_percentage(fraction),
+        crate::execution::converting_percentage(fraction),
         message,
         None,
         None,

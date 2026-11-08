@@ -2,8 +2,9 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use super::super::exports::OutputEdit;
-use super::{MetadataStatus, SaveItem, SessionState, StageOutcome};
+use super::super::exports::{OutputEdit, OutputEdits};
+use super::{MetadataStatus, SaveItem, SessionState, StageOutcome, WriteOutcome};
+use crate::errors::{AppErrorEnvelope, Result};
 
 #[derive(Debug)]
 pub(crate) struct SavePlan {
@@ -14,13 +15,22 @@ pub(crate) struct SavePlan {
     pub(crate) grouped: bool,
 }
 
+/// What the writer reports for the files a Save wrote at once.
+#[derive(Debug, Default)]
+pub(crate) struct WriteBatch {
+    pub(crate) outcomes: Vec<WriteOutcome>,
+    pub(crate) succeeded: usize,
+    pub(crate) failed: usize,
+    pub(crate) cancelled: usize,
+}
+
 impl SessionState {
     fn busy(&self, in_use: &HashSet<PathBuf>) -> HashSet<PathBuf> {
         in_use
             .iter()
-            .chain(&self.reserved)
-            .chain(&self.removing)
+            .chain(self.submitting.sources())
             .cloned()
+            .chain(self.staged.removing_paths())
             .collect()
     }
 
@@ -63,13 +73,7 @@ impl SessionState {
                 })
             })
             .collect();
-        let tags = &self.tags;
-        let outputs = match self.exports.is_empty() {
-            true => Vec::new(),
-            false => self
-                .exports
-                .edits(|path| tags.pending(path).map(|pending| pending.patch.clone())),
-        };
+        let outputs = self.output_edits(None);
         if items.is_empty() && outputs.is_empty() {
             self.status = Some(if grouped {
                 MetadataStatus::GroupedEditsKept
@@ -91,38 +95,103 @@ impl SessionState {
         Some(plan)
     }
 
+    /// The edit each linked output should carry: what was written to its
+    /// source plus the edit still pending. `only` names the titles asked for.
+    pub(crate) fn output_edits(&mut self, only: Option<&[String]>) -> Vec<OutputEdit> {
+        let tags = &self.tags;
+        let mut edits = self
+            .exports
+            .edits(|path| tags.pending(path).map(|pending| pending.patch.clone()));
+        if let Some(only) = only {
+            edits.retain(|edit| only.contains(&edit.title_id));
+        }
+        edits
+    }
+
+    /// Records how a Save ended. `written` is the writer's report for
+    /// `plan.immediate`; a plan with nothing to write passes an empty batch.
     pub(crate) fn finish_save(
         &mut self,
         epoch: u64,
-        written: &[PathBuf],
-        saved: &[SaveItem],
-        status: MetadataStatus,
+        plan: &SavePlan,
+        outputs: OutputEdits,
+        written: Result<WriteBatch>,
     ) {
-        self.writes.release(written);
-        if epoch != self.epoch {
-            return;
-        }
-        let owner = self.cover_owner();
-        for item in saved {
-            self.exports.acknowledge(&item.path, &item.patch);
-            let cover_was_submitted = item.patch.cover_art.is_some();
-            if cover_was_submitted {
-                self.source_covers.record_write(&item.path);
+        let nothing = plan.immediate.is_empty()
+            && plan.waiting == 0
+            && plan.held == 0
+            && outputs == OutputEdits::default();
+        let (outcomes, status) = if nothing {
+            let status = if plan.grouped {
+                MetadataStatus::GroupedEditsKept
+            } else {
+                MetadataStatus::NoPendingChanges
+            };
+            (Vec::new(), status)
+        } else {
+            match written {
+                Ok(batch) => (
+                    batch.outcomes,
+                    MetadataStatus::SaveComplete {
+                        succeeded: batch.succeeded,
+                        failed: batch.failed,
+                        cancelled: batch.cancelled,
+                        waiting: plan.waiting,
+                        held: plan.held,
+                        outputs,
+                    },
+                ),
+                Err(error) => (
+                    Vec::new(),
+                    MetadataStatus::SaveFailed {
+                        error: AppErrorEnvelope::from(&error),
+                    },
+                ),
             }
+        };
+        let paths: Vec<PathBuf> = plan
+            .immediate
+            .iter()
+            .map(|item| item.path.clone())
+            .collect();
+        self.writes.release(&paths);
+        let current = epoch == self.epoch;
+        if current {
+            let loaded = self.working_set.source_paths();
+            let owner = self.cover_owner();
+            for outcome in outcomes.iter().filter(|outcome| outcome.written) {
+                let item = &outcome.item;
+                let cover_was_submitted = item.patch.cover_art.is_some();
+                self.record_written(outcome, loaded.contains(&item.path));
+                let cover_still_pending = self
+                    .tags
+                    .pending(&item.path)
+                    .is_some_and(|pending| pending.patch.cover_art.is_some());
+                if cover_was_submitted && !cover_still_pending && owner.as_ref() == Some(&item.path)
+                {
+                    self.cover.custom = false;
+                }
+            }
+        }
+        if current {
+            self.status = Some(status);
+        }
+    }
+
+    fn record_written(&mut self, outcome: &WriteOutcome, loaded: bool) {
+        let item = &outcome.item;
+        self.working_set.note_saved_names(&item.path, &item.patch);
+        if let Some(rewrite) = &outcome.rewrite {
+            self.working_set.note_tag_write(&item.path, rewrite);
+        }
+        self.exports.acknowledge(&item.path, &item.patch);
+        if item.patch.cover_art.is_some() {
+            self.source_covers.record_write(&item.path);
+        }
+        if loaded {
             self.tags
                 .commit_saved(&item.path, &item.patch, item.revision);
-            let cover_still_pending = self
-                .tags
-                .pending(&item.path)
-                .is_some_and(|pending| pending.patch.cover_art.is_some());
-            if cover_was_submitted && !cover_still_pending && owner.as_ref() == Some(&item.path) {
-                self.cover.custom = false;
-            }
         }
-        if !written.is_empty() {
-            self.writes.end_save();
-        }
-        self.status = Some(status);
     }
 
     pub(crate) fn take_ready_deferred(&mut self, in_use: &HashSet<PathBuf>) -> Vec<SaveItem> {
@@ -138,27 +207,22 @@ impl SessionState {
         self.writes.waiting_paths()
     }
 
-    pub(crate) fn finish_deferred(&mut self, results: &[(SaveItem, bool)]) {
+    pub(crate) fn finish_deferred(&mut self, results: &[WriteOutcome]) {
         let loaded = self.working_set.source_paths();
         let mut written_count = 0;
-        for (item, written) in results {
-            self.writes.finish_write(item, *written);
-            if *written {
-                self.exports.acknowledge(&item.path, &item.patch);
-                if item.patch.cover_art.is_some() {
-                    self.source_covers.record_write(&item.path);
-                }
-                if loaded.contains(&item.path) {
-                    self.tags
-                        .commit_saved(&item.path, &item.patch, item.revision);
-                }
+        for outcome in results {
+            self.writes.finish_write(&outcome.item, outcome.written);
+            if outcome.written {
+                self.record_written(outcome, loaded.contains(&outcome.item.path));
             }
-            written_count += usize::from(*written);
+            written_count += usize::from(outcome.written);
         }
         self.restore_failed_writes();
-        let shown = results
-            .iter()
-            .any(|(item, _)| self.bound.iter().any(|title| title.path == item.path));
+        let shown = results.iter().any(|outcome| {
+            self.bound
+                .iter()
+                .any(|title| title.path == outcome.item.path)
+        });
         if shown {
             let fresh = self.form_from_known_tags();
             self.form.rehydrate(fresh);
@@ -203,7 +267,7 @@ impl SessionState {
     ) -> Vec<String> {
         let jobs = self.removable_staged(in_use, now);
         for job_id in &jobs {
-            self.removing.extend(self.staged.paths(job_id));
+            self.staged.removing(job_id);
         }
         jobs
     }

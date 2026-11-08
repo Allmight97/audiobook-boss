@@ -1,17 +1,16 @@
+use super::support::wav::SAMPLE_RATE;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use abb_engine::audio::{AudioIntent, AudiobookFormat, EncoderType};
-use abb_engine::session::{
-    AudioEdit, CueChoice, MetadataField, SessionIntent, SubmissionStatus, TitlePlan,
-};
-use abb_engine::work_runtime::WorkOperationStatus;
-use abb_engine::{AudiobookMetadata, MetadataIntentPatch, PatchOp, ShutdownOutcome};
+use crate::audio::{AudioIntent, AudiobookFormat, EncoderType};
+use crate::metadata::{AudiobookMetadata, MetadataIntentPatch, PatchOp};
+use crate::session::{AudioEdit, CueChoice, MetadataField, SessionIntent, TitlePlan};
+use crate::work_runtime::WorkOperationStatus;
+use crate::ShutdownOutcome;
 
-use super::integration_session_desk::{finished, submission, Desk};
+use super::integration_session_desk::Desk;
 use super::media_fixtures::{
     assert_ffprobe_tag, chapters_of, decode_pcm_f32, ffprobe_format_tags, write_sine_mp3,
-    SAMPLE_RATE,
 };
 use super::media_fixtures::{minimal_jpg_bytes, picture_codecs, timed_text_chapter_track};
 
@@ -31,7 +30,7 @@ fn preserve() -> [AudioEdit; 2] {
 }
 
 fn tags(path: &Path) -> AudiobookMetadata {
-    abb_engine::read_metadata(path).expect("read tags back")
+    crate::metadata::read_metadata(path).expect("read tags back")
 }
 
 async fn plan_settled(desk: &Desk) -> TitlePlan {
@@ -49,15 +48,7 @@ async fn export_to(desk: &Desk, folder: &str, edits: &[AudioEdit]) -> PathBuf {
         directory: directory.to_string_lossy().into_owned(),
     })
     .await;
-    let title_ids: Vec<_> = desk
-        .engine
-        .session_snapshot()
-        .titles
-        .expect("titles")
-        .files
-        .into_iter()
-        .map(|file| file.input_id)
-        .collect();
+    let title_ids = desk.title_ids();
     for edit in edits {
         desk.send(SessionIntent::SetTitleAudio {
             title_ids: title_ids.clone(),
@@ -71,13 +62,7 @@ async fn export_to(desk: &Desk, folder: &str, edits: &[AudioEdit]) -> PathBuf {
         other => panic!("the chosen audio settings do not plan: {other:?}"),
     }
     desk.send(SessionIntent::Submit).await;
-    let Some(SubmissionStatus::Submitted { operation_id, .. }) = submission(desk) else {
-        panic!("export not accepted: {:?}", submission(desk));
-    };
-    desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&operation_id))
-    })
-    .await;
+    let operation_id = desk.finish_submitted_export().await;
     assert_eq!(
         desk.export_status(&operation_id),
         WorkOperationStatus::Completed
@@ -211,7 +196,7 @@ async fn cleared_cover_export(
             write_sine_mp3(&src, 0.5, 440.0);
         }
     }
-    abb_engine::save_metadata_intent(
+    crate::metadata::save_metadata_intent(
         &src,
         &MetadataIntentPatch {
             cover_art: Some(PatchOp::Set(minimal_jpg_bytes())),

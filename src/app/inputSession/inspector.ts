@@ -1,4 +1,5 @@
-import { formatAudioBitrate, formatFileSize, type AudioFile } from '../../types/audio';
+import type { AudioFile } from '../../lib/generated/tauri';
+import { formatAudioBitrate, formatFileSize } from '../../lib/format/audio';
 import { pathBasename } from '../../lib/path/basename';
 import type { InputView } from './types';
 
@@ -72,7 +73,7 @@ function inspectorFromFiles(
 		const file = selectedFiles[0];
 		const index = selectedIndices[0] ?? 0;
 		const companion = companionSummaryForInputIds([file.inputId]);
-		if (!file.isValid) {
+		if (file.status !== 'ready') {
 			return {
 				...EMPTY_INSPECTOR_VIEW,
 				combinedSizeText,

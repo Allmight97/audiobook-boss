@@ -2,32 +2,33 @@ import { recordedFresh } from '../../lib/tauri/recordedFresh';
 import type { EngineCapability } from '../../lib/tauri/capabilities/engine';
 import type {
 	AppSettings,
-	SettingsIntent,
-	SettingsOutcome,
-	SettingsSnapshot,
-} from '../../types/appSettings';
-import type { AudioFile, TitleAudioRequest } from '../../types/audio';
-import type {
+	AudioFile,
+	AudioSnapshot,
 	CoverNotice,
+	LookupSnapshot,
 	MetadataField,
+	MetadataSnapshot,
 	MetadataStatus,
+	OperationId,
+	OperationSnapshot,
+	OutputSnapshot,
 	RemoteAcquisitionSnapshot,
 	RemoteLibrarySnapshot,
 	RemoteUiSnapshot,
-	SessionAudio,
+	SelectionSnapshot,
 	SessionIntent,
-	SessionLookup,
-	SessionMetadata,
 	SessionOutcome,
-	SessionOutput,
-	SessionSelection,
-	SessionTitles,
 	SessionUpdate,
+	SettingsIntent,
+	SettingsOutcome,
+	SettingsSnapshot,
 	SizeEstimate,
 	TitleAudio,
+	TitleAudioRequest,
 	TitlePlan,
-} from '../../types/session';
-import type { OperationId, OperationSnapshot, WorkOperationsUpdate } from '../../types/workRuntime';
+	TitlesSnapshot,
+	WorkOperationsUpdate,
+} from '../../lib/generated/tauri';
 
 const FORM_FIELDS: readonly MetadataField[] = [
 	'title',
@@ -43,12 +44,12 @@ const FORM_FIELDS: readonly MetadataField[] = [
 ];
 
 type SessionParts = {
-	titles: SessionTitles;
-	selection: SessionSelection;
-	metadata: SessionMetadata;
-	lookup: SessionLookup;
-	audio: SessionAudio;
-	output: SessionOutput;
+	titles: TitlesSnapshot;
+	selection: SelectionSnapshot;
+	metadata: MetadataSnapshot;
+	lookup: LookupSnapshot;
+	audio: AudioSnapshot;
+	output: OutputSnapshot;
 	remote: RemoteUiSnapshot;
 	remoteLibrary: RemoteLibrarySnapshot;
 	remoteAcquisition: RemoteAcquisitionSnapshot;
@@ -80,15 +81,17 @@ export function sessionUpdate(
 	};
 }
 
-export function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
-	const isValid = overrides.isValid ?? true;
+export function audioFile(
+	path: string,
+	overrides: Partial<AudioFile> & Pick<AudioFile, 'status'>,
+): AudioFile {
 	return {
 		inputId: path,
 		path,
 		label: path.split('/').findLast(Boolean) ?? path,
-		size: 1024,
-		duration: 60,
-		format: 'm4b',
+		size: 1000,
+		duration: 1,
+		format: 'mp3',
 		bitrate: null,
 		sampleRate: null,
 		channels: null,
@@ -98,10 +101,10 @@ export function audioFile(path: string, overrides: Partial<AudioFile> = {}): Aud
 		chapterPlan: null,
 		cueSource: null,
 		error: null,
-		isValid,
+		isValid: true,
 		sourceRemoved: false,
 		chapters: [],
-		cover: isValid ? `audio/0/${encodeURIComponent(path)}` : null,
+		cover: null,
 		...overrides,
 	};
 }
@@ -109,6 +112,7 @@ export function audioFile(path: string, overrides: Partial<AudioFile> = {}): Aud
 export type FakeEngine = EngineCapability & {
 	readonly sessionIntents: SessionIntent[];
 	readonly settingsIntents: SettingsIntent[];
+	readonly claimedPreviews: string[];
 	readonly openedPreviews: string[];
 	readonly cancelledWork: { operationId: OperationId; childJobId?: string }[];
 	/** Answers a cancel; a rejection fails it. */
@@ -117,6 +121,7 @@ export type FakeEngine = EngineCapability & {
 	pressQuitOnce(windowMs: number): void;
 	/** Adds or replaces an operation and tells every listener. */
 	publishOperation(operation: OperationSnapshot): void;
+	publishConcurrencyLock(locked: boolean): void;
 	analyze: (paths: readonly string[]) => AudioFile[];
 	/**
 	 * Answers a session intent. A reply of `undefined`, at once or later, is
@@ -125,6 +130,8 @@ export type FakeEngine = EngineCapability & {
 	respond?: (
 		intent: SessionIntent,
 	) => SessionOutcome | Promise<SessionOutcome | undefined> | undefined;
+	/** Answers a preview-output claim with the path to open; `undefined` is no path. */
+	respondPreviewOutput?: (runId: string) => string | Promise<string | undefined> | undefined;
 	/** Answers a settings intent; `undefined` is `applied`. */
 	respondSettings?: (
 		intent: SettingsIntent,
@@ -165,6 +172,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 	const workListeners = new Set<(update: WorkOperationsUpdate) => void>();
 	const operations = new Map<OperationId, OperationSnapshot>();
 	let workRevision = 0;
+	let concurrencyLocked = false;
 	const state = freshSession();
 	let settingsSnapshot: SettingsSnapshot = {
 		...structuredClone(recordedFresh.settings),
@@ -210,12 +218,19 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		}
 	}
 
+	function takeSessionTurn(sequence: number): void {
+		if (sequence !== nextSessionSequence)
+			throw new Error(`session intent ${sequence} arrived out of order`);
+		nextSessionSequence += 1;
+	}
+
 	const engine: FakeEngine = {
 		sessionIntents: [],
 		settingsIntents: [],
+		claimedPreviews: [],
 		openedPreviews: [],
 		cancelledWork: [],
-		analyze: (paths) => paths.map((path) => audioFile(path)),
+		analyze: (paths) => paths.map((path) => audioFile(path, { status: 'ready' })),
 		async attach() {
 			nextSessionSequence = 0;
 			nextSettingsSequence = 0;
@@ -227,26 +242,23 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 					revision: workRevision,
 					order: [...operations.keys()],
 					operations: [...operations.values()],
+					concurrencyLocked,
 				}),
 			};
 		},
 		async sessionDispatch(_client, sequence, intent) {
-			if (sequence !== nextSessionSequence)
-				throw new Error(`session intent ${sequence} arrived out of order`);
-			nextSessionSequence += 1;
+			takeSessionTurn(sequence);
 			engine.sessionIntents.push(structuredClone(intent));
 			const answered = await engine.respond?.(intent);
 			if (!answered && intent.kind === 'import') appendFiles(engine.analyze(intent.paths));
 			return { outcome: answered ?? { kind: 'applied' }, update: settle() };
 		},
-		async openPreviewOutput(client, sequence, runId) {
-			const reply = await engine.sessionDispatch(client, sequence, {
-				kind: 'takePreviewOutput',
-				runId,
-			});
-			if (reply.outcome.kind === 'previewOutput' && reply.outcome.path)
-				engine.openedPreviews.push(reply.outcome.path);
-			return reply;
+		async openPreviewOutput(_client, sequence, runId) {
+			takeSessionTurn(sequence);
+			engine.claimedPreviews.push(runId);
+			const path = (await engine.respondPreviewOutput?.(runId)) ?? null;
+			if (path) engine.openedPreviews.push(path);
+			return { outcome: { kind: 'previewOutput', path }, update: settle() };
 		},
 		async settingsDispatch(_client, sequence, intent) {
 			if (sequence !== nextSettingsSequence)
@@ -285,6 +297,18 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				revision: workRevision,
 				order: [...operations.keys()],
 				changed: operation,
+				concurrencyLocked,
+			};
+			for (const listener of workListeners) listener(structuredClone(update));
+		},
+		publishConcurrencyLock(locked) {
+			concurrencyLocked = locked;
+			workRevision += 1;
+			const update = {
+				revision: workRevision,
+				order: [...operations.keys()],
+				changed: null,
+				concurrencyLocked,
 			};
 			for (const listener of workListeners) listener(structuredClone(update));
 		},

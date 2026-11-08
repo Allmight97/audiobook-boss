@@ -1,9 +1,10 @@
 //! Packet-copy joining for matching AAC sources with complete, contiguous frames.
 //! Interior priming, padding and decoder resets require re-encoding.
-use crate::audio::{AudioFile, CleanupGuard, FileListInfo};
+use super::workspace::Workspace;
+use crate::audio::AudioFile;
 use crate::errors::{AppError, Result};
+use crate::execution::ProcessingContext;
 use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
-use crate::processing::ProcessingContext;
 use ffmpeg_next as ff;
 use std::path::{Path, PathBuf};
 
@@ -190,83 +191,30 @@ fn remux(files: &[AudioFile], destination: &Path, context: &ProcessingContext) -
     Ok(durations)
 }
 
-pub(super) fn execute(
-    context: ProcessingContext,
-    file_info: FileListInfo,
+pub(super) fn write_fresh_mux(
+    context: &ProcessingContext,
+    workspace: &Workspace,
+    mut copies: Vec<AudioFile>,
     metadata: Option<AudiobookMetadata>,
     cover_policy: CoverArtPassthroughPolicy,
-) -> Result<super::AudioRunOutcome> {
-    if context.preview.is_some() {
-        return Err(AppError::InvalidInput(
-            "Preserve audio cannot be used for a preview.".into(),
-        ));
-    }
-    let workspace = super::staging::create_processing_workspace_dir(
-        context.session.uuid(),
-        context.processing_workspace_root(),
-    )?;
-    let mut cleanup = CleanupGuard::new(context.session.id());
-    cleanup.add_path(&workspace);
-    context
-        .new_emitter()
-        .emit_converting_start("Preserving original audio...");
-    let mut copies = Vec::new();
-    for (index, file) in file_info.files.iter().enumerate() {
-        let fingerprint = file
-            .chapter_plan
-            .as_ref()
-            .ok_or_else(|| incompatible("source identity is missing"))?
-            .source_fingerprint
-            .as_str();
-        let path = workspace
-            .join(format!("source-{index}"))
-            .with_extension(file.path.extension().unwrap_or_default());
-        cleanup.add_path(&path);
-        super::preserve::copy_with_cancellation(
-            &file.path,
-            fingerprint,
-            &path,
-            &context,
-            (0.5 * index as f32 / file_info.files.len() as f32)
-                ..(0.5 * (index + 1) as f32 / file_info.files.len() as f32),
-        )?;
-        let mut copy = file.clone();
-        copy.path = path;
-        copies.push(copy);
-    }
+) -> Result<(PathBuf, Vec<String>)> {
     let staged: PathBuf = workspace
+        .dir()
         .join("merged")
         .with_extension(context.output.final_path().extension().unwrap_or_default());
-    cleanup.add_path(&staged);
     super::preserve::emit_progress(
-        &context,
+        context,
         0.5,
         "Joining original audio without re-encoding...",
     );
-    let durations = remux(&copies, &staged, &context)?;
+    let durations = remux(&copies, &staged, context)?;
     for (file, duration) in copies.iter_mut().zip(durations) {
         file.duration = Some(duration);
     }
     if context.is_cancelled() {
         return Err(AppError::cancelled());
     }
-    let mut sources = super::passthrough_sources_from_audio_files(&copies);
-    let chapter_total = sources
-        .iter()
-        .map(|source| source.chapters.as_ref().map_or(0, Vec::len))
-        .sum();
-    if crate::metadata::synthesizes_chapter_per_source(sources.len(), chapter_total) {
-        for (source, original) in sources.iter_mut().zip(&file_info.files) {
-            source.chapters = Some(vec![crate::metadata::ChapterSpec {
-                title: original
-                    .path
-                    .file_stem()
-                    .map(|name| name.to_string_lossy().into_owned()),
-                start_ms: 0,
-                end_ms: (source.duration.unwrap_or(0.0) * 1000.0).round() as i64,
-            }]);
-        }
-    }
+    let sources = super::passthrough_sources_from_audio_files(&copies);
     let mut extracted = crate::metadata::extract_passthrough_metadata(&sources);
     let passthrough_warnings = std::mem::take(&mut extracted.warnings);
     let passthrough = cover_policy.apply_to_passthrough(extracted.into_option());
@@ -276,13 +224,13 @@ pub(super) fn execute(
         .new_emitter()
         .emit_metadata_start("Writing title metadata and chapters...");
     crate::metadata::finalize_artifact_metadata(&staged, metadata.as_ref(), passthrough.as_ref())?;
-    Ok(super::AudioRunOutcome {
-        message: super::finalize::complete_staged_output(&context, staged, &mut cleanup)?,
-        warnings: passthrough_warnings
+    Ok((
+        staged,
+        passthrough_warnings
             .into_iter()
             .chain(cover_warning)
             .collect(),
-    })
+    ))
 }
 
 #[cfg(test)]

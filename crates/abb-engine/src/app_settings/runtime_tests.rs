@@ -1,6 +1,7 @@
 use tempfile::TempDir;
 
 use super::*;
+use crate::app_settings::SettingsUnit;
 use crate::audio::{AudioIntent, AudiobookFormat};
 
 struct Rig {
@@ -55,25 +56,37 @@ fn output_in(directory: &str) -> OutputDefaults {
     }
 }
 
-fn remember_output(directory: &str) -> SettingsIntent {
-    SettingsIntent::Remember {
-        encoder_defaults: None,
-        output_defaults: Some(output_in(directory)),
-        default_acquisition_lane: None,
-    }
-}
-
 impl Rig {
+    async fn remember_output(&self, directory: &str) -> SettingsReply {
+        self.remember(None, Some(output_in(directory))).await
+    }
+
+    async fn remember(
+        &self,
+        encoder_defaults: Option<EncoderDefaults>,
+        output_defaults: Option<OutputDefaults>,
+    ) -> SettingsReply {
+        self.settings
+            .remember_defaults(
+                encoder_defaults,
+                output_defaults,
+                EditStamp::default(),
+                &crate::engine_tasks::EngineTasks::default(),
+            )
+            .finish()
+            .await
+    }
+
     async fn send(&self, intent: SettingsIntent) -> SettingsReply {
         self.settings
-            .begin(intent, &crate::engine::EngineTasks::default())
+            .begin(intent, &crate::engine_tasks::EngineTasks::default())
             .finish()
             .await
     }
 
     async fn send_connection(&self, connection: IndexerConnection) -> SettingsReply {
         self.settings
-            .set_indexer_connection(connection, &crate::engine::EngineTasks::default())
+            .set_indexer_connection(connection, &crate::engine_tasks::EngineTasks::default())
             .finish()
             .await
     }
@@ -223,7 +236,7 @@ async fn a_value_this_release_refuses_resets_only_its_setting_until_the_next_cha
     assert_eq!(
         snapshot.recovery,
         Some(SettingsRecovery {
-            reset: vec![crate::app_settings::SettingsUnit::EncoderDefaults],
+            reset: vec![SettingsUnit::EncoderDefaults],
             set_aside_as: None,
         })
     );
@@ -284,7 +297,7 @@ async fn a_pinned_launch_does_not_report_last_used_values_it_did_not_start_from(
 
     assert_eq!(
         storage::load(&config_dir(&rig.root)).reset,
-        vec![crate::app_settings::SettingsUnit::EncoderDefaults],
+        vec![SettingsUnit::EncoderDefaults],
         "fixture premise: the last-used encoder is refused"
     );
     let snapshot = rig.settings.snapshot().await;
@@ -302,7 +315,7 @@ async fn a_file_that_is_not_toml_is_kept_aside_and_saves_never_touch_it() {
     assert!(recovery.reset.is_empty());
     let kept_as = recovery.set_aside_as.expect("kept aside");
 
-    let reply = rig.send(remember_output("/chosen")).await;
+    let reply = rig.remember_output("/chosen").await;
 
     assert!(reply.snapshot.save_error.is_none());
     assert_eq!(rig.on_disk().output_defaults, output_in("/chosen"));
@@ -322,7 +335,7 @@ async fn a_file_that_cannot_be_kept_aside_is_never_saved_over_and_the_block_is_r
     let rig = start_in(root);
 
     assert!(rig.settings.snapshot().await.save_error.is_some());
-    let reply = rig.send(remember_output("/chosen")).await;
+    let reply = rig.remember_output("/chosen").await;
     assert_eq!(reply.outcome, SettingsOutcome::Applied);
     assert!(reply.snapshot.save_error.is_some());
     assert!(unreadable.is_dir());
@@ -331,6 +344,33 @@ async fn a_file_that_cannot_be_kept_aside_is_never_saved_over_and_the_block_is_r
     let reply = rig.send(SettingsIntent::Retry).await;
     assert!(reply.snapshot.save_error.is_none());
     assert_eq!(rig.on_disk().output_defaults, output_in("/chosen"));
+}
+
+#[tokio::test]
+async fn a_reset_while_the_file_cannot_be_kept_aside_waits_for_it_and_a_failed_retry_stays_pending()
+{
+    let root = TempDir::new().expect("temp dir");
+    let unreadable = config_dir(&root).join("settings.toml");
+    std::fs::create_dir_all(&unreadable).expect("a folder where the file belongs");
+    let rig = start_in(root);
+
+    let reply = rig.send(SettingsIntent::Reset).await;
+    assert_eq!(reply.outcome, SettingsOutcome::Applied);
+    assert!(reply.snapshot.save_error.is_some());
+    assert!(unreadable.is_dir());
+
+    let reply = rig.send(SettingsIntent::Retry).await;
+    assert!(reply.snapshot.save_error.is_some());
+    assert!(unreadable.is_dir());
+    assert_eq!(rig.settings.flush().await.map(|error| error.code), {
+        reply.snapshot.save_error.map(|error| error.code)
+    });
+
+    std::fs::remove_dir(&unreadable).expect("the user removes it");
+    let reply = rig.send(SettingsIntent::Retry).await;
+    assert!(reply.snapshot.save_error.is_none());
+    assert_eq!(rig.on_disk(), AppSettings::default());
+    assert_eq!(rig.settings.flush().await, None);
 }
 
 #[tokio::test]
@@ -357,7 +397,7 @@ async fn a_change_the_scheduler_refuses_keeps_the_previous_concurrency() {
 async fn closing_reports_settings_it_could_not_save_and_a_retry_saves_them() {
     let rig = start();
     rig.set_writable(false);
-    rig.send(remember_output("/custom")).await;
+    rig.remember_output("/custom").await;
 
     assert!(
         rig.settings.flush().await.is_some(),
@@ -403,12 +443,12 @@ async fn an_accepted_concurrency_survives_a_failed_write_and_retry_only_saves() 
 async fn retry_writes_the_newest_accepted_defaults() {
     let rig = start();
     rig.set_writable(false);
-    rig.send(remember_output("/first")).await;
+    rig.remember_output("/first").await;
+    rig.remember(Some(kept_audio_defaults()), Some(output_in("/second")))
+        .await;
     let reply = rig
-        .send(SettingsIntent::Remember {
-            encoder_defaults: Some(kept_audio_defaults()),
-            output_defaults: Some(output_in("/second")),
-            default_acquisition_lane: Some(AcquisitionLane::Indexer),
+        .send(SettingsIntent::SetDefaultAcquisitionLane {
+            lane: AcquisitionLane::Indexer,
         })
         .await;
 
@@ -435,13 +475,7 @@ async fn defaults_that_do_not_validate_are_refused_and_change_nothing() {
         ..EncoderDefaults::default()
     };
 
-    let reply = rig
-        .send(SettingsIntent::Remember {
-            encoder_defaults: Some(mismatched),
-            output_defaults: None,
-            default_acquisition_lane: None,
-        })
-        .await;
+    let reply = rig.remember(Some(mismatched), None).await;
 
     assert!(matches!(reply.outcome, SettingsOutcome::Rejected { .. }));
     assert_eq!(reply.snapshot.settings, AppSettings::default());
@@ -492,7 +526,7 @@ async fn the_aac_decoder_choice_takes_effect_saves_and_resets_to_auto() {
 #[tokio::test]
 async fn pinning_captures_the_current_defaults() {
     let rig = start();
-    rig.send(remember_output("/current")).await;
+    rig.remember_output("/current").await;
 
     let reply = rig.send(SettingsIntent::PinCurrentDefaults).await;
 
@@ -515,7 +549,7 @@ async fn pinning_after_a_pinned_launch_keeps_the_defaults_on_screen() {
         ..Default::default()
     });
 
-    rig.send(remember_output("/edited")).await;
+    rig.remember_output("/edited").await;
     rig.send(SettingsIntent::PinCurrentDefaults).await;
 
     let pinned = rig.on_disk().pinned_defaults.expect("pinned");
@@ -531,7 +565,7 @@ async fn reset_restores_defaults_and_automatic_concurrency() {
         preference: ConcurrencyPreference::Fixed(1),
     })
     .await;
-    rig.send(remember_output("/custom")).await;
+    rig.remember_output("/custom").await;
 
     let reply = rig.send(SettingsIntent::Reset).await;
 
@@ -544,14 +578,14 @@ async fn reset_restores_defaults_and_automatic_concurrency() {
     assert_eq!(rig.jobs.max_concurrent(), JobRegistry::default_max());
     assert_eq!(rig.on_disk(), AppSettings::default());
 
-    rig.send(remember_output("/after")).await;
+    rig.remember_output("/after").await;
     assert_eq!(rig.on_disk().output_defaults, output_in("/after"));
 }
 
 #[tokio::test]
 async fn reset_during_an_export_explains_why_and_changes_nothing() {
     let rig = start();
-    rig.send(remember_output("/custom")).await;
+    rig.remember_output("/custom").await;
     let (_job, _permit) = rig.jobs.register_job().await.expect("running export");
 
     let reply = rig.send(SettingsIntent::Reset).await;
@@ -572,7 +606,7 @@ async fn reset_during_an_export_explains_why_and_changes_nothing() {
 #[tokio::test]
 async fn a_reset_that_cannot_be_saved_still_applies_and_saves_on_retry() {
     let rig = start();
-    rig.send(remember_output("/custom")).await;
+    rig.remember_output("/custom").await;
     rig.set_writable(false);
 
     let reply = rig.send(SettingsIntent::Reset).await;
@@ -589,13 +623,20 @@ async fn a_reset_that_cannot_be_saved_still_applies_and_saves_on_retry() {
 #[tokio::test]
 async fn reset_follows_earlier_template_typing_and_preserves_a_later_choice() {
     let rig = start();
-    let tasks = crate::engine::EngineTasks::default();
-    let revision = Arc::new(std::sync::atomic::AtomicU64::new(1));
-    let before =
-        rig.settings
-            .remember_output_after_pause(output_in("/before-reset"), revision, &tasks);
+    let tasks = crate::engine_tasks::EngineTasks::default();
+    let before = rig.settings.remember_output_after_pause(
+        output_in("/before-reset"),
+        EditStamp::default(),
+        LatestEdit(Arc::new(std::sync::atomic::AtomicU64::new(1)), 1),
+        &tasks,
+    );
     let reset = rig.settings.begin(SettingsIntent::Reset, &tasks);
-    let after = rig.settings.begin(remember_output("/after-reset"), &tasks);
+    let after = rig.settings.remember_defaults(
+        None,
+        Some(output_in("/after-reset")),
+        EditStamp::default(),
+        &tasks,
+    );
     after.finish().await;
     reset.finish().await;
     before.finish().await;
@@ -605,8 +646,13 @@ async fn reset_follows_earlier_template_typing_and_preserves_a_later_choice() {
 #[tokio::test]
 async fn accepted_settings_preserve_independent_patches_without_host_reply_ordering() {
     let rig = start();
-    let tasks = crate::engine::EngineTasks::default();
-    let output = rig.settings.begin(remember_output("/chosen"), &tasks);
+    let tasks = crate::engine_tasks::EngineTasks::default();
+    let output = rig.settings.remember_defaults(
+        None,
+        Some(output_in("/chosen")),
+        EditStamp::default(),
+        &tasks,
+    );
     let concurrency = rig.settings.begin(
         SettingsIntent::SetConcurrency {
             preference: ConcurrencyPreference::Fixed(1),
@@ -691,4 +737,53 @@ async fn a_damaged_indexer_unit_is_reported_until_the_next_accepted_change() {
         .await;
 
     assert_eq!(reply.snapshot.recovery, None);
+}
+
+#[tokio::test]
+async fn choosing_a_default_source_changes_only_the_source_and_reaches_the_file() {
+    let rig = start();
+    rig.remember_output("/kept").await;
+
+    let reply = rig
+        .send(SettingsIntent::SetDefaultAcquisitionLane {
+            lane: AcquisitionLane::Indexer,
+        })
+        .await;
+
+    assert_eq!(reply.outcome, SettingsOutcome::Applied);
+    let saved = rig.on_disk();
+    assert_eq!(saved.default_acquisition_lane, AcquisitionLane::Indexer);
+    assert_eq!(saved.output_defaults, output_in("/kept"));
+}
+
+#[test]
+fn a_file_kept_aside_before_a_failed_save_is_still_named_when_the_retry_saves() {
+    let mut state = State {
+        persistence: Persistence::Pending {
+            error: None,
+            set_aside_first: true,
+            kept: None,
+        },
+        ..State::default()
+    };
+
+    state.settle_write(
+        true,
+        Some("settings.toml.unusable-1".to_string()),
+        Err(AppError::General("disk full".into())),
+    );
+    assert!(state.persistence.error().is_some());
+    assert!(
+        !state.persistence.set_aside_first(),
+        "the file is already kept; the retry must not set it aside again"
+    );
+
+    state.persistence = state.persistence.unsaved();
+    state.settle_write(false, None, Ok(()));
+
+    assert!(state.persistence.error().is_none());
+    assert_eq!(
+        state.recovery.expect("recovery").set_aside_as.as_deref(),
+        Some("settings.toml.unusable-1")
+    );
 }

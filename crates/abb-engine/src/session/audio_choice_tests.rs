@@ -1,5 +1,5 @@
 use super::*;
-use crate::audio::{EncoderAvailability, FaacProfileCapability};
+use crate::audio::{CodecFamily, EncoderAvailability, FaacProfileCapability};
 
 fn config(
     encoder_type: EncoderType,
@@ -87,21 +87,29 @@ fn editing_how_audio_is_encoded_selects_encode() {
     let caps = caps();
     let mut choice = AudioChoice::default();
 
-    choice.edit(AudioEdit::Bitrate(96), Some(&caps), false);
+    choice.edit(AudioEdit::Bitrate(96), Some(&caps), EditScope::Defaults);
     assert_eq!(choice.intent, AudioIntent::Encode);
 
     let mut title = AudioChoice::default();
-    title.edit(AudioEdit::Channels(ChannelConfig::Auto), Some(&caps), true);
+    title.edit(
+        AudioEdit::Channels(ChannelConfig::Auto),
+        Some(&caps),
+        EditScope::Title,
+    );
     assert_eq!(title.intent, AudioIntent::Encode);
     let mut defaults = AudioChoice::default();
-    defaults.edit(AudioEdit::Channels(ChannelConfig::Auto), Some(&caps), false);
+    defaults.edit(
+        AudioEdit::Channels(ChannelConfig::Auto),
+        Some(&caps),
+        EditScope::Defaults,
+    );
     assert_eq!(defaults.intent, AudioIntent::Auto);
 
     let mut format = AudioChoice::default();
     format.edit(
         AudioEdit::Format(AudiobookFormat::M4aOpus),
         Some(&caps),
-        true,
+        EditScope::Title,
     );
     assert_eq!(format.intent, AudioIntent::Auto);
 }
@@ -110,13 +118,13 @@ fn editing_how_audio_is_encoded_selects_encode() {
 fn aac_and_opus_keep_their_own_bitrates_across_format_switches() {
     let caps = caps();
     let mut choice = AudioChoice::default();
-    choice.edit(AudioEdit::Bitrate(96), Some(&caps), false);
+    choice.edit(AudioEdit::Bitrate(96), Some(&caps), EditScope::Defaults);
     choice.edit(
         AudioEdit::Format(AudiobookFormat::MkaOpus),
         Some(&caps),
-        false,
+        EditScope::Defaults,
     );
-    choice.edit(AudioEdit::Bitrate(40), Some(&caps), false);
+    choice.edit(AudioEdit::Bitrate(40), Some(&caps), EditScope::Defaults);
 
     let opus = choice
         .request(Some(&caps))
@@ -127,7 +135,11 @@ fn aac_and_opus_keep_their_own_bitrates_across_format_switches() {
         (opus.encoder_type, opus.bitrate_kbps, opus.bitrate_mode),
         (EncoderType::Opus, 40, BitrateMode::VbrTarget)
     );
-    choice.edit(AudioEdit::Format(AudiobookFormat::M4b), Some(&caps), false);
+    choice.edit(
+        AudioEdit::Format(AudiobookFormat::M4b),
+        Some(&caps),
+        EditScope::Defaults,
+    );
     let aac = choice
         .request(Some(&caps))
         .output
@@ -154,32 +166,91 @@ fn values_outside_the_capabilities_are_refused() {
     ] {
         let before = choice.clone();
         assert_eq!(
-            choice.edit(edit, Some(&caps), true),
+            choice.edit(edit, Some(&caps), EditScope::Title),
             EditResult::Refused,
             "{edit:?}"
         );
         assert_eq!(choice, before, "{edit:?} changed the choice");
     }
     assert_eq!(
-        choice.edit(AudioEdit::Bitrate(96), None, false),
+        choice.edit(AudioEdit::Bitrate(96), None, EditScope::Defaults),
         EditResult::Refused
     );
+}
+
+#[test]
+fn facts_name_every_option_and_the_bitrate_the_request_carries() {
+    let caps = caps();
+    let mut choice = AudioChoice::default();
+    choice.edit(AudioEdit::Bitrate(96), Some(&caps), EditScope::Defaults);
+
+    let facts = choice.facts(Some(&caps));
+    assert_eq!(facts.bitrate_kbps, 96);
+    assert_eq!(facts.codec_family, CodecFamily::Aac);
+    assert_eq!(facts.native_speed_options, [0, 1, 2, 3, 4]);
+    assert_eq!(
+        facts.channel_options,
+        [
+            ChannelConfig::Auto,
+            ChannelConfig::Mono,
+            ChannelConfig::Stereo
+        ]
+    );
+    assert_eq!(
+        facts.intent_options,
+        [
+            AudioIntent::Auto,
+            AudioIntent::Preserve,
+            AudioIntent::Encode
+        ]
+    );
+    assert_eq!(
+        facts
+            .format_options
+            .iter()
+            .map(|option| (option.format, option.codec_family))
+            .collect::<Vec<_>>(),
+        [
+            (AudiobookFormat::M4b, CodecFamily::Aac),
+            (AudiobookFormat::M4aOpus, CodecFamily::Opus),
+            (AudiobookFormat::MkaOpus, CodecFamily::Opus),
+        ]
+    );
+
+    choice.edit(
+        AudioEdit::Format(AudiobookFormat::MkaOpus),
+        Some(&caps),
+        EditScope::Defaults,
+    );
+    choice.edit(AudioEdit::Bitrate(40), Some(&caps), EditScope::Defaults);
+    let opus = choice.facts(Some(&caps));
+    assert_eq!(
+        (opus.bitrate_kbps, opus.codec_family),
+        (40, CodecFamily::Opus)
+    );
+
+    let bare = choice.facts(None);
+    assert!(bare.native_speed_options.is_empty() && bare.channel_options.is_empty());
 }
 
 #[test]
 fn faac_quality_owns_the_bitrate_and_has_no_estimate() {
     let caps = caps();
     let mut choice = AudioChoice::default();
-    choice.edit(AudioEdit::Encoder(EncoderType::Faac), Some(&caps), false);
+    choice.edit(
+        AudioEdit::Encoder(EncoderType::Faac),
+        Some(&caps),
+        EditScope::Defaults,
+    );
     assert_eq!(choice.facts(Some(&caps)).bitrate_mode, BitrateMode::Abr);
     assert_eq!(choice.facts(Some(&caps)).estimate_kbps, Some(65));
 
     choice.edit(
         AudioEdit::RateControl(FaacRateControl::Vbr),
         Some(&caps),
-        false,
+        EditScope::Defaults,
     );
-    choice.edit(AudioEdit::Quality(200), Some(&caps), false);
+    choice.edit(AudioEdit::Quality(200), Some(&caps), EditScope::Defaults);
 
     let facts = choice.facts(Some(&caps));
     assert_eq!(facts.bitrate_mode, BitrateMode::Vbr(200));
@@ -193,13 +264,17 @@ fn an_explicit_rate_the_encoder_rejects_is_kept_for_the_user_to_replace() {
     choice.edit(
         AudioEdit::SampleRate(SampleRateConfig::Explicit(22_050)),
         Some(&caps),
-        false,
+        EditScope::Defaults,
     );
-    choice.edit(AudioEdit::Encoder(EncoderType::Faac), Some(&caps), false);
+    choice.edit(
+        AudioEdit::Encoder(EncoderType::Faac),
+        Some(&caps),
+        EditScope::Defaults,
+    );
     choice.edit(
         AudioEdit::FaacProfile(FaacProfile::HeAacV1),
         Some(&caps),
-        false,
+        EditScope::Defaults,
     );
     choice.fit(Some(&caps));
 
@@ -210,6 +285,41 @@ fn an_explicit_rate_the_encoder_rejects_is_kept_for_the_user_to_replace() {
     assert_eq!(
         choice.request(Some(&caps)).sample_rate,
         SampleRateConfig::Explicit(22_050)
+    );
+}
+
+#[test]
+fn a_rate_is_offered_separately_by_any_encoder_and_by_the_one_in_use() {
+    let caps = caps();
+    let mut choice = AudioChoice::default();
+    choice.edit(
+        AudioEdit::Encoder(EncoderType::NativeAac),
+        Some(&caps),
+        EditScope::Defaults,
+    );
+    let offer = |choice: &AudioChoice, hz| choice.rate_offer(hz, &caps);
+
+    assert_eq!(
+        offer(&choice, 44_100),
+        RateOffer {
+            by_any_encoder: true,
+            by_this_encoder: true
+        }
+    );
+    assert_eq!(
+        offer(&choice, 8_000),
+        RateOffer {
+            by_any_encoder: false,
+            by_this_encoder: false
+        }
+    );
+    choice.format = AudiobookFormat::M4aOpus;
+    assert_eq!(
+        offer(&choice, 22_050),
+        RateOffer {
+            by_any_encoder: true,
+            by_this_encoder: false
+        }
     );
 }
 
@@ -242,9 +352,9 @@ fn a_title_choice_is_the_defaults_with_its_own_request_on_top() {
     defaults.edit(
         AudioEdit::Format(AudiobookFormat::M4aOpus),
         Some(&caps),
-        false,
+        EditScope::Defaults,
     );
-    defaults.edit(AudioEdit::Bitrate(48), Some(&caps), false);
+    defaults.edit(AudioEdit::Bitrate(48), Some(&caps), EditScope::Defaults);
     let request = TitleAudioRequest::default_m4b(AudioIntent::Preserve);
 
     let title = defaults.for_title(&request);

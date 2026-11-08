@@ -1,9 +1,9 @@
 import { createSignal, For, onCleanup } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import { useAppRuntime } from '../../app/runtime';
-import { formatFileDetails, formatAudioProperties } from '../../app/inputSession';
+import { fileIdentityKey, formatFileDetails, formatAudioProperties } from '../../app/inputSession';
 import { pathBasename } from '../../lib/path/basename';
-import type { AudioFile } from '../../types/audio';
+import type { AudioFile } from '../../lib/generated/tauri';
 import { createFileListPointerReorder, type FileListDragState } from './pointerReorder';
 
 export function TitleSources(props: {
@@ -14,21 +14,21 @@ export function TitleSources(props: {
 	let list: HTMLOListElement | undefined;
 	const sources = () => input.sourcesFor(props.file);
 	const [drag, setDragState] = createSignal<FileListDragState>({
-		draggedIndex: null,
-		hoveredIndex: null,
+		draggedKey: null,
+		hoveredKey: null,
 		hoveredEdge: null,
 	});
 	const reorder = createFileListPointerReorder({
 		setDragState,
 		isBlocked: () => input.view().orderLocked,
-		fileCount: () => sources().length,
+		rowKeys: () => sources().map(fileIdentityKey),
 		onReorder: (from, to) => input.reorderSources(props.file, from, to),
 		hitTest: (x, y) => {
-			const row = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-source-index]');
-			if (!row || !list?.contains(row)) return null;
+			const row = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-source-key]');
+			if (!row?.dataset.sourceKey || !list?.contains(row)) return null;
 			const rect = row.getBoundingClientRect();
 			return {
-				index: Number(row.dataset.sourceIndex),
+				key: row.dataset.sourceKey,
 				edge: y < rect.top + rect.height / 2 ? 'top' : 'bottom',
 			};
 		},
@@ -46,10 +46,12 @@ export function TitleSources(props: {
 				<For each={sources()}>
 					{(source, index) => (
 						<li
-							data-source-index={index()}
-							class={[{ dragging: drag().draggedIndex === index() }]}
+							data-source-key={fileIdentityKey(source)}
+							class={[{ dragging: drag().draggedKey === fileIdentityKey(source) }]}
 							data-drop-edge={
-								drag().hoveredIndex === index() ? (drag().hoveredEdge ?? undefined) : undefined
+								drag().hoveredKey === fileIdentityKey(source)
+									? (drag().hoveredEdge ?? undefined)
+									: undefined
 							}
 						>
 							<button
@@ -59,7 +61,7 @@ export function TitleSources(props: {
 								disabled={input.view().orderLocked}
 								onPointerDown={(event) => {
 									event.stopPropagation();
-									reorder.onGripPointerDown(index(), event);
+									reorder.onGripPointerDown(fileIdentityKey(source), event);
 								}}
 							>
 								⋮⋮

@@ -32,6 +32,8 @@ Rules:
 - `corpus` is opt-in and not in `run.sh`'s default list: set
   `ABB_CORPUS_DIR=<folder of the owner's audiobooks>` and run `run.sh corpus`.
   It reads the owner's files but works only on copies, and compares title,
-  chapters, and length after encode and Preserve (`features/corpus.sh`).
+  chapters, and length after encode and Preserve, and diffs the full
+  `ffprobe -show_format` tags: Preserve fails on a tag the output lost, and an
+  encode lists the tags it did not carry (`features/corpus.sh`).
 - A new feature is a new `features/<name>.sh` added to `run.sh`'s list; check
   the result with ffprobe or the JSON, not with abb-dev's exit code alone.

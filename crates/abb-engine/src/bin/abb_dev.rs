@@ -12,7 +12,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+
+use tokio::sync::watch;
 
 use abb_engine::app_settings::{SettingsIntent, SettingsOutcome};
 use abb_engine::audio::{AacDecoder, AudioIntent, AudiobookFormat};
@@ -22,7 +23,7 @@ use abb_engine::session::{
     SessionUpdate, SubmissionStatus,
 };
 use abb_engine::work_runtime::{
-    ChildJobStatus, OperationId, OperationSnapshot, WorkOperationStatus,
+    ChildJobStatus, OperationId, OperationPhase, OperationSnapshot, WorkOperationsUpdate,
 };
 use abb_engine::{Engine, EngineConfig, EngineEvent, EventSink};
 
@@ -195,17 +196,52 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Options, String> {
     Ok(options)
 }
 
-#[derive(Default)]
+/// The newest snapshot of every operation the engine has reported, by the
+/// snapshot's own revision.
+type OperationFeed = watch::Receiver<HashMap<OperationId, OperationSnapshot>>;
+
 struct PrintProgress {
     seen: Mutex<HashMap<String, String>>,
+    operations: watch::Sender<HashMap<OperationId, OperationSnapshot>>,
+}
+
+impl Default for PrintProgress {
+    fn default() -> Self {
+        Self {
+            seen: Mutex::default(),
+            operations: watch::channel(HashMap::new()).0,
+        }
+    }
+}
+
+impl PrintProgress {
+    fn feed(&self) -> OperationFeed {
+        self.operations.subscribe()
+    }
+
+    fn keep_newest(&self, operation: &OperationSnapshot) {
+        self.operations.send_if_modified(|operations| {
+            let newer = operations
+                .get(&operation.operation_id)
+                .is_none_or(|known| known.revision < operation.revision);
+            if newer {
+                operations.insert(operation.operation_id.clone(), operation.clone());
+            }
+            newer
+        });
+    }
 }
 
 impl EventSink for PrintProgress {
     fn emit(&self, event: EngineEvent) {
-        let EngineEvent::WorkOperations(update) = event else {
+        let EngineEvent::WorkOperations(WorkOperationsUpdate {
+            changed: Some(operation),
+            ..
+        }) = event
+        else {
             return;
         };
-        let operation = update.changed;
+        self.keep_newest(&operation);
         let Ok(mut seen) = self.seen.lock() else {
             return;
         };
@@ -329,7 +365,7 @@ async fn plan(engine: &Engine, options: &Options) -> Result<(), String> {
     Ok(())
 }
 
-async fn submit(engine: &Engine, options: &Options) -> Result<SubmissionStatus, String> {
+async fn submit(engine: &Engine, options: &Options) -> Result<SubmissionStatus, AbbDevStatus> {
     let intent = if options.preview {
         SessionIntent::Preview
     } else {
@@ -349,63 +385,71 @@ async fn submit(engine: &Engine, options: &Options) -> Result<SubmissionStatus, 
             .iter()
             .map(|output| output.resolved_path.clone())
             .collect();
-        return Err(format!(
+        return Err(AbbDevStatus::PendingReview(format!(
             "these exports already exist; choose --on-collision: {}",
             paths.join(", ")
-        ));
+        )));
     };
     send(
         engine,
         SessionIntent::ChooseCollisionPolicy { review_id, policy },
     )
     .await?;
-    submission(engine).ok_or_else(|| "the engine did not answer the review".to_string())
+    Ok(submission(engine).ok_or("the engine did not answer the review")?)
 }
 
-/// Waits for an export. A requested title is cancelled while it is still
-/// queued, before the poll interval, so a fast passthrough cannot finish it
-/// unseen.
+/// Waits for an export to finish, calling `each` with every snapshot the
+/// engine reports for it. A requested title is cancelled from the first
+/// snapshot that shows it queued or running, so a fast passthrough cannot
+/// finish it unseen.
+async fn await_finished(
+    feed: &mut OperationFeed,
+    operation_id: &OperationId,
+    mut each: impl FnMut(&OperationSnapshot) -> Result<(), String>,
+) -> Result<OperationSnapshot, String> {
+    loop {
+        let known = feed.borrow_and_update().get(operation_id).cloned();
+        if let Some(operation) = known {
+            each(&operation)?;
+            if operation.phase == OperationPhase::Finished {
+                return Ok(operation);
+            }
+        }
+        feed.changed()
+            .await
+            .map_err(|_| "the engine stopped reporting the export".to_string())?;
+    }
+}
+
 async fn follow(
     engine: &Engine,
+    feed: &mut OperationFeed,
     operation_id: &OperationId,
     cancel_title: Option<usize>,
 ) -> Result<OperationSnapshot, String> {
     let mut cancelled = cancel_title.is_none();
-    loop {
-        let operation = engine
-            .list_work_operations()
-            .map_err(|error| error.to_string())?
-            .operations
-            .into_iter()
-            .find(|operation| &operation.operation_id == operation_id)
-            .ok_or("the export is no longer listed")?;
-        if !cancelled {
-            let index = cancel_title.unwrap_or(1) - 1;
-            let child = operation
-                .children
-                .get(index)
-                .ok_or_else(|| format!("there is no title {}", index + 1))?;
-            if matches!(
-                child.status,
-                ChildJobStatus::Queued | ChildJobStatus::Running
-            ) {
-                engine
-                    .cancel_work_operation(operation_id.clone(), Some(child.child_job_id.clone()))
-                    .map_err(|error| error.to_string())?;
-                eprintln!("Cancelled title {}: {}", index + 1, child.label);
-                cancelled = true;
-            }
+    await_finished(feed, operation_id, |operation| {
+        if cancelled {
+            return Ok(());
         }
-        if !matches!(
-            operation.status,
-            WorkOperationStatus::Accepted
-                | WorkOperationStatus::Running
-                | WorkOperationStatus::Cancelling
+        let index = cancel_title.unwrap_or(1) - 1;
+        let child = operation
+            .children
+            .get(index)
+            .ok_or_else(|| format!("there is no title {}", index + 1))?;
+        if matches!(
+            child.status,
+            ChildJobStatus::Queued | ChildJobStatus::Running
         ) {
-            return Ok(operation);
+            engine
+                .cancel_work_operation(operation_id.clone(), Some(child.child_job_id.clone()))
+                .map_err(|error| error.to_string())?;
+            eprintln!("Cancelled title {}: {}", index + 1, child.label);
+            cancelled = true;
         }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
+        Ok(())
+    })
+    .await
 }
 
 async fn print_export(engine: &Engine, operation: &OperationSnapshot) {
@@ -456,7 +500,11 @@ fn export_verdict(
     }
 }
 
-async fn produce(engine: &Engine, options: &Options) -> Result<(), String> {
+async fn produce(
+    engine: &Engine,
+    feed: &mut OperationFeed,
+    options: &Options,
+) -> Result<(), AbbDevStatus> {
     match submit(engine, options).await? {
         SubmissionStatus::Submitted {
             operation_id,
@@ -466,15 +514,16 @@ async fn produce(engine: &Engine, options: &Options) -> Result<(), String> {
             eprintln!("Exporting {title}");
             during_export::run_steps(
                 engine,
+                feed,
                 &operation_id,
                 &options.paths,
                 &options.during_export,
             )
             .await?;
-            let operation = follow(engine, &operation_id, options.cancel_title).await?;
-            during_export::await_landed(engine).await?;
+            let operation = follow(engine, feed, &operation_id, options.cancel_title).await?;
+            during_export::await_landed(engine, &options.during_export).await?;
             print_export(engine, &operation).await;
-            export_verdict(&operation, options.cancel_title)
+            Ok(export_verdict(&operation, options.cancel_title)?)
         }
         SubmissionStatus::PreviewFinished { result } => {
             for entry in &result.results {
@@ -483,10 +532,10 @@ async fn produce(engine: &Engine, options: &Options) -> Result<(), String> {
             }
             match result.terminal_class {
                 abb_engine::processing::RunTerminalClass::Success => Ok(()),
-                other => Err(format!("the preview ended {other:?}")),
+                other => Err(format!("the preview ended {other:?}").into()),
             }
         }
-        other => Err(format!("not exported: {other:?}")),
+        other => Err(format!("not exported: {other:?}").into()),
     }
 }
 
@@ -507,12 +556,21 @@ async fn apply_edits(engine: &Engine, options: &Options) -> Result<(), String> {
     Ok(())
 }
 
-async fn run(options: Options, state_dir: PathBuf) -> Result<AbbDevStatus, String> {
+async fn run(options: Options, state_dir: PathBuf) -> AbbDevStatus {
+    match drive(&options, state_dir).await {
+        Ok(()) => AbbDevStatus::Success,
+        Err(status) => status,
+    }
+}
+
+async fn drive(options: &Options, state_dir: PathBuf) -> Result<(), AbbDevStatus> {
+    let progress = Arc::new(PrintProgress::default());
+    let mut feed = progress.feed();
     let engine = Engine::start(EngineConfig {
         cache_dir: state_dir.join("cache"),
         config_dir: state_dir.join("config"),
         app_identifier: APP_IDENTIFIER.to_string(),
-        events: Arc::new(PrintProgress::default()),
+        events: progress,
     })
     .map_err(|error| format!("engine failed to start: {error}"))?;
 
@@ -522,7 +580,7 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<AbbDevStatus, Strin
             .await
             .outcome;
         if outcome != SettingsOutcome::Applied {
-            return Err(format!("decoder choice was not applied: {outcome:?}"));
+            return Err(format!("decoder choice was not applied: {outcome:?}").into());
         }
     }
 
@@ -534,15 +592,15 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<AbbDevStatus, Strin
     )
     .await?;
     send(&engine, SessionIntent::SelectAll).await?;
-    apply_edits(&engine, &options).await?;
+    apply_edits(&engine, options).await?;
     if options.save {
         send(&engine, SessionIntent::Save).await?;
     }
-    plan(&engine, &options).await?;
+    plan(&engine, options).await?;
     if options.export || options.preview {
-        if let Err(message) = produce(&engine, &options).await {
+        if let Err(status) = produce(&engine, &mut feed, options).await {
             shut_down(&engine).await;
-            return Err(message);
+            return Err(status);
         }
     }
 
@@ -556,12 +614,10 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<AbbDevStatus, Strin
         print_session(&session);
     }
     if nothing_imported(&session) {
-        return Ok(AbbDevStatus::NothingImported);
+        return Err(AbbDevStatus::NothingImported);
     }
     if options.save {
-        if let Err(message) = save_written(&session) {
-            return Ok(AbbDevStatus::SaveFailed(message));
-        }
+        save_written(&session).map_err(AbbDevStatus::SaveFailed)?;
     }
     if session
         .output
@@ -569,18 +625,23 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<AbbDevStatus, Strin
         .and_then(|output| output.collision_review.as_ref())
         .is_some()
     {
-        return Ok(AbbDevStatus::PendingReview(
+        return Err(AbbDevStatus::PendingReview(
             "a collision review is still pending".into(),
         ));
     }
-    Ok(AbbDevStatus::Success)
+    Ok(())
 }
 
 fn save_written(session: &SessionUpdate) -> Result<(), String> {
-    let status = session
-        .metadata
-        .as_ref()
-        .and_then(|metadata| metadata.status.as_ref());
+    save_status_error(
+        session
+            .metadata
+            .as_ref()
+            .and_then(|metadata| metadata.status.as_ref()),
+    )
+}
+
+fn save_status_error(status: Option<&MetadataStatus>) -> Result<(), String> {
     match status {
         Some(MetadataStatus::SaveFailed { error }) => {
             Err(format!("Save failed: {}", error.message))
@@ -611,16 +672,15 @@ enum AbbDevStatus {
     Failed(String),
 }
 
-fn classify_failed(message: String) -> AbbDevStatus {
-    if message.contains("choose --on-collision") {
-        AbbDevStatus::PendingReview(message)
-    } else if message.starts_with("Save failed")
-        || message.starts_with("Save was refused")
-        || message.starts_with("Save could not write")
-    {
-        AbbDevStatus::SaveFailed(message)
-    } else {
-        AbbDevStatus::Failed(message)
+impl From<String> for AbbDevStatus {
+    fn from(message: String) -> Self {
+        Self::Failed(message)
+    }
+}
+
+impl From<&str> for AbbDevStatus {
+    fn from(message: &str) -> Self {
+        Self::Failed(message.to_string())
     }
 }
 
@@ -666,10 +726,7 @@ async fn main() -> ExitCode {
                 let state_dir = options.state_dir.clone().unwrap_or_else(|| {
                     std::env::temp_dir().join(format!("abb-dev-{}", std::process::id()))
                 });
-                let status = match run(options, state_dir.clone()).await {
-                    Ok(status) => status,
-                    Err(message) => classify_failed(message),
-                };
+                let status = run(options, state_dir.clone()).await;
                 if temporary {
                     #[expect(
                         clippy::let_underscore_must_use,

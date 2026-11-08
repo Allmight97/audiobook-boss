@@ -3,9 +3,9 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
 
-import type { AudioFile } from '../../types/audio';
-import { createFakeEngine, defaultAppSettings } from '../../test/fixtures/fakeEngine';
-import type { OnlineMetadataResult } from '../../types/metadata';
+import type { AudioFile } from '../../lib/generated/tauri';
+import { audioFile, createFakeEngine, defaultAppSettings } from '../../test/fixtures/fakeEngine';
+import { lookupResult } from '../../test/fixtures/lookup';
 import { App } from '../App';
 
 const native = vi.hoisted(() => ({
@@ -21,12 +21,11 @@ const INPUT_PATH = '/library/Dune.m4b';
 const OUTPUT_DIRECTORY = '/exports/audiobooks';
 
 function importedFile(): AudioFile {
-	return {
+	return audioFile(INPUT_PATH, {
+		status: 'ready',
 		inputId: 'input-dune',
-		chapters: [],
-		path: INPUT_PATH,
-		size: 1024,
 		duration: 3600,
+		size: 1024,
 		format: 'm4b',
 		bitrate: 64_000,
 		sampleRate: 44100,
@@ -35,32 +34,21 @@ function importedFile(): AudioFile {
 		selectedDecoder: 'FFmpeg',
 		label: 'Dune (old tags)',
 		artist: 'Old Author',
-		chapterPlan: null,
-		cueSource: null,
-		error: null,
-		cover: null,
-		isValid: true,
-		sourceRemoved: false,
-	};
+	});
 }
 
-function lookupResult(): OnlineMetadataResult {
-	return {
-		source: 'audnexus',
-		title: 'Dune',
-		authors: ['Frank Herbert'],
-		narrators: ['George Guidall'],
-		series: 'Dune',
-		seriesPart: '1',
-		subseries: 'Dune Saga',
-		subseriesPart: '1',
-		description: 'The desert planet Arrakis holds the spice.',
-		publishedDate: '1965-08',
-		durationSeconds: 3600,
-		cover: 'remote/0/https%3A%2F%2Fcovers.example.test%2Fdune.jpg',
-		audibleOnly: false,
-	};
-}
+const duneResult = lookupResult({
+	title: 'Dune',
+	authors: ['Frank Herbert'],
+	narrators: ['George Guidall'],
+	series: 'Dune',
+	seriesPart: '1',
+	subseries: 'Dune Saga',
+	subseriesPart: '1',
+	description: 'The desert planet Arrakis holds the spice.',
+	publishedDate: '1965-08',
+	cover: 'remote/0/https%3A%2F%2Fcovers.example.test%2Fdune.jpg',
+});
 
 describe('UI workflow intents', () => {
 	afterEach(() => cleanup());
@@ -108,7 +96,7 @@ describe('UI workflow intents', () => {
 						...state.lookup,
 						open: true,
 						hasSearched: true,
-						results: [lookupResult()],
+						results: [duneResult],
 						queuePosition: { index: 0, total: 1, path: INPUT_PATH, label: 'Dune (old tags)' },
 						status: { kind: 'found', count: 1, partial: false, after: null },
 					};
@@ -135,25 +123,20 @@ describe('UI workflow intents', () => {
 
 		try {
 			await waitFor(() => {
-				expect(runtime.encoding.view().flavorDisabled).toBe(false);
+				expect(runtime.encoding.form({ kind: 'defaults' }).view()?.flavorDisabled).toBe(false);
 			});
-			await user.click(document.querySelector('[aria-label="Add audio files"]') as HTMLElement);
+			await user.click(screen.getByRole('button', { name: 'Add audio files' }));
 			await waitFor(() => {
-				expect(document.getElementById('meta-title')).toHaveValue('Dune (old tags)');
+				expect(screen.getByLabelText('Book Title')).toHaveValue('Dune (old tags)');
 			});
 
-			await user.click(document.getElementById('metadata-lookup-btn') as HTMLElement);
-			const useMetadata = await waitFor(() => {
-				const button = document.querySelector<HTMLButtonElement>(
-					"#metadata-lookup-results button[data-index='0']",
-				);
-				if (!button) throw new Error('Lookup result did not render');
-				return button;
-			});
-			await user.click(document.getElementById('metadata-lookup-cover-toggle') as HTMLElement);
+			await user.click(screen.getByRole('button', { name: 'Find Metadata' }));
+			const lookup = await screen.findByRole('dialog', { name: 'Find Metadata Online' });
+			const useMetadata = await within(lookup).findByRole('button', { name: 'Use Metadata' });
+			await user.click(within(lookup).getByRole('checkbox', { name: 'Replace cover art' }));
 			await user.click(useMetadata);
 			await waitFor(() => {
-				expect(document.getElementById('meta-title')).toHaveValue('Dune');
+				expect(screen.getByLabelText('Book Title')).toHaveValue('Dune');
 				expect(screen.getByTestId('cover-art-img')).toBeInTheDocument();
 			});
 
@@ -198,13 +181,13 @@ describe('UI workflow intents', () => {
 				},
 				sampleRate: { explicit: 44100 },
 			});
-			await user.click(document.getElementById('output-dir-browse') as HTMLElement);
-			await user.click(document.getElementById('output-abs-include-year') as HTMLElement);
+			await user.click(screen.getByRole('button', { name: 'Browse output directory' }));
+			await user.click(screen.getByRole('checkbox', { name: 'Include year segment (YYYY)' }));
 			await waitFor(() => {
-				expect(document.getElementById('output-dir-text')).toHaveTextContent(OUTPUT_DIRECTORY);
+				expect(screen.getByTestId('output-directory-value')).toHaveTextContent(OUTPUT_DIRECTORY);
 			});
 
-			await user.click(document.getElementById('process-button') as HTMLElement);
+			await user.click(screen.getByRole('button', { name: 'Start Processing' }));
 			await waitFor(() => {
 				expect(runtime.processing.status().stepText).toContain('Submitted to Work Center.');
 			});

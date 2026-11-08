@@ -1,6 +1,6 @@
-use crate::processing::context::processing::ProgressEventListener;
-use crate::processing::progress::EmitContext;
+use crate::execution::EmitContext;
 use crate::processing::ProgressEmitter;
+use crate::processing::ProgressEventListener;
 
 fn terminal_emitter(
     progress_listener: Option<&ProgressEventListener>,

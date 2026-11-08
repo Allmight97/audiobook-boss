@@ -22,6 +22,7 @@ interface Case {
 	readonly source: string;
 	readonly rule: string | null;
 	readonly message?: string;
+	readonly absent?: string;
 }
 
 function branches(count: number): string {
@@ -45,6 +46,25 @@ function restricted(file: string, specifier: string, message: string): Case {
 		message,
 	};
 }
+
+function namedImport(
+	file: string,
+	names: string,
+	specifier: string,
+	expectation: Pick<Case, 'rule' | 'message' | 'absent'>,
+	prefix = 'import',
+): Case {
+	return {
+		name: `${file} ${expectation.rule === null ? 'allows' : 'rejects'} ${prefix} {${names}} from ${specifier}`,
+		file,
+		source: `${prefix} { ${names} } from '${specifier}';\n\nexport const value = [${names}];\n`,
+		...expectation,
+	};
+}
+
+const OWNER = 'src/lib/tauri/AGENTS.md';
+const NOT_RESTRICTED = { rule: null } as const;
+const RESTRICTED = { rule: 'eslint(no-restricted-imports)', message: OWNER } as const;
 
 function allowed(file: string, specifier: string): Case {
 	return { name: `${file} allows ${specifier}`, file, source: importing(specifier), rule: null };
@@ -84,6 +104,42 @@ const OXLINT_CASES: Case[] = [
 	restricted('src/lib/probe/owner.ts', '../../app/encoding/project', 'src/app/AGENTS.md'),
 	restricted('src/lib/probe/commands.ts', '../tauri/commands', 'src/lib/tauri/AGENTS.md'),
 	restricted('src/lib/probe/plugin.ts', '@tauri-apps/plugin-dialog', 'src/lib/tauri/AGENTS.md'),
+	namedImport('src/lib/probe/generatedCommands.ts', 'commands', '../generated/tauri', RESTRICTED),
+	namedImport('src/lib/probe/generatedEvents.ts', 'events', '../generated/tauri', RESTRICTED),
+	namedImport('src/lib/probe/generatedOther.ts', 'Foo', '../generated/tauri', NOT_RESTRICTED),
+	{
+		name: 'a type-only use of the generated commands passes',
+		file: 'src/lib/probe/generatedCommandsType.ts',
+		source:
+			"import type { commands } from '../generated/tauri';\n\nexport type Commands = typeof commands;\n",
+		rule: null,
+	},
+	{
+		name: 'a named re-export of the generated commands fails',
+		file: 'src/lib/probe/generatedReexport.ts',
+		source: "export { commands } from '../generated/tauri';\n",
+		...RESTRICTED,
+	},
+	namedImport('src/lib/probe/rawInvoke.ts', 'invoke', '@tauri-apps/api/core', RESTRICTED),
+	namedImport(
+		'src/lib/probe/convertFileSrc.ts',
+		'convertFileSrc',
+		'@tauri-apps/api/core',
+		NOT_RESTRICTED,
+	),
+	namedImport('src/lib/tauri/probeRawInvoke.ts', 'invoke', '@tauri-apps/api/core', NOT_RESTRICTED),
+	namedImport('src/lib/tauri/probeCommands.ts', 'commands', '../generated/tauri', RESTRICTED),
+	namedImport('src/lib/tauri/probeEvents.ts', 'events', '../generated/tauri', RESTRICTED),
+	namedImport('src/lib/tauri/commands.ts', 'commands, events', '../generated/tauri', {
+		...RESTRICTED,
+		message: "'events' import",
+		absent: "'commands' import",
+	}),
+	namedImport('src/lib/tauri/client.ts', 'commands, events', '../generated/tauri', {
+		...RESTRICTED,
+		message: "'commands' import",
+		absent: "'events' import",
+	}),
 	allowed('src/lib/probe/ownerRoot.ts', '../../app/encoding'),
 	allowed('src/lib/probe/foundation.ts', '../../ui/foundation'),
 	allowed('src/mainProbe.tsx', './app/runtime/ProductionRoot'),
@@ -428,6 +484,10 @@ describe.each([
 		const found = findingsFor(entry.file).find((finding) => finding.rule === entry.rule);
 		expect(found, `${entry.file} should report ${entry.rule}`).toBeDefined();
 		expect(found?.message).toContain(entry.message ?? '');
+		const leaked = findingsFor(entry.file)
+			.filter((finding) => finding.rule === entry.rule)
+			.filter((finding) => entry.absent && finding.message.includes(entry.absent));
+		expect(leaked).toEqual([]);
 	});
 
 	it.each(cases.filter((entry) => entry.rule === null))('$name', (entry) => {

@@ -1,12 +1,17 @@
 import { createMemo, createSignal, onCleanup, type Accessor } from 'solid-js';
-import type { AcquisitionLane } from '../../types/appSettings';
+import type {
+	AcquisitionLane,
+	AcquisitionSnapshot,
+	RemoteRelease,
+	RemoteTitle,
+	RemoteUiIntent,
+} from '../../lib/generated/tauri';
 import { tauriClient } from '../../lib/tauri/client';
-import type { RemoteUiIntent } from '../../types/session';
-import type { AcquisitionJob, RemoteRelease, RemoteTitle } from '../../types/remoteSource';
 import {
 	createIndexerConnectionSettings,
-	type IndexerConnectionSettingsView,
+	type IndexerConnectionSettings,
 } from './indexerConnection';
+import { remoteLanes, type RemoteLane } from './lanes';
 import type { EngineLink } from '../engineLink';
 import { createRemoteSourceStateStore } from './state';
 import {
@@ -43,7 +48,7 @@ function accountIntent(
 function actionIntent(
 	action: RemoteSourceAction,
 	view: RemoteSourceView,
-	job: AcquisitionJob | null,
+	job: AcquisitionSnapshot | null,
 ): RemoteUiIntent | null {
 	switch (action.type) {
 		case 'searchReleases':
@@ -77,9 +82,12 @@ export type RemoteSourceOwner = {
 	isReleaseSelected: (key: string) => boolean;
 	releaseGrab: (key: string) => RemoteSourceView['releaseGrabs'][string] | undefined;
 	readonly hiddenReleaseSelectionCount: Accessor<number>;
-	readonly acquisition: Accessor<AcquisitionJob | null>;
+	readonly acquisition: Accessor<AcquisitionSnapshot | null>;
 	readonly acquisitionTitle: Accessor<RemoteTitle | undefined>;
-	readonly indexerConnection: Accessor<IndexerConnectionSettingsView>;
+	/** Every lane with its label, whether it is connected, and which controls it shows. */
+	readonly lanes: Accessor<readonly RemoteLane[]>;
+	readonly lane: Accessor<RemoteLane>;
+	readonly indexerConnection: Omit<IndexerConnectionSettings, 'reset'>;
 	open: (options: { readonly lane: AcquisitionLane }) => Promise<void>;
 	selectLane: (lane: AcquisitionLane) => Promise<void>;
 	close: () => void;
@@ -103,16 +111,6 @@ export type RemoteSourceOwner = {
 	toggleSupplementalPdf: (titleId: string) => void;
 	selectRelease: (key: string, options?: { multi: boolean }) => void;
 	runAction: (action: RemoteSourceAction) => Promise<void>;
-	loadIndexerConnectionSettings: () => Promise<void>;
-	patchIndexerConnectionSettings: (
-		patch: Partial<
-			Pick<IndexerConnectionSettingsView, 'baseUrlDraft' | 'apiKeyDraft' | 'categoryIdsDraft'>
-		>,
-	) => void;
-	saveIndexerConnectionSettings: () => Promise<void>;
-	testIndexerConnection: () => Promise<void>;
-	/** Forgets what was typed in the Indexer form, so it shows the engine's draft. */
-	discardIndexerConnectionEdits: () => void;
 	reset: () => void;
 };
 
@@ -172,6 +170,18 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		releases().filter((release) => isReleaseSelected(release.key)),
 	);
 	const acquisition = () => deps.link.remoteAcquisition().job;
+	const lanes = createMemo(() => remoteLanes(view()));
+
+	async function moveToLane(lane: AcquisitionLane, failure: string): Promise<void> {
+		if (disposed) return;
+		const started = generation;
+		state.clearError(lane);
+		try {
+			await deps.link.send({ kind: 'remote', intent: { kind: 'selectLane', lane } });
+		} catch (error) {
+			if (!disposed && started === generation) state.setAcquisitionError(error, failure, lane);
+		}
+	}
 
 	return {
 		view,
@@ -195,30 +205,15 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 			const titleId = acquisition()?.progress.currentTitleId;
 			return titleId ? titleById().get(titleId) : undefined;
 		}),
-		indexerConnection: indexerConnection.view,
+		lanes,
+		lane: createMemo(() => lanes().find((lane) => lane.selected) ?? lanes()[0]),
+		indexerConnection,
 		async open({ lane }) {
 			if (disposed) return;
-			const started = generation;
 			state.patch({ isOpen: true });
-			state.clearError(lane);
-			try {
-				await deps.link.send({ kind: 'remote', intent: { kind: 'selectLane', lane } });
-			} catch (error) {
-				if (!disposed && started === generation)
-					state.setAcquisitionError(error, 'Could not open Remote Source.', lane);
-			}
+			await moveToLane(lane, 'Could not open Remote Source.');
 		},
-		async selectLane(lane) {
-			if (disposed) return;
-			const started = generation;
-			state.clearError(lane);
-			try {
-				await deps.link.send({ kind: 'remote', intent: { kind: 'selectLane', lane } });
-			} catch (error) {
-				if (!disposed && started === generation)
-					state.setAcquisitionError(error, 'Could not change Remote Source.', lane);
-			}
-		},
+		selectLane: (lane) => moveToLane(lane, 'Could not change Remote Source.'),
 		close() {
 			state.patch({ isOpen: false });
 		},
@@ -261,21 +256,6 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 				if (!disposed && started === generation)
 					state.setAcquisitionError(error, 'Remote source request failed.', providerId);
 			}
-		},
-		loadIndexerConnectionSettings() {
-			return indexerConnection.load();
-		},
-		patchIndexerConnectionSettings(patch) {
-			indexerConnection.patch(patch);
-		},
-		async saveIndexerConnectionSettings() {
-			await indexerConnection.save();
-		},
-		testIndexerConnection() {
-			return indexerConnection.testConnection();
-		},
-		discardIndexerConnectionEdits() {
-			indexerConnection.reset();
 		},
 		reset() {
 			generation += 1;

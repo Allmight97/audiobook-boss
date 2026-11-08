@@ -1,4 +1,4 @@
-use abb_remote_source_core::AcquisitionStrategy;
+use crate::strategy::AcquisitionStrategy;
 use aes::Aes128;
 use base64::{
     engine::general_purpose::{
@@ -12,7 +12,8 @@ use secrecy::SecretString;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::json_probe::find_first_string_for_keys;
+use crate::json_probe::find_in_tree;
+use crate::reply_keys::{asin, license_response};
 
 type Aes128CbcDec = cbc::Decryptor<Aes128>;
 
@@ -24,6 +25,46 @@ pub enum AudibleDecryptionMaterial {
         key_hex: SecretString,
         iv_hex: SecretString,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DecryptKind {
+    Aax,
+    Aaxc,
+}
+
+impl AudibleDecryptionMaterial {
+    pub fn kind(&self) -> DecryptKind {
+        match self {
+            Self::Aax { .. } => DecryptKind::Aax,
+            Self::Aaxc { .. } => DecryptKind::Aaxc,
+        }
+    }
+}
+
+/// Which reader produced the decryption material, for the license log.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MaterialSource {
+    LicenseResponse,
+    Voucher,
+    ActivationBytesScan,
+    KeyIvPairScan,
+}
+
+impl MaterialSource {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::LicenseResponse => "license_response",
+            Self::Voucher => "voucher",
+            Self::ActivationBytesScan => "activation_bytes_scan",
+            Self::KeyIvPairScan => "key_iv_pair_scan",
+        }
+    }
+}
+
+pub struct LocatedDecryptionMaterial {
+    pub material: AudibleDecryptionMaterial,
+    pub source: MaterialSource,
 }
 
 pub struct AudibleLicenseDecryptContext {
@@ -39,34 +80,45 @@ struct VoucherKeyMaterial {
 
 /// Extract decryption material for the given strategy from a license response,
 /// trying (in order) an encrypted `license_response` blob, an inline voucher,
-/// and strategy-specific activation/key-iv fallbacks.
+/// and strategy-specific activation/key-iv scans of the whole reply.
 pub fn audible_decryption_material_from_license(
     license: &Value,
     strategy: AcquisitionStrategy,
     title_id: &str,
     decrypt_context: Option<&AudibleLicenseDecryptContext>,
-) -> Option<AudibleDecryptionMaterial> {
+) -> Option<LocatedDecryptionMaterial> {
+    let located = |material, source| LocatedDecryptionMaterial { material, source };
     if let Some(material) =
         decrypt_license_response_material(license, strategy, title_id, decrypt_context)
     {
-        return Some(material);
+        return Some(located(material, MaterialSource::LicenseResponse));
     }
 
     let key_material = find_voucher_key_material(license);
     if let Some(material) = audible_decryption_material_from_key_material(key_material.as_ref()) {
-        return Some(material);
+        return Some(located(material, MaterialSource::Voucher));
     }
 
     match strategy {
         AcquisitionStrategy::DownloadThenDecryptAax => {
-            find_activation_bytes(license).map(|activation_bytes| AudibleDecryptionMaterial::Aax {
-                activation_bytes_hex: SecretString::from(hex_encode(&activation_bytes)),
+            find_activation_bytes(license).map(|activation_bytes| {
+                located(
+                    AudibleDecryptionMaterial::Aax {
+                        activation_bytes_hex: SecretString::from(hex_encode(&activation_bytes)),
+                    },
+                    MaterialSource::ActivationBytesScan,
+                )
             })
         }
         AcquisitionStrategy::DownloadThenDecryptAaxc => {
-            find_key_iv_pair(license).map(|(key, iv)| AudibleDecryptionMaterial::Aaxc {
-                key_hex: SecretString::from(hex_encode(&key)),
-                iv_hex: SecretString::from(hex_encode(&iv)),
+            find_key_iv_pair(license).map(|(key, iv)| {
+                located(
+                    AudibleDecryptionMaterial::Aaxc {
+                        key_hex: SecretString::from(hex_encode(&key)),
+                        iv_hex: SecretString::from(hex_encode(&iv)),
+                    },
+                    MaterialSource::KeyIvPairScan,
+                )
             })
         }
         _ => None,
@@ -86,10 +138,8 @@ fn decrypt_license_response_material(
     }
 
     let context = decrypt_context?;
-    let license_response =
-        find_first_string_for_keys(license, &["license_response", "licenseResponse"])?;
-    let asin =
-        find_first_string_for_keys(license, &["asin", "Asin"]).unwrap_or_else(|| title_id.into());
+    let license_response = license_response(license)?;
+    let asin = asin(license).unwrap_or_else(|| title_id.into());
     let decrypted = decrypt_license_response(&license_response, &asin, context)?;
     let key_material = find_voucher_key_material(&decrypted);
     audible_decryption_material_from_key_material(key_material.as_ref())
@@ -143,89 +193,59 @@ fn audible_decryption_material_from_key_material(
 }
 
 fn find_voucher_key_material(value: &Value) -> Option<VoucherKeyMaterial> {
-    match value {
-        Value::Object(map) => {
-            if let Some(voucher) = map
-                .get("voucher")
-                .or_else(|| map.get("Voucher"))
-                .or_else(|| map.get("content_license"))
-                .or_else(|| map.get("contentLicense"))
-                .and_then(find_voucher_key_material)
-            {
-                return Some(voucher);
-            }
-            let key = find_bytes_for_keys_in_object(
-                map,
-                &[
-                    "key",
-                    "Key",
-                    "keyHex",
-                    "key_hex",
-                    "activation_bytes",
-                    "activationBytes",
-                    "activationBytesHex",
-                    "activation_bytes_hex",
-                ],
-                &[4, 16],
-            );
-            if let Some(key) = key {
-                let iv =
-                    find_bytes_for_keys_in_object(map, &["iv", "Iv", "ivHex", "iv_hex"], &[16]);
-                return Some(VoucherKeyMaterial { key, iv });
-            }
-            map.values().find_map(find_voucher_key_material)
+    find_in_tree(value, &mut |map, _| {
+        if let Some(voucher) = map
+            .get("voucher")
+            .or_else(|| map.get("Voucher"))
+            .or_else(|| map.get("content_license"))
+            .or_else(|| map.get("contentLicense"))
+            .and_then(find_voucher_key_material)
+        {
+            return Some(voucher);
         }
-        Value::Array(values) => values.iter().find_map(find_voucher_key_material),
-        _ => None,
-    }
+        let key = find_bytes_for_keys_in_object(
+            map,
+            &[
+                "key",
+                "Key",
+                "keyHex",
+                "key_hex",
+                "activation_bytes",
+                "activationBytes",
+                "activationBytesHex",
+                "activation_bytes_hex",
+            ],
+            &[4, 16],
+        )?;
+        let iv = find_bytes_for_keys_in_object(map, &["iv", "Iv", "ivHex", "iv_hex"], &[16]);
+        Some(VoucherKeyMaterial { key, iv })
+    })
 }
 
 fn find_activation_bytes(value: &Value) -> Option<Vec<u8>> {
-    find_bytes_for_keys(
-        value,
-        &[
-            "activation_bytes",
-            "activationBytes",
-            "activationBytesHex",
-            "activation_bytes_hex",
-            "activation",
-            "key",
-            "Key",
-        ],
-        &[4],
-    )
+    find_in_tree(value, &mut |map, _| {
+        find_bytes_for_keys_in_object(
+            map,
+            &[
+                "activation_bytes",
+                "activationBytes",
+                "activationBytesHex",
+                "activation_bytes_hex",
+                "activation",
+                "key",
+                "Key",
+            ],
+            &[4],
+        )
+    })
 }
 
 fn find_key_iv_pair(value: &Value) -> Option<(Vec<u8>, Vec<u8>)> {
-    match value {
-        Value::Object(map) => {
-            let key =
-                find_bytes_for_keys_in_object(map, &["key", "Key", "keyHex", "key_hex"], &[16]);
-            let iv = find_bytes_for_keys_in_object(map, &["iv", "Iv", "ivHex", "iv_hex"], &[16]);
-            if let (Some(key), Some(iv)) = (key, iv) {
-                return Some((key, iv));
-            }
-            map.values().find_map(find_key_iv_pair)
-        }
-        Value::Array(values) => values.iter().find_map(find_key_iv_pair),
-        _ => None,
-    }
-}
-
-fn find_bytes_for_keys(value: &Value, keys: &[&str], expected_lens: &[usize]) -> Option<Vec<u8>> {
-    match value {
-        Value::Object(map) => {
-            if let Some(bytes) = find_bytes_for_keys_in_object(map, keys, expected_lens) {
-                return Some(bytes);
-            }
-            map.values()
-                .find_map(|entry| find_bytes_for_keys(entry, keys, expected_lens))
-        }
-        Value::Array(values) => values
-            .iter()
-            .find_map(|entry| find_bytes_for_keys(entry, keys, expected_lens)),
-        _ => None,
-    }
+    find_in_tree(value, &mut |map, _| {
+        let key = find_bytes_for_keys_in_object(map, &["key", "Key", "keyHex", "key_hex"], &[16])?;
+        let iv = find_bytes_for_keys_in_object(map, &["iv", "Iv", "ivHex", "iv_hex"], &[16])?;
+        Some((key, iv))
+    })
 }
 
 fn find_bytes_for_keys_in_object(

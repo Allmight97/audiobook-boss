@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+// oxlint-disable-next-line eslint/no-restricted-imports -- the recorded workflows replay the raw IPC wire.
 import { invoke } from '@tauri-apps/api/core';
 import { replayInvoke } from '../../test/fixtures/recordedInvoke';
 import { interpretFileListKeyDown } from '../inputSession';

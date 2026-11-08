@@ -96,23 +96,6 @@ describe('check-tauri-runtime-boundary.ts', () => {
 		}
 	});
 
-	it('rejects generated commands value imports regardless of alias', () => {
-		const repoRoot = createFixtureRepo();
-		try {
-			writeFileSync(
-				path.join(repoRoot, 'src/ui/bypass.ts'),
-				"import { commands as c } from '../lib/generated/tauri';\nvoid c;\n",
-			);
-
-			const result = runTauriBoundaryCheck(repoRoot);
-			expectStatus(result, 1);
-			expect(result.stderr).toContain("generated 'commands' value imports");
-			expect(result.stderr).toContain('src/ui/bypass.ts');
-		} finally {
-			rmSync(repoRoot, { force: true, recursive: true });
-		}
-	});
-
 	it('ignores commented generated imports', () => {
 		const repoRoot = createFixtureRepo();
 		try {
@@ -136,17 +119,17 @@ describe('check-tauri-runtime-boundary.ts', () => {
 		}
 	});
 
-	it('rejects generated value re-exports', () => {
+	it('rejects generated star re-exports', () => {
 		const repoRoot = createFixtureRepo();
 		try {
 			writeFileSync(
 				path.join(repoRoot, 'src/ui/bypass.ts'),
-				"export { commands as generatedCommands } from '../lib/generated/tauri';\n",
+				"export * from '../lib/generated/tauri';\n",
 			);
 
 			const result = runTauriBoundaryCheck(repoRoot);
 			expectStatus(result, 1);
-			expect(result.stderr).toContain("generated 'commands' value imports");
+			expect(result.stderr).toContain('generated Tauri value re-exports');
 			expect(result.stderr).toContain('src/ui/bypass.ts');
 		} finally {
 			rmSync(repoRoot, { force: true, recursive: true });
@@ -170,45 +153,33 @@ describe('check-tauri-runtime-boundary.ts', () => {
 		}
 	});
 
-	it('allows raw Tauri invoke imports inside the runtime boundary', () => {
+	it('rejects a raw Tauri core namespace import in runtime UI code', () => {
 		const repoRoot = createFixtureRepo();
 		try {
 			writeFileSync(
-				path.join(repoRoot, 'src/lib/tauri/rawInvoke.ts'),
-				"import { invoke } from '@tauri-apps/api/core';\nvoid invoke;\n",
-			);
-
-			const result = runTauriBoundaryCheck(repoRoot);
-			expectStatus(result, 0);
-			expect(result.stdout).toContain('[check-tauri-runtime-boundary] OK');
-		} finally {
-			rmSync(repoRoot, { force: true, recursive: true });
-		}
-	});
-
-	it('rejects raw Tauri invoke imports in runtime UI code', () => {
-		const repoRoot = createFixtureRepo();
-		try {
-			writeFileSync(
-				path.join(repoRoot, 'src/ui/rawInvoke.ts'),
-				"import { invoke } from '@tauri-apps/api/core';\nvoid invoke;\n",
+				path.join(repoRoot, 'src/ui/rawCore.ts'),
+				"import * as core from '@tauri-apps/api/core';\nvoid core;\n",
 			);
 
 			const result = runTauriBoundaryCheck(repoRoot);
 			expectStatus(result, 1);
-			expect(result.stderr).toContain("raw Tauri 'invoke' imports");
-			expect(result.stderr).toContain('src/ui/rawInvoke.ts');
+			expect(result.stderr).toContain('raw Tauri core namespace imports');
+			expect(result.stderr).toContain('src/ui/rawCore.ts');
 		} finally {
 			rmSync(repoRoot, { force: true, recursive: true });
 		}
 	});
 
-	it('allows raw Tauri invoke imports in tests', () => {
+	it('allows a raw Tauri core namespace import in the boundary and in tests', () => {
 		const repoRoot = createFixtureRepo();
 		try {
 			writeFileSync(
-				path.join(repoRoot, 'src/ui/__tests__/rawInvoke.test.ts'),
-				"import { invoke } from '@tauri-apps/api/core';\nvoid invoke;\n",
+				path.join(repoRoot, 'src/lib/tauri/rawCore.ts'),
+				"import * as core from '@tauri-apps/api/core';\nvoid core;\n",
+			);
+			writeFileSync(
+				path.join(repoRoot, 'src/ui/__tests__/rawCore.test.ts'),
+				"import * as core from '@tauri-apps/api/core';\nvoid core;\n",
 			);
 
 			const result = runTauriBoundaryCheck(repoRoot);

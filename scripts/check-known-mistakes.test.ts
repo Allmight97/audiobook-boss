@@ -25,6 +25,15 @@ describe('check-known-mistakes', () => {
 		expect(found('src/ui/foundation/CoverImage.tsx', '\t<img src={url()} />')).toEqual([]);
 	});
 
+	it('rejects host OS wording outside the platform helper', () => {
+		expect(found('src/ui/QuitReminder.tsx', "\tconst key = '⌘Q';")).toEqual([
+			expect.stringMatching(/^1: .*src\/lib\/platform/),
+		]);
+		expect(found('src/app/x.ts', "\tnavigator.userAgent.includes('Mac');")).toHaveLength(1);
+		expect(found('src/lib/platform/index.ts', "export const QUIT_SHORTCUT = '⌘Q';")).toEqual([]);
+		expect(found('src/ui/x.test.tsx', "\tvi.spyOn(navigator, 'userAgent', 'get');")).toEqual([]);
+	});
+
 	it('rejects a lint suppression without a reason', () => {
 		expect(found('src/x.ts', `// ${DISABLE}-next-line no-explicit-any`)).toHaveLength(1);
 		expect(
@@ -64,6 +73,18 @@ describe('check-known-mistakes', () => {
 		).toHaveLength(1);
 		expect(
 			found('crates/abb-engine/src/metadata/save.rs', 'use crate::audio::AudioIntent;'),
+		).toEqual([]);
+		expect(
+			found(
+				'crates/abb-engine/src/audio/processor/finalize.rs',
+				'use crate::processing::ProcessingContext;',
+			),
+		).toHaveLength(1);
+		expect(
+			found(
+				'crates/abb-engine/src/audio/processor/finalize.rs',
+				'use crate::execution::ProcessingContext;',
+			),
 		).toEqual([]);
 		expect(
 			found('crates/abb-engine/src/processing/run.rs', 'use crate::remote_source::RemoteTitle;'),

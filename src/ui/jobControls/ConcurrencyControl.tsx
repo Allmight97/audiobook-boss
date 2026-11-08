@@ -2,6 +2,7 @@ import { For } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { useAppRuntime } from '../../app/runtime';
+import { Select } from '../foundation';
 import './jobControls.css';
 
 export function ConcurrencyControl(): JSX.Element {
@@ -14,24 +15,20 @@ export function ConcurrencyControl(): JSX.Element {
 			<label class="concurrency-label" for="concurrency-select">
 				Number of Jobs:
 			</label>
-			<select
+			<Select
 				id="concurrency-select"
 				class="concurrency-select"
 				value={view().selection}
-				disabled={!view().controlsEnabled}
-				onChange={async (event) => {
-					const select = event.currentTarget;
-					await setSelection(select.value);
-					select.value = view().selection;
-				}}
+				disabled={view().locked}
+				onChoose={setSelection}
 			>
-				<option value="auto">{`Auto · ${view().autoEffective} jobs`}</option>
-				<For each={[...view().fixedOptions]}>
-					{(option) => <option value={String(option)}>{option}</option>}
+				<option value={view().autoSelection}>{`Auto · ${view().autoEffective} jobs`}</option>
+				<For each={view().fixedOptions} keyed={(option) => option}>
+					{(option) => <option value={String(option())}>{option()}</option>}
 				</For>
-			</select>
+			</Select>
 			<span class="sr-only" aria-live="polite">
-				{view().effectiveLabel}
+				{view().label}
 			</span>
 		</div>
 	);

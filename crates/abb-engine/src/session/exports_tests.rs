@@ -7,7 +7,7 @@ fn output() -> Arc<TitleOutput> {
         TitleOutputPlan {
             anchor: PathBuf::from("/books/alpha.m4b"),
             sources: Vec::new(),
-            base: None,
+            base: crate::metadata::AudiobookMetadata::default(),
             accepted: None,
             output_dir: PathBuf::from("/library"),
             naming: OutputNamingConfig::default(),
@@ -53,6 +53,20 @@ fn an_edit_already_written_to_the_source_stays_in_the_output_edit() {
     let intent = &edits[0].intent;
     assert_eq!(intent.genre, Some(PatchOp::Set("Mystery".to_string())));
     assert_eq!(intent.composer, Some(PatchOp::Set("Reader".to_string())));
+}
+
+#[test]
+fn asking_for_edits_with_no_linked_output_leaves_the_revision_alone() {
+    let mut exports = Exports::default();
+    assert!(exports.edits(|_| None).is_empty());
+
+    exports.link(
+        &OperationId("operation-1".to_string()),
+        [("alpha".to_string(), PathBuf::from("/books/alpha.m4b"))],
+        &[output()],
+    );
+
+    assert_eq!(exports.edits(|_| None)[0].revision, 1);
 }
 
 #[test]

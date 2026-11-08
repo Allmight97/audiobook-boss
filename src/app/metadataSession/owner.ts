@@ -1,12 +1,14 @@
 import { createEffect, createSignal, untrack, type Accessor } from 'solid-js';
-import type {
-	MetadataField,
-	MetadataStatus,
-	OutputEdits,
-	SessionIntent,
-	TagPreview,
-	SessionMetadata,
-} from '../../types/session';
+import {
+	COVER_IMAGE_EXTENSIONS,
+	type FieldAction,
+	type MetadataField,
+	type MetadataSnapshot,
+	type MetadataStatus,
+	type OutputEdits,
+	type SessionIntent,
+	type TagPreview,
+} from '../../lib/generated/tauri';
 import { coverSrc } from '../../lib/tauri/coverSrc';
 import { logFrontendFailure } from '../../lib/frontendLogBridge';
 import { toUserMessage } from '../../lib/tauri/appError';
@@ -16,14 +18,13 @@ import {
 } from '../../lib/tauri/capabilities/metadata';
 import { createTypingEcho, type EngineLink } from '../engineLink';
 import {
-	COVER_ART_IMAGE_EXTENSION_HINTS,
 	COVER_MESSAGE_MS,
 	coverNoticeMessage,
 	HIDDEN_COVER_MESSAGE,
 	type CoverArtMessage,
 	type CoverUiState,
 } from './cover';
-import { toFormState, type MetadataFieldAction, type MetadataFormState } from './fields';
+import { toFormState, type MetadataFormState } from './fields';
 
 type MetadataView = {
 	readonly form: MetadataFormState;
@@ -38,7 +39,7 @@ export type MetadataOwner = {
 	setFieldValue: (command: { readonly field: MetadataField; readonly value: string }) => void;
 	setFieldAction: (command: {
 		readonly field: MetadataField;
-		readonly action: MetadataFieldAction;
+		readonly action: FieldAction;
 	}) => void;
 	setCoverHovered: (hovered: boolean) => void;
 	setCoverDragOver: (dragOver: boolean) => void;
@@ -171,7 +172,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		},
 	);
 
-	function coverMessage(metadata: SessionMetadata): CoverArtMessage {
+	function coverMessage(metadata: MetadataSnapshot): CoverArtMessage {
 		if (localMessage.kind !== 'hidden') return localMessage;
 		if (metadata.cover.noticeSerial <= hiddenNoticeSerial) return HIDDEN_COVER_MESSAGE;
 		return coverNoticeMessage(metadata.cover.notice);
@@ -249,7 +250,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			try {
 				selected = await capabilityValue.openFile({
 					title: 'Select Cover Art Image',
-					filters: [{ name: 'Image Files', extensions: [...COVER_ART_IMAGE_EXTENSION_HINTS] }],
+					filters: [{ name: 'Image Files', extensions: [...COVER_IMAGE_EXTENSIONS] }],
 				});
 			} catch (error) {
 				logFrontendFailure('metadataSession.openImagePicker', error);

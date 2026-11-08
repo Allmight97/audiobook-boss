@@ -11,6 +11,7 @@ mod diagnostics;
 mod http;
 mod library;
 mod license;
+mod license_plan;
 mod license_reply_log;
 mod materialization;
 mod registration;
@@ -170,7 +171,7 @@ impl AudibleProvider {
         job_dir: &std::path::Path,
         progress: impl FnMut(abb_remote_source_core::AcquisitionProgress),
         is_cancelled: impl Fn() -> bool,
-    ) -> Result<crate::remote_source::AcquisitionJob> {
+    ) -> Result<crate::remote_source::AcquisitionOutcome> {
         acquire(
             auth,
             materializer,

@@ -1,4 +1,4 @@
-use super::{EncoderType, FaacProfile, SampleRateConfig};
+use super::{AudiobookFormat, EncoderType, FaacProfile, SampleRateConfig};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::path::Path;
 
@@ -52,23 +52,26 @@ pub(crate) fn validate_encoder_sample_rate(
     Ok(())
 }
 
-fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()> {
-    let dir = dir_path.as_ref();
-
+pub(crate) fn check_output_directory(dir: &Path, allow_missing: bool) -> Result<()> {
     if !dir.exists() {
+        if allow_missing {
+            return Ok(());
+        }
         return Err(AppError::FileValidation(format!(
             "Output directory does not exist: {}",
             sanitize_path_for_display(dir)
         )));
     }
-
     if !dir.is_dir() {
         return Err(AppError::FileValidation(format!(
             "Output path is not a directory: {}",
             sanitize_path_for_display(dir)
         )));
     }
+    Ok(())
+}
 
+fn probe_output_directory_writable(dir: &Path) -> Result<()> {
     let temp_file = dir.join(format!(
         ".audiobook_boss_write_test_{}",
         uuid::Uuid::new_v4()
@@ -91,57 +94,26 @@ fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()>
     }
 }
 
-pub fn validate_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
-    let path = path.as_ref();
-
+pub(crate) fn validate_output_target(path: &Path, format: AudiobookFormat) -> Result<()> {
     if let Some(parent) = path.parent() {
-        validate_output_directory_writable(parent)?;
+        check_output_directory(parent, false)?;
+        probe_output_directory_writable(parent)?;
     }
-
-    match path.extension().and_then(|s| s.to_str()) {
-        Some("m4b" | "m4a" | "mka") => Ok(()),
-        Some(ext) => Err(AppError::InvalidInput(format!(
-            "Encoded output must be .m4b, .m4a or .mka, got: .{ext}"
-        ))),
-        None => Err(AppError::InvalidInput(
-            "Encoded output requires an .m4b, .m4a or .mka extension".to_string(),
-        )),
-    }
-}
-
-pub fn validate_preserved_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
-    let path = path.as_ref();
-    if let Some(parent) = path.parent() {
-        validate_output_directory_writable(parent)?;
-    }
-    match path
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::to_ascii_lowercase)
-        .as_deref()
-    {
-        Some("m4b" | "m4a" | "mka") => Ok(()),
+    let wanted = format.extension();
+    match path.extension().and_then(|value| value.to_str()) {
+        Some(extension) if extension.eq_ignore_ascii_case(wanted) => Ok(()),
         Some(extension) => Err(AppError::InvalidInput(format!(
-            "Preserved output must be .m4b, .m4a or .mka, got: .{extension}"
+            "Output must be .{wanted}, got: .{extension}"
         ))),
-        None => Err(AppError::InvalidInput(
-            "Preserved output must have a supported audio extension".to_string(),
-        )),
-    }
-}
-
-impl SampleRateConfig {
-    pub fn explicit_rate(&self) -> Option<u32> {
-        match self {
-            SampleRateConfig::Explicit(rate) => Some(*rate),
-            SampleRateConfig::Auto => None,
-        }
+        None => Err(AppError::InvalidInput(format!(
+            "Output must have the .{wanted} extension"
+        ))),
     }
 }
 
 /// Auto retains supported source rates, otherwise uses the next supported rate,
 /// capped at the encoder/profile maximum. Explicit requests are validated unchanged.
-pub(in crate::audio) fn automatic_sample_rate(
+pub(crate) fn automatic_sample_rate(
     encoder: EncoderType,
     profile: FaacProfile,
     source_rate: u32,

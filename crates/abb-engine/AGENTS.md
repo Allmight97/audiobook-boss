@@ -16,8 +16,10 @@ app, a test, and the `abb-dev` tool drive the same code
   the methods. Remote account, auth, library, and acquisition work uses
   session intents and snapshots; its vocabulary is in
   `remote_source/AGENTS.md`.
-- The engine runs on the host's tokio runtime: `Engine::start` and every
-  async method run inside one. A host with no runtime builds one.
+- `Engine::start` is synchronous and runs with no Tokio runtime. Async
+  methods need the host's runtime; `open_audio_files` is async only so its
+  caller supplies one (the macOS opened-files thread uses `block_on` in
+  `src-tauri/src/opened_files.rs`).
 - The working session and the settings each take typed intents and return
   snapshots: `session/AGENTS.md` and `app_settings/AGENTS.md`.
 - A new host need (a directory, a platform service, an event) goes into
@@ -27,8 +29,9 @@ app, a test, and the `abb-dev` tool drive the same code
   `Engine::shutdown`. A quit never stops work the user was not asked about:
   `running_work` and `close_for_quit` enforce that (rustdoc in `engine.rs`).
 - `clippy.toml` `disallowed-methods` routes spawns through the one
-  `EngineTasks` owner over a `TaskTracker`, so shutdown can wait for them; a
-  child joined by a tracked parent is the one exception.
+  `EngineTasks` owner (`engine_tasks.rs`, a leaf below every owner) over a
+  `TaskTracker`, so shutdown can wait for them; a child joined by a tracked
+  parent is the one exception.
   Admission and shutdown share one lock: registering visible work and its
   cancellation handles finishes before shutdown enumerates work to stop.
 - An accepted intent belongs to the engine. `SessionRun::finish` and settings
@@ -45,10 +48,15 @@ app, a test, and the `abb-dev` tool drive the same code
 
 - Media execution crosses `crate::audio`; processor adapter selection and
   engine internals stay private to Audio.
-- Shared lifecycle vocabulary, internal progress values, active jobs, and
-  terminal summaries belong to `crate::processing`. Accepted operation
-  identity, snapshots, retention, and operation cancellation belong to
-  `crate::work_runtime`.
+- What one title's job carries while it runs (identity, cancellation, output
+  config, progress events and bands) and the `PublishGate` its publication
+  passes through belong to `crate::execution`, a leaf beside `engine_tasks.rs`:
+  audio imports it and never imports `crate::processing`, which re-exports
+  its names. It owns `AacDecoder`, which `audio` re-exports so the public
+  path stays `audio::AacDecoder`. Shared lifecycle
+  vocabulary, active jobs, and terminal summaries belong to
+  `crate::processing`. Accepted operation identity, snapshots, retention, and
+  operation cancellation belong to `crate::work_runtime`.
 - The titles being prepared, their metadata drafts, lookup, Save, and
   submission belong to `crate::session`. It writes tags through
   `metadata_save.rs` (one WorkRuntime operation per batch). `cover_source.rs`
@@ -78,7 +86,7 @@ app, a test, and the `abb-dev` tool drive the same code
 - Exports and previews start from the session (`Submit`, `Preview`). An
   export enters WorkRuntime through `submit_processing_operation`; a preview
   runs `process_inspected_with_options` with a stable identity, actual cancel
-  flags, and the shared private snapshot reducer.
+  tokens, and the shared private snapshot reducer.
 
 ## Diagnostics
 
@@ -101,8 +109,9 @@ app, a test, and the `abb-dev` tool drive the same code
   external downloader activity do not acquire guards.
 - Locks that guard state a panic cannot half-apply are taken with
   `PoisonError::into_inner`, so one panic does not fail every later call:
-  session transitions, job-registry admission, the WorkRuntime source map. The
-  power hold also releases during unwinding.
+  session transitions, job-registry admission, the WorkRuntime source reads
+  (`sources_in_use`, `sources_held`). The power hold also releases during
+  unwinding.
 - Validate input audio paths where they enter the engine with
   `crate::audio::validate_input_audio_path()`. Paths the engine hands back are
   canonical; compare paths in that spelling.

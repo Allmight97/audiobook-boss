@@ -1,4 +1,6 @@
+use super::audible_lane::AudibleSignIn;
 use super::*;
+use crate::remote_source::test_support::{vault_gate, MemoryVault, Reply, StubServer};
 use crate::remote_source::types::{
     release_key, RemoteTitleAvailability, RemoteTitleAvailabilityStatus,
 };
@@ -100,7 +102,7 @@ fn old_tests_cannot_replace_newer_drafts_or_expose_the_key() {
     ui.begin(edit(Some("next-secret")))
         .expect("new edit while saving");
     ui.saved(save.revision, &configured(), &Ok(true));
-    assert_eq!(ui.api_key.as_deref(), Some("next-secret"));
+    assert_eq!(ui.indexer.api_key.as_deref(), Some("next-secret"));
     assert_eq!(ui.snapshot.connection.save, RemoteDraftStatus::Idle);
     let UiAction::Test {
         request, revision, ..
@@ -144,7 +146,7 @@ fn disconnect_and_new_library_requests_expire_older_choices() {
     .expect("fixture step succeeded");
     ui.begin(RemoteUiIntent::AcquireSelected)
         .expect("fixture step succeeded");
-    assert!(ui.disconnect_allowed().is_err());
+    assert!(ui.audible.can_disconnect(ui.acquisition.busy()).is_err());
 }
 
 #[test]
@@ -231,15 +233,15 @@ fn old_test_replies_cannot_replace_a_new_test() {
 async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_failed_rows() {
     let root = tempfile::TempDir::new().expect("fixture step succeeded");
     let runtime = super::super::tests::test_runtime(&root);
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("fixture step succeeded");
+    let stub = StubServer::start(vec![
+        Reply::json("200 OK", "{}"),
+        Reply::json("409 Conflict", "{}"),
+        Reply::json("200 OK", "{}"),
+    ])
+    .await;
     runtime
         .ui_begin(RemoteUiIntent::EditConnection {
-            base_url: Some(format!(
-                "http://{}",
-                listener.local_addr().expect("fixture step succeeded")
-            )),
+            base_url: Some(stub.url()),
             category_ids: None,
             api_key: Some("local-proof-key".into()),
         })
@@ -260,7 +262,7 @@ async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_fa
         .expect("fixture step succeeded");
     {
         let mut ui = runtime.ui();
-        let request = ui.search_request;
+        let request = ui.indexer.search_request;
         ui.searched(
             request,
             &Ok(RemoteReleaseSearchResponse {
@@ -281,7 +283,6 @@ async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_fa
             .expect("fixture step succeeded");
     }
     let batch = runtime.ui_begin(RemoteUiIntent::GrabSelected);
-    let serving = serve_grab_batch(listener);
     assert!(runtime
         .ui_begin(RemoteUiIntent::SaveConnection)
         .finish()
@@ -314,81 +315,31 @@ async fn grab_batch_sends_in_order_blocks_connection_changes_and_retries_only_fa
     .await
     .expect("fixture step succeeded")
     .expect("fixture step succeeded");
-    assert_eq!(serving.await.expect("fixture step succeeded"), [1, 2, 2]);
+    let sent_ids: Vec<i64> = stub
+        .finished()
+        .await
+        .iter()
+        .map(|request| {
+            request.json_body()["indexerId"]
+                .as_i64()
+                .expect("indexer id")
+        })
+        .collect();
+    assert_eq!(sent_ids, [1, 2, 2]);
     assert_eq!(
         runtime.ui_snapshot().indexer.release_grabs[&release_key(2, "shared-guid")].status,
         ReleaseGrabStatus::Sent
     );
 }
 
-#[expect(clippy::disallowed_methods, reason = "joined by serve_grab_batch")]
-fn serve_grab_batch(listener: tokio::net::TcpListener) -> tokio::task::JoinHandle<Vec<i64>> {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    tokio::spawn(async move {
-        let mut ids = Vec::new();
-        for response_status in ["200 OK", "409 Conflict", "200 OK"] {
-            let (mut stream, _) = listener.accept().await.expect("fixture step succeeded");
-            let mut request = Vec::new();
-            loop {
-                let mut bytes = [0; 1024];
-                let count = stream
-                    .read(&mut bytes)
-                    .await
-                    .expect("fixture step succeeded");
-                assert_ne!(count, 0);
-                request.extend_from_slice(&bytes[..count]);
-                let text = String::from_utf8_lossy(&request);
-                if let Some((headers, body)) = text.split_once("\r\n\r\n") {
-                    let length = headers
-                        .lines()
-                        .find_map(|line| {
-                            line.split_once(':')
-                                .filter(|(key, _)| key.eq_ignore_ascii_case("content-length"))
-                                .map(|(_, value)| {
-                                    value
-                                        .trim()
-                                        .parse::<usize>()
-                                        .expect("fixture step succeeded")
-                                })
-                        })
-                        .unwrap_or(0);
-                    if body.len() >= length {
-                        let json: serde_json::Value =
-                            serde_json::from_str(body).expect("fixture step succeeded");
-                        ids.push(json["indexerId"].as_i64().expect("fixture step succeeded"));
-                        break;
-                    }
-                }
-            }
-            let body = "{}";
-            stream.write_all(format!("HTTP/1.1 {response_status}\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes()).await.expect("fixture step succeeded");
-        }
-        ids
-    })
-}
-
 #[tokio::test]
 async fn shutdown_drops_an_indexer_search_waiting_on_a_silent_server() {
     let root = tempfile::TempDir::new().expect("temp dir");
     let runtime = super::super::tests::test_runtime(&root);
-    // Accepts connections and never answers.
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("listener");
-    let address = listener.local_addr().expect("address");
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by shutdown_drops_an_indexer_search_waiting_on_a_silent_server"
-    )]
-    let _silent = tokio::spawn(async move {
-        let mut held = Vec::new();
-        while let Ok((stream, _)) = listener.accept().await {
-            held.push(stream);
-        }
-    });
+    let stub = StubServer::start(vec![Reply::hold()]).await;
     for intent in [
         RemoteUiIntent::EditConnection {
-            base_url: Some(format!("http://{address}")),
+            base_url: Some(stub.url()),
             category_ids: None,
             api_key: Some("local-proof-key".into()),
         },
@@ -419,70 +370,15 @@ async fn shutdown_drops_an_indexer_search_waiting_on_a_silent_server() {
         .await
         .expect("the search ends at shutdown, not after the server's timeout")
         .expect("search task");
-    assert!(ended.is_err());
+    assert!(matches!(ended, Err(AppError::Closing)));
 }
 
-struct VaultGate {
-    entered: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
-    release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+fn account_read_failure() -> AppError {
+    AppError::ResourceCleanup("scripted account read failure".into())
 }
-impl VaultGate {
-    fn wait(&self) {
-        if let Some(entered) = self.entered.lock().expect("gate sender").take() {
-            entered.send(()).expect("test awaits vault entry");
-            self.release
-                .lock()
-                .expect("gate receiver")
-                .recv_timeout(std::time::Duration::from_secs(5))
-                .expect("test releases vault");
-        }
-    }
-}
-struct ScriptedVault {
-    read: Option<VaultGate>,
-    delete: Option<VaultGate>,
-    fail_delete: bool,
-}
-impl super::super::vault::SecretVault for ScriptedVault {
-    fn get_secret(&self, _key: &str) -> Result<Option<secrecy::SecretString>> {
-        if let Some(gate) = &self.read {
-            gate.wait();
-            return Err(AppError::ResourceCleanup(
-                "scripted account read failure".into(),
-            ));
-        }
-        Ok(None)
-    }
-    fn set_secret(&self, _key: &str, _value: secrecy::SecretString) -> Result<()> {
-        Ok(())
-    }
-    fn delete_secret(&self, _key: &str) -> Result<()> {
-        if let Some(gate) = &self.delete {
-            gate.wait();
-        }
-        if self.fail_delete {
-            return Err(AppError::ResourceCleanup(
-                "scripted credential deletion failure".into(),
-            ));
-        }
-        Ok(())
-    }
-}
-fn vault_gate() -> (
-    VaultGate,
-    tokio::sync::oneshot::Receiver<()>,
-    std::sync::mpsc::Sender<()>,
-) {
-    let (entered, waiting) = tokio::sync::oneshot::channel();
-    let (release, released) = std::sync::mpsc::channel();
-    (
-        VaultGate {
-            entered: std::sync::Mutex::new(Some(entered)),
-            release: std::sync::Mutex::new(released),
-        },
-        waiting,
-        release,
-    )
+
+fn credential_deletion_failure() -> AppError {
+    AppError::ResourceCleanup("scripted credential deletion failure".into())
 }
 
 #[tokio::test]
@@ -491,11 +387,11 @@ async fn no_keychain_read_starts_once_abb_is_closing() {
     let (gate, mut entered, _release) = vault_gate();
     let runtime = super::super::tests::test_runtime_with(
         &root,
-        Some(Box::new(ScriptedVault {
-            read: Some(gate),
-            delete: None,
-            fail_delete: false,
-        })),
+        Some(Box::new(MemoryVault::default().gating_reads(
+            0,
+            gate,
+            account_read_failure,
+        ))),
         None,
     );
     runtime.inner.tasks.close();
@@ -517,11 +413,11 @@ async fn a_late_account_failure_is_superseded_after_a_lane_change() {
     let (gate, entered, release) = vault_gate();
     let runtime = super::super::tests::test_runtime_with(
         &root,
-        Some(Box::new(ScriptedVault {
-            read: Some(gate),
-            delete: None,
-            fail_delete: false,
-        })),
+        Some(Box::new(MemoryVault::default().gating_reads(
+            0,
+            gate,
+            account_read_failure,
+        ))),
         None,
     );
     let read = runtime.inner.tasks.spawn(
@@ -559,11 +455,11 @@ async fn shutdown_waits_for_a_started_keychain_read() {
     let (gate, entered, release) = vault_gate();
     let runtime = super::super::tests::test_runtime_with(
         &root,
-        Some(Box::new(ScriptedVault {
-            read: Some(gate),
-            delete: None,
-            fail_delete: false,
-        })),
+        Some(Box::new(MemoryVault::default().gating_reads(
+            0,
+            gate,
+            account_read_failure,
+        ))),
         None,
     );
     let read = runtime.inner.tasks.spawn(
@@ -592,11 +488,7 @@ async fn accepted_disconnect_blocks_acquisition_and_shutdown_waits_for_credentia
     let (gate, entered, release) = vault_gate();
     let runtime = super::super::tests::test_runtime_with(
         &root,
-        Some(Box::new(ScriptedVault {
-            read: None,
-            delete: Some(gate),
-            fail_delete: false,
-        })),
+        Some(Box::new(MemoryVault::default().gating_deletes(gate))),
         None,
     );
     runtime
@@ -656,11 +548,9 @@ async fn failed_credential_deletion_preserves_library_choices_and_reports_failur
     let root = tempfile::TempDir::new().expect("temp dir");
     let runtime = super::super::tests::test_runtime_with(
         &root,
-        Some(Box::new(ScriptedVault {
-            read: None,
-            delete: None,
-            fail_delete: true,
-        })),
+        Some(Box::new(
+            MemoryVault::default().failing_deletes(credential_deletion_failure),
+        )),
         None,
     );
     runtime
@@ -697,7 +587,10 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
     let root = tempfile::TempDir::new().expect("temp dir");
     let runtime = super::super::tests::test_runtime(&root);
     let start = runtime.ui_begin(RemoteUiIntent::StartAuth);
-    assert_eq!(runtime.ui_snapshot().auth, RemoteAuthStatus::Starting);
+    assert!(matches!(
+        runtime.ui().audible.sign_in,
+        AudibleSignIn::Starting
+    ));
     assert!(runtime
         .ui_begin(RemoteUiIntent::StartAuth)
         .finish()
@@ -725,7 +618,10 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
                 .into_owned(),
         ),
     });
-    assert_eq!(runtime.ui_snapshot().auth, RemoteAuthStatus::Completing);
+    assert!(matches!(
+        runtime.ui().audible.sign_in,
+        AudibleSignIn::Completing
+    ));
     for intent in [
         RemoteUiIntent::StartAuth,
         RemoteUiIntent::Disconnect,
@@ -739,7 +635,10 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
     assert_eq!(runtime.ui_snapshot().selected_title_ids, ["selected"]);
     assert!(completion.finish().await.is_err());
     let snapshot = runtime.ui_snapshot();
-    assert_eq!(snapshot.auth, RemoteAuthStatus::AwaitingHandoff);
+    assert!(matches!(
+        runtime.ui().audible.sign_in,
+        AudibleSignIn::AwaitingHandoff(_)
+    ));
     assert!(matches!(
         snapshot.account_status,
         RemoteDraftStatus::Failed { .. }
@@ -753,16 +652,19 @@ async fn auth_completion_reserves_credentials_and_refused_actions_keep_choices()
                 .into_owned(),
         ),
     });
-    assert_eq!(runtime.ui_snapshot().auth, RemoteAuthStatus::Completing);
+    assert!(matches!(
+        runtime.ui().audible.sign_in,
+        AudibleSignIn::Completing
+    ));
     assert_eq!(
         runtime.ui_snapshot().account_status,
         RemoteDraftStatus::Idle
     );
     assert!(retry.finish().await.is_err());
-    assert_eq!(
-        runtime.ui_snapshot().auth,
-        RemoteAuthStatus::AwaitingHandoff
-    );
+    assert!(matches!(
+        runtime.ui().audible.sign_in,
+        AudibleSignIn::AwaitingHandoff(_)
+    ));
 }
 
 #[tokio::test]
@@ -801,10 +703,7 @@ async fn a_library_failure_after_lane_replacement_or_disconnect_is_superseded() 
             .expect("disconnected failure discarded"),
         RemoteUiResult::Superseded
     ));
-    assert_eq!(
-        runtime.ui_snapshot().library_status,
-        RemoteDraftStatus::Idle
-    );
+    assert_eq!(runtime.ui().audible.library_status, RemoteDraftStatus::Idle);
 }
 
 #[tokio::test]
@@ -836,9 +735,12 @@ async fn starting_auth_clears_previous_read_failures_and_supersedes_pending_libr
         RemoteUiResult::Superseded
     ));
     let snapshot = runtime.ui_snapshot();
-    assert_eq!(snapshot.auth, RemoteAuthStatus::AwaitingHandoff);
+    assert!(matches!(
+        runtime.ui().audible.sign_in,
+        AudibleSignIn::AwaitingHandoff(_)
+    ));
     assert_eq!(snapshot.account_status, RemoteDraftStatus::Idle);
-    assert_eq!(snapshot.library_status, RemoteDraftStatus::Idle);
+    assert_eq!(runtime.ui().audible.library_status, RemoteDraftStatus::Idle);
 }
 
 #[tokio::test]
@@ -856,7 +758,7 @@ async fn disconnect_is_refused_while_the_indexer_lane_is_shown() {
     let refused = runtime.ui_begin(RemoteUiIntent::Disconnect).finish().await;
 
     assert!(refused.is_err());
-    assert!(!runtime.ui().disconnecting);
+    assert!(!runtime.ui().audible.disconnecting());
 }
 
 fn connected_audible() -> super::super::RemoteSourceAccountState {
@@ -893,7 +795,7 @@ fn a_refused_sign_in_needs_auth_keeps_the_library_and_survives_an_account_reread
         Some("Audible did not accept the saved sign-in. Sign in to Audible again.")
     );
     assert!(matches!(
-        ui.snapshot().library_status,
+        ui.audible.library_status,
         RemoteDraftStatus::Failed { .. }
     ));
     assert_eq!(ui.library.titles, [title("kept", true, false)]);
@@ -907,7 +809,7 @@ fn a_refused_sign_in_needs_auth_keeps_the_library_and_survives_an_account_reread
 fn signing_in_again_or_disconnecting_clears_a_refused_sign_in() {
     let mut ui = UiState::default();
     refuse_library_sign_in(&mut ui);
-    ui.auth_completed(&Ok(connected_audible()), false);
+    ui.auth_completed(&Ok(connected_audible()), None);
     assert_eq!(
         reread_account(&mut ui).status,
         super::super::RemoteAccountStatus::Connected

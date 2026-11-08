@@ -1,5 +1,5 @@
 use super::{
-    lane_status, ProviderId, ReleaseGrabStatus, RemoteAcquisitionSnapshot, RemoteAuthStatus,
+    indexer_lane, lane_status, ProviderId, ReleaseGrabStatus, RemoteAcquisitionSnapshot,
     RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiSnapshot,
 };
 use crate::host::EngineEvent;
@@ -83,8 +83,12 @@ impl super::UiState {
         let remote = &*self.snapshot;
         let mut snapshot = remote.clone();
         snapshot.busy = self.lane_busy();
+        snapshot.connection.uses_http = indexer_lane::uses_http(&remote.connection.base_url);
+        snapshot.connection.category_options = self
+            .indexer
+            .category_options(&remote.connection.category_ids);
         snapshot.audible_message =
-            lane_status::audible_message(remote, &self.library, self.settled_job_line.as_deref());
+            lane_status::audible_message(remote, &self.audible, &self.library);
         if remote.lane == ProviderId::Indexer {
             snapshot.indexer.message = lane_status::indexer_message(remote);
         }
@@ -105,19 +109,8 @@ impl super::UiState {
         let remote = &*self.snapshot;
         remote.account_status == RemoteDraftStatus::Running
             || match remote.lane {
-                ProviderId::Audible => {
-                    remote.library_status == RemoteDraftStatus::Running
-                        || matches!(
-                            remote.auth,
-                            RemoteAuthStatus::Starting | RemoteAuthStatus::Completing
-                        )
-                        || self.acquisition.busy()
-                }
-                ProviderId::Indexer => {
-                    remote.indexer.searching
-                        || remote.indexer.grabbing
-                        || remote.connection.save == RemoteDraftStatus::Running
-                }
+                ProviderId::Audible => self.audible.is_busy(self.acquisition.busy()),
+                ProviderId::Indexer => self.indexer_busy(),
             }
     }
 
@@ -135,7 +128,7 @@ impl super::UiState {
 
     pub(in crate::remote_source) fn acquisition_changed(
         &mut self,
-        job: crate::remote_source::AcquisitionJob,
+        job: crate::remote_source::AcquisitionSnapshot,
     ) -> crate::session::SessionUpdate {
         let remote_before = self.snapshot.current();
         if job.provider_id == ProviderId::Audible
@@ -151,10 +144,10 @@ impl super::UiState {
             .job
             .as_ref()
             .is_some_and(|known| known.settled && known.job_id == job.job_id);
-        if job.settled() && !already_settled {
-            self.settled_job_line = Some(lane_status::settled_job_line(&job));
+        if job.settled && !already_settled {
+            self.audible.settled_job_line = Some(lane_status::settled_job_line(&job));
         }
-        self.set_acquisition(|acquisition| acquisition.job = Some(Box::new(job.into())));
+        self.set_acquisition(|acquisition| acquisition.job = Some(Box::new(job)));
         let remote_moved = self.snapshot.current() != remote_before;
         crate::session::SessionUpdate {
             remote: remote_moved

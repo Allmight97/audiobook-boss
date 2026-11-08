@@ -1,36 +1,17 @@
-import { cleanup, render, screen, within } from '@solidjs/testing-library';
+import { screen, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { audioFile, createFakeEngine } from '../../test/fixtures/fakeEngine';
-import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
-import type { InputCapability } from '../../lib/tauri/capabilities/input';
-import { App } from '../App';
-
-function fakeInput(): InputCapability {
-	return {
-		openFiles: vi.fn(async () => ['/books/chapter.m4b']),
-		openDirectory: vi.fn(async () => null),
-		listenDragDrop: vi.fn(async () => () => undefined),
-		listenDragEnter: vi.fn(async () => () => undefined),
-		listenDragLeave: vi.fn(async () => () => undefined),
-	};
-}
+import { renderApp } from '../../test/fixtures/renderApp';
 
 describe('Solid import tracer shell', () => {
-	let runtime: AppRuntime | undefined;
-
-	afterEach(() => {
-		cleanup();
-		runtime?.dispose();
-		runtime = undefined;
-	});
-
 	it('renders an analyzed local import row from picker intent', async () => {
 		const user = userEvent.setup();
 		const engine = createFakeEngine();
 		engine.analyze = (paths) =>
 			paths.map((path) =>
 				audioFile(path, {
+					status: 'ready',
 					inputId: 'input-1',
 					duration: 300,
 					size: 15 * 1024 * 1024,
@@ -38,18 +19,15 @@ describe('Solid import tracer shell', () => {
 					artist: 'Narrator',
 				}),
 			);
-		runtime = await createAppRuntime({ input: fakeInput(), engine });
-		render(() => (
-			<AppRuntimeProvider runtime={runtime!}>
-				<App />
-			</AppRuntimeProvider>
-		));
-		await screen.findByTestId('left-column');
+		await renderApp({
+			engine,
+			input: { openFiles: vi.fn(async () => ['/books/chapter.m4b']) },
+		});
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
 		const row = await screen.findByRole('option', { name: 'Chapter One' });
 		expect(within(row).getByText('Chapter One')).toBeInTheDocument();
-		expect(document.querySelector('.file-details')?.textContent).toMatch(/Narrator/);
+		expect(within(row).getByText(/Narrator/)).toBeInTheDocument();
 		expect(screen.getByRole('region', { name: 'Input and File Order' })).toBeInTheDocument();
 		expect(screen.getByRole('region', { name: 'Selected File Properties' })).toBeInTheDocument();
 		expect(screen.getByRole('region', { name: 'Metadata Manager' })).toBeInTheDocument();
@@ -63,26 +41,27 @@ describe('Solid import tracer shell', () => {
 		engine.analyze = (paths) =>
 			paths.map((path) =>
 				audioFile(path.replace(/\.m4b$/, '.mp3'), {
+					status: 'ready',
 					duration: 60,
 					chapters: [],
 					chapterPlan: { chapters: [one, two], fromCue: true, sourceFingerprint: '1:1' },
-					cueSource: { fileName: 'chapter.cue', status: 'ready', message: '' },
+					cueSource: {
+						fileName: 'chapter.cue',
+						status: 'ready',
+						message: '',
+						actions: ['ignore'],
+					},
 				}),
 			);
-		runtime = await createAppRuntime({ input: fakeInput(), engine });
-		render(() => (
-			<AppRuntimeProvider runtime={runtime!}>
-				<App />
-			</AppRuntimeProvider>
-		));
-		await screen.findByTestId('left-column');
+		await renderApp({
+			engine,
+			input: { openFiles: vi.fn(async () => ['/books/chapter.m4b']) },
+		});
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
-		await screen.findByRole('option', { name: 'chapter.mp3' });
-		expect(document.querySelector('.file-details')?.textContent).toMatch(/• 2 chapters$/);
-		expect(document.querySelector('.file-cue-details span')?.textContent).toBe(
-			'2 chapters from chapter.cue',
-		);
+		const row = await screen.findByRole('option', { name: 'chapter.mp3' });
+		expect(within(row).getByText(/• 2 chapters$/)).toBeInTheDocument();
+		expect(within(row).getByText('2 chapters from chapter.cue')).toBeInTheDocument();
 	});
 
 	it.each(['ignored', 'invalid'] as const)(
@@ -93,22 +72,20 @@ describe('Solid import tracer shell', () => {
 			engine.analyze = (paths) =>
 				paths.map((path) =>
 					audioFile(path.replace(/\.m4b$/, '.mp3'), {
+						status: 'ready',
 						chapterPlan: null,
-						cueSource: { fileName: 'chapter.cue', status, message: 'About the CUE.' },
+						cueSource: { fileName: 'chapter.cue', status, message: 'About the CUE.', actions: [] },
 					}),
 				);
-			runtime = await createAppRuntime({ input: fakeInput(), engine });
-			render(() => (
-				<AppRuntimeProvider runtime={runtime!}>
-					<App />
-				</AppRuntimeProvider>
-			));
-			await screen.findByTestId('left-column');
+			await renderApp({
+				engine,
+				input: { openFiles: vi.fn(async () => ['/books/chapter.m4b']) },
+			});
 
 			await user.click(screen.getByRole('button', { name: 'Add audio files' }));
-			await screen.findByRole('option', { name: 'chapter.mp3' });
-			expect(screen.getByText('About the CUE.')).toBeInTheDocument();
-			expect(document.querySelector('.file-cue-details')?.textContent).not.toMatch(/from/);
+			const row = await screen.findByRole('option', { name: 'chapter.mp3' });
+			expect(within(row).getByText('About the CUE.')).toBeInTheDocument();
+			expect(within(row).queryByText(/chapters? from/)).toBeNull();
 		},
 	);
 
@@ -116,14 +93,13 @@ describe('Solid import tracer shell', () => {
 		const user = userEvent.setup();
 		const engine = createFakeEngine();
 		engine.analyze = (paths) =>
-			paths.map((path) => audioFile(path, { label: 'Chapter One', artist: 'Narrator' }));
-		runtime = await createAppRuntime({ input: fakeInput(), engine });
-		render(() => (
-			<AppRuntimeProvider runtime={runtime!}>
-				<App />
-			</AppRuntimeProvider>
-		));
-		await screen.findByTestId('left-column');
+			paths.map((path) =>
+				audioFile(path, { status: 'ready', label: 'Chapter One', artist: 'Narrator' }),
+			);
+		await renderApp({
+			engine,
+			input: { openFiles: vi.fn(async () => ['/books/chapter.m4b']) },
+		});
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
 		const row = await screen.findByRole('option', { name: 'Chapter One' });

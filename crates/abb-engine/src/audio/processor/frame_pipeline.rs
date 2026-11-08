@@ -13,14 +13,14 @@ enum PreviewAction {
 }
 
 pub(crate) struct FramePipelineCtx<'a> {
-    pub(crate) context: &'a crate::processing::ProcessingContext,
-    pub(crate) emitter: &'a crate::processing::ProgressEmitter,
+    pub(crate) context: &'a crate::execution::ProcessingContext,
+    pub(crate) emitter: &'a crate::execution::ProgressEmitter,
     pub(crate) total_duration: f64,
     pub(crate) total_files: usize,
     pub(crate) target_sample_rate: u32,
     pub(crate) running_pts: &'a mut i64,
     pub(crate) last_emit: &'a mut std::time::Instant,
-    pub(crate) eta: &'a mut crate::processing::EtaEstimator,
+    pub(crate) eta: &'a mut super::eta::EtaEstimator,
     pub(crate) current_file_index: usize,
     pub(crate) current_stream_index: usize,
     pub(crate) current_file_name: String,
@@ -36,7 +36,7 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
     if ctx.last_emit.elapsed() > std::time::Duration::from_millis(PROGRESS_EMIT_INTERVAL_MS) {
         *ctx.last_emit = std::time::Instant::now();
         let current_seconds = *ctx.running_pts as f64 / ctx.target_sample_rate as f64;
-        let percentage = crate::processing::converting_percentage_from_seconds(
+        let percentage = crate::execution::converting_percentage_from_seconds(
             current_seconds,
             ctx.total_duration,
         );
@@ -198,7 +198,6 @@ fn process_decoded_frames(
 
     loop {
         if ctx.context.is_cancelled() {
-            ctx.emitter.emit_cancelled("Processing was cancelled");
             return Err(AppError::cancelled());
         }
         let mut frame = ff::frame::Audio::empty();
@@ -290,7 +289,6 @@ pub(crate) fn process_input_packets(
             if log::log_enabled!(log::Level::Warn) {
                 log::warn!("Processing was cancelled during packet processing");
             }
-            ctx.emitter.emit_cancelled("Processing was cancelled");
             return Err(AppError::cancelled());
         }
         if stream_index != ctx.current_stream_index {

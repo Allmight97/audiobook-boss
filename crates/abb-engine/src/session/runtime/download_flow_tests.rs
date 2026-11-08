@@ -5,7 +5,7 @@ impl Rig {
         tokio::time::timeout(std::time::Duration::from_secs(30), async {
             loop {
                 let removed = self.removed.lock().expect("removed").clone();
-                if !removed.is_empty() && !self.session.inner.sweeping.load(Ordering::SeqCst) {
+                if !removed.is_empty() && !self.session.lock().sweeping.held() {
                     return removed;
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -70,7 +70,7 @@ async fn a_download_with_an_unreadable_file_is_not_listed_at_all() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_failed_removal_waits_out_the_retry_delay_before_the_next_change_retries_it() {
+async fn a_change_before_the_retry_delay_has_passed_does_not_retry_a_failed_removal() {
     let rig = rig();
     rig.failing_removals
         .store(1, std::sync::atomic::Ordering::SeqCst);
@@ -91,14 +91,55 @@ async fn a_failed_removal_waits_out_the_retry_delay_before_the_next_change_retri
 
     tokio::time::sleep(crate::session::staged::RETRY_DELAY).await;
     rig.send(SessionIntent::ClearAll).await;
-    tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        while !rig.session.lock().staged.is_empty() {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("the change after the delay retries the removal");
-    assert_eq!(attempts(), 2);
+    crate::test_cases::support::poll::until_true("the removal is retried", || attempts() == 2)
+        .await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_failed_removal_is_retried_after_the_delay_with_no_other_change() {
+    let rig = rig();
+    rig.failing_removals
+        .store(1, std::sync::atomic::Ordering::SeqCst);
+    let staging = tempfile::TempDir::new().expect("staging");
+    let audio = staged_wav(staging.path(), "book");
+    rig.session.import_acquired(acquired("job-1", &audio)).await;
+    let attempts = || rig.removed.lock().expect("removed").len();
+
+    rig.send(SessionIntent::ClearAll).await;
+    assert_eq!(rig.removed_jobs().await, ["job-1"]);
+    assert_eq!(attempts(), 1);
+
+    tokio::time::sleep(crate::session::staged::RETRY_DELAY * 2).await;
+    crate::test_cases::support::poll::until_true("the removal is retried", || attempts() == 2)
+        .await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn each_failed_removal_waits_twice_as_long_before_the_next_retry() {
+    let rig = rig();
+    rig.failing_removals
+        .store(2, std::sync::atomic::Ordering::SeqCst);
+    let staging = tempfile::TempDir::new().expect("staging");
+    let audio = staged_wav(staging.path(), "book");
+    rig.session.import_acquired(acquired("job-1", &audio)).await;
+    let attempts = || rig.removed.lock().expect("removed").len();
+    let delay = crate::session::staged::RETRY_DELAY;
+
+    rig.send(SessionIntent::ClearAll).await;
+    assert_eq!(attempts(), 1);
+
+    tokio::time::sleep(delay + delay / 2).await;
+    crate::test_cases::support::poll::until_true("the first retry", || attempts() == 2).await;
+
+    tokio::time::sleep(delay + delay / 2).await;
+    assert_eq!(
+        attempts(),
+        2,
+        "the second failure waits longer than the first"
+    );
+
+    tokio::time::sleep(delay / 2).await;
+    crate::test_cases::support::poll::until_true("the second retry", || attempts() == 3).await;
 }
 
 #[tokio::test]

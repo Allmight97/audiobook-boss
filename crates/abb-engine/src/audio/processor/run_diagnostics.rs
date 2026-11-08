@@ -1,5 +1,4 @@
 use crate::audio::settings_encoder::EncoderSettings;
-use crate::audio::SampleRateConfig;
 use std::fmt::Write as _;
 use std::fs::OpenOptions;
 use std::io::Write as _;
@@ -56,7 +55,7 @@ pub(super) fn write_run_header(
 )]
 pub(super) fn write_run_identity(
     output: &mut String,
-    context: &crate::processing::ProcessingContext,
+    context: &crate::execution::ProcessingContext,
     target_duration_seconds: f64,
 ) {
     let _ = writeln!(
@@ -64,12 +63,10 @@ pub(super) fn write_run_identity(
         "target_duration_seconds={target_duration_seconds:.3}"
     );
     let _ = writeln!(output, "session_id={}", context.session.id());
-    if let Some(job_id) = context.job_id.as_deref() {
+    if let Some(job_id) = context.identity.job_id.as_deref() {
         let _ = writeln!(output, "job_id={job_id}");
     }
-    if let Some(input_index) = context.input_index {
-        let _ = writeln!(output, "input_index={input_index}");
-    }
+    let _ = writeln!(output, "input_index={}", context.identity.input_index);
     let _ = writeln!(output, "operation_kind={:?}", context.operation_kind);
 }
 
@@ -81,7 +78,7 @@ pub(crate) fn write_common_run_fields(
     output: &mut String,
     (monotonic_elapsed, wallclock_elapsed): (Duration, Option<Duration>),
     settings: &EncoderSettings,
-    sample_rate: &SampleRateConfig,
+    sample_rate: u32,
     opened_encoder: Option<&str>,
     opened_rate: Option<u32>,
     opened_channels: Option<u32>,
@@ -101,7 +98,7 @@ pub(crate) fn write_common_run_fields(
     );
     let _ = writeln!(
         output,
-        "requested_settings encoder={:?} bitrate_mode={:?} bitrate_kbps={} rate={:?} channels={:?} native_aac_speed={}",
+        "requested_settings encoder={:?} bitrate_mode={:?} bitrate_kbps={} rate={} channels={:?} native_aac_speed={}",
         settings.encoder_type,
         settings.bitrate_mode,
         settings.bitrate_kbps,
@@ -118,13 +115,13 @@ pub(crate) fn write_common_run_fields(
     );
 }
 
-pub(super) fn log_output_observation(context: &crate::processing::ProcessingContext, path: &Path) {
+pub(super) fn log_output_observation(context: &crate::execution::ProcessingContext, path: &Path) {
     if !encoding_log_enabled() && !log::log_enabled!(log::Level::Info) {
         return;
     }
     let identity = format!(
         "job_id={} output_path={:?}",
-        context.job_id.as_deref().unwrap_or("unscoped"),
+        context.identity.job_id.as_deref().unwrap_or("unscoped"),
         context.output.final_path()
     );
     let record = match observe_output(path) {

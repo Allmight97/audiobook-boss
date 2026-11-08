@@ -1,0 +1,165 @@
+# m4b m4b-untouched
+handling: preserve
+container: mov,mp4,m4a,3gp,3g2,mj2
+format tags, in file order:
+  major_brand="M4A "
+  minor_version="512"
+  compatible_brands="M4A isomiso2"
+  title="Seed Title"
+  artist="Seed Author"
+  album_artist="Seed Album Artist"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02-03"
+  comment="Seed Comment"
+  description="Seed Description"
+  sort_album="Lower Series 01 - Seed Title"
+  track="0"
+  disc="1/3"
+  show="Show Series"
+  sort_show="Show Sort"
+  episode_sort="5"
+  episode_id="Episode Name"
+  SERIES="Upper Series"
+  SERIES-PART="9"
+  ASIN="B000000001"
+  media_type="2"
+streams:
+  0 audio AAC Disposition(DEFAULT)
+    language="und"
+    handler_name="SoundHandler"
+  1 video PNG Disposition(ATTACHED_PIC)
+    picture 73 bytes sha256 c175e8295a7be547
+  2 video MJPEG Disposition(ATTACHED_PIC)
+    picture 1303 bytes sha256 f20e86d37462cf39
+  3 video PNG Disposition(ATTACHED_PIC)
+    picture 73 bytes sha256 661e96d71ecc8d91
+as ABB reads it:
+  title="Seed Title"
+  artist="Seed Author"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02"
+  comment="Seed Comment"
+  description="Seed Description"
+  series="Lower Series"
+  series_part="1"
+  album_sort="Lower Series 01 - Seed Title"
+  disk="(1, Some(3))"
+  cover_art="73 bytes sha256 c175e8295a7be547"
+MP4 atoms, in file order:
+  ©nam "Seed Title"
+  ©ART "Seed Author"
+  aART "Seed Album Artist"
+  ©alb "Seed Album"
+  ©wrt "Seed Narrator"
+  ©gen "Seed Genre"
+  ©day "2001-02-03"
+  ©cmt "Seed Comment"
+  desc "Seed Description"
+  soal "Lower Series 01 - Seed Title"
+  trkn [0, 0, 0, 0, 0, 0, 0, 0]
+  disk [0, 0, 0, 1, 0, 3, 0, 0]
+  tvsh "Show Series"
+  sosn "Show Sort"
+  tves [0, 0, 0, 5]
+  tven "Episode Name"
+  ©mvn "Movement Name"
+  ©mvi [0, 4]
+  shwm [1]
+  ----:com.apple.iTunes:series "Lower Series"
+  ----:com.apple.iTunes:SERIES "Upper Series"
+  ----:com.apple.iTunes:series-part "1"
+  ----:com.apple.iTunes:SERIES-PART "9"
+  ----:com.apple.iTunes:ASIN "B000000001"
+  covr png 73 bytes sha256 c175e8295a7be547
+  covr jpeg 1303 bytes sha256 f20e86d37462cf39
+  covr png 73 bytes sha256 661e96d71ecc8d91
+  stik [2]
+
+# m4b m4b-set-all
+handling: preserve
+container: mov,mp4,m4a,3gp,3g2,mj2
+format tags, in file order:
+  major_brand="M4A "
+  minor_version="512"
+  compatible_brands="M4A isomiso2"
+  title="Set Title"
+  artist="Set Author"
+  album_artist="Set Author"
+  album="Set Album"
+  composer="Set Narrator"
+  genre="Set Genre"
+  date="2020-05"
+  comment="Set Comment"
+  description="Set Description"
+  sort_album="Set Sort"
+  track="2/9"
+  disc="1/2"
+  ASIN="B000000001"
+  SERIES="Set Series; Set Subseries"
+  SERIES-PART="2; 3"
+  media_type="2"
+streams:
+  0 audio AAC Disposition(DEFAULT)
+    language="und"
+    handler_name="SoundHandler"
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    picture 1303 bytes sha256 f20e86d37462cf39
+as ABB reads it:
+  title="Set Title"
+  artist="Set Author"
+  album="Set Album"
+  composer="Set Narrator"
+  genre="Set Genre"
+  date="2020-05"
+  comment="Set Comment"
+  description="Set Description"
+  series="Set Series"
+  series_part="2"
+  subseries="Set Subseries"
+  subseries_part="3"
+  album_sort="Set Sort"
+  track="(2, Some(9))"
+  disk="(1, Some(2))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+MP4 atoms, in file order:
+  ©nam "Set Title"
+  ©ART "Set Author"
+  aART "Set Author"
+  ©alb "Set Album"
+  ©wrt "Set Narrator"
+  ©gen "Set Genre"
+  ©day "2020-05"
+  ©cmt "Set Comment"
+  desc "Set Description"
+  soal "Set Sort"
+  trkn [0, 0, 0, 2, 0, 9, 0, 0]
+  disk [0, 0, 0, 1, 0, 2, 0, 0]
+  ----:com.apple.iTunes:ASIN "B000000001"
+  covr jpeg 1303 bytes sha256 f20e86d37462cf39
+  ----:com.apple.iTunes:series "Set Series; Set Subseries"
+  ----:com.apple.iTunes:SERIES "Set Series; Set Subseries"
+  ----:com.apple.iTunes:series-part "2; 3"
+  ----:com.apple.iTunes:SERIES-PART "2; 3"
+  stik [2]
+
+# m4b m4b-clear-all
+handling: preserve
+container: mov,mp4,m4a,3gp,3g2,mj2
+format tags, in file order:
+  major_brand="M4A "
+  minor_version="512"
+  compatible_brands="M4A isomiso2"
+  ASIN="B000000001"
+  media_type="2"
+streams:
+  0 audio AAC Disposition(DEFAULT)
+    language="und"
+    handler_name="SoundHandler"
+as ABB reads it:
+MP4 atoms, in file order:
+  ----:com.apple.iTunes:ASIN "B000000001"
+  stik [2]

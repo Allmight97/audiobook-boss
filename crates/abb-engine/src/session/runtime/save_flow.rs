@@ -1,25 +1,34 @@
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use super::{blocking, Rest, Session};
-use crate::errors::{AppErrorEnvelope, Result};
+use crate::errors::Result;
 use crate::metadata_save::{save_metadata_batch, MetadataSaveRequest, MetadataSaveResultStatus};
+use crate::processing::title_output::TitleOutput;
 use crate::processing::title_output::UpdateReply;
-use crate::processing::{OutputUpdate, OutputUpdateStatus};
+use crate::processing::OutputUpdateStatus;
 use crate::session::exports::{OutputEdit, OutputEdits};
 use crate::session::intent::SessionOutcome;
-use crate::session::state::{MetadataStatus, SaveItem, SavePlan};
+use crate::session::state::{SaveItem, SavePlan, WriteBatch, WriteOutcome};
 
-struct Written {
-    items: Vec<bool>,
-    succeeded: usize,
-    failed: usize,
-    cancelled: usize,
+pub(super) async fn apply_published(title: &Arc<TitleOutput>) -> Result<()> {
+    let title = Arc::clone(title);
+    blocking(move || {
+        title.apply_published();
+        Ok(())
+    })
+    .await
+}
+
+pub(super) fn output_update_failure(title: &TitleOutput) -> Option<String> {
+    match title.update_state()?.status {
+        OutputUpdateStatus::Failed { message } => Some(message),
+        _ => None,
+    }
 }
 
 impl Session {
-    async fn write(&self, items: &[SaveItem]) -> Result<Written> {
+    async fn write(&self, items: &[SaveItem]) -> Result<WriteBatch> {
         let deps = &self.inner.deps;
         let requests = items
             .iter()
@@ -29,46 +38,34 @@ impl Session {
             })
             .collect();
         let result = save_metadata_batch(&deps.host, &deps.work, &deps.jobs, requests).await?;
-        let mut written = Written {
-            items: vec![false; items.len()],
+        let mut written = WriteBatch {
+            outcomes: items.iter().cloned().map(WriteOutcome::failed).collect(),
             succeeded: result.summary.succeeded,
             failed: result.summary.failed,
             cancelled: result.summary.cancelled,
         };
-        let mut state = self.lock();
         for entry in result.results {
-            if let Some(slot) = written.items.get_mut(entry.input_index) {
-                *slot = entry.status == MetadataSaveResultStatus::Success;
-            }
-            let Some(item) = items.get(entry.input_index) else {
-                continue;
-            };
-            if entry.status == MetadataSaveResultStatus::Success {
-                state.working_set.note_saved_names(&item.path, &item.patch);
-            }
-            if let Some(rewrite) = &entry.rewrite {
-                state.working_set.note_tag_write(&item.path, rewrite);
+            if let Some(outcome) = written.outcomes.get_mut(entry.input_index) {
+                outcome.written = entry.status == MetadataSaveResultStatus::Success;
+                outcome.rewrite = entry.rewrite;
             }
         }
         Ok(written)
     }
 
     fn ensure_deferred_writer(&self) {
-        if self
-            .inner
-            .deferred_writer_running
-            .swap(true, Ordering::SeqCst)
-        {
+        if !self.lock().deferred_writer.take() {
             return;
         }
         let session = self.clone();
+        let claim = self.writer_claim();
         self.inner
             .deps
             .tasks
-            .spawn(async move { session.write_deferred_when_free().await });
+            .spawn(async move { session.write_deferred_when_free(claim).await });
     }
 
-    async fn write_deferred_when_free(&self) {
+    async fn write_deferred_when_free(&self, claim: super::in_flight::InFlight) {
         let mut changes = self.inner.deps.work.subscribe_changes();
         loop {
             changes.borrow_and_update();
@@ -76,9 +73,7 @@ impl Session {
                 let mut state = self.lock();
                 let in_use = self.inner.deps.work.sources_in_use();
                 if !state.has_waiting_writes() {
-                    self.inner
-                        .deferred_writer_running
-                        .store(false, Ordering::SeqCst);
+                    claim.end_in(&mut state);
                     return;
                 }
                 state.take_ready_deferred(&in_use)
@@ -94,17 +89,13 @@ impl Session {
                 }
                 continue;
             }
-            let written = self.write(&ready).await;
-            let results: Vec<(SaveItem, bool)> = ready
-                .into_iter()
-                .enumerate()
-                .map(|(index, item)| {
-                    let ok = written
-                        .as_ref()
-                        .is_ok_and(|written| written.items.get(index) == Some(&true));
-                    (item, ok)
-                })
-                .collect();
+            let results = match self.write(&ready).await {
+                Ok(written) => written.outcomes,
+                Err(error) => {
+                    log::error!("Failed to save waiting metadata: {error}");
+                    ready.into_iter().map(WriteOutcome::failed).collect()
+                }
+            };
             self.transition(|state| state.finish_deferred(&results));
             self.publish();
         }
@@ -133,65 +124,20 @@ impl Session {
         }
     }
 
-    pub(super) async fn save(&self, epoch: u64, plan: SavePlan) -> SessionOutcome {
+    pub(super) async fn save(&self, epoch: u64, mut plan: SavePlan) -> SessionOutcome {
         if plan.waiting > 0 {
             self.ensure_deferred_writer();
         }
-        let outputs = self.update_outputs(plan.outputs).await;
-
-        let mut saved = Vec::new();
-        let mut status = MetadataStatus::SaveComplete {
-            succeeded: 0,
-            failed: 0,
-            cancelled: 0,
-            waiting: plan.waiting,
-            held: plan.held,
-            outputs,
-        };
-        let nothing = plan.immediate.is_empty()
-            && plan.waiting == 0
-            && plan.held == 0
-            && outputs == OutputEdits::default();
-        if nothing {
-            status = if plan.grouped {
-                MetadataStatus::GroupedEditsKept
-            } else {
-                MetadataStatus::NoPendingChanges
-            };
-        }
-        let written_paths: Vec<PathBuf> = plan
-            .immediate
-            .iter()
-            .map(|item| item.path.clone())
-            .collect();
-        if !plan.immediate.is_empty() {
+        let outputs = self.update_outputs(std::mem::take(&mut plan.outputs)).await;
+        let written = if plan.immediate.is_empty() {
+            Ok(WriteBatch::default())
+        } else {
             self.publish();
-            match self.write(&plan.immediate).await {
-                Ok(written) => {
-                    status = MetadataStatus::SaveComplete {
-                        succeeded: written.succeeded,
-                        failed: written.failed,
-                        cancelled: written.cancelled,
-                        waiting: plan.waiting,
-                        held: plan.held,
-                        outputs,
-                    };
-                    saved = plan
-                        .immediate
-                        .into_iter()
-                        .zip(written.items)
-                        .filter_map(|(item, written)| written.then_some(item))
-                        .collect();
-                }
-                Err(error) => {
-                    log::error!("Failed to save metadata: {error}");
-                    status = MetadataStatus::SaveFailed {
-                        error: AppErrorEnvelope::from(&error),
-                    };
-                }
-            }
-        }
-        self.transition(|state| state.finish_save(epoch, &written_paths, &saved, status));
+            self.write(&plan.immediate).await.inspect_err(|error| {
+                log::error!("Failed to save metadata: {error}");
+            })
+        };
+        self.transition(|state| state.finish_save(epoch, &plan, outputs, written));
         self.sources_released();
         SessionOutcome::Applied
     }
@@ -213,23 +159,13 @@ impl Session {
                     ..
                 })
             ) {
-                let title = Arc::clone(&edit.title);
-                match blocking(move || {
-                    title.apply_published();
-                    Ok(())
-                })
-                .await
-                {
+                match apply_published(&edit.title).await {
                     Err(error) => {
                         log::warn!("Output update did not finish: {error}");
                         reply = Err(error.to_string());
                     }
                     Ok(()) => {
-                        if let Some(OutputUpdate {
-                            status: OutputUpdateStatus::Failed { message },
-                            ..
-                        }) = edit.title.update_state()
-                        {
+                        if let Some(message) = output_update_failure(&edit.title) {
                             reply = Err(message);
                         }
                     }
@@ -244,15 +180,7 @@ impl Session {
     /// edits: a Save made while the submission was being prepared did not
     /// reach the export.
     pub(super) async fn catch_up_outputs(&self, title_ids: &[String]) {
-        let edits = self.transition(|state| {
-            let tags = &state.tags;
-            state
-                .exports
-                .edits(|path| tags.pending(path).map(|pending| pending.patch.clone()))
-                .into_iter()
-                .filter(|edit| title_ids.contains(&edit.title_id))
-                .collect::<Vec<_>>()
-        });
+        let edits = self.transition(|state| state.output_edits(Some(title_ids)));
         self.update_outputs(edits).await;
     }
 

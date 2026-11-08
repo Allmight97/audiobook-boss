@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 pub use abb_remote_source_core::AcquisitionProgress;
+use abb_remote_source_core::{acquisition_progress, AcquisitionStage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -47,20 +48,12 @@ impl std::fmt::Debug for RemoteAuthStartResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct RemoteAuthCompletionRequest {
-    pub provider_id: ProviderId,
-    pub response_url_handoff_path: Option<PathBuf>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
 pub struct RemoteTitle {
     pub provider_id: ProviderId,
     pub title_id: String,
     pub title: String,
     pub authors: Vec<String>,
     pub narrators: Vec<String>,
-    /// The address of this title's cover.
     pub cover: Option<String>,
     pub supplemental_pdf_available: bool,
     pub availability: RemoteTitleAvailability,
@@ -188,9 +181,7 @@ pub struct AcquisitionPlan {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum RemoteAcquisitionStatus {
-    Planned,
     Acquiring,
-    Materialized,
     Validated,
     ImportedToFileList,
     Failed,
@@ -300,31 +291,16 @@ impl RemoteAcquisitionSnapshot {
     }
 }
 impl AcquisitionJob {
-    pub(crate) fn terminal(&self) -> bool {
-        self.progress.terminal
-            || matches!(
-                self.status,
-                RemoteAcquisitionStatus::Failed
-                    | RemoteAcquisitionStatus::Cancelled
-                    | RemoteAcquisitionStatus::Validated
-                    | RemoteAcquisitionStatus::ImportedToFileList
-            )
-    }
-    pub(crate) fn settled(&self) -> bool {
-        self.handoff.is_some()
-            || matches!(
-                self.status,
-                RemoteAcquisitionStatus::Failed | RemoteAcquisitionStatus::Cancelled
-            )
-            || (self.terminal() && self.materialized_files.is_empty())
-    }
-}
-impl From<AcquisitionJob> for AcquisitionSnapshot {
-    fn from(job: AcquisitionJob) -> Self {
+    pub(crate) fn new(job_id: &str) -> Self {
         Self {
-            terminal: job.terminal(),
-            settled: job.settled(),
-            job,
+            job_id: job_id.to_string(),
+            provider_id: ProviderId::Audible,
+            status: RemoteAcquisitionStatus::Acquiring,
+            progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
+            materialized_files: Vec::new(),
+            supplemental_assets: Vec::new(),
+            diagnostics: Vec::new(),
+            handoff: None,
         }
     }
 }

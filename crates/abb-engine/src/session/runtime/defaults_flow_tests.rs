@@ -1,4 +1,5 @@
 use super::*;
+use crate::app_settings::{EditStamp, OutputDefaults, SettingsIntent};
 
 #[tokio::test]
 async fn the_output_preview_follows_the_form_the_directory_and_the_format() {
@@ -61,7 +62,13 @@ async fn output_choices_are_recorded_and_template_typing_once_it_pauses() {
         .await;
     }
     assert_eq!(saved().await.output_naming.custom_template, None);
-    tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while saved().await.output_naming.custom_template.is_none() {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the typed template is saved once its pause ends");
     assert_eq!(
         saved().await.output_naming.custom_template.as_deref(),
         Some("{author}/{title}x")
@@ -92,4 +99,49 @@ async fn a_default_audio_edit_is_recorded_in_the_settings_and_announced() {
     })
     .await;
     assert_eq!(rig.events.1.lock().expect("events").len(), before);
+}
+
+fn typed_edit(rig: &Rig, directory: &str) -> (OutputDefaults, EditStamp) {
+    rig.session.transition(|state| {
+        state.output.set_directory(directory.to_string());
+        let (stamp, _) = state.edits.note_output_edit();
+        (state.output.defaults(), stamp)
+    })
+}
+
+async fn reset_after(rig: &Rig, edit_turn_first: bool, directory: &str) -> Option<String> {
+    let session = &rig.session;
+    let settings = session.inner.deps.settings.clone();
+    let tasks = session.inner.deps.tasks.clone();
+    let (typed, stamp) = typed_edit(rig, directory);
+    let (reset, edit) = if edit_turn_first {
+        let edit = settings.remember_defaults(None, Some(typed), stamp, &tasks);
+        (settings.begin(SettingsIntent::Reset, &tasks), edit)
+    } else {
+        let reset = settings.begin(SettingsIntent::Reset, &tasks);
+        (
+            reset,
+            settings.remember_defaults(None, Some(typed), stamp, &tasks),
+        )
+    };
+    let reply = reset.finish().await;
+    session.adopt_reset(&reply.snapshot);
+    edit.finish().await;
+
+    let in_file = settings.snapshot().await.settings.output_defaults;
+    assert_eq!(output(rig).directory, in_file.output_directory);
+    in_file.output_directory
+}
+
+#[tokio::test]
+async fn a_default_edit_whose_settings_turn_follows_a_reset_stays_on_screen_and_in_the_file() {
+    assert_eq!(
+        reset_after(&rig(), false, "/typed").await.as_deref(),
+        Some("/typed")
+    );
+}
+
+#[tokio::test]
+async fn a_default_edit_whose_settings_turn_precedes_a_reset_is_reset_on_screen_and_in_the_file() {
+    assert_eq!(reset_after(&rig(), true, "/typed").await, None);
 }

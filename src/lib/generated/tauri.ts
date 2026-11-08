@@ -35,6 +35,10 @@ export const events = {
 };
 
 /* Constants */
+export const COVER_IMAGE_EXTENSIONS = ["jpg","jpeg","png","webp"] as const;
+
+export const COVER_URL_SCHEME = "abb-cover" as const;
+
 export const SUPPORTED_AUDIO_IMPORT_EXTENSIONS = ["mka","mp3","m4a","m4b","aac","wav","flac"] as const;
 
 export const SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT = "Supports MKA, MP3, M4A/M4B, AAC, WAV, and FLAC audio files" as const;
@@ -86,7 +90,7 @@ export type AcquisitionSnapshot = {
 	settled: boolean,
 } & AcquisitionJob;
 
-export type AcquisitionStage = "auth" | "library" | "license" | "download" | "decryption" | "validation" | "importHandoff" | "cleanup" | "complete" | "failed" | "cancelled";
+export type AcquisitionStage = "license" | "download" | "decryption" | "validation" | "importHandoff" | "failed" | "cancelled";
 
 export type AppErrorCategory = "validation" | "cancellation" | "toolchain" | "processing" | "resource" | "io" | "internal";
 
@@ -128,6 +132,10 @@ export type AudioChoice = {
 };
 
 export type AudioChoiceFacts = {
+	formatOptions: FormatOption[],
+	codecFamily: CodecFamily,
+	intentOptions: AudioIntent[],
+	channelOptions: ChannelConfig[],
 	/**
 	 *  The encoder that would run: Opus for Opus formats, and what Auto
 	 *  resolves to.
@@ -137,10 +145,17 @@ export type AudioChoiceFacts = {
 	encoderLocked: boolean,
 	downmixWarning: boolean,
 	bitrateMode: BitrateMode,
+	/**
+	 *  The target kbps the request carries: the Opus bitrate for an Opus
+	 *  format, else the AAC one.
+	 */
+	bitrateKbps: number,
 	bitrateKbpsMin: number,
 	bitrateKbpsMax: number,
 	allowedModes: BitrateModeKind[],
 	faacProfiles: FaacProfile[],
+	/**  Every speed the native AAC encoder accepts, slowest search first. */
+	nativeSpeedOptions: number[],
 	allowedSampleRates: number[],
 	/**
 	 *  False when an explicit sample rate is kept that this encoder does not
@@ -190,6 +205,11 @@ export type AudioFile = {
 	isValid: boolean,
 	/**  An exported download that ABB removed. The title is finished, not failed. */
 	sourceRemoved: boolean,
+	/**
+	 *  Whether this entry can be exported, set by the session on the titles
+	 *  and sources it lists: a title takes its sources' combined status.
+	 */
+	status: TitleStatus,
 	error: string | null,
 	/**
 	 *  The address of this source's embedded cover, set by the session on
@@ -290,6 +310,8 @@ export type ChildJobSnapshot = {
 
 export type ChildJobStatus = "queued" | "running" | "completed" | "skipped" | "cancelled" | "failed";
 
+export type CodecFamily = "aac" | "opus";
+
 export type CollisionPolicy = "fail" | "replace_existing" | "rename_new" | "skip_existing";
 
 export type CollisionReview = {
@@ -329,6 +351,8 @@ export type CueSource = {
 	fileName: string,
 	status: CueStatus,
 	message: string,
+	/**  The choices `choose_cue` accepts while the status is as shown. */
+	actions: CueChoice[],
 };
 
 export type CueStatus = "ready" | "needsConfirmation" | "invalid" | "ignored" | "embeddedPreferred";
@@ -396,6 +420,11 @@ export type FieldSnapshot = {
 
 export type FormMode = "single" | "multi";
 
+export type FormatOption = {
+	format: AudiobookFormat,
+	codecFamily: CodecFamily,
+};
+
 export type FrontendAttachment = {
 	/**  Sent with every intent so intents from an earlier frontend are refused. */
 	client: number,
@@ -416,6 +445,12 @@ export type HandoffRefusal = { kind: "importFailed"; error: AppErrorEnvelope } |
 /**  The files were already listed, or a reset dropped the import. */
 { kind: "nothingAdded" };
 
+export type IndexerCategoryOption = {
+	id: number,
+	label: string,
+	recommended: boolean,
+};
+
 /**
  *  The Indexer server and categories a search uses. The API key lives in the
  *  credential store, under the URL.
@@ -427,16 +462,24 @@ export type IndexerConnection = {
 
 export type IndexerDraftSnapshot = {
 	baseUrl: string,
+	/**  The draft URL is plain HTTP, so the form warns that it is unencrypted. */
+	usesHttp: boolean,
 	categoryIds: number[],
+	/**
+	 *  Every category the form offers: the known ones, then any other
+	 *  category the draft or the saved connection holds, so it can be unchecked.
+	 */
+	categoryOptions: IndexerCategoryOption[],
 	apiKeyConfigured: boolean,
 	apiKeyEntered: boolean,
 	save: RemoteDraftStatus,
 	test: RemoteDraftStatus,
 	testResult: RemoteIndexerConnectionTestResult | null,
 	/**
-	 *  Why the API key or the URL was refused, the key first. The draft keeps
-	 *  the value it accepted before; Save and Test refuse until a new value
-	 *  for each refused field is accepted.
+	 *  Why the API key or the URL was refused, the key first. The URL draft
+	 *  shows what was typed; the key draft keeps the value it accepted
+	 *  before. Save and Test refuse until a new value for each refused field
+	 *  is accepted.
 	 */
 	draftError: AppErrorEnvelope | null,
 	/**
@@ -512,7 +555,7 @@ partial: boolean; after: QueueStep | null } | { kind: "searchFailed"; after: Que
 /**  The query or source changed, or the selection moved, while an apply ran, so it was dropped. */
 { kind: "applySuperseded" } |
 /**  The title's pending edits were not accepted, so the result was not applied. */
-{ kind: "applyRejected" } | { kind: "applied"; coverFailed: boolean } | { kind: "queueComplete"; coverFailed: boolean } | { kind: "nextTitleRejected"; coverFailed: boolean } | { kind: "failed" };
+{ kind: "applyRejected" } | { kind: "applied"; coverFailed: boolean } | { kind: "queueComplete"; coverFailed: boolean } | { kind: "nextTitleRejected"; coverFailed: boolean };
 
 export type MaxConcurrentJobsCapabilities = {
 	autoEffective: number,
@@ -610,6 +653,8 @@ export type OperationLogEntry = {
 	childJobId: string | null,
 };
 
+export type OperationPhase = "accepted" | "active" | "finished";
+
 export type OperationResultSummary = {
 	total: number,
 	succeeded: number,
@@ -625,6 +670,7 @@ export type OperationSnapshot = {
 	revision: number,
 	kind: OperationKind,
 	status: WorkOperationStatus,
+	phase: OperationPhase,
 	title: string,
 	startedAtMs: number | null,
 	finishedAtMs: number | null,
@@ -840,7 +886,7 @@ export type RemoteAcquisitionSnapshot = {
 	job: AcquisitionSnapshot | null,
 };
 
-export type RemoteAcquisitionStatus = "planned" | "acquiring" | "materialized" | "validated" | "importedToFileList" | "failed" | "cancelled";
+export type RemoteAcquisitionStatus = "acquiring" | "validated" | "importedToFileList" | "failed" | "cancelled";
 
 export type RemoteAuthStartResponse = {
 	providerId: ProviderId,
@@ -904,7 +950,6 @@ export type RemoteTitle = {
 	title: string,
 	authors: string[],
 	narrators: string[],
-	/**  The address of this title's cover. */
 	cover: string | null,
 	supplementalPdfAvailable: boolean,
 	availability: RemoteTitleAvailability,
@@ -1025,7 +1070,7 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
 /**  Keeps an exported title where it is; its export continues unchanged. */
 { kind: "keepTitleLocation"; titleId: string; revision: number } |
 /**  Cancels the identified preview, including preparation and queued titles. */
-{ kind: "cancelPreview"; runId: string; childJobId: string | null } | { kind: "takePreviewOutput"; runId: string } |
+{ kind: "cancelPreview"; runId: string; childJobId: string | null } |
 /**  Where exports are written; recorded in the settings. */
 { kind: "setOutputDirectory"; directory: string } | { kind: "setNamingPreset"; preset: NamingPreset } | { kind: "setIncludeYear"; includeYear: boolean } |
 /**  The custom naming template as typed; recorded once typing pauses. */
@@ -1099,10 +1144,10 @@ export type SessionUpdateEvent = SessionUpdate;
 
 export type SettingsIntent =
 /**
- *  Records defaults a panel has accepted. They stay in effect even when
+ *  Chooses the source an import starts from. It stays in effect even when
  *  the write fails; the snapshot then reports the failure for retry.
  */
-{ kind: "remember"; encoderDefaults: EncoderDefaults | null; outputDefaults: OutputDefaults | null; defaultAcquisitionLane: AcquisitionLane | null } |
+{ kind: "setDefaultAcquisitionLane"; lane: AcquisitionLane } |
 /**  Changes how many titles export at once. Refused while jobs run. */
 { kind: "setConcurrency"; preference: ConcurrencyPreference } | { kind: "setKeepAwake"; enabled: boolean } |
 /**  Chooses whether the Quit shortcut needs a second press. */
@@ -1279,6 +1324,10 @@ export type TitlePlan = { kind: "pending" } | { kind: "resolved"; plan: TitleAud
 /**  Grouped sources disagree about their audio; the user must choose. */
 { kind: "choiceRequired" };
 
+export type TitleStatus = "ready" | "failed" |
+/**  An exported download that ABB removed. The title is finished, not failed. */
+"removedFinished";
+
 export type TitleTotals = {
 	/**  The chapters ABB sends to the output for this title. */
 	chapterCount: number,
@@ -1315,21 +1364,31 @@ export type WorkOperationStatus = "accepted" | "running" | "cancelling" | "compl
  *  first, then accepted ones, then finished ones; newest first within each.
  */
 export type WorkOperationsSnapshot = {
-	/**  Advances with every change to any operation or to the order. */
+	/**
+	 *  Advances with every change to any operation, to the order, or to
+	 *  `concurrency_locked`.
+	 */
 	revision: number,
 	order: OperationId[],
 	operations: OperationSnapshot[],
+	/**
+	 *  The engine refuses a change of the job limit now: a job or an export
+	 *  is active.
+	 */
+	concurrencyLocked: boolean,
 };
 
 /**
  *  One change. A host keeps the newest `changed` per operation (by its own
- *  `revision`) and the `order` with the highest `revision`, so updates may
- *  arrive in any order; an operation missing from that order is not shown.
+ *  `revision`) and the `order` and `concurrency_locked` of the highest
+ *  `revision`, so updates may arrive in any order; an operation missing from
+ *  that order is not shown. `changed` is absent when only the lock changed.
  */
 export type WorkOperationsUpdate = {
 	revision: number,
 	order: OperationId[],
-	changed: OperationSnapshot,
+	changed: OperationSnapshot | null,
+	concurrencyLocked: boolean,
 };
 
 /**  An accepted operation changed, with the display order as of then. */

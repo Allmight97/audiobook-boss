@@ -1,8 +1,6 @@
 use std::fs;
 use std::path::Path;
 
-use abb_remote_source_core::MaterializedSourceKind;
-
 use super::paths::sha256_file;
 use super::progress::title_progress;
 use super::TitleAcquisitionCtx;
@@ -40,19 +38,7 @@ pub(super) async fn validate_materialized_audio(
         ))
     })?;
 
-    let file = match validation_result {
-        Ok(file) => file,
-        Err(error) => {
-            progress(title_progress(
-                progress_context,
-                AcquisitionStage::Failed,
-                Some(1.0),
-                None,
-                None,
-            ));
-            return Err(error);
-        }
-    };
+    let file = validation_result?;
     progress(title_progress(
         progress_context,
         AcquisitionStage::Validation,
@@ -67,14 +53,6 @@ pub(super) fn materialized_file_from_path(
     title_id: &str,
     path: &Path,
 ) -> Result<MaterializedSourceFile> {
-    let source_kind = abb_remote_source_core::classify_materialized_source_path(path);
-    if !abb_remote_source_core::materialized_source_is_import_ready(source_kind) {
-        return Err(AppError::FileValidation(format!(
-            "Materialized Audible {} requires Audible decryption before ABB import handoff.",
-            kind_label(source_kind)
-        )));
-    }
-
     let metadata = fs::metadata(path)?;
     let sha256 = sha256_file(path)?;
 
@@ -94,15 +72,5 @@ pub(super) fn materialized_file_from_path(
             sanitize_path_for_display(path)
         ))),
         Err(error) => Err(error),
-    }
-}
-
-fn kind_label(kind: MaterializedSourceKind) -> &'static str {
-    match kind {
-        MaterializedSourceKind::ImportReadyM4b => "M4B",
-        MaterializedSourceKind::EncryptedAax => "AAX",
-        MaterializedSourceKind::EncryptedAaxc => "AAXC",
-        MaterializedSourceKind::SupplementalPdf => "PDF",
-        MaterializedSourceKind::Unsupported => "file",
     }
 }

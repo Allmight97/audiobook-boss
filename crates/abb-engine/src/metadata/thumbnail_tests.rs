@@ -116,3 +116,38 @@ fn prepare_cover_art_for_write_resizes_oversized_jpeg() {
     assert!(decoded.width() <= COVER_ART_MAX_DIMENSION);
     assert!(decoded.height() <= COVER_ART_MAX_DIMENSION);
 }
+
+#[test]
+fn an_export_keeps_the_cover_the_app_shows() {
+    use crate::metadata::{extract_passthrough_metadata, read_metadata, PassthroughSource};
+    use crate::test_cases::tag_interop_seed::{seed_flac, seed_m4b, seed_mka, seed_mp3, Pictures};
+
+    let dir = tempfile::TempDir::new().expect("workspace");
+    let sources = [
+        ("mp3", seed_mp3(&dir.path().join("mp3"))),
+        ("flac", seed_flac(&dir.path().join("flac"))),
+        ("mka", seed_mka(&dir.path().join("mka"), Pictures::Mixed)),
+        ("m4b", seed_m4b(&dir.path().join("m4b"))),
+    ];
+    for (label, path) in sources {
+        let shown = super::read_embedded_cover_bytes(&path)
+            .expect("thumbnail source")
+            .unwrap_or_else(|| panic!("{label}: the app shows a cover"));
+        let exported = extract_passthrough_metadata(&[PassthroughSource {
+            path: path.clone(),
+            duration: Some(0.5),
+            is_valid: true,
+            chapters: None,
+        }])
+        .cover_art;
+        let read = read_metadata(&path).expect("read").cover_art;
+        for (route, cover) in [("export", exported), ("read", read)] {
+            assert!(
+                cover.as_ref() == Some(&shown),
+                "{label}: {route} cover is {:?} bytes, the app shows {} bytes",
+                cover.map(|bytes| bytes.len()),
+                shown.len()
+            );
+        }
+    }
+}

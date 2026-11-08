@@ -1,47 +1,15 @@
 use serde::{Deserialize, Serialize};
-use std::path::Path;
-
-pub use abb_media_core::{MediaContainerKind, MediaProtectionKind};
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(transparent)]
-pub struct ProviderId(pub String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum AcquisitionStage {
-    Auth,
-    Library,
     License,
     Download,
     Decryption,
     Validation,
     ImportHandoff,
-    Cleanup,
-    Complete,
     Failed,
     Cancelled,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "snake_case")]
-pub enum MaterializedSourceKind {
-    ImportReadyM4b,
-    EncryptedAax,
-    EncryptedAaxc,
-    SupplementalPdf,
-    Unsupported,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum AcquisitionStrategy {
-    DownloadImportReady,
-    DownloadThenDecryptAax,
-    DownloadThenDecryptAaxc,
-    DownloadThenDecryptDash,
-    ProtectedUnsupported,
-    ProviderProtocolFailed,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -59,14 +27,6 @@ pub struct AcquisitionProgress {
     pub terminal: bool,
 }
 
-pub fn classify_materialized_source_path(path: &Path) -> MaterializedSourceKind {
-    materialized_source_kind_for_container(abb_media_core::classify_media_container_path(path))
-}
-
-pub fn materialized_source_is_import_ready(kind: MaterializedSourceKind) -> bool {
-    matches!(kind, MaterializedSourceKind::ImportReadyM4b)
-}
-
 pub fn acquisition_progress(
     stage: AcquisitionStage,
     fraction: Option<f32>,
@@ -78,15 +38,11 @@ pub fn acquisition_progress(
         .unwrap_or(0.0)
         .clamp(0.0, 1.0);
     let (start, end, message, terminal) = match stage {
-        AcquisitionStage::Auth => (0.0, 5.0, "Preparing account session.", false),
-        AcquisitionStage::Library => (0.0, 5.0, "Loading remote library.", false),
         AcquisitionStage::License => (0.0, 15.0, "Requesting download license.", false),
         AcquisitionStage::Download => (15.0, 65.0, "Downloading audiobook.", false),
         AcquisitionStage::Decryption => (65.0, 90.0, "Decrypting audiobook.", false),
         AcquisitionStage::Validation => (90.0, 97.0, "Validating acquired audiobook.", false),
         AcquisitionStage::ImportHandoff => (97.0, 100.0, "Importing acquired audiobook.", false),
-        AcquisitionStage::Cleanup => (100.0, 100.0, "Cleaning acquired session.", false),
-        AcquisitionStage::Complete => (100.0, 100.0, "Acquisition complete.", true),
         AcquisitionStage::Failed => (100.0, 100.0, "Acquisition failed.", true),
         AcquisitionStage::Cancelled => (100.0, 100.0, "Acquisition cancelled.", true),
     };
@@ -121,20 +77,6 @@ pub fn acquisition_progress_for_current_title(
     progress.current_item_index = Some(item_index);
     progress.total_items = Some(total_items);
     progress
-}
-
-pub fn materialized_source_kind_for_container(
-    container: MediaContainerKind,
-) -> MaterializedSourceKind {
-    match container {
-        MediaContainerKind::M4b | MediaContainerKind::M4a => MaterializedSourceKind::ImportReadyM4b,
-        MediaContainerKind::Aax => MaterializedSourceKind::EncryptedAax,
-        MediaContainerKind::Aaxc => MaterializedSourceKind::EncryptedAaxc,
-        MediaContainerKind::SupplementalPdf => MaterializedSourceKind::SupplementalPdf,
-        MediaContainerKind::Dash | MediaContainerKind::Unknown => {
-            MaterializedSourceKind::Unsupported
-        }
-    }
 }
 
 #[cfg(test)]

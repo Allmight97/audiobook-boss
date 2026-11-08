@@ -1,13 +1,11 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use abb_engine::audio::{
-    AudioIntent, AudiobookFormat, ChannelConfig, EncoderType, SampleRateConfig,
-};
-use abb_engine::session::{AudioEdit, MetadataField, SessionIntent, SubmissionStatus, TitlePlan};
-use abb_engine::work_runtime::WorkOperationStatus;
+use crate::audio::{AudioIntent, AudiobookFormat, ChannelConfig, EncoderType, SampleRateConfig};
+use crate::session::{AudioEdit, MetadataField, SessionIntent, SubmissionStatus, TitlePlan};
+use crate::work_runtime::WorkOperationStatus;
 
-use super::integration_session_desk::{finished, submission, Desk};
+use super::integration_session_desk::{submission, Desk};
 use super::media_fixtures::{audio_duration_ts, decode_pcm_f32, MediaLane};
 use super::media_fixtures::{audio_packet_bytes, ffmpeg, ffprobe};
 
@@ -97,15 +95,7 @@ fn stereo_pink_noise(path: &Path) {
 }
 
 async fn choose(desk: &Desk, choice: &Choice) {
-    let title_ids: Vec<_> = desk
-        .engine
-        .session_snapshot()
-        .titles
-        .expect("titles")
-        .files
-        .into_iter()
-        .map(|file| file.input_id)
-        .collect();
+    let title_ids = desk.title_ids();
     let mut edits = vec![
         AudioEdit::Format(choice.format),
         AudioEdit::Intent(AudioIntent::Encode),
@@ -140,7 +130,7 @@ async fn export_when_planned(desk: &Desk) -> PathBuf {
     let Some(SubmissionStatus::Submitted { operation_id, .. }) = submission(desk) else {
         panic!("{:?}", submission(desk))
     };
-    desk.wait_until("export", |d| finished(d.export_status(&operation_id)))
+    desk.wait_until("export", |d| d.export_finished(&operation_id))
         .await;
     assert_eq!(
         desk.export_status(&operation_id),
@@ -163,9 +153,12 @@ struct Choice {
     declared_rate: &'static str,
     declared_channels: &'static str,
     extension: &'static str,
+    container: &'static str,
 }
 
 const OPUS_DECLARED_RATE: &str = "48000";
+const MP4_CONTAINER: &str = "mov,mp4,m4a,3gp,3g2,mj2";
+const MATROSKA_CONTAINER: &str = "matroska,webm";
 const NOISE_SECONDS: f64 = 2.0;
 const VARIABLE_BITRATE_TOLERANCE: f64 = 0.15;
 
@@ -181,6 +174,7 @@ async fn encoding_choices_reach_the_file() {
             declared_rate: "22050",
             declared_channels: "1",
             extension: "m4b",
+            container: MP4_CONTAINER,
         },
         Choice {
             format: AudiobookFormat::M4b,
@@ -191,6 +185,7 @@ async fn encoding_choices_reach_the_file() {
             declared_rate: "32000",
             declared_channels: "2",
             extension: "m4b",
+            container: MP4_CONTAINER,
         },
         Choice {
             format: AudiobookFormat::M4aOpus,
@@ -201,6 +196,7 @@ async fn encoding_choices_reach_the_file() {
             declared_rate: OPUS_DECLARED_RATE,
             declared_channels: "1",
             extension: "m4a",
+            container: MP4_CONTAINER,
         },
         Choice {
             format: AudiobookFormat::MkaOpus,
@@ -211,6 +207,7 @@ async fn encoding_choices_reach_the_file() {
             declared_rate: OPUS_DECLARED_RATE,
             declared_channels: "1",
             extension: "mka",
+            container: MATROSKA_CONTAINER,
         },
         Choice {
             format: AudiobookFormat::MkaOpus,
@@ -221,6 +218,7 @@ async fn encoding_choices_reach_the_file() {
             declared_rate: OPUS_DECLARED_RATE,
             declared_channels: "2",
             extension: "mka",
+            container: MATROSKA_CONTAINER,
         },
     ];
     for choice in choices {
@@ -241,6 +239,7 @@ async fn encoding_choices_reach_the_file() {
             output.extension().and_then(|e| e.to_str()),
             Some(choice.extension)
         );
+        assert_eq!(stream_fact(&output, "format=format_name"), choice.container);
         assert_eq!(stream_fact(&output, "stream=codec_name"), choice.codec);
         assert_eq!(
             stream_fact(&output, "stream=sample_rate"),

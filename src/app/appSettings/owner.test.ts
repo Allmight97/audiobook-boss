@@ -5,6 +5,13 @@ import {
 	type FakeEngine,
 } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime, type AppRuntime } from '../runtime';
+import { logFrontendFailure } from '../../lib/frontendLogBridge';
+import type { SettingsOutcome } from '../../lib/generated/tauri';
+
+vi.mock('../../lib/frontendLogBridge', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../../lib/frontendLogBridge')>()),
+	logFrontendFailure: vi.fn(),
+}));
 
 describe('settings owner', () => {
 	let runtime: AppRuntime | undefined;
@@ -26,14 +33,15 @@ describe('settings owner', () => {
 		return { code: 'io_error', category: 'io', message, detail: null } as const;
 	}
 
-	it('words the job count as Auto → N or Max N from the engine snapshot', async () => {
+	it('words the job count as Max jobs: N, with (Auto) when the engine picks, from the engine snapshot', async () => {
 		const app = await open();
 
 		expect(app.settings.concurrency()).toMatchObject({
 			selection: 'auto',
 			effective: 4,
 			autoEffective: 4,
-			effectiveLabel: 'Auto → 4',
+			autoSelection: 'auto',
+			label: 'Max jobs: 4 (Auto)',
 		});
 		engine.respondSettings = () => {
 			const { concurrency } = engine.settings();
@@ -46,7 +54,7 @@ describe('settings owner', () => {
 		expect(app.settings.concurrency()).toMatchObject({
 			selection: '2',
 			effective: 2,
-			effectiveLabel: 'Max 2',
+			label: 'Max jobs: 2',
 			errorMessage: '',
 		});
 	});
@@ -71,6 +79,54 @@ describe('settings owner', () => {
 		expect(engine.settings().settings?.encoderDefaults.intent).toBe('preserve');
 	});
 
+	it('logs a retry that never reached the engine and says so beside the unsaved notice', async () => {
+		const app = await open();
+		engine.seedAppSettings(
+			{ encoderDefaults: { ...engine.settings().settings.encoderDefaults, intent: 'preserve' } },
+			unsaved('Disk full'),
+		);
+		const dropped = new Error('channel closed');
+		engine.settingsDispatch = async () => {
+			throw dropped;
+		};
+
+		await app.settings.retryPersistence();
+
+		expect(logFrontendFailure).toHaveBeenCalledWith('appSettings.retry', dropped);
+		expect(app.settings.durability()).toEqual({
+			state: 'error',
+			message: "Retry didn't reach ABB. Disk full",
+		});
+
+		engine.settingsDispatch = async () => {
+			engine.seedAppSettings({});
+			return { outcome: { kind: 'applied' }, snapshot: engine.settings() };
+		};
+		await app.settings.retryPersistence();
+		expect(app.settings.durability()).toEqual({ state: 'saved', message: '' });
+	});
+
+	it('stops saying a retry never arrived once a later send reaches the engine', async () => {
+		const app = await open();
+		engine.seedAppSettings(
+			{ encoderDefaults: { ...engine.settings().settings.encoderDefaults, intent: 'preserve' } },
+			unsaved('Disk full'),
+		);
+		engine.settingsDispatch = async () => {
+			throw new Error('channel closed');
+		};
+		await app.settings.retryPersistence();
+		expect(app.settings.durability().message).toBe("Retry didn't reach ABB. Disk full");
+
+		engine.settingsDispatch = async () => ({
+			outcome: { kind: 'applied' },
+			snapshot: engine.settings(),
+		});
+		await app.settings.setKeepAwakeWhileWorking(false);
+
+		expect(app.settings.durability()).toEqual({ state: 'error', message: 'Disk full' });
+	});
+
 	it('shows the default import source as saving until the engine replies', async () => {
 		const app = await open();
 		let release: () => void = () => {};
@@ -84,11 +140,11 @@ describe('settings owner', () => {
 		};
 
 		const saving = app.settings.setDefaultAcquisitionLane('indexer');
-		expect(app.settings.dialog().laneSaveState).toBe('saving');
+		expect(app.settings.dialog().status.lane.state).toBe('saving');
 
 		release();
 		await saving;
-		expect(app.settings.dialog().laneSaveState).toBe('saved');
+		expect(app.settings.dialog().status.lane.state).toBe('saved');
 		expect(app.settings.defaultAcquisitionLane()).toBe('indexer');
 	});
 
@@ -109,9 +165,9 @@ describe('settings owner', () => {
 
 		await app.settings.setDefaultAcquisitionLane('indexer');
 
-		expect(app.settings.dialog()).toMatchObject({
-			laneSaveState: 'error',
-			laneSaveError: 'Indexer is not set up.',
+		expect(app.settings.dialog().status.lane).toEqual({
+			state: 'error',
+			error: 'Indexer is not set up.',
 		});
 	});
 
@@ -125,7 +181,7 @@ describe('settings owner', () => {
 		};
 		await app.settings.setStartupBehavior('pinnedDefaults');
 		expect(app.settings.dialog().settings?.startupBehavior).toBe('pinnedDefaults');
-		expect(app.settings.dialog().startupSaveState).not.toBe('error');
+		expect(app.settings.dialog().status.startup.state).not.toBe('error');
 		expect(app.settings.durability()).toEqual({ state: 'error', message: 'Read-only' });
 
 		engine.respondSettings = () => {
@@ -148,7 +204,51 @@ describe('settings owner', () => {
 			return undefined;
 		};
 		await app.settings.resetAllAppSettings();
-		expect(app.settings.dialog().saveState).toBe('saved');
+		expect(app.settings.dialog().status.reset.state).toBe('saved');
 		expect(app.settings.dialog().settings?.pinnedDefaults).toBeNull();
+	});
+
+	it('keeps a setting saving until its latest change replies, however earlier ones finish', async () => {
+		const app = await open();
+		const replies: Array<() => void> = [];
+		engine.respondSettings = () =>
+			new Promise((resolve) => {
+				replies.push(() => resolve(undefined));
+			});
+
+		const first = app.settings.setDefaultAcquisitionLane('indexer');
+		const second = app.settings.setDefaultAcquisitionLane('audible');
+		await vi.waitFor(() => expect(replies).toHaveLength(2));
+
+		replies[0]?.();
+		await first;
+		expect(app.settings.dialog().status.lane.state).toBe('saving');
+
+		replies[1]?.();
+		await second;
+		expect(app.settings.dialog().status.lane.state).toBe('saved');
+	});
+
+	it('shows only the latest change refusal when an earlier one is refused after it', async () => {
+		const app = await open();
+		const replies: Array<(outcome: SettingsOutcome) => void> = [];
+		engine.respondSettings = () =>
+			new Promise((resolve) => {
+				replies.push(resolve);
+			});
+
+		const first = app.settings.setDefaultAcquisitionLane('indexer');
+		const second = app.settings.setDefaultAcquisitionLane('audible');
+		await vi.waitFor(() => expect(replies).toHaveLength(2));
+
+		replies[1]?.({ kind: 'applied' });
+		await second;
+		replies[0]?.({
+			kind: 'rejected',
+			error: { code: 'io_error', category: 'io', message: 'Late refusal', detail: null },
+		});
+		await first;
+
+		expect(app.settings.dialog().status.lane).toEqual({ state: 'saved', error: '' });
 	});
 });

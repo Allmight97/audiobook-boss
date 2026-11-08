@@ -1,6 +1,6 @@
 use super::super::types::OutputCollision;
 use super::*;
-use crate::output_artifact::{OutputCollisionKind, OutputKind};
+use crate::output_artifact::{OutputCollisionKind, OutputKind, PlannedOutputAction};
 use std::path::PathBuf;
 use tempfile::TempDir;
 

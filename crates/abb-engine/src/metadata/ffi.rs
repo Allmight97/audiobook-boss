@@ -1,10 +1,8 @@
 use crate::errors::Result;
 use ffmpeg_next as ff;
 
-/// Sets the ATTACHED_PIC disposition on a stream using FFI
-///
-/// This uses unsafe FFI to access the underlying AVStream and set the disposition
-/// flag directly, which is necessary because ffmpeg-next doesn't expose this functionality.
+/// Sets the flag on the underlying AVStream, because ffmpeg-next does not
+/// expose it.
 pub(crate) fn set_attached_pic_disposition(
     octx: &mut ff::format::context::Output,
     stream_index: usize,

@@ -1,5 +1,3 @@
-use abb_remote_source_core::AcquisitionStrategy;
-
 const MAX_REMOTE_FILENAME_STEM_BYTES: usize = 180;
 
 /// Stable, non-reversible reference for a provider title id, safe to emit in
@@ -9,18 +7,6 @@ pub fn title_ref(title_id: &str) -> String {
         .chars()
         .take(12)
         .collect()
-}
-
-pub fn download_extension_for_strategy(strategy: AcquisitionStrategy) -> &'static str {
-    match strategy {
-        AcquisitionStrategy::DownloadImportReady => "m4b",
-        AcquisitionStrategy::DownloadThenDecryptAax => "aax",
-        AcquisitionStrategy::DownloadThenDecryptAaxc => "aaxc",
-        AcquisitionStrategy::DownloadThenDecryptDash => "mpd",
-        AcquisitionStrategy::ProtectedUnsupported | AcquisitionStrategy::ProviderProtocolFailed => {
-            "bin"
-        }
-    }
 }
 
 /// Sanitized filename stem for a materialized remote title, falling back to a

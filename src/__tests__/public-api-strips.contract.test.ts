@@ -48,14 +48,25 @@ function missingStripMessage(owner: string): string {
 
 const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 	['app/appSettings', appSettings, ['createSettingsOwner']],
-	['app/encoding', encoding, ['createEncodingOwner']],
+	[
+		'app/encoding',
+		encoding,
+		[
+			'bitrateModeLabel',
+			'codecFamilyLabel',
+			'createEncodingOwner',
+			'encoderLabel',
+			'formatLabel',
+			'intentLabel',
+		],
+	],
 	['app/engineLink', engineLink, ['attachEngineLink', 'createTypingEcho']],
 	[
 		'app/inputSession',
 		inputSession,
 		[
-			'acceptedChapterCount',
 			'createInputOwner',
+			'fileIdentityKey',
 			'formatAudioProperties',
 			'formatFileDetails',
 			'interpretFileListKeyDown',
@@ -79,7 +90,19 @@ const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 		],
 	],
 	['app/runtime', runtime, ['AppRuntimeProvider', 'createAppRuntime', 'useAppRuntime']],
-	['app/workOperations', workOperations, ['createWorkOperationsOwner', 'isWorkRunning']],
+	[
+		'app/workOperations',
+		workOperations,
+		[
+			'childCancelling',
+			'childStatusLabel',
+			'createWorkOperationsOwner',
+			'operationKindLabel',
+			'operationStatusLabel',
+			'stageActivity',
+			'stageStatusText',
+		],
+	],
 	['ui/appSettings', appSettingsUi, ['AppSettingsDialogView', 'SettingsPersistenceNotice']],
 	['ui/collisionDialog', collisionDialog, ['CollisionDialogView']],
 	['ui/coverArt', coverArt, ['CoverArtView']],
@@ -89,7 +112,7 @@ const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
 	[
 		'ui/foundation',
 		foundation,
-		['Button', 'CoverImage', 'CoverThumb', 'Dialog', 'Progress', 'SplitButton'],
+		['Button', 'CoverImage', 'CoverThumb', 'Dialog', 'JobRow', 'Progress', 'Select', 'SplitButton'],
 	],
 	['ui/jobControls', jobControls, ['ConcurrencyControl', 'GroupTitlesButton']],
 	['ui/leftColumn', leftColumn, ['FileInspectorView']],

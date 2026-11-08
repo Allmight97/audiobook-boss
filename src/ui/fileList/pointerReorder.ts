@@ -1,67 +1,72 @@
+type DropEdge = 'top' | 'bottom';
+
 export type FileListDragState = {
-	draggedIndex: number | null;
-	hoveredIndex: number | null;
-	hoveredEdge: 'top' | 'bottom' | null;
+	draggedKey: string | null;
+	hoveredKey: string | null;
+	hoveredEdge: DropEdge | null;
 };
 
-export type FileListRowHit = { index: number; edge: 'top' | 'bottom' };
+export type FileListRowHit = { key: string; edge: DropEdge };
 export type FileListRowHitTest = (clientX: number, clientY: number) => FileListRowHit | null;
 export type FileListPointerReorderHandlers = {
-	onGripPointerDown: (index: number, event: PointerEvent) => void;
+	onGripPointerDown: (key: string, event: PointerEvent) => void;
 	consumePostDragClick: () => boolean;
 	dispose: () => void;
+};
+
+type Gesture = {
+	readonly key: string;
+	readonly pointerId: number;
+	readonly startX: number;
+	readonly startY: number;
+	engaged: boolean;
+	hoveredKey: string | null;
+	hoveredEdge: DropEdge | null;
+};
+
+const IDLE_DRAG_STATE: FileListDragState = {
+	draggedKey: null,
+	hoveredKey: null,
+	hoveredEdge: null,
 };
 
 const REORDER_DRAG_THRESHOLD_PX = 4;
 
 function fileListRowHitFromPoint(clientX: number, clientY: number): FileListRowHit | null {
 	if (typeof document.elementFromPoint !== 'function') return null;
-	const row = document
-		.elementFromPoint(clientX, clientY)
-		?.closest<HTMLElement>('[data-file-index]');
-	if (!row) return null;
-	const index = Number.parseInt(row.dataset.fileIndex ?? '', 10);
-	if (!Number.isInteger(index)) return null;
+	const row = document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('[data-file-key]');
+	if (!row?.dataset.fileKey) return null;
 	const rect = row.getBoundingClientRect();
-	return { index, edge: clientY < rect.top + rect.height / 2 ? 'top' : 'bottom' };
+	return {
+		key: row.dataset.fileKey,
+		edge: clientY < rect.top + rect.height / 2 ? 'top' : 'bottom',
+	};
 }
 
 export function createFileListPointerReorder(options: {
 	readonly setDragState: (state: FileListDragState) => void;
 	readonly hitTest?: FileListRowHitTest;
 	readonly isBlocked?: () => boolean;
-	readonly fileCount?: () => number;
+	readonly rowKeys: () => readonly string[];
 	readonly onReorder: (fromIndex: number, toIndex: number) => void;
 }): FileListPointerReorderHandlers {
 	const hitTest = options.hitTest ?? fileListRowHitFromPoint;
 	const isBlocked = options.isBlocked ?? (() => false);
-	const fileCount = options.fileCount ?? (() => 0);
-	let pressedIndex: number | null = null;
-	let pressedPointerId: number | null = null;
-	let startX = 0;
-	let startY = 0;
-	let dragEngaged = false;
-	let draggedIndex: number | null = null;
-	let hoveredIndex: number | null = null;
-	let hoveredEdge: 'top' | 'bottom' | null = null;
+	let gesture: Gesture | null = null;
+	let capture: {
+		readonly grip: Element;
+		readonly listener: (event: Event) => void;
+	} | null = null;
 	let suppressPostDragClick = false;
-	let pressedGrip: Element | null = null;
-	let lostPointerCaptureListener: ((event: Event) => void) | null = null;
 
-	function hasValidIndex(index: number): boolean {
-		return index >= 0 && index < fileCount();
-	}
 	function detachWindowListeners(): void {
 		window.removeEventListener('pointermove', handlePointerMove);
 		window.removeEventListener('pointerup', handlePointerUp);
 		window.removeEventListener('pointercancel', handlePointerCancel);
 	}
 	function detachLostPointerCaptureListener(): void {
-		if (pressedGrip && lostPointerCaptureListener) {
-			pressedGrip.removeEventListener('lostpointercapture', lostPointerCaptureListener);
-		}
-		pressedGrip = null;
-		lostPointerCaptureListener = null;
+		if (capture) capture.grip.removeEventListener('lostpointercapture', capture.listener);
+		capture = null;
 	}
 	function disarmPostDragClickSuppression(): void {
 		suppressPostDragClick = false;
@@ -72,72 +77,77 @@ export function createFileListPointerReorder(options: {
 		window.addEventListener('pointerdown', disarmPostDragClickSuppression, true);
 	}
 	function resetDragState(): void {
-		pressedIndex = null;
-		pressedPointerId = null;
-		dragEngaged = false;
-		draggedIndex = null;
-		hoveredIndex = null;
-		hoveredEdge = null;
+		gesture = null;
 		detachWindowListeners();
 		detachLostPointerCaptureListener();
-		options.setDragState({ draggedIndex: null, hoveredIndex: null, hoveredEdge: null });
+		options.setDragState(IDLE_DRAG_STATE);
 	}
 	function handlePointerMove(event: PointerEvent): void {
-		if (event.pointerId !== pressedPointerId || pressedIndex === null) return;
+		if (!gesture || event.pointerId !== gesture.pointerId) return;
 		if (isBlocked()) {
 			resetDragState();
 			return;
 		}
-		if (!dragEngaged) {
-			if (Math.hypot(event.clientX - startX, event.clientY - startY) < REORDER_DRAG_THRESHOLD_PX)
-				return;
-			dragEngaged = true;
-			draggedIndex = pressedIndex;
+		if (!gesture.engaged) {
+			const moved = Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY);
+			if (moved < REORDER_DRAG_THRESHOLD_PX) return;
+			gesture.engaged = true;
 		}
 		const hit = hitTest(event.clientX, event.clientY);
-		if (hit && hit.index !== draggedIndex && hasValidIndex(hit.index)) {
-			hoveredIndex = hit.index;
-			hoveredEdge = hit.edge;
-		} else {
-			hoveredIndex = null;
-			hoveredEdge = null;
-		}
-		options.setDragState({ draggedIndex, hoveredIndex, hoveredEdge });
+		const hovering = hit && hit.key !== gesture.key && options.rowKeys().includes(hit.key);
+		gesture.hoveredKey = hovering ? hit.key : null;
+		gesture.hoveredEdge = hovering ? hit.edge : null;
+		options.setDragState({
+			draggedKey: gesture.key,
+			hoveredKey: gesture.hoveredKey,
+			hoveredEdge: gesture.hoveredEdge,
+		});
+	}
+	function reorderOnRelease(finished: Gesture): void {
+		if (finished.hoveredKey === null || finished.hoveredEdge === null || isBlocked()) return;
+		const keys = options.rowKeys();
+		const from = keys.indexOf(finished.key);
+		const hovered = keys.indexOf(finished.hoveredKey);
+		if (from < 0 || hovered < 0) return;
+		const insertIndex = finished.hoveredEdge === 'top' ? hovered : hovered + 1;
+		const to = from < insertIndex ? insertIndex - 1 : insertIndex;
+		if (to !== from) options.onReorder(from, to);
 	}
 	function handlePointerUp(event: PointerEvent): void {
-		if (event.pointerId !== pressedPointerId) return;
-		if (dragEngaged) {
+		if (!gesture || event.pointerId !== gesture.pointerId) return;
+		const finished = gesture;
+		if (finished.engaged) {
 			armPostDragClickSuppression();
-			const from = draggedIndex;
-			if (from !== null && hoveredIndex !== null && hoveredEdge !== null && !isBlocked()) {
-				const insertIndex = hoveredEdge === 'top' ? hoveredIndex : hoveredIndex + 1;
-				const to = from < insertIndex ? insertIndex - 1 : insertIndex;
-				if (to !== from) options.onReorder(from, to);
-			}
+			reorderOnRelease(finished);
 		}
 		resetDragState();
 	}
 	function handlePointerCancel(event: PointerEvent): void {
-		if (event.pointerId !== pressedPointerId) return;
+		if (!gesture || event.pointerId !== gesture.pointerId) return;
 		resetDragState();
 	}
 	return {
-		onGripPointerDown(index, event) {
-			if (event.button !== 0 || isBlocked() || !hasValidIndex(index)) return;
-			pressedIndex = index;
-			pressedPointerId = event.pointerId;
-			startX = event.clientX;
-			startY = event.clientY;
+		onGripPointerDown(key, event) {
+			if (event.button !== 0 || isBlocked() || !options.rowKeys().includes(key)) return;
+			gesture = {
+				key,
+				pointerId: event.pointerId,
+				startX: event.clientX,
+				startY: event.clientY,
+				engaged: false,
+				hoveredKey: null,
+				hoveredEdge: null,
+			};
 			event.preventDefault();
 			const grip = event.currentTarget;
 			if (grip instanceof Element && typeof grip.setPointerCapture === 'function') {
 				try {
 					grip.setPointerCapture(event.pointerId);
-					lostPointerCaptureListener = (lostEvent) => {
+					const listener = (lostEvent: Event) => {
 						if (lostEvent instanceof PointerEvent) handlePointerCancel(lostEvent);
 					};
-					pressedGrip = grip;
-					grip.addEventListener('lostpointercapture', lostPointerCaptureListener, { once: true });
+					capture = { grip, listener };
+					grip.addEventListener('lostpointercapture', listener, { once: true });
 				} catch {
 					// Window listeners still carry the gesture when capture is unavailable.
 				}

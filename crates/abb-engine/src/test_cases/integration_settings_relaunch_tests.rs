@@ -1,12 +1,12 @@
 use std::fs;
 use std::path::Path;
 
-use abb_engine::app_settings::{
+use crate::app_settings::{
     ConcurrencyPreference, SettingsIntent, SettingsOutcome, SettingsSnapshot, StartupBehavior,
 };
-use abb_engine::audio::{AacDecoder, AudiobookFormat};
-use abb_engine::session::{AudioEdit, SessionIntent, TitlePlan};
-use abb_engine::ShutdownOutcome;
+use crate::audio::{AacDecoder, AudiobookFormat};
+use crate::session::{AudioEdit, SessionIntent, TitlePlan};
+use crate::ShutdownOutcome;
 
 use super::integration_session_desk::Desk;
 

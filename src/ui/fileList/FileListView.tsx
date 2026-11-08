@@ -1,6 +1,5 @@
 import {
-	acceptedChapterCount,
-	formatFileDetails,
+	fileIdentityKey,
 	formatAudioProperties,
 	interpretFileListKeyDown,
 } from '../../app/inputSession';
@@ -9,24 +8,11 @@ import { coverSrc } from '../../lib/tauri/coverSrc';
 import { Button, CoverImage } from '../foundation';
 import { createSignal, createEffect, Show, For, onCleanup } from 'solid-js';
 import type { JSX } from '@solidjs/web';
-import type { AudioFile } from '../../types/audio';
-import type { TitleTotals } from '../../types/session';
 
 import { createFileListPointerReorder, type FileListDragState } from './pointerReorder';
 import { TitleSources } from './TitleSources';
 import { AudioHandlingControl } from './AudioHandlingControl';
 import './fileList.css';
-
-function isFailedSource(source: AudioFile): boolean {
-	return !source.isValid && !source.sourceRemoved;
-}
-
-function titleDetails(file: AudioFile, totals: TitleTotals | undefined): string {
-	return formatFileDetails(
-		{ ...file, duration: totals?.durationSeconds ?? 0, size: totals?.sizeBytes ?? 0 },
-		totals?.chapterCount ?? 0,
-	);
-}
 
 function isInteractiveListTarget(target: EventTarget | null): boolean {
 	return (
@@ -51,8 +37,8 @@ export function FileListView(props: {
 	const restoreImportOrder = input.restoreImportOrder;
 	const clearAllFiles = input.clearAllFiles;
 	const [dragState, setDragState] = createSignal<FileListDragState>({
-		draggedIndex: null,
-		hoveredIndex: null,
+		draggedKey: null,
+		hoveredKey: null,
 		hoveredEdge: null,
 	});
 	let fileListContent: HTMLDivElement | null = null;
@@ -60,7 +46,7 @@ export function FileListView(props: {
 	const reorderHandlers = createFileListPointerReorder({
 		setDragState,
 		isBlocked: () => view().orderLocked,
-		fileCount: () => view().files.length,
+		rowKeys: () => view().files.map(fileIdentityKey),
 		onReorder: (fromIndex, toIndex) => reorderFiles({ fromIndex, toIndex }),
 	});
 
@@ -80,10 +66,6 @@ export function FileListView(props: {
 		},
 	);
 
-	function isSelected(index: number): boolean {
-		return view().selectedIndices.includes(index);
-	}
-
 	function handleFileListClick(index: number, event: MouseEvent): void {
 		if (isInteractiveListTarget(event.target)) return;
 		if (reorderHandlers.consumePostDragClick()) return;
@@ -91,7 +73,10 @@ export function FileListView(props: {
 		if (event.shiftKey) window.getSelection()?.removeAllRanges();
 		void selectFile({
 			index,
-			modifiers: { multi: event.metaKey || event.ctrlKey, range: event.shiftKey },
+			modifiers: {
+				multi: event.metaKey || event.ctrlKey,
+				range: event.shiftKey,
+			},
 		});
 	}
 
@@ -107,7 +92,10 @@ export function FileListView(props: {
 			if (view().selectedIndices.length === 1 && view().selectedIndices[0] === command.index) {
 				return;
 			}
-			void selectFile({ index: command.index, modifiers: { multi: false, range: false } });
+			void selectFile({
+				index: command.index,
+				modifiers: { multi: false, range: false },
+			});
 			return;
 		}
 		if (command.type === 'selectAll') {
@@ -156,7 +144,9 @@ export function FileListView(props: {
 					</span>
 					<Button
 						id="restore-import-order-btn"
-						style={{ display: view().showRestoreImportOrder ? 'block' : 'none' }}
+						style={{
+							display: view().showRestoreImportOrder ? 'block' : 'none',
+						}}
 						onClick={() => restoreImportOrder()}
 					>
 						Restore import order
@@ -204,28 +194,31 @@ export function FileListView(props: {
 							const [expanded, setExpanded] = createSignal(false);
 							const sources = () => input.sourcesFor(file);
 							const grouped = () => sources().length > 1;
-							const failedSource = () => sources().find(isFailedSource);
-							const unusableSource = () =>
-								failedSource() ?? sources().find((source) => !source.isValid);
+							const failed = () => file.status === 'failed';
+							const selected = () => input.isSelected(file);
 							return (
 								// oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the listbox owns the keyboard; rows are not tab stops.
 								<div
 									data-file-index={index()}
+									data-file-key={fileIdentityKey(file)}
 									class={[
 										'file-list-item',
 										{
-											valid: !failedSource(),
-											invalid: !!failedSource(),
-											selected: isSelected(index()),
-											dragging: drag().draggedIndex === index(),
-											'drag-over': drag().hoveredIndex === index(),
+											valid: !failed(),
+											invalid: failed(),
+											selected: selected(),
+											dragging: drag().draggedKey === fileIdentityKey(file),
+											'drag-over': drag().hoveredKey === fileIdentityKey(file),
 										},
 									]}
 									data-drop-edge={
-										drag().hoveredIndex === index() ? (drag().hoveredEdge ?? undefined) : undefined
+										drag().hoveredKey === fileIdentityKey(file)
+											? (drag().hoveredEdge ?? undefined)
+											: undefined
 									}
 									role="option"
-									aria-selected={isSelected(index()) ? 'true' : 'false'}
+									data-state={file.status}
+									aria-selected={selected() ? 'true' : 'false'}
 									aria-label={file.label}
 									tabindex={-1}
 									onClick={(event) => handleFileListClick(index(), event)}
@@ -236,7 +229,9 @@ export function FileListView(props: {
 											class="file-reorder-grip"
 											tabindex={-1}
 											aria-label={`Reorder ${file.label}`}
-											onPointerDown={(event) => reorderHandlers.onGripPointerDown(index(), event)}
+											onPointerDown={(event) =>
+												reorderHandlers.onGripPointerDown(fileIdentityKey(file), event)
+											}
 											onClick={(event) => event.stopPropagation()}
 										>
 											⋮⋮
@@ -249,9 +244,9 @@ export function FileListView(props: {
 											/>
 										</div>
 										<div
-											class={`file-status ${!failedSource() ? 'file-status-valid' : 'file-status-invalid'}`}
+											class={`file-status ${!failed() ? 'file-status-valid' : 'file-status-invalid'}`}
 										>
-											{!failedSource() ? '✓' : '✗'}
+											{!failed() ? '✓' : '✗'}
 										</div>
 										<div class="file-info">
 											<div class="file-name-row">
@@ -311,15 +306,9 @@ export function FileListView(props: {
 													orderLocked={view().orderLocked}
 												/>
 											</div>
-											<div class="file-details">
-												{grouped()
-													? unusableSource()
-														? formatFileDetails(unusableSource() ?? file)
-														: titleDetails(file, input.totalsFor(file))
-													: formatFileDetails(file)}
-											</div>
+											<div class="file-details">{input.detailsFor(file)}</div>
 											<div class="file-audio-row">
-												<Show when={file.isValid && !grouped()}>
+												<Show when={file.status === 'ready' && !grouped()}>
 													<div class="file-details file-audio-details">
 														{formatAudioProperties(file)}
 													</div>
@@ -328,60 +317,32 @@ export function FileListView(props: {
 											<Show when={grouped() && expanded()}>
 												<TitleSources file={file} id={`title-sources-${index()}`} />
 											</Show>
-											<Show when={file.cueSource}>
+											<Show when={input.cueNoticeFor(file)}>
 												{(cue) => (
 													<div class="file-cue-details">
-														<Show when={cue().status !== 'ignored' && cue().status !== 'invalid'}>
-															<span>
-																{acceptedChapterCount(file)} chapter
-																{acceptedChapterCount(file) === 1 ? '' : 's'} from{' '}
-																{cue().status === 'embeddedPreferred'
-																	? 'embedded audio'
-																	: cue().fileName}
-															</span>
+														<Show when={cue().summary}>
+															<span>{cue().summary}</span>
 														</Show>
 														<Show when={cue().message}>
 															<p>{cue().message}</p>
 														</Show>
-														<Show when={cue().status === 'needsConfirmation'}>
-															<p>
-																This CUE uses nonstandard timestamps. Interpret the final field as
-																hundredths of a second?
-															</p>
-															<button
-																type="button"
-																disabled={view().orderLocked}
-																onClick={(event) => {
-																	event.stopPropagation();
-																	if (file.inputId)
-																		runtime.input.chooseCue(file.inputId, 'confirmHundredths');
-																}}
-															>
-																Use hundredths
-															</button>
+														<Show when={cue().note}>
+															<p>{cue().note}</p>
 														</Show>
-														<Show when={cue().status === 'ignored'}>
-															<p>CUE ignored. Converting without its chapters.</p>
-														</Show>
-														<Show when={cue().status === 'ready'}>
-															<p>CUE chapters accepted.</p>
-														</Show>
-														<Show
-															when={
-																cue().status !== 'ignored' && cue().status !== 'embeddedPreferred'
-															}
-														>
-															<button
-																type="button"
-																disabled={view().orderLocked}
-																onClick={(event) => {
-																	event.stopPropagation();
-																	if (file.inputId) runtime.input.chooseCue(file.inputId, 'ignore');
-																}}
-															>
-																Ignore CUE
-															</button>
-														</Show>
+														<For each={cue().actions} keyed={(action) => action.choice}>
+															{(action) => (
+																<button
+																	type="button"
+																	disabled={view().orderLocked}
+																	onClick={(event) => {
+																		event.stopPropagation();
+																		runtime.input.chooseCue(file.inputId, action().choice);
+																	}}
+																>
+																	{action().label}
+																</button>
+															)}
+														</For>
 													</div>
 												)}
 											</Show>

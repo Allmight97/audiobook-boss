@@ -8,7 +8,10 @@ import type {
 	SettingsOutcome,
 	SettingsUnit,
 	StartupBehavior,
-} from '../../types/appSettings';
+} from '../../lib/generated/tauri';
+import { concurrencyLabel } from '../../lib/format/concurrency';
+import { logFrontendFailure } from '../../lib/frontendLogBridge';
+import { QUIT_SHORTCUT, runsOnMac } from '../../lib/platform';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { EngineLink } from '../engineLink';
 
@@ -20,32 +23,30 @@ type SettingsDurability = {
 type ConcurrencyView = {
 	readonly errorMessage: string;
 	readonly selection: string;
+	readonly autoSelection: string;
 	readonly effective: number;
 	readonly autoEffective: number;
-	readonly effectiveLabel: string;
-	readonly controlsEnabled: boolean;
+	readonly label: string;
+	readonly locked: boolean;
 	readonly fixedOptions: ReadonlyArray<number>;
 };
 
 type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
+
+type SettingStatus = { readonly state: SettingsSaveState; readonly error: string };
+
+type DialogSetting = 'reset' | 'keepAwake' | 'pressQuitTwice' | 'aacDecoder' | 'startup' | 'lane';
+
+const RETRY_DROPPED = "Retry didn't reach ABB.";
+
+const IDLE: SettingStatus = { state: 'idle', error: '' };
 
 type AppSettingsDialogState = {
 	isOpen: boolean;
 	settings: AppSettings;
 	/** Only macOS has the Quit shortcut the Quitting setting governs. */
 	quittingAvailable: boolean;
-	saveState: SettingsSaveState;
-	saveError: string;
-	powerSaveState: SettingsSaveState;
-	powerSaveError: string;
-	quitSaveState: SettingsSaveState;
-	quitSaveError: string;
-	decoderSaveState: SettingsSaveState;
-	decoderSaveError: string;
-	startupSaveState: SettingsSaveState;
-	startupSaveError: string;
-	laneSaveState: SettingsSaveState;
-	laneSaveError: string;
+	status: Readonly<Record<DialogSetting, SettingStatus>>;
 };
 
 export type SettingsOwner = {
@@ -58,7 +59,6 @@ export type SettingsOwner = {
 	readonly dialog: Accessor<AppSettingsDialogState>;
 	setConcurrencySelection: (value: string) => Promise<void>;
 	setDefaultAcquisitionLane: (lane: AcquisitionLane) => Promise<void>;
-	setControlsEnabled: (enabled: boolean) => void;
 	openDialog: () => void;
 	closeDialog: () => void;
 	setKeepAwakeWhileWorking: (enabled: boolean) => Promise<void>;
@@ -71,33 +71,22 @@ export type SettingsOwner = {
 
 export type SettingsOwnerDeps = {
 	readonly link: EngineLink;
-	/** Called once the engine has applied a reset of every setting. */
-	readonly onAppliedReset: () => void;
 };
 
 type DialogProgress = Omit<AppSettingsDialogState, 'settings' | 'quittingAvailable'>;
-type ProgressKey = 'save' | 'powerSave' | 'quitSave' | 'decoderSave' | 'startupSave' | 'laneSave';
 
 function idleDialog(): DialogProgress {
 	return {
 		isOpen: false,
-		saveState: 'idle',
-		saveError: '',
-		powerSaveState: 'idle',
-		powerSaveError: '',
-		quitSaveState: 'idle',
-		quitSaveError: '',
-		decoderSaveState: 'idle',
-		decoderSaveError: '',
-		startupSaveState: 'idle',
-		startupSaveError: '',
-		laneSaveState: 'idle',
-		laneSaveError: '',
+		status: {
+			reset: IDLE,
+			keepAwake: IDLE,
+			pressQuitTwice: IDLE,
+			aacDecoder: IDLE,
+			startup: IDLE,
+			lane: IDLE,
+		},
 	};
-}
-
-function runsOnMac(): boolean {
-	return typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
 }
 
 function describe(error: unknown): string {
@@ -106,7 +95,7 @@ function describe(error: unknown): string {
 
 const UNIT_LABELS: Record<SettingsUnit, string> = {
 	keepAwake: 'keep computer awake while working',
-	pressQuitTwice: 'press ⌘Q twice to quit',
+	pressQuitTwice: `press ${QUIT_SHORTCUT} twice to quit`,
 	jobLimit: 'number of jobs',
 	acquisitionLane: 'default import source',
 	aacDecoder: 'AAC decoder',
@@ -117,12 +106,16 @@ const UNIT_LABELS: Record<SettingsUnit, string> = {
 	pinnedDefaults: 'pinned defaults',
 };
 
+const AUTO_SELECTION = 'auto';
+
 function selectionOf(preference: ConcurrencyPreference): string {
-	return preference.mode === 'fixed' ? String(preference.value) : 'auto';
+	return preference.mode === 'fixed' ? String(preference.value) : AUTO_SELECTION;
 }
 
 function preferenceFromSelection(value: string): ConcurrencyPreference {
-	return value === 'auto' ? { mode: 'auto' } : { mode: 'fixed', value: Number.parseInt(value, 10) };
+	return value === AUTO_SELECTION
+		? { mode: 'auto' }
+		: { mode: 'fixed', value: Number.parseInt(value, 10) };
 }
 
 export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
@@ -130,8 +123,17 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	let dialog = idleDialog();
 	let concurrencyError = '';
-	let controlsEnabled = true;
 	let writesInFlight = 0;
+	let retryDropped = false;
+	let latestConcurrencyRequest = 0;
+	const latestRequest: Record<DialogSetting, number> = {
+		reset: 0,
+		keepAwake: 0,
+		pressQuitTwice: 0,
+		aacDecoder: 0,
+		startup: 0,
+		lane: 0,
+	};
 
 	function changed(): void {
 		bump((n) => n + 1);
@@ -144,7 +146,9 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 
 	async function send(intent: SettingsIntent): Promise<SettingsOutcome | { error: unknown }> {
 		try {
-			return await link.sendSettings(intent);
+			const outcome = await link.sendSettings(intent);
+			retryDropped = false;
+			return outcome;
 		} catch (error) {
 			return { error };
 		}
@@ -154,14 +158,20 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		return 'error' in outcome ? describe(outcome.error) : null;
 	}
 
-	async function runDialogAction(key: ProgressKey, intent: SettingsIntent): Promise<boolean> {
-		updateDialog({ [`${key}State`]: 'saving', [`${key}Error`]: '' });
+	function setStatus(setting: DialogSetting, status: SettingStatus): void {
+		updateDialog({ status: { ...dialog.status, [setting]: status } });
+	}
+
+	async function runDialogAction(setting: DialogSetting, intent: SettingsIntent): Promise<boolean> {
+		const request = ++latestRequest[setting];
+		setStatus(setting, { state: 'saving', error: '' });
 		const error = failure(await send(intent));
-		updateDialog(
-			error === null
-				? { [`${key}State`]: 'saved' }
-				: { [`${key}State`]: 'error', [`${key}Error`]: error },
-		);
+		if (request === latestRequest[setting]) {
+			setStatus(
+				setting,
+				error === null ? { state: 'saved', error: '' } : { state: 'error', error },
+			);
+		}
 		return error === null;
 	}
 
@@ -169,11 +179,13 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		durability: () => {
 			rev();
 			const error = link.settings().saveError;
-			if (writesInFlight > 0)
-				return { state: 'saving', message: error ? toUserMessage(error) : '' };
-			return error
-				? { state: 'error', message: toUserMessage(error) }
-				: { state: 'saved', message: '' };
+			const reason = error ? toUserMessage(error) : '';
+			if (writesInFlight > 0) return { state: 'saving', message: reason };
+			if (!error) return { state: 'saved', message: '' };
+			return {
+				state: 'error',
+				message: retryDropped ? `${RETRY_DROPPED} ${reason}` : reason,
+			};
 		},
 		recoveryNotice: () => {
 			const recovery = link.settings().recovery;
@@ -193,23 +205,28 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 		},
 		async retryPersistence() {
 			writesInFlight += 1;
+			retryDropped = false;
 			changed();
-			await send({ kind: 'retry' });
+			const outcome = await send({ kind: 'retry' });
 			writesInFlight -= 1;
+			if ('error' in outcome) {
+				logFrontendFailure('appSettings.retry', outcome.error);
+				retryDropped = true;
+			}
 			changed();
 		},
 		concurrency: () => {
 			rev();
 			const snapshot = link.settings();
 			const { preference, effective, capabilities } = snapshot.concurrency;
-			const selection = selectionOf(preference);
 			return {
 				errorMessage: concurrencyError,
-				selection,
+				selection: selectionOf(preference),
+				autoSelection: AUTO_SELECTION,
 				effective,
 				autoEffective: capabilities.autoEffective,
-				effectiveLabel: selection === 'auto' ? `Auto → ${effective}` : `Max ${effective}`,
-				controlsEnabled,
+				label: concurrencyLabel(snapshot.concurrency),
+				locked: link.concurrencyLocked(),
 				fixedOptions: capabilities.fixedOptions,
 			};
 		},
@@ -219,23 +236,19 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			return { ...dialog, settings: link.settings().settings, quittingAvailable: runsOnMac() };
 		},
 		async setConcurrencySelection(value) {
+			const request = ++latestConcurrencyRequest;
 			const error = failure(
 				await send({ kind: 'setConcurrency', preference: preferenceFromSelection(value) }),
 			);
+			if (request !== latestConcurrencyRequest) return;
 			concurrencyError = error ?? '';
 			changed();
 		},
 		async setDefaultAcquisitionLane(defaultAcquisitionLane) {
-			await runDialogAction('laneSave', {
-				kind: 'remember',
-				encoderDefaults: null,
-				outputDefaults: null,
-				defaultAcquisitionLane,
+			await runDialogAction('lane', {
+				kind: 'setDefaultAcquisitionLane',
+				lane: defaultAcquisitionLane,
 			});
-		},
-		setControlsEnabled(enabled) {
-			controlsEnabled = enabled;
-			changed();
 		},
 		openDialog() {
 			updateDialog({ ...idleDialog(), isOpen: true });
@@ -244,25 +257,24 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			updateDialog({ isOpen: false });
 		},
 		async setKeepAwakeWhileWorking(enabled) {
-			await runDialogAction('powerSave', { kind: 'setKeepAwake', enabled });
+			await runDialogAction('keepAwake', { kind: 'setKeepAwake', enabled });
 		},
 		async setPressQuitTwice(enabled) {
-			await runDialogAction('quitSave', { kind: 'setPressQuitTwice', enabled });
+			await runDialogAction('pressQuitTwice', { kind: 'setPressQuitTwice', enabled });
 		},
 		async setAacDecoder(decoder) {
-			await runDialogAction('decoderSave', { kind: 'setAacDecoder', decoder });
+			await runDialogAction('aacDecoder', { kind: 'setAacDecoder', decoder });
 		},
 		async saveCurrentSettingsAsPinnedDefaults() {
-			await runDialogAction('startupSave', { kind: 'pinCurrentDefaults' });
+			await runDialogAction('startup', { kind: 'pinCurrentDefaults' });
 		},
 		async setStartupBehavior(behavior) {
-			await runDialogAction('startupSave', { kind: 'setStartupBehavior', behavior });
+			await runDialogAction('startup', { kind: 'setStartupBehavior', behavior });
 		},
 		async resetAllAppSettings() {
-			if (!(await runDialogAction('save', { kind: 'reset' }))) return;
+			if (!(await runDialogAction('reset', { kind: 'reset' }))) return;
 			concurrencyError = '';
 			changed();
-			deps.onAppliedReset();
 		},
 	};
 }

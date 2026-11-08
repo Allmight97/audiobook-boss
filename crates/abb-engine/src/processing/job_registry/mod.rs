@@ -1,7 +1,5 @@
-mod cancel;
 mod permit;
-#[cfg(test)]
-mod tests;
+mod registered;
 mod types;
 
 use crate::errors::{AppError, Result};
@@ -11,9 +9,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::sync::Semaphore;
 use tokio::task::{Id, JoinSet};
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-pub use cancel::CancellationChecker;
+pub(crate) use registered::RegisteredJob;
 pub use types::{JobId, MaxConcurrentJobsCapabilities};
 
 pub const MIN_CONCURRENT_JOBS: usize = 1;
@@ -22,12 +21,22 @@ pub const MAX_CONCURRENT_JOBS: usize = 8;
 pub struct JobRegistry {
     admission: Mutex<Admission>,
     max_concurrent: AtomicUsize,
+    lock_observer: Mutex<Option<LockObserver>>,
 }
+
+pub(crate) type LockObserver = Arc<dyn Fn() + Send + Sync>;
 
 struct Admission {
     jobs: HashSet<Uuid>,
     semaphore: Arc<Semaphore>,
     runs: usize,
+    announced: bool,
+}
+
+impl Admission {
+    fn locked(&self) -> bool {
+        !self.jobs.is_empty() || self.runs > 0
+    }
 }
 
 pub(crate) struct ActiveRun {
@@ -38,34 +47,34 @@ impl Drop for ActiveRun {
     fn drop(&mut self) {
         let mut admission = self.registry.admission();
         admission.runs = admission.runs.saturating_sub(1);
+        self.registry.announce_lock(admission);
     }
 }
 
-pub struct BatchScheduler<'a> {
-    registry: &'a JobRegistry,
-}
-
-impl<'a> BatchScheduler<'a> {
-    fn new(registry: &'a JobRegistry) -> Self {
-        Self { registry }
-    }
-
+impl JobRegistry {
+    /// Runs the futures `max_concurrent` at a time, in order. A queued future
+    /// whose token is cancelled starts at once, so it fails fast instead of
+    /// waiting behind the futures ahead of it.
     pub async fn run_batch<R, Fut>(
         &self,
-        futures: Vec<Fut>,
-        cancelled: impl Fn(usize) -> bool,
+        tasks: Vec<(Fut, Option<CancellationToken>)>,
     ) -> Vec<Result<R>>
     where
         R: Send + 'static,
         Fut: Future<Output = Result<R>> + Send + 'static,
     {
-        if futures.is_empty() {
+        if tasks.is_empty() {
             return Vec::new();
         }
 
-        let max_in_flight = self.registry.max_concurrent().max(1);
-        let total_tasks = futures.len();
-        let mut pending: VecDeque<(usize, Fut)> = futures.into_iter().enumerate().collect();
+        let max_in_flight = self.max_concurrent().max(1);
+        let total_tasks = tasks.len();
+        let mut cancels: Vec<Option<CancellationToken>> = Vec::with_capacity(total_tasks);
+        let mut pending: VecDeque<(usize, Fut)> = VecDeque::with_capacity(total_tasks);
+        for (index, (future, cancel)) in tasks.into_iter().enumerate() {
+            cancels.push(cancel);
+            pending.push_back((index, future));
+        }
         let mut join_set: JoinSet<Result<R>> = JoinSet::new();
         let mut task_indices: HashMap<Id, usize> = HashMap::with_capacity(total_tasks);
         let mut ordered_results: Vec<Option<Result<R>>> = Vec::with_capacity(total_tasks);
@@ -79,50 +88,47 @@ impl<'a> BatchScheduler<'a> {
             }
         }
 
+        let mut cancelled_queue: JoinSet<usize> = JoinSet::new();
+        for &(index, _) in &pending {
+            if let Some(token) = cancels[index].clone() {
+                cancelled_queue.spawn(async move {
+                    token.cancelled().await;
+                    index
+                });
+            }
+        }
+
         while !join_set.is_empty() {
             let joined = tokio::select! {
                 joined = join_set.join_next_with_id() => joined.expect("join set is not empty"),
-                () = tokio::time::sleep(permit::PERMIT_CANCEL_POLL_INTERVAL), if !pending.is_empty() => {
-                    let (now, later): (VecDeque<_>, VecDeque<_>) = pending
-                        .drain(..)
-                        .partition(|(index, _)| cancelled(*index));
-                    pending = later;
-                    for (index, future) in now {
-                        spawn_indexed_task(&mut join_set, &mut task_indices, index, future);
+                Some(Ok(index)) = cancelled_queue.join_next() => {
+                    if let Some(position) = pending.iter().position(|(queued, _)| *queued == index) {
+                        if let Some((index, future)) = pending.remove(position) {
+                            spawn_indexed_task(&mut join_set, &mut task_indices, index, future);
+                        }
                     }
                     continue;
                 }
             };
             match joined {
                 Ok((task_id, outcome)) => {
-                    let Some(index) = task_indices.remove(&task_id) else {
-                        log::error!(
-                            "Batch scheduler completed task id {} without an index mapping",
-                            task_id
-                        );
-                        continue;
-                    };
+                    let index = task_indices
+                        .remove(&task_id)
+                        .expect("every spawned task records its index");
                     ordered_results[index] = Some(outcome);
                 }
                 Err(join_error) => {
                     let error = AppError::General(format!("Batch task join error: {join_error}"));
                     let task_id = join_error.id();
-                    if let Some(index) = task_indices.remove(&task_id) {
-                        let slot = ordered_results
-                            .get_mut(index)
-                            .expect("task index should be within ordered result bounds");
-                        *slot = Some(Err(error));
-                        log::error!(
-                            "Batch task join error preserved task index {} via task id {}",
-                            index,
-                            task_id
-                        );
-                    } else {
-                        log::error!(
-                            "Batch task join error for task id {} had no tracked input index",
-                            task_id
-                        );
-                    }
+                    let index = task_indices
+                        .remove(&task_id)
+                        .expect("every spawned task records its index");
+                    ordered_results[index] = Some(Err(error));
+                    log::error!(
+                        "Batch task join error preserved task index {} via task id {}",
+                        index,
+                        task_id
+                    );
                 }
             }
 
@@ -136,14 +142,7 @@ impl<'a> BatchScheduler<'a> {
 
         ordered_results
             .into_iter()
-            .enumerate()
-            .map(|(index, value)| {
-                value.unwrap_or_else(|| {
-                    Err(AppError::General(format!(
-                        "Batch scheduler missing result for task index {index}"
-                    )))
-                })
-            })
+            .map(|value| value.expect("every task index gets a result"))
             .collect()
     }
 }
@@ -169,19 +168,16 @@ impl JobRegistry {
                 jobs: HashSet::new(),
                 semaphore: Arc::new(Semaphore::new(effective_max)),
                 runs: 0,
+                announced: false,
             }),
             max_concurrent: AtomicUsize::new(effective_max),
+            lock_observer: Mutex::new(None),
         }
     }
 
     pub fn auto() -> Self {
-        let cores = Self::detected_cores();
-        let max_concurrent = Self::normalize_max(cores / 2);
-        log::info!(
-            "JobRegistry auto-configured: {} cores detected, max_concurrent = {}",
-            cores,
-            max_concurrent
-        );
+        let max_concurrent = Self::default_max();
+        log::info!("JobRegistry auto-configured: max_concurrent = {max_concurrent}");
         Self::new(max_concurrent)
     }
 
@@ -211,24 +207,22 @@ impl JobRegistry {
         }
     }
 
-    pub fn scheduler(&self) -> BatchScheduler<'_> {
-        BatchScheduler::new(self)
-    }
-
-    pub async fn complete_job(&self, job_id: JobId) {
+    pub fn complete_job(&self, job_id: JobId) {
         if self.remove_job(job_id) {
             log::info!("Job {} completed", job_id);
         }
     }
 
-    pub async fn fail_job(&self, job_id: JobId, error: String) {
+    pub fn fail_job(&self, job_id: JobId, error: String) {
         if self.remove_job(job_id) {
-            log::error!("Job {} failed: {}", job_id, error);
+            log::info!("Job {} failed: {}", job_id, error);
         }
     }
 
     pub(crate) fn hold_run(self: &Arc<Self>) -> ActiveRun {
-        self.admission().runs += 1;
+        let mut admission = self.admission();
+        admission.runs += 1;
+        self.announce_lock(admission);
         ActiveRun {
             registry: Arc::clone(self),
         }
@@ -241,17 +235,52 @@ impl JobRegistry {
     }
 
     fn remove_job(&self, job_id: JobId) -> bool {
-        self.admission().jobs.remove(&job_id.0)
+        let mut admission = self.admission();
+        let removed = admission.jobs.remove(&job_id.0);
+        self.announce_lock(admission);
+        removed
+    }
+
+    /// Whether the concurrency limit is refused right now: a job or a run is
+    /// active.
+    pub(crate) fn concurrency_locked(&self) -> bool {
+        self.admission().locked()
+    }
+
+    /// Calls `observer` after every change of `concurrency_locked`, with no
+    /// registry lock held.
+    pub(crate) fn observe_concurrency_lock(&self, observer: LockObserver) {
+        *self
+            .lock_observer
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(observer);
+    }
+
+    fn announce_lock(&self, mut admission: MutexGuard<'_, Admission>) {
+        let locked = admission.locked();
+        let changed = std::mem::replace(&mut admission.announced, locked) != locked;
+        drop(admission);
+        if !changed {
+            return;
+        }
+        let observer = self
+            .lock_observer
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        if let Some(observer) = observer {
+            observer();
+        }
     }
 
     pub fn max_concurrent(&self) -> usize {
         self.max_concurrent.load(Ordering::SeqCst)
     }
 
-    pub async fn update_max_concurrent(&self, max: usize) -> Result<usize> {
+    pub fn update_max_concurrent(&self, max: usize) -> Result<usize> {
         let effective = Self::normalize_max(max);
         let mut admission = self.admission();
-        if !admission.jobs.is_empty() || admission.runs > 0 {
+        if admission.locked() {
             return Err(AppError::InvalidInput(
                 "Cannot change max concurrency while jobs are active".to_string(),
             ));
@@ -261,8 +290,8 @@ impl JobRegistry {
         Ok(effective)
     }
 
-    pub async fn reset_to_auto(&self) -> Result<usize> {
-        self.update_max_concurrent(Self::default_max()).await
+    pub fn reset_to_auto(&self) -> Result<usize> {
+        self.update_max_concurrent(Self::default_max())
     }
 }
 

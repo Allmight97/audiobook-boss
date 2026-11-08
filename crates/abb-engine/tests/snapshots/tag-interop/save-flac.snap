@@ -1,0 +1,160 @@
+# seed
+container: flac
+format tags, in file order:
+  TITLE="Seed Title"
+  artist="Seed Author"
+  album_artist="Seed Album Artist"
+  ALBUM="Seed Album"
+  composer="Seed Narrator"
+  GENRE="Seed Genre"
+  date="2001-02-03"
+  year="1999"
+  comment-Notes="Seed Notes"
+  comment-eng="Seed Commentaire"
+  comment="Seed Comment;Seed Description"
+  series="Lower Series"
+  SERIES-PART="1"
+  ----:com.apple.iTunes:SERIES="Stray iTunes Series"
+  ----:com.apple.iTunes:SERIES-PART="7"
+  show="Show Series"
+  episode_sort="5"
+  album-sort="Seed Sort A"
+  SORT_ALBUM="Seed Sort B"
+  track="0"
+  disc="1/3"
+  ASIN="B000000001"
+  encoder=<varies>
+streams:
+  0 audio FLAC Disposition(0x0)
+  1 video PNG Disposition(ATTACHED_PIC)
+    comment="Other"
+    picture 73 bytes sha256 c175e8295a7be547
+  2 video MJPEG Disposition(ATTACHED_PIC)
+    comment="Cover (front)"
+    picture 1303 bytes sha256 f20e86d37462cf39
+  3 video PNG Disposition(ATTACHED_PIC)
+    comment="Cover (back)"
+    picture 73 bytes sha256 661e96d71ecc8d91
+as ABB reads it:
+  title="Seed Title"
+  artist="Seed Author"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02"
+  comment="Seed Comment;Seed Description"
+  series="Lower Series"
+  series_part="1"
+  album_sort="Seed Sort A"
+  track="(0, None)"
+  disk="(1, Some(3))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+
+# save untouched
+container: flac
+format tags, in file order:
+  TITLE="Seed Title"
+  artist="Seed Author"
+  album_artist="Seed Album Artist"
+  ALBUM="Seed Album"
+  composer="Seed Narrator"
+  GENRE="Seed Genre"
+  date="2001-02-03"
+  year="1999"
+  comment-Notes="Seed Notes"
+  comment-eng="Seed Commentaire"
+  comment="Seed Comment;Seed Description"
+  series="Lower Series"
+  SERIES-PART="1"
+  ----:com.apple.iTunes:SERIES="Stray iTunes Series"
+  ----:com.apple.iTunes:SERIES-PART="7"
+  show="Show Series"
+  episode_sort="5"
+  album-sort="Seed Sort A"
+  SORT_ALBUM="Seed Sort B"
+  track="0"
+  disc="1/3"
+  ASIN="B000000001"
+  media_type="2"
+  encoder=<varies>
+streams:
+  0 audio FLAC Disposition(0x0)
+  1 video PNG Disposition(ATTACHED_PIC)
+    comment="Other"
+    picture 73 bytes sha256 c175e8295a7be547
+  2 video MJPEG Disposition(ATTACHED_PIC)
+    comment="Cover (front)"
+    picture 1303 bytes sha256 f20e86d37462cf39
+  3 video PNG Disposition(ATTACHED_PIC)
+    comment="Cover (back)"
+    picture 73 bytes sha256 661e96d71ecc8d91
+as ABB reads it:
+  title="Seed Title"
+  artist="Seed Author"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02"
+  comment="Seed Comment;Seed Description"
+  series="Lower Series"
+  series_part="1"
+  album_sort="Seed Sort A"
+  track="(0, None)"
+  disk="(1, Some(3))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+
+# save set-all
+container: flac
+format tags, in file order:
+  sort_album="Set Sort"
+  title="Set Title"
+  artist="Set Author"
+  album_artist="Set Author"
+  album="Set Album"
+  composer="Set Narrator"
+  genre="Set Genre"
+  date="2020-05"
+  year="2020"
+  series="Set Series; Set Subseries"
+  ----:com.apple.iTunes:SERIES="Stray iTunes Series"
+  ----:com.apple.iTunes:SERIES-PART="7"
+  show="Show Series"
+  episode_sort="5"
+  series-part="2; 3"
+  track="2/9"
+  ASIN="B000000001"
+  comment="Set Description;Set Comment"
+  disc="1/2"
+  media_type="2"
+  encoder=<varies>
+streams:
+  0 audio FLAC Disposition(0x0)
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    comment="Cover (front)"
+    picture 1303 bytes sha256 f20e86d37462cf39
+as ABB reads it:
+  title="Set Title"
+  artist="Set Author"
+  album="Set Album"
+  composer="Set Narrator"
+  genre="Set Genre"
+  date="2020-05"
+  comment="Set Description;Set Comment"
+  series="Set Series"
+  series_part="2"
+  subseries="Set Subseries"
+  subseries_part="3"
+  album_sort="Set Sort"
+  track="(2, Some(9))"
+  disk="(1, Some(2))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+
+# save clear-all
+container: flac
+format tags, in file order:
+  ASIN="B000000001"
+  media_type="2"
+  encoder=<varies>
+streams:
+  0 audio FLAC Disposition(0x0)
+as ABB reads it:

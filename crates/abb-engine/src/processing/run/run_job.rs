@@ -1,23 +1,24 @@
 use crate::audio;
 use crate::audio::{AudioExecutionRequest, FileListInfo};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
+use crate::execution::{CancellationChecker, PublishGate};
 use crate::host::Host;
 use crate::metadata::CoverArtPassthroughPolicy;
 use crate::output_artifact::{
     commit_supplemental_output_assets_for_output, OutputKind, ResolvedOutputPlan,
     SupplementalOutputAssetsCommitRequest,
 };
-use crate::processing::context::processing::ProgressEventListener;
-use crate::processing::job_registry::{CancellationChecker, JobId};
+use crate::processing::job_registry::{JobId, RegisteredJob};
+use crate::processing::ProgressEventListener;
 use crate::processing::{
-    AudioHandling, OperationKind, OutputConfig, PreviewConfig, ProcessPayload, ProcessResultEntry,
+    AudioHandling, JobIdentity, OperationKind, OutputConfig, ProcessPayload, ProcessResultEntry,
     ProcessResultStatus, ProcessingContext, ProcessingSession, SupplementalProcessingAsset,
 };
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::OwnedSemaphorePermit;
+use tokio_util::sync::CancellationToken;
 
 use crate::processing::terminal_outcomes::{
     classify_processing_error, terminal_failure_result, ProcessingJobTerminalOutcome,
@@ -31,17 +32,15 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) audio_request: audio::TitleAudioRequest,
     pub(crate) audio_reason: Option<String>,
     pub(crate) metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
-    pub(crate) sample_rate: audio::SampleRateConfig,
+    pub(crate) sample_rate: u32,
     pub(crate) aac_decoder: audio::AacDecoder,
-    pub(crate) input_index: usize,
+    pub(crate) identity: JobIdentity,
     pub(crate) operation_kind: OperationKind,
-    pub(crate) operation_id: Option<String>,
-    pub(crate) title_cancel: Option<Arc<AtomicBool>>,
+    pub(crate) title_cancel: Option<CancellationToken>,
     pub(crate) output_plan: ResolvedOutputPlan,
     pub(crate) file_info: FileListInfo,
     pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
     pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
-    pub(crate) preview: bool,
     pub(crate) supplemental_assets: Vec<SupplementalProcessingAsset>,
     pub(crate) progress_listener: Option<ProgressEventListener>,
     pub(crate) title_output: Option<Arc<crate::processing::TitleOutput>>,
@@ -50,40 +49,36 @@ pub(crate) struct ProcessingJobRequest {
 pub(crate) async fn run_processing_job(
     request: ProcessingJobRequest,
 ) -> Result<ProcessResultEntry> {
-    let operation_id = request.operation_id.clone();
     let RegisteredProcessingJob {
-        job_id,
+        job,
+        identity,
         permit: _permit,
         cancellation_checker,
         lifecycle_log,
     } = register_job_and_validate_output(
         &request.registry,
         &request.output_plan.resolved_path,
+        request.audio_request.format(),
         request.title_cancel.clone(),
-        ProcessingJobLogContext {
-            operation_id: operation_id.clone(),
-            input_index: request.input_index,
-            operation_kind: request.operation_kind,
-        },
-        request.audio_handling.preserves(),
+        request.identity.clone(),
+        request.operation_kind,
     )
     .await?;
+    let job_id = job.id();
     log_audio_decision(&request, job_id);
     let _active_work = request.host.begin_active_work();
 
     let context = build_processing_context(ProcessingContextRequest {
         cancellation_checker,
         job_id,
+        identity,
         sample_rate: request.sample_rate,
         aac_decoder: request.aac_decoder,
-        input_index: Some(request.input_index),
         operation_kind: request.operation_kind,
-        operation_id,
         progress_listener: request.progress_listener,
         title_output: request.title_output.clone(),
         output_plan: request.output_plan.clone(),
         workspace_root: request.workspace_root,
-        preview: request.preview,
     });
     context
         .new_emitter()
@@ -110,23 +105,16 @@ pub(crate) async fn run_processing_job(
     })
     .await;
 
-    settle_job(
-        &request.registry,
-        job_id,
-        request.input_index,
-        &lifecycle_log,
-        result,
-    )
-    .await
+    settle_job(job, request.identity.input_index, &lifecycle_log, result).await
 }
 
 async fn settle_job(
-    registry: &crate::ManagedJobRegistry,
-    job_id: JobId,
+    job: RegisteredJob,
     input_index: usize,
     lifecycle_log: &ProcessingJobLifecycleLog,
     result: ProcessingJobTerminalOutcome,
 ) -> Result<ProcessResultEntry> {
+    let job_id = job.id();
     match result {
         ProcessingJobTerminalOutcome::Success {
             message,
@@ -134,7 +122,7 @@ async fn settle_job(
             supplemental_warning,
             warnings,
         } => {
-            registry.complete_job(job_id).await;
+            job.complete();
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Success);
             Ok(ProcessResultEntry {
                 input_index,
@@ -148,12 +136,12 @@ async fn settle_job(
             })
         }
         ProcessingJobTerminalOutcome::Cancelled(error) => {
-            registry.complete_job(job_id).await;
+            job.complete();
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Cancelled);
             Err(error)
         }
         ProcessingJobTerminalOutcome::Failed(envelope) => {
-            registry.fail_job(job_id, envelope.message.clone()).await;
+            job.fail(envelope.message.clone());
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Failed(&envelope));
             Ok(terminal_failure_result(
                 input_index,
@@ -170,19 +158,21 @@ fn log_audio_decision(request: &ProcessingJobRequest, job_id: JobId) {
         .as_deref()
         .unwrap_or(match request.audio_handling {
             AudioHandling::Preserve => "Source audio can be copied into the selected output.",
-            AudioHandling::Encode { .. } if request.preview => "Preview requires encoding.",
+            AudioHandling::Encode { .. } if request.output_plan.kind == OutputKind::Preview => {
+                "Preview requires encoding."
+            }
             AudioHandling::Encode { .. } => "Encoding settings were explicitly selected.",
         });
     log::info!(
         "audio_decision operation_id={} job_id={} input_index={:?} request={:?} action={:?} resolved_rate={:?} reason={:?} output_path={:?}",
-        request.operation_id.as_deref().unwrap_or("foreground"), job_id,
-        request.input_index, request.audio_request, request.audio_handling,
+        request.identity.operation_id.as_deref().unwrap_or("foreground"), job_id,
+        request.identity.input_index, request.audio_request, request.audio_handling,
         request.sample_rate, reason, request.output_plan.resolved_path
     );
     log::info!(
         "metadata_intent job_id={} input_index={} intent={}",
         job_id,
-        request.input_index,
+        request.identity.input_index,
         describe_requested_fields(request.metadata_intent.as_ref())
     );
     for (index, source) in request.file_info.files.iter().enumerate() {
@@ -196,22 +186,11 @@ fn log_audio_decision(request: &ProcessingJobRequest, job_id: JobId) {
 }
 
 fn describe_requested_fields(patch: Option<&crate::metadata::MetadataIntentPatch>) -> String {
-    // Drop cover bytes first: only the op name is logged, and serializing a
-    // cover would build one JSON value per byte.
-    let fields = patch
-        .map(|patch| {
-            let mut ops = patch.clone();
-            if let Some(crate::metadata::PatchOp::Set(bytes)) = ops.cover_art.as_mut() {
-                bytes.clear();
-            }
-            ops
-        })
-        .and_then(|patch| serde_json::to_value(patch).ok())
-        .and_then(|value| value.as_object().cloned())
-        .unwrap_or_default();
-    let described = fields
+    let described = patch
+        .map(crate::metadata::MetadataIntentPatch::requested_ops)
+        .unwrap_or_default()
         .iter()
-        .map(|(field, op)| format!("{field}={}", op["op"].as_str().unwrap_or("?")))
+        .map(|(field, op)| format!("{field}={op}"))
         .collect::<Vec<_>>();
     if described.is_empty() {
         "none".to_string()
@@ -280,14 +259,9 @@ pub(crate) async fn title_outcome(
     }
 }
 
-pub(crate) struct ProcessingJobLogContext {
-    pub(crate) operation_id: Option<String>,
-    pub(crate) input_index: usize,
-    pub(crate) operation_kind: OperationKind,
-}
-
 pub(crate) struct RegisteredProcessingJob {
-    pub(crate) job_id: JobId,
+    pub(crate) job: RegisteredJob,
+    pub(crate) identity: JobIdentity,
     pub(crate) permit: OwnedSemaphorePermit,
     pub(crate) cancellation_checker: CancellationChecker,
     pub(crate) lifecycle_log: ProcessingJobLifecycleLog,
@@ -300,28 +274,22 @@ pub(crate) struct RegisteredProcessingJob {
 pub(crate) async fn register_job_and_validate_output(
     registry: &crate::ManagedJobRegistry,
     output_path: &Path,
-    title_cancel: Option<Arc<AtomicBool>>,
-    log_context: ProcessingJobLogContext,
-    preserves_audio: bool,
+    format: audio::AudiobookFormat,
+    title_cancel: Option<CancellationToken>,
+    identity: JobIdentity,
+    operation_kind: OperationKind,
 ) -> Result<RegisteredProcessingJob> {
     let (job_id, permit) = registry
         .register_job_with_external_cancel(title_cancel.clone())
         .await?;
+    let job = RegisteredJob::adopt(registry, job_id);
     let cancellation_checker = CancellationChecker::new(title_cancel);
-    let lifecycle_log = ProcessingJobLifecycleLog::start(ProcessingJobLogIdentity {
-        operation_id: log_context.operation_id,
-        job_id: job_id.to_string(),
-        input_index: log_context.input_index,
-        operation_kind: log_context.operation_kind,
-    });
+    let identity = identity.registered(job_id);
+    let lifecycle_log = ProcessingJobLifecycleLog::start(identity.clone(), operation_kind);
 
     let checked_path = output_path.to_path_buf();
     let validation = tokio::task::spawn_blocking(move || {
-        if preserves_audio {
-            crate::audio::validate_preserved_output_path(&checked_path)
-        } else {
-            crate::audio::validate_output_path(&checked_path)
-        }
+        crate::audio::validate_output_target(&checked_path, format)
     })
     .await
     .map_err(|error| AppError::General(format!("Output check stopped: {error}")))
@@ -329,12 +297,13 @@ pub(crate) async fn register_job_and_validate_output(
     if let Err(error) = validation {
         let envelope = AppErrorEnvelope::from(&error);
         lifecycle_log.log_terminal(ProcessingJobLogStatus::Failed(&envelope));
-        registry.fail_job(job_id, error.to_string()).await;
+        job.fail(error.to_string());
         return Err(error);
     }
 
     Ok(RegisteredProcessingJob {
-        job_id,
+        job,
+        identity,
         permit,
         cancellation_checker,
         lifecycle_log,
@@ -342,39 +311,36 @@ pub(crate) async fn register_job_and_validate_output(
 }
 
 struct ProcessingContextRequest {
-    cancellation_checker: crate::processing::job_registry::CancellationChecker,
-    job_id: crate::processing::job_registry::JobId,
-    sample_rate: audio::SampleRateConfig,
+    cancellation_checker: CancellationChecker,
+    job_id: JobId,
+    identity: JobIdentity,
+    sample_rate: u32,
     aac_decoder: audio::AacDecoder,
-    input_index: Option<usize>,
     operation_kind: OperationKind,
-    operation_id: Option<String>,
     progress_listener: Option<ProgressEventListener>,
     title_output: Option<Arc<crate::processing::TitleOutput>>,
     output_plan: ResolvedOutputPlan,
     workspace_root: PathBuf,
-    preview: bool,
 }
 
 fn build_processing_context(request: ProcessingContextRequest) -> ProcessingContext {
     let session =
         ProcessingSession::with_cancellation(request.job_id.0, request.cancellation_checker);
-    let mut context = ProcessingContext::new_with_workspace_root(
-        std::sync::Arc::new(session),
-        request.sample_rate,
-        request.aac_decoder,
-        OutputConfig::from_plan(request.output_plan),
-        request.workspace_root,
-    );
-    context.job_id = Some(request.job_id.to_string());
-    context.operation_id = request.operation_id;
-    context.input_index = request.input_index;
-    context.operation_kind = request.operation_kind;
-    context.progress_listener = request.progress_listener;
-    context.title_output = request.title_output;
+    let context = ProcessingContext {
+        session: Arc::new(session),
+        sample_rate: request.sample_rate,
+        aac_decoder: request.aac_decoder,
+        output: OutputConfig::from_plan(request.output_plan),
+        workspace_root: request.workspace_root,
+        identity: request.identity,
+        operation_kind: request.operation_kind,
+        progress_listener: request.progress_listener,
+        publish_gate: request
+            .title_output
+            .map(|output| output as Arc<dyn PublishGate>),
+    };
 
-    if request.preview {
-        context.preview = Some(PreviewConfig);
+    if context.is_preview() {
         log::info!(
             "Preview requested: total_seconds={:.3}",
             crate::processing::PREVIEW_SECONDS
@@ -384,15 +350,9 @@ fn build_processing_context(request: ProcessingContextRequest) -> ProcessingCont
     context
 }
 
-pub(crate) struct ProcessingJobLogIdentity {
-    operation_id: Option<String>,
-    job_id: String,
-    input_index: usize,
-    operation_kind: OperationKind,
-}
-
 pub(crate) struct ProcessingJobLifecycleLog {
-    identity: ProcessingJobLogIdentity,
+    identity: JobIdentity,
+    operation_kind: OperationKind,
     started_at: Instant,
 }
 
@@ -401,11 +361,12 @@ pub(crate) struct ProcessingJobLifecycleLog {
 mod registration_tests;
 
 impl ProcessingJobLifecycleLog {
-    fn start(identity: ProcessingJobLogIdentity) -> Self {
+    fn start(identity: JobIdentity, operation_kind: OperationKind) -> Self {
         log::info!(
             "{}",
             format_processing_job_record(
                 &identity,
+                operation_kind,
                 ProcessingJobLogEvent::Started,
                 ProcessingJobLogStatus::Running,
                 None,
@@ -413,6 +374,7 @@ impl ProcessingJobLifecycleLog {
         );
         Self {
             identity,
+            operation_kind,
             started_at: Instant::now(),
         }
     }
@@ -420,6 +382,7 @@ impl ProcessingJobLifecycleLog {
     fn log_terminal(&self, status: ProcessingJobLogStatus<'_>) {
         let record = format_processing_job_record(
             &self.identity,
+            self.operation_kind,
             ProcessingJobLogEvent::Terminal,
             status,
             Some(self.started_at.elapsed().as_millis()),
@@ -449,19 +412,21 @@ enum ProcessingJobLogStatus<'a> {
 }
 
 fn format_processing_job_record(
-    identity: &ProcessingJobLogIdentity,
+    identity: &JobIdentity,
+    operation_kind: OperationKind,
     event: ProcessingJobLogEvent,
     status: ProcessingJobLogStatus<'_>,
     elapsed_ms: Option<u128>,
 ) -> String {
     let operation_id = identity.operation_id.as_deref().unwrap_or("foreground");
+    let job_id = identity.job_id.as_deref().unwrap_or("none");
     let mut record = format!(
         "processing_job event={} operation_id={} job_id={} input_index={} kind={} status={}",
         processing_job_event_label(event),
         operation_id,
-        identity.job_id,
+        job_id,
         identity.input_index,
-        crate::processing::operation_kind_log_label(identity.operation_kind),
+        operation_kind.log_label(),
         processing_job_status_label(status),
     );
     if let Some(elapsed_ms) = elapsed_ms {

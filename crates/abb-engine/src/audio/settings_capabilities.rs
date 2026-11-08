@@ -104,3 +104,7 @@ pub fn encoder_settings_capabilities() -> EncoderSettingsCapabilities {
         ],
     }
 }
+
+#[cfg(test)]
+#[path = "settings_capabilities_tests.rs"]
+mod tests;

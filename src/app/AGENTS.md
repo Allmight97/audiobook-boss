@@ -28,8 +28,10 @@ second copy of owner state.
   in between on top of the reply, so no update is missed; part revisions make
   applying one twice harmless. WorkRuntime operations come with the attach
   reply and then as `work-operations-update` events, merged by
-  `workOperations.ts` (newest snapshot per operation, newest order). A cancel's
-  change arrives as one of those events; its reply carries nothing.
+  `workOperations.ts` (newest snapshot per operation, newest order and
+  `concurrencyLocked`). A cancel's change arrives as one of those events; its
+  reply carries nothing. The settings owner reads `concurrencyLocked` to
+  disable the job-count select; no other owner sets that lock.
 - `send` resolves with the intent's outcome after its work finishes. `post` is
   for intents whose outcome and completion nobody awaits; its refusal shows as
   the link's `refusal` (`RefusedChangeNotice`). A `send` caller with its own
@@ -47,14 +49,12 @@ second copy of owner state.
   results. A changed remote part keeps the objects of its unchanged selection
   lists, PDF choices, releases, and grab records. Solid rows are not rebuilt,
   and a click does not land on a replaced element.
-- Adapters show typed text (form fields, lookup queries, the naming template)
-  through `createTypingEcho`: at once, until the engine's reply for that
-  keystroke arrives, and only in the scope the owner names (the form's
-  `binding`, the lookup queue item). The echo is display only and never decides what is saved.
+- Adapters show typed text (form fields, lookup queries, the naming template,
+  the Remote Source Indexer URL) through `createTypingEcho`: at once, until the
+  engine's reply for that keystroke arrives, and only in the scope the owner
+  names (the form's `binding`, the lookup queue item). The echo is display only
+  and never decides what is saved.
   Form edits send the `binding` the form shows.
-  The Remote Source URL echo does not use it: it drops only once the engine's
-  URL matches the trimmed text, or at once when an applied settings Reset
-  discards the typed connection edits (below).
 
 ## Owner Interface
 
@@ -89,29 +89,41 @@ One bullet per owner with an invariant the code does not show; an owner
 without a bullet has none. Engine paths name the owner of the truth.
 
 - `appSettings` (`crates/abb-engine/src/app_settings/AGENTS.md`): the owner
-  words durability from `saveError` and the reset notice from `recovery`,
-  shows the concurrency view (Auto shows the capability's `autoEffective`, not
-  the current fixed count), and holds dialog state. Settings intents go
+  words durability from `saveError` and the reset notice from `recovery`
+  (a retry call that never reached the engine is logged and worded "Retry
+  didn't reach ABB."), shows the concurrency view (Auto shows the capability's
+  `autoEffective`, not the current fixed count; its `label` is the one wording
+  the status panel and the select's screen-reader text share), and holds
+  dialog state. Settings intents go
   through `sendSettings` (their own numbered order); a dialog control's
   failure shows beside that control (`runDialogAction`). The session records
   audio and output defaults and announces them with `settings-update`; views
-  send Settings intents only. `quittingAvailable` is display-only, read from
-  the user agent (macOS only): the Quit shortcut is macOS-only, and bindings
+  send Settings intents only. `quittingAvailable` is display-only, read through
+  `src/lib/platform` (macOS only): the Quit shortcut is macOS-only, and bindings
   and fixtures must be the same on every OS.
-- `encoding` (session AGENTS): `project.ts` disables an option because the
-  engine's facts say so. `editFor` turns a control value into an `AudioEdit`;
-  a value no control offers sends nothing. What Auto resolves to comes from the
-  engine's `autoSampleRate` and `autoChannels` readings on the title or the
-  selection, never from source facts or a plan; a selection's are plain Auto
-  while the field is mixed. Defaults describe future
-  imports and name no source; existing titles change only through Apply App
-  Settings. `selectionView` and `refusal` render engine facts and combine no
-  titles.
+- `encoding` (session AGENTS): option lists, the codec family, and the bitrate
+  shown come from the engine's `facts`, and `labels.ts` is the one table of
+  format, intent, encoder, and bitrate-mode wording. `project.ts` disables an
+  option because the facts say so. `editFor` turns a control value into an
+  `AudioEdit`; a value outside the engine's lists sends nothing. `form(scope)`
+  (defaults, one title, or a selection) gives a panel its view, refusal,
+  `choose`, and summary line. Sample-rate and FAAC quality lists come from
+  the capabilities. What Auto resolves to comes from the engine's
+  `autoSampleRate` and `autoChannels` readings on the title or the selection,
+  never from source facts or a plan; a selection's are plain Auto while the
+  field is mixed. Defaults describe future imports and name no source;
+  existing titles change only through Apply App Settings. `selectionView` and
+  `refusal` render engine facts and combine no titles.
 - `inputSession` (session AGENTS): a title's chapters, duration, and size
   come from the engine's `titleTotals`; the combined size and Group as one
   title availability come from `totalSizeBytes` and `canGroup`. A source row's
   own count is `acceptedChapterCount`, the plan the file converts with. Why: a
-  CUE plan replaces the embedded chapters.
+  CUE plan replaces the embedded chapters. Views and the owner branch on a
+  title's or source's engine `status` (`ready`, `failed`, `removedFinished`),
+  never on `isValid` or `sourceRemoved`. The owner words a title's detail line
+  (`detailsFor`) and its CUE notice (`cueNoticeFor`): a CUE button shows only
+  for an action the CUE source lists. `view().selectedTitles` and
+  `isSelected(file)` name the selection by title identity.
 - `metadataLookup` (session AGENTS): query text binds to its queued path and
   metadata `binding`. Advancing or rebinding drops the previous title's echo at
   once. Apply sends the lookup part revision the snapshot holds.
@@ -126,9 +138,7 @@ without a bullet has none. Engine paths name the owner of the truth.
   Keep Location send the title and revision shown; teardown answers neither.
   Preview identity, progress, and terminal truth come from `output.previewRun`:
   render its snapshot; the status panel only counts titles by status for its
-  chips. `resetToIdle` does nothing while `previewRun` is set, which tells a
-  preview's own ending from a later submission's outcome (the engine drops a
-  finished run at the next Start or Preview). `cancelPreview` carries the run
+  chips. `cancelPreview` carries the run
   identity and an optional child identity; whole-preview cancel needs no native
   job id, and disposal does not cancel. The artwork shows from the run's
   `cover` address once the engine offers one. A finished preview opens through
@@ -138,16 +148,26 @@ without a bullet has none. Engine paths name the owner of the truth.
   run's `cancellable`, and a title's from its child `cancellable`.
   `preview()` sends no length: the engine owns the preview length and content,
   and `previewTooltip()` words `titles.previewLength`.
-  Each owner instance owns its status store and publisher.
+  The status line is one pure `statusOf(previewRun, submission, localError,
+  concurrencyText)` in a memo, with the job-count wording from the link's
+  settings; a failed send or preview open is the only local
+  state and shows until the engine reports a new preview run or submission.
+  A submission's error line shows over a preview's step line, because a failed
+  preview also leaves a blocked submission.
+  A submission with no line (preparing, cancelled) leaves the preview's view
+  as is, so a preview's own ending stays until the engine drops the finished
+  run at the next Start or Preview.
 - `remoteSource` (`crates/abb-engine/src/remote_source/AGENTS.md`): `open` and
-  `selectLane` send only the lane intent. Connection editing sends write-only
-  key, URL, and category intents; keys never come back from the engine, and
-  only unconfirmed URL typing and the key's visual echo stay local. An applied
-  settings Reset reaches it through the settings owner's `onAppliedReset`
-  (wired in `runtime/index.ts`) and `discardIndexerConnectionEdits()`, so the
-  form shows the engine's default connection. Close
-  leaves accepted work running. Disposal invalidates pending
-  authorization-browser replies. An authorization URL occurs only in the
+  `selectLane` send only the lane intent. `lanes()` and `lane()` give each
+  lane's id, label, connected flag, and the controls it shows; the import
+  menu, the Settings radios, and the Acquire dialog read them and never test
+  the account state themselves. `createAppRuntime` loads the Indexer
+  connection whenever the Settings dialog opens. Connection editing sends
+  write-only key, URL, and category intents; keys never come back from the
+  engine, and only the URL's typing echo and the key's visual echo stay local.
+  Once its reply arrives, the form shows the engine's draft URL, a refused URL
+  included (the engine keeps it as typed). Close leaves accepted work running.
+  Disposal invalidates pending authorization-browser replies. An authorization URL occurs only in the
   initiating intent outcome; snapshots never reopen a browser. The
   status line is a local refusal, else a running job's progress message, else
   the lane's engine line (`remote.audibleMessage`, `remote.indexer.message`);
@@ -166,8 +186,14 @@ without a bullet has none. Engine paths name the owner of the truth.
   Operations come from the link (Engine Link, above); the owner keeps only
   cancel-pending state and error wording. After `reset`, a late cancel or
   reveal reply changes nothing.
-  `isWorkRunning` decides which work shows motion (running or cancelling), for
-  the Work Center and the preview bar alike.
+  `labels.ts` is the one table of stage, operation-status, title-status and
+  kind wording, typed over the generated unions so a new engine value fails
+  typecheck; the Work Center, the status panel and `processing` read it.
+  `view().error` is `{ kind: 'cancel' | 'reveal', message }`; a later success
+  of the same kind clears it.
+  `phase === 'active'` (running or cancelling) decides which work shows
+  motion, for the Work Center and the preview bar alike; `phase` is the
+  engine's answer, so no view keeps its own status list.
   `view()` changes with every progress tick, and Work Center rows read it: no
   narrower accessor exists. Only whole-operation cancels track pending state
   (the Cancel button disables while one is in flight); repeating any cancel
@@ -180,9 +206,13 @@ recorded fresh session and settings, records intents, answers `applied`, and
 appends imported files. It holds no product rule;
 `check-known-mistakes.ts` rejects an `intent.kind` branch in it other than
 `import`. Seed the engine's answer on the intent that asks for it (`respond`,
-`respondSettings`, `seedForm`, `seedSettings`, `change`). What the real engine answers to a
-sequence of intents (outcomes and the changed snapshot parts, audio excluded)
-is proved by `runtime/recordedWorkflows.contract.test.ts`;
+`respondSettings`, `respondPreviewOutput`, `seedForm`, `seedSettings`,
+`change`). What the real engine answers to a
+sequence of intents (outcomes and the changed snapshot parts) is proved by
+`runtime/recordedWorkflows.contract.test.ts`. The recorder writes `audio` as
+null in every step, because no replay reads it and it would be most of the file;
+`recordedFixtures.contract.test.ts` keeps each step's keys equal to
+`session-fresh.json`'s;
 a new engine-owned behavior a view depends on becomes a scenario in
 `src-tauri/src/bin/export_bindings/scenarios.json`, not a rule in the fake.
 

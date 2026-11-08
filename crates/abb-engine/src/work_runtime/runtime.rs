@@ -1,3 +1,4 @@
+use super::operations::{CancelTokens, Live, Operations};
 use super::snapshot::{new_metadata_save_snapshot, new_processing_snapshot};
 use super::state::WorkRuntimeState;
 use super::types::{
@@ -7,45 +8,37 @@ use super::types::{
 use crate::errors::{AppError, Result};
 use crate::host::{EngineEvent, Host};
 use crate::processing::run::{
-    preflight_title_outputs, process_inspected_with_options, ProcessingRunOptions,
+    preflight_title_outputs, process_inspected_with_options, ProcessingRunOptions, TitleRun,
 };
 use crate::processing::ProgressEventListener;
 use crate::processing::TitleOutput;
 use crate::processing::{OperationResultSummary, ProcessResultStatus, ProgressEvent};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
+use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
 pub struct WorkRuntime {
     inner: Arc<WorkRuntimeInner>,
 }
 
-/// Source paths by operation id, then title index.
-type TitleSources = HashMap<String, Vec<Vec<PathBuf>>>;
-
 pub(crate) type OnFinished = Box<dyn FnOnce(OperationSnapshot) + Send>;
 
 struct WorkRuntimeInner {
-    state: Mutex<WorkRuntimeState>,
-    operation_cancel_flags: Mutex<HashMap<String, CancelFlags>>,
-    /// Source files each accepted processing title reads, by operation id and
-    /// title index. An entry lives until its operation finishes.
-    title_sources: Mutex<TitleSources>,
-    tasks: crate::engine::EngineTasks,
+    operations: Mutex<Operations>,
+    tasks: crate::engine_tasks::EngineTasks,
     changes: tokio::sync::watch::Sender<u64>,
     sequence: AtomicU64,
 }
 
 impl WorkRuntime {
-    pub(crate) fn new(tasks: crate::engine::EngineTasks) -> Self {
+    pub(crate) fn new(tasks: crate::engine_tasks::EngineTasks) -> Self {
         Self {
             inner: Arc::new(WorkRuntimeInner {
                 tasks,
-                state: Mutex::new(WorkRuntimeState::default()),
-                operation_cancel_flags: Mutex::new(HashMap::new()),
-                title_sources: Mutex::new(HashMap::new()),
+                operations: Mutex::new(Operations::new()),
                 changes: tokio::sync::watch::channel(0).0,
                 sequence: AtomicU64::new(1),
             }),
@@ -54,6 +47,34 @@ impl WorkRuntime {
 }
 
 impl WorkRuntime {
+    pub(crate) fn follow_concurrency_lock(
+        &self,
+        host: &Host,
+        registry: &crate::ManagedJobRegistry,
+    ) {
+        let runtime = Arc::downgrade(&self.inner);
+        let observed = Arc::downgrade(registry);
+        let host = host.clone();
+        registry.observe_concurrency_lock(Arc::new(move || {
+            if let (Some(inner), Some(registry)) = (runtime.upgrade(), observed.upgrade()) {
+                WorkRuntime { inner }.publish_concurrency_lock(&host, &registry);
+            }
+        }));
+        self.recover_operations()
+            .state
+            .set_concurrency_locked(registry.concurrency_locked());
+    }
+
+    fn publish_concurrency_lock(&self, host: &Host, registry: &crate::ManagedJobRegistry) {
+        let update = self
+            .recover_operations()
+            .state
+            .set_concurrency_locked(registry.concurrency_locked());
+        if let Some(update) = update {
+            host.emit(EngineEvent::WorkOperations(update));
+        }
+    }
+
     pub(crate) async fn submit_processing_operation(
         &self,
         host: Host,
@@ -120,17 +141,23 @@ impl WorkRuntime {
                     .collect();
             }
         }
-        let cancel_flags = CancelFlags::per_title(request.payload.input_files.len());
-        let title_cancels = cancel_flags.titles();
-        let title_sources = title_source_paths(&request.payload);
-
-        self.title_sources()
-            .insert(operation_id.0.clone(), title_sources);
-        let snapshot = lock_state(&self.inner.state)?.insert_operation(snapshot);
-        {
-            let mut flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
-            flags.insert(operation_id.0.clone(), cancel_flags);
-        }
+        let cancel_tokens = CancelTokens::per_title(request.payload.input_files.len());
+        let title_runs: Vec<TitleRun> = cancel_tokens
+            .titles()
+            .into_iter()
+            .zip(&titles)
+            .enumerate()
+            .map(|(index, (cancel, output))| TitleRun {
+                index,
+                cancel,
+                output: Some(output.clone()),
+            })
+            .collect();
+        let live = Live {
+            titles: cancel_tokens,
+            sources: title_source_paths(&request.payload),
+        };
+        let snapshot = self.lock_operations()?.accept(snapshot, live);
 
         for (index, title) in titles.iter().enumerate() {
             title.on_change(self.output_listener(&host, &operation_id, index));
@@ -162,19 +189,16 @@ impl WorkRuntime {
                 inspected,
                 ProcessingRunOptions {
                     operation_id: Some(operation_id_for_task.to_string()),
-                    title_cancels,
+                    titles: title_runs,
                     progress_listener,
-                    title_outputs: run_titles.clone(),
                 },
             )
             .await;
             for title in &run_titles {
                 title.end();
             }
-            runtime.release_title_sources(&operation_id_for_task);
             let finished =
                 runtime.finish_processing_and_emit(&host, &operation_id_for_task, result);
-            runtime.remove_cancel_flag(&operation_id_for_task);
             if let (Some(on_finished), Some(snapshot)) = (on_finished, finished) {
                 on_finished(snapshot);
             }
@@ -201,9 +225,11 @@ impl WorkRuntime {
                 return;
             };
             let runtime = WorkRuntime { inner };
-            let snapshot = lock_state(&runtime.inner.state)
-                .ok()
-                .and_then(|mut state| state.set_output_update(&operation_id, index, update));
+            let snapshot = runtime.lock_operations().ok().and_then(|mut operations| {
+                operations
+                    .state
+                    .set_output_update(&operation_id, index, update)
+            });
             if let Some(snapshot) = snapshot {
                 runtime.emit_snapshot(&host, &snapshot);
             }
@@ -220,9 +246,10 @@ impl WorkRuntime {
         index: usize,
         title: &TitleOutput,
     ) -> bool {
-        let child = lock_state(&self.inner.state)
+        let child = self
+            .lock_operations()
             .ok()
-            .and_then(|state| state.child_job_id(operation_id, index));
+            .and_then(|operations| operations.state.child_job_id(operation_id, index));
         if let Some(child) = child {
             if let Err(error) = self.cancel_operation(host, operation_id.clone(), Some(child)) {
                 log::warn!("Failed to cancel a title for restart: {error}");
@@ -232,33 +259,32 @@ impl WorkRuntime {
     }
 
     /// Registers a metadata-save operation, emits it, and marks it running.
-    /// Returns the operation id and the cancel flag `cancel_operation` sets for
-    /// the save loop.
+    /// Returns the operation id and the cancel token `cancel_operation` cancels
+    /// for the save loop.
     pub(crate) fn begin_metadata_save_operation(
         &self,
         host: &Host,
         input_files: &[String],
-    ) -> Result<(OperationId, Arc<AtomicBool>)> {
+    ) -> Result<(OperationId, CancellationToken)> {
         let operation_id = OperationId::new();
         let sequence = self.inner.sequence.fetch_add(1, Ordering::SeqCst);
         let count = input_files.len();
         let title = format!("Metadata save ({count} file{})", plural_suffix(count));
         let snapshot =
             new_metadata_save_snapshot(operation_id.clone(), sequence, title, input_files);
-        let cancel_flags = CancelFlags::per_title(1);
-        let cancel_flag = Arc::clone(&cancel_flags.titles()[0]);
-
-        let snapshot = lock_state(&self.inner.state)?.insert_operation(snapshot);
-        {
-            let mut flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
-            flags.insert(operation_id.0.clone(), cancel_flags);
-        }
+        let cancel_tokens = CancelTokens::per_title(1);
+        let cancel_token = cancel_tokens.titles().remove(0);
+        let live = Live {
+            titles: cancel_tokens,
+            sources: Vec::new(),
+        };
+        let snapshot = self.lock_operations()?.accept(snapshot, live);
 
         log_work_operation(WorkOperationLogEvent::Accepted, &snapshot);
         self.emit_snapshot(host, &snapshot);
         self.mark_running_and_emit(host, &operation_id);
 
-        Ok((operation_id, cancel_flag))
+        Ok((operation_id, cancel_token))
     }
 
     /// Applies a metadata-save progress event to its operation; events match
@@ -273,7 +299,7 @@ impl WorkRuntime {
     }
 
     /// Terminalize a metadata-save operation from its run outcome, then emit
-    /// and drop its cancel flag. A finished run maps its summary through the
+    /// and drop its cancel token. A finished run maps its summary through the
     /// canonical classifier and terminalizes children by `input_index`; an
     /// aborted run resolves to Cancelled for a cancellation and Failed
     /// otherwise, exactly as a processing run does.
@@ -283,18 +309,16 @@ impl WorkRuntime {
         operation_id: &OperationId,
         outcome: std::result::Result<InlineRunTerminal<'_>, &AppError>,
     ) -> Result<OperationSnapshot> {
-        let snapshot = {
-            let mut state = lock_state(&self.inner.state)?;
-            match outcome {
+        let snapshot = self
+            .lock_operations()?
+            .finish(operation_id, |state| match outcome {
                 Ok(run) => {
                     state.complete_from_summary(operation_id, run.summary, run.children, now_ms())
                 }
-                Err(error) => terminalize_aborted_run(&mut state, operation_id, error),
-            }?
-        };
+                Err(error) => terminalize_aborted_run(state, operation_id, error),
+            })?;
         log_work_operation(WorkOperationLogEvent::Terminal, &snapshot);
         self.emit_snapshot(host, &snapshot);
-        self.remove_cancel_flag(operation_id);
         Ok(snapshot)
     }
 
@@ -304,9 +328,11 @@ impl WorkRuntime {
         operation_id: &OperationId,
         event: &ProgressEvent,
     ) {
-        match lock_state(&self.inner.state)
-            .and_then(|mut state| state.apply_progress_event(operation_id, event, now_ms()))
-        {
+        match self.lock_operations().and_then(|mut operations| {
+            operations
+                .state
+                .apply_progress_event(operation_id, event, now_ms())
+        }) {
             Ok(snapshot) => self.emit_snapshot(host, &snapshot),
             Err(error) => log::warn!(
                 "Failed to apply progress event for operation {}: {}",
@@ -317,22 +343,23 @@ impl WorkRuntime {
     }
 
     pub fn list_operations(&self) -> Result<super::WorkOperationsSnapshot> {
-        Ok(lock_state(&self.inner.state)?.list())
+        Ok(self.lock_operations()?.state.list())
     }
 
     /// Accepted exports that have not finished. Metadata Saves are left out:
     /// shutdown lets them finish rather than cancelling them.
     pub(crate) fn unfinished_exports(&self) -> Vec<OperationId> {
-        let Ok(state) = lock_state(&self.inner.state) else {
+        let Ok(operations) = self.lock_operations() else {
             return Vec::new();
         };
-        state
+        operations
+            .state
             .list()
             .operations
             .into_iter()
             .filter(|operation| {
                 operation.kind == crate::processing::OperationKind::ProcessingBatch
-                    && !super::terminal::is_terminal(operation.status)
+                    && !operation.is_finished()
             })
             .map(|operation| operation.operation_id)
             .collect()
@@ -355,12 +382,7 @@ impl WorkRuntime {
     }
 
     fn cancel_whole_operation(&self, operation_id: &OperationId) -> Result<OperationSnapshot> {
-        if let Some(flags) =
-            lock_cancel_flags(&self.inner.operation_cancel_flags)?.get(operation_id.as_str())
-        {
-            flags.cancel_all();
-        }
-        let snapshot = lock_state(&self.inner.state)?.request_cancel(operation_id, now_ms())?;
+        let snapshot = self.lock_operations()?.cancel_all(operation_id, now_ms())?;
         if snapshot.status == WorkOperationStatus::Cancelling {
             log_work_operation(WorkOperationLogEvent::CancelRequested, &snapshot);
         }
@@ -372,27 +394,23 @@ impl WorkRuntime {
         operation_id: &OperationId,
         child_job_id: &str,
     ) -> Result<OperationSnapshot> {
-        let (snapshot, title_index) =
-            lock_state(&self.inner.state)?.request_child_cancel(operation_id, child_job_id)?;
-        if let Some(index) = title_index {
-            let flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
-            if flags
-                .get(operation_id.as_str())
-                .is_some_and(|flags| flags.cancel_title(index))
-            {
-                log::info!(
-                    // Not a `work_operation` lifecycle record: dev-log analysis validates
-                    // those events; the job's own terminal record carries the outcome.
-                    "title_cancel_requested operation_id={operation_id} child_job_id={child_job_id}"
-                );
-            }
+        let (snapshot, cancelled) = self
+            .lock_operations()?
+            .cancel_title(operation_id, child_job_id)?;
+        if cancelled {
+            log::info!(
+                // Not a `work_operation` lifecycle record: dev-log analysis validates
+                // those events; the job's own terminal record carries the outcome.
+                "title_cancel_requested operation_id={operation_id} child_job_id={child_job_id}"
+            );
         }
         Ok(snapshot)
     }
 
     fn mark_running_and_emit(&self, host: &Host, operation_id: &OperationId) {
-        match lock_state(&self.inner.state)
-            .and_then(|mut state| state.mark_running(operation_id, now_ms()))
+        match self
+            .lock_operations()
+            .and_then(|mut operations| operations.state.mark_running(operation_id, now_ms()))
         {
             Ok(snapshot) => {
                 if snapshot.status == WorkOperationStatus::Running {
@@ -410,9 +428,11 @@ impl WorkRuntime {
         operation_id: &OperationId,
         result: Result<crate::processing::ProcessCommandResult>,
     ) -> Option<OperationSnapshot> {
-        let snapshot_result = lock_state(&self.inner.state).and_then(|mut state| match &result {
-            Ok(result) => state.complete_from_process_result(operation_id, result, now_ms()),
-            Err(error) => terminalize_aborted_run(&mut state, operation_id, error),
+        let snapshot_result = self.lock_operations().and_then(|mut operations| {
+            operations.finish(operation_id, |state| match &result {
+                Ok(result) => state.complete_from_process_result(operation_id, result, now_ms()),
+                Err(error) => terminalize_aborted_run(state, operation_id, error),
+            })
         });
 
         match snapshot_result {
@@ -429,63 +449,34 @@ impl WorkRuntime {
     }
 
     pub(crate) fn sources_in_use(&self) -> HashSet<PathBuf> {
-        let sources = self.title_sources();
-        let state = self
-            .inner
-            .state
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        let mut in_use = HashSet::new();
-        for (operation_id, titles) in sources.iter() {
-            let Some(operation) = state.operation(operation_id) else {
-                continue;
-            };
-            for child in &operation.children {
-                let reading = matches!(
-                    child.status,
-                    super::ChildJobStatus::Queued | super::ChildJobStatus::Running
-                );
-                if let Some(paths) = child.input_index.and_then(|index| titles.get(index)) {
-                    if reading {
-                        in_use.extend(paths.iter().cloned());
-                    }
-                }
-            }
-        }
-        in_use
+        self.recover_operations().sources_in_use()
     }
 
     /// Every source of every export that has not finished, including titles
     /// already encoded: a title still copies its companion files after its
     /// audio completes.
     pub(crate) fn sources_held(&self) -> HashSet<PathBuf> {
-        self.title_sources()
-            .values()
-            .flatten()
-            .flatten()
-            .cloned()
-            .collect()
+        self.recover_operations().sources_held()
     }
 
     pub(crate) fn subscribe_changes(&self) -> tokio::sync::watch::Receiver<u64> {
         self.inner.changes.subscribe()
     }
 
-    fn release_title_sources(&self, operation_id: &OperationId) {
-        self.title_sources().remove(operation_id.as_str());
+    fn lock_operations(&self) -> Result<MutexGuard<'_, Operations>> {
+        self.inner
+            .operations
+            .lock()
+            .map_err(|_| AppError::General("Work runtime state lock failed".to_string()))
     }
 
-    fn title_sources(&self) -> MutexGuard<'_, TitleSources> {
+    /// The lock for reads that gate a Save or a removal: a panic elsewhere
+    /// never makes a source look free.
+    fn recover_operations(&self) -> MutexGuard<'_, Operations> {
         self.inner
-            .title_sources
+            .operations
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-    }
-
-    fn remove_cancel_flag(&self, operation_id: &OperationId) {
-        if let Ok(mut flags) = lock_cancel_flags(&self.inner.operation_cancel_flags) {
-            flags.remove(operation_id.as_str());
-        }
     }
 
     /// Publishes a change with the display order as of now. The revision is
@@ -493,10 +484,10 @@ impl WorkRuntime {
     /// arrive.
     fn emit_snapshot(&self, host: &Host, snapshot: &OperationSnapshot) {
         self.inner.changes.send_modify(|change| *change += 1);
-        match lock_state(&self.inner.state) {
-            Ok(mut state) => {
-                let update = state.publish(snapshot.clone());
-                drop(state);
+        match self.lock_operations() {
+            Ok(mut operations) => {
+                let update = operations.state.publish(snapshot.clone());
+                drop(operations);
                 host.emit(EngineEvent::WorkOperations(update));
             }
             Err(error) => log::warn!("Failed to publish a work operation update: {error}"),
@@ -551,7 +542,7 @@ fn format_work_operation_record(
         "work_operation event={} operation_id={} kind={} status={} total={} succeeded={} skipped={} cancelled={} failed={}",
         work_operation_event_label(event),
         snapshot.operation_id,
-        crate::processing::operation_kind_log_label(snapshot.kind),
+        snapshot.kind.log_label(),
         work_operation_status_label(snapshot.status),
         counts.total,
         counts.succeeded,
@@ -639,51 +630,6 @@ pub(crate) fn now_ms() -> i64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
-}
-
-fn lock_state(state: &Mutex<WorkRuntimeState>) -> Result<MutexGuard<'_, WorkRuntimeState>> {
-    state
-        .lock()
-        .map_err(|_| AppError::General("Work runtime state lock failed".to_string()))
-}
-
-/// One operation's cancel flags: one independent flag per output title for
-/// processing; an inline metadata save uses a single flag for all its files.
-struct CancelFlags(Vec<Arc<AtomicBool>>);
-
-impl CancelFlags {
-    fn per_title(count: usize) -> Self {
-        Self(
-            (0..count)
-                .map(|_| Arc::new(AtomicBool::new(false)))
-                .collect(),
-        )
-    }
-
-    fn titles(&self) -> Vec<Arc<AtomicBool>> {
-        self.0.clone()
-    }
-
-    fn cancel_all(&self) {
-        self.0
-            .iter()
-            .for_each(|flag| flag.store(true, Ordering::Release));
-    }
-
-    fn cancel_title(&self, index: usize) -> bool {
-        self.0
-            .get(index)
-            .map(|flag| flag.store(true, Ordering::Release))
-            .is_some()
-    }
-}
-
-fn lock_cancel_flags(
-    flags: &Mutex<HashMap<String, CancelFlags>>,
-) -> Result<MutexGuard<'_, HashMap<String, CancelFlags>>> {
-    flags
-        .lock()
-        .map_err(|_| AppError::General("Work runtime cancellation lock failed".to_string()))
 }
 
 #[cfg(test)]

@@ -1,8 +1,13 @@
 use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 
+use super::super::container::Container;
 use super::super::ffi::set_attached_pic_disposition;
 use super::format::{detect_cover_art_format, detect_image_dimensions, CoverFormat};
+
+/// The `comment` tag value FFmpeg's ID3 and FLAC muxers write as picture type 3
+/// and its demuxers report for one.
+pub(crate) const FRONT_COVER_COMMENT: &str = "Cover (front)";
 
 /// Adds a cover art stream before the header is written. MP4-family streams get
 /// the `attached_pic` disposition.
@@ -19,7 +24,8 @@ pub fn add_cover_art_stream_pre_header(
         ));
     };
 
-    if octx.format().name() == "matroska" {
+    let container = Container::of_output(octx);
+    if container == Container::Matroska {
         return add_matroska_cover(octx, cover_data, format).map(Some);
     }
     let codec_id = format.codec_id();
@@ -35,6 +41,11 @@ pub fn add_cover_art_stream_pre_header(
             let idx = stream.index();
 
             configure_cover_art_stream_parameters(&mut stream, format, cover_data)?;
+            if container == Container::Mp3 || container.uses_vorbis_comments() {
+                let mut tags = ff::Dictionary::new();
+                tags.set("comment", FRONT_COVER_COMMENT);
+                stream.set_metadata(tags);
+            }
 
             set_attached_pic_disposition(octx, idx)?;
 

@@ -307,6 +307,24 @@ describe('analyzeDevLog', () => {
 		});
 	});
 
+	it('reports an output-plan record whatever values its fields carry', () => {
+		const analysis = analyzeDevLog(
+			`${APP_START}\noutput_plan phase=verify reviewed=true policy=KeepBoth input_index=Some(1) kind=Sidecar action=Archive requested=/out/a.m4b resolved=/out/a.m4b collision_kind=Unlisted collision_path=/out/a.m4b`,
+			'',
+			0,
+		);
+
+		expect(analysis.malformedOutputPlanLines).toBe(0);
+		expect(analysis.outputPlanEvents).toHaveLength(1);
+		expect(analysis.outputPlanEvents[0]).toMatchObject({
+			phase: 'verify',
+			policy: 'KeepBoth',
+			kind: 'Sidecar',
+			action: 'Archive',
+			collisionKind: 'Unlisted',
+		});
+	});
+
 	it('does not fail a session for an unparseable output-plan line', () => {
 		const analysis = analyzeDevLog(
 			`${APP_START}\noutput_plan phase=process reviewed=true policy=Fail`,
@@ -360,7 +378,7 @@ describe('analyzeDevLog', () => {
 				'status=success',
 				'elapsed_monotonic_ms=1200',
 				'elapsed_wallclock_ms=1250',
-				'requested_settings encoder=NativeAac bitrate_mode=Cbr bitrate_kbps=64 rate=Explicit(44100) channels=Stereo native_aac_speed=2',
+				'requested_settings encoder=NativeAac bitrate_mode=Cbr bitrate_kbps=64 rate=44100 channels=Stereo native_aac_speed=2',
 				'opened_settings encoder=aac rate=44100 channels=2',
 				'--- end in-process-encoder run ---',
 			].join('\n'),

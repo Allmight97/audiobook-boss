@@ -1,10 +1,11 @@
 use super::submission::{Draft, SubmissionStatus};
 use crate::processing::{ProcessResultStatus, ProgressEvent};
 use crate::work_runtime::{
-    is_terminal, new_processing_snapshot, now_ms, OperationId, OperationSnapshot, WorkRuntimeState,
+    new_processing_snapshot, now_ms, OperationId, OperationSnapshot, WorkRuntimeState,
 };
 use serde::Serialize;
 use std::path::PathBuf;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -43,13 +44,45 @@ impl PreviewArtwork {
     }
 }
 
+/// One preview run. `cancel` stops every title; each title has its own child
+/// token, so one title can stop alone.
+#[derive(Default)]
+enum Run {
+    #[default]
+    Accepted,
+    Running {
+        cancel: CancellationToken,
+        titles: Vec<CancellationToken>,
+    },
+    Finished {
+        started: bool,
+        open: Option<String>,
+    },
+}
+
+impl Run {
+    fn offers_artwork(&self) -> bool {
+        match self {
+            Self::Accepted => false,
+            Self::Running { .. } => true,
+            Self::Finished { started, .. } => *started,
+        }
+    }
+
+    fn open_path(&mut self) -> Option<&mut Option<String>> {
+        match self {
+            Self::Finished { open, .. } => Some(open),
+            Self::Accepted | Self::Running { .. } => None,
+        }
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct Preview {
     state: WorkRuntimeState,
     id: Option<OperationId>,
-    open_path: Option<String>,
+    run: Run,
     pub(crate) artwork: PreviewArtwork,
-    artwork_ready: bool,
 }
 
 impl Preview {
@@ -57,9 +90,8 @@ impl Preview {
         let Some(id) = draft.preview_id() else { return };
         self.state = WorkRuntimeState::default();
         self.id = Some(id.clone());
-        self.open_path = None;
+        self.run = Run::Accepted;
         self.artwork = PreviewArtwork::default();
-        self.artwork_ready = false;
         self.state.insert_operation(new_processing_snapshot(
             id.clone(),
             0,
@@ -73,7 +105,7 @@ impl Preview {
         let finished = self.id.as_ref().is_some_and(|id| {
             self.state
                 .operation(id.as_str())
-                .is_some_and(|operation| is_terminal(operation.status))
+                .is_some_and(OperationSnapshot::is_finished)
         });
         if finished {
             *self = Self::default();
@@ -85,9 +117,10 @@ impl Preview {
         let operation = self.state.operation(id.as_str())?.clone();
         Some(PreviewSnapshot {
             operation,
-            open_ready: self.open_path.is_some(),
+            open_ready: matches!(&self.run, Run::Finished { open: Some(_), .. }),
             cover: self
-                .artwork_ready
+                .run
+                .offers_artwork()
                 .then(|| super::cover_address::preview(id.as_str())),
         })
     }
@@ -106,13 +139,42 @@ impl Preview {
                 .is_some_and(|op| op.cancel_requested)
     }
 
-    pub(crate) fn start(&mut self, id: &OperationId) {
-        if self.matches(id.as_str()) {
-            self.artwork_ready = true;
-            self.state
-                .mark_running(id, now_ms())
-                .expect("registered preview");
+    /// Opens the run and returns one token per title; a cancel asked for
+    /// before now stops its tokens at once.
+    pub(crate) fn start(&mut self, id: &OperationId) -> Vec<CancellationToken> {
+        if !self.matches(id.as_str()) {
+            return Vec::new();
         }
+        self.state
+            .mark_running(id, now_ms())
+            .expect("registered preview");
+        let operation = self
+            .state
+            .operation(id.as_str())
+            .expect("registered preview");
+        let cancel = CancellationToken::new();
+        let titles: Vec<CancellationToken> = operation
+            .children
+            .iter()
+            .map(|_| cancel.child_token())
+            .collect();
+        if operation.cancel_requested {
+            cancel.cancel();
+        }
+        for child in operation
+            .children
+            .iter()
+            .filter(|child| child.cancel_requested)
+        {
+            if let Some(token) = child.input_index.and_then(|index| titles.get(index)) {
+                token.cancel();
+            }
+        }
+        self.run = Run::Running {
+            cancel,
+            titles: titles.clone(),
+        };
+        titles
     }
 
     pub(crate) fn progress(&mut self, id: &OperationId, event: &ProgressEvent) {
@@ -123,27 +185,33 @@ impl Preview {
         }
     }
 
-    /// Returns the title indexes whose actual cancellation flags must be set.
-    pub(crate) fn cancel(&mut self, id: &str, child: Option<&str>) -> crate::Result<Vec<usize>> {
+    pub(crate) fn cancel(&mut self, id: &str, child: Option<&str>) -> crate::Result<()> {
         if !self.matches(id) {
-            return Ok(Vec::new());
+            return Ok(());
         }
         let id = self.id.as_ref().expect("matching preview identity");
-        self.open_path = None;
-        match child {
-            Some(child) => {
-                let (_, index) = self.state.request_child_cancel(id, child)?;
-                Ok(index.into_iter().collect())
-            }
+        if let Some(open) = self.run.open_path() {
+            *open = None;
+        }
+        let title = match child {
+            Some(child) => self.state.request_child_cancel(id, child)?.1,
             None => {
-                let operation = self.state.request_cancel(id, now_ms())?;
-                Ok(operation
-                    .children
-                    .iter()
-                    .filter_map(|child| child.input_index)
-                    .collect())
+                self.state.request_cancel(id, now_ms())?;
+                None
+            }
+        };
+        if let Run::Running { cancel, titles } = &self.run {
+            match (child, title) {
+                (None, _) => cancel.cancel(),
+                (Some(_), Some(index)) => {
+                    if let Some(token) = titles.get(index) {
+                        token.cancel();
+                    }
+                }
+                (Some(_), None) => {}
             }
         }
+        Ok(())
     }
 
     pub(crate) fn finish(&mut self, draft: &Draft, status: &SubmissionStatus) {
@@ -162,34 +230,48 @@ impl Preview {
                         .children
                         .iter()
                         .any(|child| child.cancel_requested);
-                self.open_path = output_to_open(result, cancelled);
+                self.end_run(output_to_open(result, cancelled));
             }
             SubmissionStatus::Cancelled => {
                 self.state
                     .cancel(id, "Preview cancelled.".into(), now_ms())
                     .expect("registered preview");
+                self.end_run(None);
             }
             SubmissionStatus::Failed { error } => {
                 self.state
                     .fail(id, error.message.clone(), now_ms())
                     .expect("registered preview");
+                self.end_run(None);
             }
             SubmissionStatus::Blocked { message } => {
                 self.state
                     .fail(id, message.clone(), now_ms())
                     .expect("registered preview");
+                self.end_run(None);
             }
             SubmissionStatus::Refused { .. } => {
                 self.state
                     .fail(id, "Preview could not start.".into(), now_ms())
                     .expect("registered preview");
+                self.end_run(None);
             }
             _ => {}
         }
     }
 
+    fn end_run(&mut self, open: Option<String>) {
+        self.run = Run::Finished {
+            started: self.run.offers_artwork(),
+            open,
+        };
+    }
+
     pub(crate) fn take_output(&mut self, id: &str) -> Option<String> {
-        self.matches(id).then(|| self.open_path.take()).flatten()
+        if !self.matches(id) {
+            return None;
+        }
+        self.run.open_path().and_then(Option::take)
     }
 }
 

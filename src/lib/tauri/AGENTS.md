@@ -2,13 +2,22 @@
 
 ## Public API Strip
 
-- `client.ts` exports `tauriClient`, the one runtime surface, with
-  `TAURI_COMMAND_NAMES`, `TAURI_APP_EVENT_NAMES`, and the `TauriCommand` type
-  for the contract test (pinned by `src/lib/tauri-public-api.contract.test.ts`).
+- `client.ts` exports `tauriClient`, the one runtime surface (pinned by
+  `src/lib/tauri-public-api.contract.test.ts`). Engine events come from its
+  `events`, the generated listeners, so a new engine event needs no edit here.
+  Its raw `listen` serves OS drag events (`tauri://drag-*`) only.
+- `tauriClient.commands` is the generated `commands` object with every reply
+  unwrapped (`commands.ts`); a refusal throws a normalized app error. A new
+  Rust command needs no edit here. The contract test lists the expected
+  command names by hand; `client.test.ts` proves every command throws on a
+  refusal.
 - Regenerate bindings with `bun run bindings:generate`.
-  `check-tauri-runtime-boundary.ts` keeps generated value imports in
-  `commands.ts` and `client.ts` (type imports may appear elsewhere); Oxlint
-  `no-restricted-imports` keeps plugin and event imports in `src/lib/tauri`.
+- Oxlint `no-restricted-imports` keeps the generated `commands` value in
+  `commands.ts`, the generated `events` value in `client.ts`, raw `invoke` and
+  the plugin and event APIs in `src/lib/tauri` (type imports may appear
+  elsewhere; a recorded-contract test suppresses the `invoke` rule with its
+  reason). `check-tauri-runtime-boundary.ts` covers what an import list cannot
+  name (`scripts/AGENTS.md`, Script rules).
 - Native-dialog methods select files and folders only. Session questions render
   identified snapshots; a native question cannot be dismissed on frontend
   replacement.
@@ -37,7 +46,7 @@
 
 `recordedFresh.ts` is test support and not private: the fake engine and
 contract tests outside this folder import it. It types the recorded fresh
-session and settings (`generated/fixtures/`) as a frontend attachment.
+session and settings (`src/lib/generated/fixtures/`) as a frontend attachment.
 
 ## Frontend Utilities
 
@@ -51,6 +60,7 @@ Each has its own module test.
   teardown and the dispose and late-arrival race. Views collect unlisteners
   through a group.
 - `coverSrc.ts` turns a cover address the engine offers into the `abb-cover`
-  source an `<img>` loads; the scheme is the host's. The engine builds and
-  parses the address (`session/cover_address.rs`), the host serves the scheme
-  through `Engine::cover`, and covers never cross IPC as bytes.
+  source an `<img>` loads; the host owns the scheme and publishes its name
+  (`COVER_URL_SCHEME`). The engine builds and parses the address
+  (`session/cover_address.rs`), the host serves the scheme through
+  `Engine::cover`, and covers never cross IPC as bytes.

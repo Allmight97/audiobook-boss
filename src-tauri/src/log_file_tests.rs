@@ -4,6 +4,8 @@ use std::path::PathBuf;
 
 use super::{log_dir, open_log, StderrAndFile, CURRENT_LOG, MAX_LOG_BYTES, PREVIOUS_LOG};
 
+const APP_ID: &str = "com.audiobook-boss";
+
 fn scratch_dir(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("abb-log-file-{name}-{}", std::process::id()));
     #[expect(
@@ -18,7 +20,11 @@ fn scratch_dir(name: &str) -> PathBuf {
 #[test]
 fn the_log_folder_is_the_macos_logs_folder() {
     assert_eq!(
-        log_dir(Some(PathBuf::from("/Users/me")), Some(PathBuf::from("/x"))),
+        log_dir(
+            APP_ID,
+            Some(PathBuf::from("/Users/me")),
+            Some(PathBuf::from("/x"))
+        ),
         Some(PathBuf::from("/Users/me/Library/Logs/com.audiobook-boss"))
     );
 }
@@ -27,13 +33,14 @@ fn the_log_folder_is_the_macos_logs_folder() {
 #[test]
 fn the_log_folder_is_the_tauri_app_log_dir() {
     assert_eq!(
-        log_dir(Some(PathBuf::from("/home/me")), None),
+        log_dir(APP_ID, Some(PathBuf::from("/home/me")), None),
         Some(PathBuf::from(
             "/home/me/.local/share/com.audiobook-boss/logs"
         ))
     );
     assert_eq!(
         log_dir(
+            APP_ID,
             Some(PathBuf::from("/home/me")),
             Some(PathBuf::from("/data"))
         ),
@@ -42,8 +49,18 @@ fn the_log_folder_is_the_tauri_app_log_dir() {
 }
 
 #[test]
+fn a_dev_build_gets_a_log_folder_apart_from_the_installed_apps() {
+    let home = Some(PathBuf::from("/home/me"));
+    let xdg = Some(PathBuf::from("/data"));
+    let installed = log_dir(APP_ID, home.clone(), xdg.clone());
+    let dev = log_dir("com.audiobook-boss.dev.a1b2c3", home, xdg);
+    assert!(installed.is_some() && dev.is_some());
+    assert_ne!(installed, dev);
+}
+
+#[test]
 fn no_home_folder_means_no_log_folder() {
-    assert_eq!(log_dir(None, None), None);
+    assert_eq!(log_dir(APP_ID, None, None), None);
 }
 
 #[test]

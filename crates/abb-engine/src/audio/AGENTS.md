@@ -8,8 +8,9 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
 
 - Callers import from `crate::audio`; child modules are private, so the
   compiler enforces it.
-- Inspection owns source preservation capability; the title planner owns the
-  recommendation.
+- Inspection owns source preservation capability and codec family
+  (`AudioPreservation`); the title planner owns the recommendation and reads
+  both without opening the file.
 - Per-encoder bitrate, mode, rate, and FAAC-profile facts live in
   `EncoderSettingsCapabilities.encoder_configurations`; FAAC quality presets
   and Native speed max are top-level capability fields. The FAAC encoder owns
@@ -115,8 +116,10 @@ diagnostics and, when its sheet reads, a CUE plan. A file whose chapters
 cannot be repaired is listed invalid with the reason; the rest of the import
 continues. `apply_chapter_plans` validates accepted plans against the audio
 identity and duration before dispatch. CUE confirmation or Ignore is
-explicit; multi-source CUE merging is rejected. Encoders consume accepted
-chapters.
+explicit. `FileListInfo::check_cue_chapters` is the one rule for a title's
+sources: a CUE awaiting review, or CUE chapters on a merged title, is
+refused; session submission and the title plan call it, and execution does
+not repeat it. Encoders consume accepted chapters.
 
 ## Title Audio Plan
 
@@ -129,6 +132,12 @@ always copies. Strict source/packet validation applies to every copy. Default M4
 encoding uses the built-in AAC defaults (NMR 65 kbps target, source channels and
 automatic rate), independent of saved user preferences. Explicit Encode applies
 the settings.
+
+`format.rs` is the one table of output formats: extension, muxer, codec
+family, and allowed encoders. Read a format fact there; never list it again. A
+format "keeps" a source when the source's codec family equals the format's
+(`formats_that_keep`). Whether the source can be copied is a separate fact
+(`assess_preservation`, `can_preserve`) that `formats_that_keep` does not read.
 
 Session title plans (`session/plans.rs`) and processing preflight share this
 resolver. Only encoding plans resolve encoder availability, channels, and input

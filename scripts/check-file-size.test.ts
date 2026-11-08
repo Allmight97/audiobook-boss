@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { laneMap, planJobs, requiredLanes } from './verification';
+import { laneMap, parseLaneTable, planJobs, requiredLanes } from './verification';
 
 const script = path.resolve(import.meta.dirname, 'check-file-size.mjs');
 const repoRoot = path.resolve(import.meta.dirname, '..');
@@ -248,12 +248,13 @@ describe('check-file-size staged', () => {
 describe('file-size ratchet selection', () => {
 	it('runs the tooling job for a changed Rust source file and a changed TypeScript source file', () => {
 		const yaml = readFileSync(path.join(repoRoot, 'scripts/lane-paths.yml'), 'utf8');
-		const lanes = execFileSync('bash', ['scripts/verify.sh', '--list'], {
-			cwd: repoRoot,
-			encoding: 'utf8',
-		})
-			.trim()
-			.split('\n');
+		const table = parseLaneTable(
+			execFileSync('bash', ['scripts/verify.sh', '--describe'], {
+				cwd: repoRoot,
+				encoding: 'utf8',
+			}),
+		);
+		const lanes = table.map((lane) => lane.name);
 		const map = laneMap(yaml, lanes);
 		const listed = spawnSync('bun', [script, '--all', '--max-tokens', '1'], {
 			cwd: repoRoot,
@@ -282,7 +283,7 @@ describe('file-size ratchet selection', () => {
 		for (const file of files) {
 			const selected = requiredLanes(map, lanes, [file]);
 			expect(selected, file).toContain('tooling');
-			expect(planJobs(selected).tooling, file).toBe(true);
+			expect(planJobs(selected, table).tooling, file).toBe(true);
 		}
 	}, 20_000);
 });

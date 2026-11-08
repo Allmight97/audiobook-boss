@@ -1,19 +1,21 @@
 use super::*;
+use crate::test_cases::support::fs_listing::files_under;
+use abb_audible_core::{AcquisitionStrategy, DecryptKind};
 use secrecy::ExposeSecret;
 use serde_json::json;
 
-async fn job_after_license_reply(status: u16) -> AcquisitionJob {
+async fn job_after_license_reply(status: u16) -> AcquisitionOutcome {
     job_after_license_body(status, r#"{"message":"Refused"}"#).await
 }
 
-async fn job_after_license_body(status: u16, body: &str) -> AcquisitionJob {
+async fn job_after_license_body(status: u16, body: &str) -> AcquisitionOutcome {
     job_and_staging_after_license_body(status, body).await.0
 }
 
 async fn job_and_staging_after_license_body(
     status: u16,
     body: &str,
-) -> (AcquisitionJob, tempfile::TempDir) {
+) -> (AcquisitionOutcome, tempfile::TempDir) {
     use crate::remote_source::providers::audible::http::stub::{signing_auth, stub_api};
     let (api, server) = stub_api(vec![
         (200, r#"{"item":{"title":"Book"}}"#.to_string()),
@@ -21,16 +23,7 @@ async fn job_and_staging_after_license_body(
     ])
     .await;
     let root = tempfile::TempDir::new().expect("temp root");
-    let mut job = AcquisitionJob {
-        job_id: "job-1".into(),
-        provider_id: ProviderId::Audible,
-        status: RemoteAcquisitionStatus::Acquiring,
-        progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
-        materialized_files: Vec::new(),
-        supplemental_assets: Vec::new(),
-        diagnostics: Vec::new(),
-        handoff: None,
-    };
+    let mut job = AcquisitionOutcome::default();
 
     let outcome = acquire_one(
         &api,
@@ -52,10 +45,12 @@ async fn job_and_staging_after_license_body(
         &|| false,
     )
     .await;
-    record_title_outcome(&mut job, "B000000001", outcome).expect("not cancelled");
-    let requests = server.await.expect("stub");
+    record_title_outcome(&mut job, "job-1", "B000000001", outcome).expect("not cancelled");
+    let requests = server.finished().await;
     assert!(
-        requests[1].starts_with("POST /1.0/content/B000000001/licenserequest "),
+        requests[1]
+            .request_line()
+            .starts_with("POST /1.0/content/B000000001/licenserequest "),
         "{requests:?}"
     );
     assert_eq!(job.diagnostics.len(), 1);
@@ -130,6 +125,28 @@ async fn a_denied_license_names_its_reasons() {
 }
 
 #[tokio::test]
+async fn a_denied_license_that_carries_a_download_url_is_refused_not_downloaded() {
+    let (job, staging) = job_and_staging_after_license_body(
+        200,
+        r#"{"content_license":{"status_code":"Denied","drm_type":"Adrm","content_metadata":{"content_url":{"offline_url":"http://cdn.invalid/book.m4b"}},"license_denial_reasons":[{"rejectionReason":"RequesterEligibility","validationType":"Membership"}]}}"#,
+    )
+    .await;
+
+    assert_eq!(
+        job.diagnostics[0].kind,
+        RemoteAcquisitionFailureKind::LicenseDenied
+    );
+    assert!(
+        job.diagnostics[0]
+            .message
+            .contains("RequesterEligibility (Membership)"),
+        "{:?}",
+        job.diagnostics[0]
+    );
+    assert!(files_under(staging.path()).is_empty());
+}
+
+#[tokio::test]
 async fn an_aaxc_license_with_no_usable_material_fails_before_any_download() {
     let (job, staging) = job_and_staging_after_license_body(
         200,
@@ -146,39 +163,14 @@ async fn an_aaxc_license_with_no_usable_material_fails_before_any_download() {
         "{:?}",
         job.diagnostics[0]
     );
-    assert!(job.materialized_files.is_empty());
+    assert!(job.files.is_empty());
     let staged_files: Vec<_> = files_under(staging.path());
     assert!(staged_files.is_empty(), "{staged_files:?}");
 }
 
-fn files_under(root: &std::path::Path) -> Vec<std::path::PathBuf> {
-    let mut files = Vec::new();
-    let mut folders = vec![root.to_path_buf()];
-    while let Some(folder) = folders.pop() {
-        for entry in std::fs::read_dir(folder).expect("read staging") {
-            let path = entry.expect("entry").path();
-            if path.is_dir() {
-                folders.push(path);
-            } else {
-                files.push(path);
-            }
-        }
-    }
-    files
-}
-
 #[test]
 fn a_title_without_usable_audio_reports_exactly_its_own_diagnostic() {
-    let mut job = AcquisitionJob {
-        job_id: "job-1".into(),
-        provider_id: ProviderId::Audible,
-        status: RemoteAcquisitionStatus::Acquiring,
-        progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
-        materialized_files: Vec::new(),
-        supplemental_assets: Vec::new(),
-        diagnostics: Vec::new(),
-        handoff: None,
-    };
+    let mut job = AcquisitionOutcome::default();
     let specific = RemoteSourceDiagnostic {
         kind: RemoteAcquisitionFailureKind::ProtectedUnsupported,
         title_id: Some("B000000001".into()),
@@ -187,6 +179,7 @@ fn a_title_without_usable_audio_reports_exactly_its_own_diagnostic() {
 
     record_title_outcome(
         &mut job,
+        "job-1",
         "B000000001",
         Ok(AcquiredTitle {
             file: None,
@@ -197,7 +190,7 @@ fn a_title_without_usable_audio_reports_exactly_its_own_diagnostic() {
     .expect("record outcome");
 
     assert_eq!(job.diagnostics, vec![specific]);
-    assert!(job.materialized_files.is_empty());
+    assert!(job.files.is_empty());
 }
 
 #[test]
@@ -206,8 +199,7 @@ fn item_staged_paths_do_not_use_provider_title_id() {
     let item_dir = staging::create_item_dir(root.path(), "item-1").expect("item dir");
     let unsafe_title_id = "../../account-title";
 
-    let protected_path =
-        staged_protected_source_path(&item_dir, AcquisitionStrategy::DownloadThenDecryptAaxc);
+    let protected_path = staged_protected_source_path(&item_dir, DecryptKind::Aaxc);
     let materialized_path =
         staged_materialized_path(&item_dir, Some("../../account:title,?"), unsafe_title_id);
 
@@ -243,38 +235,14 @@ fn sha256_file_streams_expected_digest() {
 }
 
 #[test]
-fn encrypted_download_is_not_reported_as_materialized_without_decryption() {
+fn an_encrypted_download_is_refused_because_it_does_not_decode_as_audio() {
     let root = tempfile::TempDir::new().expect("temp root");
     let encrypted = root.path().join("book.aax");
     std::fs::write(&encrypted, b"encrypted").expect("write encrypted fixture");
 
     let result = validation::materialized_file_from_path("B000000001", &encrypted);
 
-    let error = result.expect_err("encrypted download must not be import-ready");
-    assert!(error.to_string().contains("requires Audible decryption"));
-}
-
-#[test]
-fn dash_lane_is_reported_unsupported_not_deferred() {
-    let lane = LicenseLane {
-        content_url: "https://cdn.example.test/manifest.mpd".to_string(),
-        strategy: AcquisitionStrategy::DownloadThenDecryptDash,
-        decryption_material: None,
-        supplemental_pdf_url: None,
-        denial: None,
-    };
-
-    let acquired = unsupported_result_for_unmaterializable_lane("B000000001", "job-1", &lane)
-        .expect("dash unsupported");
-
-    assert!(acquired.file.is_none());
-    assert_eq!(
-        acquired.diagnostics[0].kind,
-        RemoteAcquisitionFailureKind::ProtectedUnsupported
-    );
-    assert!(acquired.diagnostics[0]
-        .message
-        .contains("Dash/Widevine materialization is not supported"));
+    assert!(result.is_err(), "{result:?}");
 }
 
 #[test]
@@ -306,7 +274,8 @@ fn helper_lane_follows_voucher_key_shape_not_content_url_extension() {
         "B000000001",
         None,
     )
-    .expect("aaxc-shaped material");
+    .expect("aaxc-shaped material")
+    .material;
 
     let (helper_lane, secret) = helper_material_from_audible_material(&material);
 
@@ -325,7 +294,7 @@ struct FinalizeFixture {
     audio: std::path::PathBuf,
     auth: Auth,
     title_details: AudibleTitleDetails,
-    lane: LicenseLane,
+    license: LicenseReply,
 }
 
 impl FinalizeFixture {
@@ -341,12 +310,11 @@ impl FinalizeFixture {
                 title: Some("Book".to_string()),
                 supplemental_pdf_url: Some("https://example.test/book.pdf".to_string()),
             },
-            lane: LicenseLane {
-                content_url: "https://cdn.example.test/book.aax".to_string(),
-                strategy: AcquisitionStrategy::DownloadThenDecryptAax,
-                decryption_material: None,
+            license: LicenseReply {
+                plan: LicensePlan::ImportReady {
+                    url: "https://cdn.example.test/book.m4b".to_string(),
+                },
                 supplemental_pdf_url: None,
-                denial: None,
             },
         }
     }
@@ -358,7 +326,7 @@ impl FinalizeFixture {
                 materialized_path: self.audio.clone(),
                 include_pdf,
                 title_details: &self.title_details,
-                lane: &self.lane,
+                license: &self.license,
                 ctx: TitleAcquisitionCtx {
                     job_id: "job-1",
                     title_id: "B000000001",

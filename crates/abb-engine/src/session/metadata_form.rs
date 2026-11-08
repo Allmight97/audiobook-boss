@@ -4,6 +4,7 @@ use crate::metadata::{
     validate_metadata_intent_patch, AudiobookMetadata, MetadataIntentPatch,
     MetadataIntentValidationField, PatchOp,
 };
+use crate::metadata_lookup::OnlineMetadataResult;
 
 /// An editable field. Author is stored as artist, narrator as composer, and
 /// editing the title sets the album to the same value.
@@ -40,21 +41,14 @@ impl MetadataField {
         self as usize
     }
 
+    fn spec(self) -> &'static FieldSpec {
+        &FIELDS[self.index()]
+    }
+
     fn stored(self, metadata: &AudiobookMetadata) -> &str {
-        let value = match self {
-            Self::Title => &metadata.title,
-            Self::Date => &metadata.date,
-            Self::Author => &metadata.artist,
-            Self::Narrator => &metadata.composer,
-            Self::Series => &metadata.series,
-            Self::SeriesPart => &metadata.series_part,
-            Self::Subseries => &metadata.subseries,
-            Self::SubseriesPart => &metadata.subseries_part,
-            Self::Genre => &metadata.genre,
-            Self::Description => &metadata.description,
-        };
-        let value = value.as_deref().unwrap_or("");
-        if self == Self::Date && value.trim().is_empty() {
+        let spec = self.spec();
+        let value = (spec.stored)(metadata).as_deref().unwrap_or("");
+        if spec.date && value.trim().is_empty() {
             ""
         } else {
             value
@@ -62,20 +56,122 @@ impl MetadataField {
     }
 
     fn slot(self, patch: &mut MetadataIntentPatch) -> &mut Option<PatchOp<String>> {
-        match self {
-            Self::Title => &mut patch.title,
-            Self::Date => &mut patch.date,
-            Self::Author => &mut patch.artist,
-            Self::Narrator => &mut patch.composer,
-            Self::Series => &mut patch.series,
-            Self::SeriesPart => &mut patch.series_part,
-            Self::Subseries => &mut patch.subseries,
-            Self::SubseriesPart => &mut patch.subseries_part,
-            Self::Genre => &mut patch.genre,
-            Self::Description => &mut patch.description,
-        }
+        (self.spec().patch)(patch)
     }
 }
+
+/// Where one form field lives in each shape that carries it. `date` marks the
+/// field that keeps the text as stored (a blank one shows empty), is compared
+/// untrimmed across several titles, and is trimmed when a lookup fills it.
+pub(crate) struct FieldSpec {
+    pub(crate) field: MetadataField,
+    pub(crate) stored: fn(&AudiobookMetadata) -> &Option<String>,
+    pub(crate) store: fn(&mut AudiobookMetadata) -> &mut Option<String>,
+    pub(crate) patch: fn(&mut MetadataIntentPatch) -> &mut Option<PatchOp<String>>,
+    pub(crate) found: fn(&OnlineMetadataResult) -> Option<String>,
+    date: bool,
+}
+
+fn found_text(value: &Option<String>) -> Option<String> {
+    value.clone().filter(|value| !value.is_empty())
+}
+
+fn found_names(names: &[String]) -> Option<String> {
+    (!names.is_empty()).then(|| names.join(", "))
+}
+
+pub(crate) static FIELDS: [FieldSpec; 10] = [
+    FieldSpec {
+        field: MetadataField::Title,
+        stored: |metadata| &metadata.title,
+        store: |metadata| &mut metadata.title,
+        patch: |patch| &mut patch.title,
+        found: |result| Some(result.title.clone()),
+        date: false,
+    },
+    FieldSpec {
+        field: MetadataField::Date,
+        stored: |metadata| &metadata.date,
+        store: |metadata| &mut metadata.date,
+        patch: |patch| &mut patch.date,
+        found: |result| found_text(&result.published_date),
+        date: true,
+    },
+    FieldSpec {
+        field: MetadataField::Author,
+        stored: |metadata| &metadata.artist,
+        store: |metadata| &mut metadata.artist,
+        patch: |patch| &mut patch.artist,
+        found: |result| found_names(&result.authors),
+        date: false,
+    },
+    FieldSpec {
+        field: MetadataField::Narrator,
+        stored: |metadata| &metadata.composer,
+        store: |metadata| &mut metadata.composer,
+        patch: |patch| &mut patch.composer,
+        found: |result| found_names(&result.narrators),
+        date: false,
+    },
+    FieldSpec {
+        field: MetadataField::Series,
+        stored: |metadata| &metadata.series,
+        store: |metadata| &mut metadata.series,
+        patch: |patch| &mut patch.series,
+        found: |result| found_text(&result.series),
+        date: false,
+    },
+    FieldSpec {
+        field: MetadataField::SeriesPart,
+        stored: |metadata| &metadata.series_part,
+        store: |metadata| &mut metadata.series_part,
+        patch: |patch| &mut patch.series_part,
+        found: |result| found_text(&result.series_part),
+        date: false,
+    },
+    FieldSpec {
+        field: MetadataField::Subseries,
+        stored: |metadata| &metadata.subseries,
+        store: |metadata| &mut metadata.subseries,
+        patch: |patch| &mut patch.subseries,
+        found: |result| found_text(&result.subseries),
+        date: false,
+    },
+    FieldSpec {
+        field: MetadataField::SubseriesPart,
+        stored: |metadata| &metadata.subseries_part,
+        store: |metadata| &mut metadata.subseries_part,
+        patch: |patch| &mut patch.subseries_part,
+        found: |result| found_text(&result.subseries_part),
+        date: false,
+    },
+    FieldSpec {
+        field: MetadataField::Genre,
+        stored: |metadata| &metadata.genre,
+        store: |metadata| &mut metadata.genre,
+        patch: |patch| &mut patch.genre,
+        found: |_| None,
+        date: false,
+    },
+    FieldSpec {
+        field: MetadataField::Description,
+        stored: |metadata| &metadata.description,
+        store: |metadata| &mut metadata.description,
+        patch: |patch| &mut patch.description,
+        found: |result| found_text(&result.description),
+        date: false,
+    },
+];
+
+const _: () = {
+    assert!(FIELDS.len() == MetadataField::ALL.len());
+    let mut at = 0;
+    while at < FIELDS.len() {
+        assert!(FIELDS[at].field as usize == at);
+        assert!(MetadataField::ALL[at] as usize == at);
+        at += 1;
+    }
+};
 
 /// Keep restores the hydrated value; Blank clears the field on every selected
 /// title.
@@ -161,7 +257,7 @@ impl FieldState {
 pub(crate) struct MetadataForm {
     mode: FormMode,
     selection_count: usize,
-    fields: [FieldState; 10],
+    fields: [FieldState; FIELDS.len()],
 }
 
 impl MetadataForm {
@@ -176,9 +272,10 @@ impl MetadataForm {
 
     pub(crate) fn multi(metadata: &[AudiobookMetadata], selection_count: usize) -> Self {
         let fields = MetadataField::ALL.map(|field| {
+            let date = field.spec().date;
             let value_of = |metadata: &AudiobookMetadata| {
                 let value = field.stored(metadata);
-                if field == MetadataField::Date {
+                if date {
                     value.to_string()
                 } else {
                     value.trim().to_string()
@@ -267,24 +364,12 @@ impl MetadataForm {
     }
 
     pub(crate) fn apply_lookup(&mut self, metadata: &AudiobookMetadata) {
-        for field in MetadataField::ALL {
-            let provided = match field {
-                MetadataField::Title => &metadata.title,
-                MetadataField::Date => &metadata.date,
-                MetadataField::Author => &metadata.artist,
-                MetadataField::Narrator => &metadata.composer,
-                MetadataField::Series => &metadata.series,
-                MetadataField::SeriesPart => &metadata.series_part,
-                MetadataField::Subseries => &metadata.subseries,
-                MetadataField::SubseriesPart => &metadata.subseries_part,
-                MetadataField::Genre => &metadata.genre,
-                MetadataField::Description => &metadata.description,
-            };
-            let Some(value) = provided else {
+        for spec in &FIELDS {
+            let Some(value) = (spec.stored)(metadata) else {
                 continue;
             };
-            let state = &mut self.fields[field.index()];
-            state.value = if field == MetadataField::Date {
+            let state = &mut self.fields[spec.field.index()];
+            state.value = if spec.date {
                 value.trim().to_string()
             } else {
                 value.clone()
@@ -292,6 +377,16 @@ impl MetadataForm {
             state.mixed = false;
             state.dirty = true;
         }
+    }
+
+    /// The values on screen as metadata: trimmed, with an empty field absent.
+    pub(crate) fn metadata(&self) -> AudiobookMetadata {
+        let mut metadata = AudiobookMetadata::default();
+        for spec in &FIELDS {
+            let value = self.trimmed(spec.field);
+            *(spec.store)(&mut metadata) = (!value.is_empty()).then(|| value.to_string());
+        }
+        metadata
     }
 
     pub(crate) fn reset_dirty(&mut self) {

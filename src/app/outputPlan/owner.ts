@@ -1,9 +1,12 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { AudioFile, CollisionPolicy } from '../../types/audio';
-import { formatFileSize } from '../../types/audio';
+import type {
+	AudioFile,
+	CollisionPolicy,
+	NamingPreset,
+	OutputPreview,
+} from '../../lib/generated/tauri';
+import { formatFileSize } from '../../lib/format/audio';
 import { tauriClient } from '../../lib/tauri/client';
-import type { NamingPreset } from '../../lib/generated/tauri';
-import type { OutputPreview } from '../../types/session';
 import { createTypingEcho, type EngineLink } from '../engineLink';
 import { collisionView, type CollisionView } from './collision';
 import { EMPTY_PREVIEW_TEXT, EMPTY_PREVIEW_TITLE, type OutputView } from './types';

@@ -160,10 +160,8 @@ describe('AppSettingsDialogView', () => {
 
 		await vi.waitFor(() => expect(runtime!.settings.defaultAcquisitionLane()).toBe('indexer'));
 		expect(engine.settingsIntents).toContainEqual({
-			kind: 'remember',
-			encoderDefaults: null,
-			outputDefaults: null,
-			defaultAcquisitionLane: 'indexer',
+			kind: 'setDefaultAcquisitionLane',
+			lane: 'indexer',
 		});
 	});
 
@@ -264,6 +262,35 @@ describe('AppSettingsDialogView', () => {
 		expect(audiobooks).toBeChecked();
 	});
 
+	it('offers a saved category outside the known list and lets it be unchecked', async () => {
+		await renderOpenDialog((seeded) =>
+			seeded.change((state) => {
+				Object.assign(state.remote.connection, {
+					categoryIds: [3030, 3040],
+					categoryOptions: [
+						{ id: 3030, label: 'Audiobooks (3030)', recommended: true },
+						{ id: 3000, label: 'Audio (3000)', recommended: false },
+						{ id: 3040, label: 'Category 3040', recommended: false },
+					],
+				});
+			}),
+		);
+		fireEvent.click(screen.getByTestId('app-settings-indexer-category'));
+		flush();
+
+		const saved = screen.getByRole('checkbox', { name: 'Category 3040' });
+		expect(saved).toBeChecked();
+		fireEvent.click(saved);
+		flush();
+
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents).toContainEqual({
+				kind: 'remote',
+				intent: { kind: 'editConnection', baseUrl: null, categoryIds: [3030], apiKey: null },
+			}),
+		);
+	});
+
 	it('shows the saved Indexer URL and categories from the engine snapshot', async () => {
 		await renderOpenDialog((fake) =>
 			fake.change((state) => {
@@ -287,6 +314,7 @@ describe('AppSettingsDialogView', () => {
 			fake.change((state) => {
 				Object.assign(state.remote.connection, {
 					baseUrl: 'http://saved:9696',
+					usesHttp: true,
 					categoryIds: [3030],
 					apiKeyConfigured: true,
 				});
@@ -296,11 +324,14 @@ describe('AppSettingsDialogView', () => {
 		await vi.waitFor(() => expect(url).toHaveValue('http://saved:9696'));
 		expect(url).toHaveAttribute('placeholder', 'https://prowlarr.example.com');
 		expect(screen.getByText('HTTP is unencrypted.')).toBeInTheDocument();
-		const test = vi.spyOn(r.remoteSource, 'testIndexerConnection').mockResolvedValue();
+		const test = vi.spyOn(r.remoteSource.indexerConnection, 'testConnection').mockResolvedValue();
 		fireEvent.click(screen.getByRole('button', { name: 'Test' }));
 		flush();
 		expect(test).toHaveBeenCalledOnce();
 		fireEvent.input(url, { target: { value: 'https://saved.example.com' } });
+		engine.change((state) => {
+			state.remote.connection.usesHttp = false;
+		});
 		flush();
 		expect(screen.queryByText('HTTP is unencrypted.')).not.toBeInTheDocument();
 		expect(screen.getByText('HTTPS recommended.')).toBeInTheDocument();
@@ -352,7 +383,7 @@ describe('AppSettingsDialogView', () => {
 		});
 		expect(screen.getByLabelText('URL')).toHaveValue('http://draft:9696');
 		expect(screen.getByLabelText('API key')).toHaveValue('draft-secret');
-		expect(r.remoteSource.indexerConnection().apiKeyDraft).toBe('draft-secret');
+		expect(r.remoteSource.indexerConnection.view().apiKeyDraft).toBe('draft-secret');
 	});
 
 	it('dispatches Test for the current connection draft without saving or clearing the password', async () => {
@@ -366,8 +397,8 @@ describe('AppSettingsDialogView', () => {
 			}),
 		);
 		await vi.waitFor(() => expect(screen.getByLabelText('URL')).toHaveValue('http://saved:9696'));
-		const test = vi.spyOn(r.remoteSource, 'testIndexerConnection').mockResolvedValue();
-		const save = vi.spyOn(r.remoteSource, 'saveIndexerConnectionSettings');
+		const test = vi.spyOn(r.remoteSource.indexerConnection, 'testConnection').mockResolvedValue();
+		const save = vi.spyOn(r.remoteSource.indexerConnection, 'save');
 		const key = screen.getByLabelText('API key');
 		expect(key).toHaveAttribute('type', 'password');
 		fireEvent.input(screen.getByLabelText('URL'), { target: { value: 'http://draft:9696' } });
@@ -378,10 +409,35 @@ describe('AppSettingsDialogView', () => {
 		flush();
 		expect(test).toHaveBeenCalledOnce();
 		expect(save).not.toHaveBeenCalled();
-		expect(r.remoteSource.indexerConnection()).toMatchObject({
+		expect(r.remoteSource.indexerConnection.view()).toMatchObject({
 			baseUrlDraft: 'http://draft:9696',
 			apiKeyDraft: 'draft-secret',
 		});
 		expect(key).toHaveValue('draft-secret');
+	});
+	it.each([
+		['faac', { mode: 'abr' }, 'FAAC • 96 kbps • ABR'],
+		['opus', { mode: 'vbr_target' }, 'Opus (libopus) • 96 kbps • VBR'],
+		['native_aac', { mode: 'vbr', value: 100 }, 'Native AAC (NMR) • 96 kbps • VBR 100'],
+	] as const)('words the pinned %s defaults for people', async (encoderType, bitrateMode, text) => {
+		await renderOpenDialog((fake) =>
+			fake.seedAppSettings({
+				pinnedDefaults: {
+					maxConcurrentJobs: { mode: 'auto' },
+					encoderDefaults: {
+						format: 'm4b',
+						intent: 'encode',
+						sampleRate: 'auto',
+						settings: { encoderType, bitrateKbps: 96, bitrateMode, channels: 'auto' },
+					},
+					outputDefaults: {
+						outputDirectory: null,
+						outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: null },
+					},
+				},
+			}),
+		);
+		const summary = await screen.findByTestId('app-settings-summary');
+		expect(summary).toHaveTextContent(text);
 	});
 });

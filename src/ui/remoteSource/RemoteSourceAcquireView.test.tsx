@@ -1,20 +1,20 @@
 import { flush } from 'solid-js';
 import { createFakeEngine, fakeEngine, sessionUpdate } from '../../test/fixtures/fakeEngine';
-import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
+import { cleanup, fireEvent, render, screen, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
-import type { SessionUpdate } from '../../types/session';
 import type {
-	AcquisitionJob,
+	AcquisitionSnapshot,
+	RemoteRelease,
 	RemoteSourceProviderCapabilities,
 	RemoteTitle,
-	RemoteRelease,
-} from '../../types/remoteSource';
+	SessionUpdate,
+} from '../../lib/generated/tauri';
 import { RemoteSourceAcquireView } from './RemoteSourceAcquireView';
 
-function acquisitionJob(percentage: number, terminal = false): AcquisitionJob {
+function acquisitionJob(percentage: number, terminal = false): AcquisitionSnapshot {
 	return {
 		settled: terminal,
 		terminal,
@@ -86,6 +86,11 @@ async function openConnected(
 		runtime.remoteSource.editSearch({ indexerTitleQuery: 'Example' });
 		await runtime.remoteSource.runAction({ type: 'searchReleases' });
 	}
+}
+
+function titleRows(): HTMLElement[] {
+	const list = screen.queryByRole('listbox', { name: 'Audible titles', hidden: true });
+	return list ? within(list).queryAllByRole('option', { hidden: true }) : [];
 }
 
 describe('RemoteSourceAcquireView', () => {
@@ -465,7 +470,7 @@ describe('RemoteSourceAcquireView during a download', () => {
 			</AppRuntimeProvider>
 		));
 		flush();
-		const rows = [...document.querySelectorAll('.remote-title-row')];
+		const rows = titleRows();
 		expect(rows).toHaveLength(1000);
 		expect(reads.row).toBeGreaterThan(1000);
 		reads.row = 0;
@@ -483,7 +488,7 @@ describe('RemoteSourceAcquireView during a download', () => {
 		expect(reads.view).toBeLessThan(100);
 		const progress = screen.getByRole('progressbar', { name: 'Acquisition progress' });
 		expect(progress.closest('[aria-live]')).toBeNull();
-		const after = [...document.querySelectorAll('.remote-title-row')];
+		const after = titleRows();
 		expect(after.every((row, index) => row === rows[index])).toBe(true);
 		expect(after[1]).toHaveAttribute('aria-selected', 'true');
 	});
@@ -500,13 +505,13 @@ describe('RemoteSourceAcquireView during a download', () => {
 			</AppRuntimeProvider>
 		));
 		flush();
-		expect(document.querySelectorAll('.remote-title-row')).toHaveLength(20);
+		expect(titleRows()).toHaveLength(20);
 		runtime.remoteSource.editSearch({ titleFilter: 'Book 1' });
 		runtime.remoteSource.close();
 		flush();
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		flush();
-		expect(document.querySelectorAll('.remote-title-row')).toHaveLength(0);
+		expect(titleRows()).toHaveLength(0);
 
 		host.progress(80);
 		host.engine.change((state) => {
@@ -519,7 +524,7 @@ describe('RemoteSourceAcquireView during a download', () => {
 			'aria-selected',
 			'true',
 		);
-		expect(document.querySelectorAll('.remote-title-row[aria-selected="true"]')).toHaveLength(1);
+		expect(titleRows().filter((row) => row.ariaSelected === 'true')).toHaveLength(1);
 		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toBeInTheDocument();
 	});
 

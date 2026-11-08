@@ -87,25 +87,12 @@ struct MetadataSaveProgress {
 
 impl MetadataSaveBatchResult {
     fn new(results: Vec<MetadataSaveResultEntry>) -> Self {
-        let succeeded = results
-            .iter()
-            .filter(|result| result.status == MetadataSaveResultStatus::Success)
-            .count();
-        let cancelled = results
-            .iter()
-            .filter(|result| result.status == MetadataSaveResultStatus::Cancelled)
-            .count();
-        let failed = results.len().saturating_sub(succeeded + cancelled);
-        Self {
-            summary: OperationResultSummary {
-                total: results.len(),
-                succeeded,
-                skipped: 0,
-                cancelled,
-                failed,
-            },
-            results,
-        }
+        let summary = abb_processing_core::summarize_result_statuses(
+            results
+                .iter()
+                .map(|result| ProcessResultStatus::from(result.status)),
+        );
+        Self { summary, results }
     }
 }
 
@@ -122,11 +109,11 @@ pub(crate) async fn save_metadata_batch(
     }
 
     let file_paths: Vec<String> = items.iter().map(|item| item.file_path.clone()).collect();
-    let (operation_id, cancel_flag) = runtime.begin_metadata_save_operation(host, &file_paths)?;
+    let (operation_id, cancel_token) = runtime.begin_metadata_save_operation(host, &file_paths)?;
 
-    let job_id = registry.register_job_without_permit();
+    let job = crate::processing::RegisteredJob::without_permit(registry);
     let _active_work = host.begin_active_work();
-    let cancellation = CancellationChecker::new(Some(cancel_flag));
+    let cancellation = CancellationChecker::new(Some(cancel_token));
 
     let result = save_metadata_batch_impl(items, cancellation, |progress| {
         runtime.record_metadata_save_progress(
@@ -138,8 +125,8 @@ pub(crate) async fn save_metadata_batch(
     .await;
 
     match &result {
-        Ok(_) => registry.complete_job(job_id).await,
-        Err(error) => registry.fail_job(job_id, error.to_string()).await,
+        Ok(_) => job.complete(),
+        Err(error) => job.fail(error.to_string()),
     }
 
     match result {

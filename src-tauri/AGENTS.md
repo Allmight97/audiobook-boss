@@ -17,7 +17,9 @@ engine does not offer, add it to the engine's host interface.
   frontend is refused. An intent that arrives after a later one has run is
   refused, never applied out of order. The check and the claim happen in one
   step, so a reload between them cannot hand an old frontend's intent a turn.
-- **Log file.** `log_file.rs` sends the log to stderr and to `abb.log`. Why: a
+- **Log file.** `log_file.rs` sends the log to stderr and to `abb.log` in a
+  folder named for the Tauri identifier, so a dev build (its own identifier,
+  `scripts/tauri.ts`) never appends to the installed app's log. Why: a
   Finder-launched app has no readable stderr. A launch appends, so a second copy
   keeps a running copy's log. A panic reaches the file through the hook in
   `init_logger`.
@@ -56,9 +58,11 @@ engine does not offer, add it to the engine's host interface.
 - `open_preview_output` is the one session action with its own command: it
   takes a session turn, claims the preview through `TakePreviewOutput`, and
   opens the path with `OpenerExt::open_path`. Why: opening needs a host
-  capability, and the webview must never name a path to open. An open
-  failure returns the reply with a `Rejected` outcome so its update still
-  applies.
+  capability, and the webview must never name a path to open.
+  `TakePreviewOutput` is `#[serde(skip)]`, so `session_dispatch` cannot claim
+  an output it would never open (`commands/session_invoke_tests.rs` pins it).
+  An open failure returns the reply with a `Rejected` outcome so its update
+  still applies.
 - The engine validates paths, metadata intent, output artifact truth, and
   operation lifecycle. A command passes the request through.
 - Register a new command in `ipc_contract.rs`, then run

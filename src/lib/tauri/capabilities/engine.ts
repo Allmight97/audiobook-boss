@@ -1,21 +1,19 @@
 import type { UnlistenFn } from '@tauri-apps/api/event';
-import type { SettingsIntent, SettingsReply, SettingsSnapshot } from '../../../types/appSettings';
-import { EVENTS } from '../../../types/events';
-import type { SessionIntent, SessionReply, SessionUpdate } from '../../../types/session';
 import type {
+	FrontendAttachment,
 	OperationId,
-	WorkOperationsSnapshot,
+	SessionIntent,
+	SessionReply,
+	SessionUpdate,
+	SettingsIntent,
+	SettingsReply,
+	SettingsSnapshot,
 	WorkOperationsUpdate,
-} from '../../../types/workRuntime';
+} from '../../generated/tauri';
 import { tauriClient } from '../client';
 
 export interface EngineCapability {
-	attach: () => Promise<{
-		client: number;
-		session: SessionUpdate;
-		settings: SettingsSnapshot;
-		workOperations: WorkOperationsSnapshot;
-	}>;
+	attach: () => Promise<FrontendAttachment>;
 	sessionDispatch: (
 		client: number,
 		sequence: number,
@@ -34,34 +32,34 @@ export interface EngineCapability {
 	listenWorkOperations: (handler: (update: WorkOperationsUpdate) => void) => Promise<UnlistenFn>;
 	/** The Quit shortcut was pressed once; a second press inside `windowMs` quits. */
 	listenQuitPressAgain: (handler: (windowMs: number) => void) => Promise<UnlistenFn>;
-	/** Cancels the whole operation, or only the title named by `childJobId`. */
 	cancelWorkOperation: (operationId: OperationId, childJobId?: string) => Promise<void>;
 }
 
 export const liveEngineCapability: EngineCapability = {
-	attach: () => tauriClient.attachFrontend(),
+	attach: () => tauriClient.commands.attachFrontend(),
 	sessionDispatch: (client, sequence, intent) =>
-		tauriClient.sessionDispatch(client, sequence, intent),
+		tauriClient.commands.sessionDispatch(client, sequence, intent),
 	openPreviewOutput: (client, sequence, runId) =>
-		tauriClient.openPreviewOutput(client, sequence, runId),
+		tauriClient.commands.openPreviewOutput(client, sequence, runId),
 	settingsDispatch: (client, sequence, intent) =>
-		tauriClient.settingsDispatch(client, sequence, intent),
+		tauriClient.commands.settingsDispatch(client, sequence, intent),
 	listenSessionUpdates: (handler) =>
-		tauriClient.listen(EVENTS.SESSION_UPDATE, (event) => {
+		tauriClient.events.sessionUpdate.listen((event) => {
 			handler(event.payload);
 		}),
 	listenSettingsUpdates: (handler) =>
-		tauriClient.listen(EVENTS.SETTINGS_UPDATE, (event) => {
+		tauriClient.events.settingsUpdate.listen((event) => {
 			handler(event.payload);
 		}),
 	listenWorkOperations: (handler) =>
-		tauriClient.listen(EVENTS.WORK_OPERATIONS_UPDATE, (event) => {
+		tauriClient.events.workOperationsUpdate.listen((event) => {
 			handler(event.payload);
 		}),
 	listenQuitPressAgain: (handler) =>
-		tauriClient.listen(EVENTS.QUIT_PRESS_AGAIN, (event) => {
+		tauriClient.events.quitPressAgain.listen((event) => {
 			handler(event.payload.windowMs);
 		}),
-	cancelWorkOperation: (operationId, childJobId) =>
-		tauriClient.cancelWorkOperation(operationId, childJobId),
+	cancelWorkOperation: async (operationId, childJobId) => {
+		await tauriClient.commands.cancelWorkOperation(operationId, childJobId ?? null);
+	},
 };

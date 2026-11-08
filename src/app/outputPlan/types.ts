@@ -1,4 +1,4 @@
-import type { OutputNamingConfig } from '../../types/audio';
+import type { OutputNamingConfig } from '../../lib/generated/tauri';
 
 type OutputNamingPreset = OutputNamingConfig['preset'];
 

@@ -34,18 +34,13 @@ impl CoverArtPassthroughPolicy {
     }
 }
 
-pub(crate) struct MetadataOutcomeRequest<'a> {
-    pub(crate) input_path: Option<&'a Path>,
-    pub(crate) intent_patch: Option<&'a MetadataIntentPatch>,
-}
-
 #[derive(Debug, Clone)]
 pub(crate) struct MetadataOutcomePlan {
     /// The anchor source's own tags as read for this plan, so a later edit
     /// can be planned again without reading the source.
-    pub(crate) source_metadata: Option<AudiobookMetadata>,
-    pub(crate) effective_metadata: Option<AudiobookMetadata>,
-    pub(crate) naming_metadata: Option<NamingMetadata>,
+    pub(crate) source_metadata: AudiobookMetadata,
+    pub(crate) effective_metadata: AudiobookMetadata,
+    pub(crate) naming_metadata: NamingMetadata,
     pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
     /// The patch a route that writes onto the source's own tags applies: the
     /// user's intent plus the processing album sort when the user stated none.
@@ -53,32 +48,25 @@ pub(crate) struct MetadataOutcomePlan {
 }
 
 pub(crate) fn plan_metadata_outcome(
-    request: MetadataOutcomeRequest<'_>,
+    input_path: &Path,
+    intent_patch: Option<&MetadataIntentPatch>,
 ) -> Result<MetadataOutcomePlan> {
-    let source = request
-        .input_path
-        .map(crate::metadata::read_metadata)
-        .transpose()?;
-    plan_metadata_outcome_from(source, request)
+    let source = crate::metadata::read_metadata(input_path)?;
+    plan_metadata_outcome_from(source, intent_patch)
 }
 
 pub(crate) fn plan_metadata_outcome_from(
-    source: Option<AudiobookMetadata>,
-    request: MetadataOutcomeRequest<'_>,
+    source: AudiobookMetadata,
+    intent_patch: Option<&MetadataIntentPatch>,
 ) -> Result<MetadataOutcomePlan> {
-    let effective_metadata =
-        resolve_effective_processing_metadata(source.clone(), request.intent_patch)?;
-    let naming_metadata = resolve_naming_metadata(
-        effective_metadata.as_ref(),
-        request.input_path,
-        request.intent_patch,
-    );
-    let write_intent = processing_write_intent(request.intent_patch, effective_metadata.as_ref());
+    let effective_metadata = resolve_effective_processing_metadata(source.clone(), intent_patch)?;
+    let naming_metadata = resolve_naming_metadata(&effective_metadata, intent_patch);
+    let write_intent = processing_write_intent(intent_patch, &effective_metadata);
     Ok(MetadataOutcomePlan {
         source_metadata: source,
         effective_metadata,
         naming_metadata,
-        cover_art_passthrough: CoverArtPassthroughPolicy::from_intent_patch(request.intent_patch),
+        cover_art_passthrough: CoverArtPassthroughPolicy::from_intent_patch(intent_patch),
         write_intent,
     })
 }
@@ -88,22 +76,21 @@ pub(crate) fn plan_metadata_write_for_path(
     patch: &MetadataIntentPatch,
 ) -> Result<MetadataWritePlan> {
     let source_metadata = crate::metadata::read_metadata(input_path)?;
-    Ok(patch.to_write_plan_with_source(source_metadata)?)
+    Ok(MetadataWritePlan::from_patch(patch, source_metadata)?)
 }
 
 fn processing_write_intent(
     patch: Option<&MetadataIntentPatch>,
-    effective: Option<&AudiobookMetadata>,
+    effective: &AudiobookMetadata,
 ) -> Option<MetadataIntentPatch> {
     let mut write_intent = patch.cloned().unwrap_or_default();
     if write_intent.album_sort.is_none() {
         write_intent.album_sort = effective
-            .and_then(|metadata| {
-                crate::metadata::compute_album_sort(
-                    metadata.series.as_deref()?,
-                    metadata.series_part.as_deref(),
-                    metadata.title.as_deref()?,
-                )
+            .series
+            .as_deref()
+            .zip(effective.title.as_deref())
+            .and_then(|(series, title)| {
+                crate::metadata::compute_album_sort(series, effective.series_part.as_deref(), title)
             })
             .map(crate::metadata::AlbumSortPatchOp::Set);
     }
@@ -111,34 +98,28 @@ fn processing_write_intent(
 }
 
 fn resolve_effective_processing_metadata(
-    source: Option<AudiobookMetadata>,
+    source: AudiobookMetadata,
     patch: Option<&MetadataIntentPatch>,
-) -> Result<Option<AudiobookMetadata>> {
-    let mut effective = match (source, patch) {
-        (Some(source), Some(patch)) => patch.apply_to_metadata(source)?,
-        (Some(source), None) => source,
-        (None, Some(patch)) => patch.to_processing_overlay()?,
-        (None, None) => return Ok(None),
+) -> Result<AudiobookMetadata> {
+    let mut effective = match patch {
+        Some(patch) => patch.apply_to_metadata(source)?,
+        None => source,
     };
     if patch.is_none_or(|patch| patch.album_sort.is_none()) {
         effective.album_sort = crate::metadata::processing_album_sort(&effective);
     }
-    Ok(Some(effective))
+    Ok(effective)
 }
 
 fn resolve_naming_metadata(
-    resolved_metadata: Option<&AudiobookMetadata>,
-    input_path: Option<&Path>,
+    resolved_metadata: &AudiobookMetadata,
     patch: Option<&MetadataIntentPatch>,
-) -> Option<NamingMetadata> {
-    let mut naming_metadata = resolved_metadata.map(NamingMetadata::from_metadata)?;
-
-    let series_family_touched = patch.is_some_and(MetadataIntentPatch::touches_series_family);
-    if input_path.is_some() && !series_family_touched {
+) -> NamingMetadata {
+    let mut naming_metadata = NamingMetadata::from_metadata(resolved_metadata);
+    if !patch.is_some_and(MetadataIntentPatch::touches_series_family) {
         naming_metadata.scrub_legacy_source_series_parts_for_naming();
     }
-
-    Some(naming_metadata)
+    naming_metadata
 }
 
 #[cfg(test)]

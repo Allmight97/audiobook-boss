@@ -24,7 +24,7 @@ pub(super) struct DownloadLogContext<'a> {
     extension: &'a str,
 }
 
-fn download_failure(stage: &str) -> AppError {
+fn download_failure(stage: impl std::fmt::Display) -> AppError {
     AppError::General(format!(
         "Audible download {stage} failed. Provider-private details were withheld from UI and logs."
     ))
@@ -172,7 +172,7 @@ async fn download_to_partial_path(
     loop {
         ensure_not_cancelled(is_cancelled)?;
         let bytes_before = state.bytes_downloaded;
-        let category = match run_download_attempt(
+        let reason = match run_download_attempt(
             client,
             &url,
             path,
@@ -184,23 +184,23 @@ async fn download_to_partial_path(
         .await?
         {
             AttemptOutcome::Complete => return Ok(state.bytes_downloaded),
-            AttemptOutcome::Retry(category) => category,
+            AttemptOutcome::Retry(reason) => reason,
         };
         if state.bytes_downloaded > bytes_before {
             tries_without_bytes = 0;
         }
         tries_without_bytes += 1;
-        let first_connect = category == "request" && !reconnecting;
+        let first_connect = reason == RetryReason::Request && !reconnecting;
         reconnecting = true;
         if first_connect || tries_without_bytes >= MAX_DOWNLOAD_ATTEMPTS {
             log_download_failed(
                 log_context,
-                category,
+                reason,
                 state.bytes_downloaded,
                 state.bytes_total,
                 None,
             );
-            return Err(download_failure(category));
+            return Err(download_failure(reason));
         }
         tokio::time::sleep(retry_base * 2_u32.pow(tries_without_bytes)).await;
     }
@@ -213,9 +213,26 @@ struct DownloadProgress {
     first_bytes_logged: bool,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RetryReason {
+    Request,
+    Read,
+    Incomplete,
+}
+
+impl std::fmt::Display for RetryReason {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Request => "request",
+            Self::Read => "read",
+            Self::Incomplete => "incomplete",
+        })
+    }
+}
+
 enum AttemptOutcome {
     Complete,
-    Retry(&'static str),
+    Retry(RetryReason),
 }
 
 async fn run_download_attempt(
@@ -230,7 +247,7 @@ async fn run_download_attempt(
     log_download_request_start(log_context, state.bytes_downloaded);
     let request = build_download_request(client, url.clone(), state.bytes_downloaded);
     let Ok(mut response) = request.send().await else {
-        return Ok(AttemptOutcome::Retry("request"));
+        return Ok(AttemptOutcome::Retry(RetryReason::Request));
     };
     ensure_not_cancelled(is_cancelled)?;
 
@@ -295,7 +312,7 @@ async fn run_download_attempt(
     .await?;
     file.sync_all().await?;
     if read_failed {
-        return Ok(AttemptOutcome::Retry("read"));
+        return Ok(AttemptOutcome::Retry(RetryReason::Read));
     }
     ensure_not_cancelled(is_cancelled)?;
     if state
@@ -305,7 +322,7 @@ async fn run_download_attempt(
     {
         return Ok(AttemptOutcome::Complete);
     }
-    Ok(AttemptOutcome::Retry("incomplete"))
+    Ok(AttemptOutcome::Retry(RetryReason::Incomplete))
 }
 
 /// Stream one HTTP response body into the append-mode `file`, updating progress
@@ -408,7 +425,7 @@ fn log_download_progress_first_bytes(
 
 fn log_download_failed(
     context: DownloadLogContext<'_>,
-    category: &str,
+    category: impl std::fmt::Display,
     bytes_downloaded: u64,
     bytes_total: Option<u64>,
     status: Option<reqwest::StatusCode>,

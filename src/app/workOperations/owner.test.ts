@@ -24,9 +24,10 @@ describe('work operations owner', () => {
 			workOperations.revealOutput({ outputPath: '/tmp/book.m4b' }),
 		).resolves.toBeUndefined();
 
-		expect(workOperations.view().errorMessage).toBe(
-			'Failed to show the exported file: file manager unavailable',
-		);
+		expect(workOperations.view().error).toEqual({
+			kind: 'reveal',
+			message: 'Failed to show the exported file: file manager unavailable',
+		});
 	});
 
 	it('clears a failed reveal when a later reveal works', async () => {
@@ -36,10 +37,10 @@ describe('work operations owner', () => {
 		const { workOperations } = await attached();
 
 		await workOperations.revealOutput({ outputPath: '/tmp/book.m4b' });
-		expect(workOperations.view().errorMessage).not.toBeNull();
+		expect(workOperations.view().error?.kind).toBe('reveal');
 
 		await workOperations.revealOutput({ outputPath: '/tmp/book.m4b' });
-		expect(workOperations.view().errorMessage).toBeNull();
+		expect(workOperations.view().error).toBeNull();
 	});
 
 	it('keeps a failed cancel when a reveal works', async () => {
@@ -51,7 +52,10 @@ describe('work operations owner', () => {
 
 		await workOperations.revealOutput({ outputPath: '/tmp/book.m4b' });
 
-		expect(workOperations.view().errorMessage).toBe('Failed to cancel title: engine busy');
+		expect(workOperations.view().error).toEqual({
+			kind: 'cancel',
+			message: 'Failed to cancel title: engine busy',
+		});
 	});
 
 	it('shows a failed cancel until a later cancel succeeds', async () => {
@@ -60,11 +64,14 @@ describe('work operations owner', () => {
 		engine.respondCancel = () => Promise.reject(new Error('engine busy'));
 
 		await workOperations.cancel('batch', 'first');
-		expect(workOperations.view().errorMessage).toBe('Failed to cancel title: engine busy');
+		expect(workOperations.view().error).toEqual({
+			kind: 'cancel',
+			message: 'Failed to cancel title: engine busy',
+		});
 
 		engine.respondCancel = undefined;
 		await workOperations.cancel('batch');
-		expect(workOperations.view().errorMessage).toBeNull();
+		expect(workOperations.view().error).toBeNull();
 		expect(engine.cancelledWork).toEqual([
 			{ operationId: 'batch', childJobId: 'first' },
 			{ operationId: 'batch', childJobId: undefined },
@@ -103,6 +110,6 @@ describe('work operations owner', () => {
 		fail(new Error('late failure'));
 		await cancelling;
 
-		expect(runtime.workOperations.view().errorMessage).toBeNull();
+		expect(runtime.workOperations.view().error).toBeNull();
 	});
 });

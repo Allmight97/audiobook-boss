@@ -7,12 +7,11 @@ are relative to the ABB root.
 
 | Question | Source to inspect |
 | --- | --- |
-| Supported fields, read aliases, clear groups, FFmpeg keys | `crates/abb-engine/src/metadata/field_schema.rs` |
-| Series key families and precedence | `crates/abb-engine/src/metadata/tag_registry.rs` |
-| Field fan-outs, tuples, series/subseries projection | `crates/abb-engine/src/metadata/metadata_ops.rs` |
+| Supported fields; per backend, read aliases, write keys, keys a Set or Clear drops; series key families and precedence | `crates/abb-engine/src/metadata/field_schema.rs` |
+| Typed field ops, series/subseries projection, blank-means-clear rules | `crates/abb-metadata-core/src/write_plan.rs` |
 | Actual container writes and atom-level tests | `crates/abb-engine/src/metadata/metadata_sinks.rs` |
 | MP4 reads, movement cleanup, artwork | `crates/abb-engine/src/metadata/mp4ameta_bridge.rs` |
-| FFmpeg album-sort keys (`sort_album`, `album-sort`) and which one a write keeps | `crates/abb-engine/src/metadata/ffmpeg_dict.rs`, `reader.rs` |
+| FFmpeg album-sort keys (`sort_album`, `album-sort`) | `crates/abb-engine/src/metadata/field_schema.rs`; which one a write keeps: `ffmpeg_dict.rs` |
 | Date and series validation/normalization | `crates/abb-metadata-core/src/lib.rs` |
 
 The schema describes ABB's supported fields. A field recognized by an external

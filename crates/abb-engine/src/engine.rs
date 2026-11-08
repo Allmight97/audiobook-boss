@@ -1,14 +1,14 @@
 use std::collections::BTreeSet;
 use std::fs::{File, OpenOptions, TryLockError};
-use std::future::Future;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::Arc;
 use std::time::Instant;
 
 use crate::app_settings::{
     SettingsIntent, SettingsOutcome, SettingsReply, SettingsRuntime, SettingsSnapshot,
 };
 use crate::audio;
+use crate::engine_tasks::EngineTasks;
 use crate::errors::{AppError, Result};
 use crate::host::{EventSink, Host};
 use crate::metadata::AudiobookMetadata;
@@ -19,82 +19,6 @@ use crate::session::{
     Session, SessionDeps, SessionIntent, SessionReply, SessionRun, SessionUpdate,
 };
 use crate::work_runtime::{OperationId, OperationSnapshot, WorkOperationsSnapshot, WorkRuntime};
-use tokio_util::task::TaskTracker;
-
-/// Admission and shutdown share this lock: visible work is registered before
-/// shutdown closes admission and enumerates what it must cancel. Internal
-/// cleanup may still spawn while its already-tracked parent is settling.
-#[derive(Clone, Default)]
-pub(crate) struct EngineTasks {
-    tracker: TaskTracker,
-    admission: Arc<Mutex<()>>,
-    /// Fires when shutdown begins, for work that has nothing to save and is
-    /// dropped rather than waited for.
-    closing: tokio_util::sync::CancellationToken,
-}
-
-impl EngineTasks {
-    pub(crate) fn admit<T>(&self, register: impl FnOnce() -> T) -> Result<T> {
-        let _turn = self
-            .admission
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        if self.is_closed() {
-            return Err(AppError::Closing);
-        }
-        Ok(register())
-    }
-
-    pub(crate) fn close(&self) {
-        #[expect(
-            clippy::let_underscore_must_use,
-            reason = "a check that always passes cannot refuse the close"
-        )]
-        let _ = self.close_if(|| Ok::<(), ()>(()));
-    }
-
-    /// Closes admission only when `check` passes, in the same turn, so no
-    /// work can be admitted between the check and the close.
-    fn close_if<E>(
-        &self,
-        check: impl FnOnce() -> std::result::Result<(), E>,
-    ) -> std::result::Result<(), E> {
-        let _turn = self
-            .admission
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        check()?;
-        self.tracker.close();
-        self.closing.cancel();
-        Ok(())
-    }
-
-    pub(crate) async fn until_closing<T>(
-        &self,
-        work: impl Future<Output = Result<T>>,
-    ) -> Result<T> {
-        tokio::select! {
-            result = work => result,
-            () = self.closing.cancelled() => Err(AppError::Closing),
-        }
-    }
-
-    fn is_closed(&self) -> bool {
-        self.tracker.is_closed()
-    }
-
-    pub(crate) fn spawn<F>(&self, work: F) -> tokio::task::JoinHandle<F::Output>
-    where
-        F: Future + Send + 'static,
-        F::Output: Send + 'static,
-    {
-        self.tracker.spawn(work)
-    }
-
-    pub(crate) async fn wait(&self) {
-        self.tracker.wait().await;
-    }
-}
 
 /// Only another engine holding the lock stops a start; a folder that cannot
 /// be locked (a filesystem without `flock`) is used unlocked.
@@ -214,6 +138,7 @@ impl Engine {
         }
 
         let work = WorkRuntime::new(tasks.clone());
+        work.follow_concurrency_lock(&host, &jobs);
         let session = Session::new(SessionDeps {
             remote: remote_source.clone(),
             host: host.clone(),
@@ -345,17 +270,12 @@ impl Engine {
             None
         };
         let accepted = self.inner.tasks.admit(|| {
-            let checkpoint = self.inner.session.defaults_checkpoint();
             let run = self.inner.settings.begin(intent, &self.inner.tasks);
             let engine = self.clone();
             self.inner.tasks.spawn(async move {
                 let reply = run.finish().await;
                 if reset && reply.outcome == SettingsOutcome::Applied {
-                    engine.inner.session.replace_defaults(
-                        &reply.snapshot.startup_defaults,
-                        checkpoint,
-                        reply.snapshot.revision,
-                    );
+                    engine.inner.session.adopt_reset(&reply.snapshot);
                     engine.inner.remote_source.saved_connection_replaced().await;
                 }
                 drop(reset_lease);

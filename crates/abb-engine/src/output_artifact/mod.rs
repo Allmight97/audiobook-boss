@@ -9,12 +9,16 @@ mod types;
 
 #[cfg(test)]
 mod contract_tests;
+#[cfg(test)]
+mod plan_table_tests;
 
 use crate::errors::{AppError, Result};
 use crate::metadata::NamingMetadata;
 use std::path::{Path, PathBuf};
 
-pub(crate) use commit::{commit_output_artifact, finalized_output_success, OutputCommitRequest};
+pub(crate) use commit::{
+    cleanup_failure_warning, commit_output_artifact, finalized_output_success, OutputCommitRequest,
+};
 pub(crate) use file_lock::{lock_output_file, FileIdentity};
 pub(crate) use parent_dirs::{ensure_output_parent_dirs, OutputParentDirCleanup};
 pub(crate) use plan::OutputPlanLedger;
@@ -22,11 +26,11 @@ pub(crate) use review::{enforce_output_plan_review, OutputPlanReview};
 pub(crate) use supplemental::{
     commit_supplemental_output_assets_for_output, SupplementalOutputAssetsCommitRequest,
 };
-pub(crate) use types::ResolvedOutputPlan;
 pub use types::{
     CollisionPolicy, NamingPreset, OutputCollisionInfo, OutputCollisionKind, OutputKind,
     OutputNamingConfig, OutputReviewRequirement, PlannedOutput, PlannedOutputAction,
 };
+pub(crate) use types::{OutputVerdict, ResolvedOutputPlan};
 
 impl From<abb_output_artifact_core::OutputArtifactCoreError> for AppError {
     fn from(error: abb_output_artifact_core::OutputArtifactCoreError) -> Self {
@@ -54,7 +58,14 @@ pub(crate) fn build_output_path_preview(
     metadata: Option<&NamingMetadata>,
     naming: OutputNamingConfig,
     source_path: Option<&Path>,
+    extension: &str,
 ) -> Result<PathBuf> {
-    abb_output_artifact_core::build_output_path_preview(base_dir, metadata, naming, source_path)
-        .map_err(Into::into)
+    abb_output_artifact_core::build_output_path_preview(
+        base_dir,
+        metadata,
+        naming,
+        source_path,
+        extension,
+    )
+    .map_err(Into::into)
 }

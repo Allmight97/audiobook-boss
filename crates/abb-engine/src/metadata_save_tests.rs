@@ -66,9 +66,7 @@ async fn metadata_batch_cancels_remaining_items_between_writes() {
             metadata_patch: title_patch("B"),
         },
     ];
-    let cancellation = CancellationChecker::new(Some(std::sync::Arc::new(
-        std::sync::atomic::AtomicBool::new(true),
-    )));
+    let cancellation = CancellationChecker::new(Some(crate::execution::cancelled_token()));
     let mut progress = Vec::new();
 
     let result = save_metadata_batch_impl(items, cancellation, |event| progress.push(event))
@@ -112,9 +110,9 @@ async fn a_save_runs_while_every_export_slot_is_held_and_stays_a_tracked_job() {
         active_jobs: Default::default(),
     });
     let host = Host::new(probe.clone(), crate::power::PowerManager::default());
-    let runtime = WorkRuntime::new(crate::engine::EngineTasks::default());
+    let runtime = WorkRuntime::new(crate::engine_tasks::EngineTasks::default());
     let (held_job, held_slot) = registry.register_job().await.expect("hold the only slot");
-    registry.complete_job(held_job).await;
+    registry.complete_job(held_job);
     let items = vec![MetadataSaveRequest {
         file_path: "/definitely/missing.m4b".to_string(),
         metadata_patch: title_patch("A"),
@@ -140,7 +138,6 @@ async fn a_save_runs_while_every_export_slot_is_held_and_stays_a_tracked_job() {
     assert_eq!(
         registry
             .update_max_concurrent(2)
-            .await
             .expect("the finished save is no longer tracked"),
         2
     );

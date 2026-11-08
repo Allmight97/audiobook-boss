@@ -12,6 +12,7 @@ use super::parse::{extract_asin, extract_region_override, strip_region_overrides
 use super::providers::audible::fetch_audible_search;
 use super::providers::audnexus::fetch_audnexus_book;
 use super::providers::openlibrary::fetch_openlibrary_search;
+use super::providers::ProviderEndpoints;
 use super::types::{
     MetadataLookupDiagnostic, MetadataLookupDiagnosticKind, MetadataLookupResponse, MetadataSource,
     OnlineMetadataResult,
@@ -22,6 +23,15 @@ const AUDNEXUS_USER_AGENT: &str = "audiobook-boss/metadata-lookup";
 const AUDIBLE_MAX_CONCURRENCY: usize = 6;
 
 pub(crate) async fn search_online_metadata(
+    query: String,
+    sources: Option<Vec<MetadataSource>>,
+    limit: Option<u8>,
+) -> Result<MetadataLookupResponse> {
+    search_providers(&ProviderEndpoints::production(), query, sources, limit).await
+}
+
+async fn search_providers(
+    endpoints: &ProviderEndpoints,
     query: String,
     sources: Option<Vec<MetadataSource>>,
     limit: Option<u8>,
@@ -54,7 +64,7 @@ pub(crate) async fn search_online_metadata(
     let mut diagnostics = Vec::new();
 
     if let Some(asin) = extract_valid_audnexus_asin(trimmed, include_audnexus) {
-        match fetch_audnexus_book(&client, &asin, &region).await {
+        match fetch_audnexus_book(&client, endpoints, &asin, &region).await {
             Ok(result) => {
                 return Ok(MetadataLookupResponse {
                     results: vec![result],
@@ -81,6 +91,7 @@ pub(crate) async fn search_online_metadata(
 
     let provider_output = collect_provider_searches(
         &client,
+        endpoints,
         &search_query,
         &region,
         include_audnexus,
@@ -126,6 +137,7 @@ struct ProviderSearchOutput {
 )]
 async fn collect_provider_searches(
     client: &Client,
+    endpoints: &ProviderEndpoints,
     search_query: &str,
     region: &str,
     include_audnexus: bool,
@@ -134,10 +146,11 @@ async fn collect_provider_searches(
 ) -> ProviderSearchOutput {
     let audnexus_handle = if include_audnexus {
         let client = client.clone();
+        let endpoints = endpoints.clone();
         let search_query = search_query.to_string();
         let region = region.to_string();
         Some(tokio::spawn(async move {
-            fetch_audnexus_with_audible(&client, &search_query, &region, limit).await
+            fetch_audnexus_with_audible(&client, &endpoints, &search_query, &region, limit).await
         }))
     } else {
         None
@@ -145,9 +158,10 @@ async fn collect_provider_searches(
 
     let openlibrary_handle = if include_openlibrary {
         let client = client.clone();
+        let endpoints = endpoints.clone();
         let search_query = search_query.to_string();
         Some(tokio::spawn(async move {
-            fetch_openlibrary_search(&client, &search_query, limit).await
+            fetch_openlibrary_search(&client, &endpoints, &search_query, limit).await
         }))
     } else {
         None
@@ -211,11 +225,13 @@ struct AudnexusSearchOutput {
 
 async fn fetch_audnexus_with_audible(
     client: &Client,
+    endpoints: &ProviderEndpoints,
     search_query: &str,
     region: &str,
     limit: u8,
 ) -> Result<AudnexusSearchOutput> {
-    let audible_items = fetch_audible_search(client, search_query, region, limit).await?;
+    let audible_items =
+        fetch_audible_search(client, endpoints, search_query, region, limit).await?;
     if audible_items.is_empty() {
         return Ok(AudnexusSearchOutput::default());
     }
@@ -226,6 +242,7 @@ async fn fetch_audnexus_with_audible(
         let mut handles = Vec::new();
         for item in chunk {
             let client = client.clone();
+            let endpoints = endpoints.clone();
             let region = region.to_string();
             let item = item.clone();
             #[expect(
@@ -233,7 +250,7 @@ async fn fetch_audnexus_with_audible(
                 reason = "joined by fetch_audnexus_with_audible"
             )]
             let handle = tokio::spawn(async move {
-                match fetch_audnexus_book(&client, &item.asin, &region).await {
+                match fetch_audnexus_book(&client, &endpoints, &item.asin, &region).await {
                     Ok(result) => (result, false),
                     Err(err) => {
                         log::warn!("Audnexus lookup failed for {}: {}", item.asin, err);

@@ -1,7 +1,15 @@
 use super::{ff, read_comment};
 use super::{first_tag_with_lookup, parse_position_field};
-use crate::metadata::field_schema::TagField;
+use crate::metadata::field_schema::{position_keys, text_keys, KeySet};
+use abb_metadata_core::{PositionField, TextField};
 use std::collections::BTreeMap;
+
+fn read_keys(field: TextField) -> &'static [&'static str] {
+    match text_keys(field).read {
+        KeySet::Keys(keys) => keys,
+        KeySet::UserComments => panic!("{field:?} is read by alias rank"),
+    }
+}
 
 #[test]
 fn comment_read_prefers_undescribed_text_and_ignores_itunes_technical_records() {
@@ -24,7 +32,7 @@ fn prefers_canonical_series_part_key() {
         ("----:com.apple.iTunes:SERIES-PART", "2".to_string()),
         ("episode_sort", "3".to_string()),
     ]);
-    let selected = first_tag_with_lookup(TagField::SeriesPart.read_keys(), |key| {
+    let selected = first_tag_with_lookup(read_keys(TextField::SeriesPart), |key| {
         tags.get(key).cloned()
     });
     assert_eq!(selected.as_deref(), Some("1"));
@@ -36,7 +44,7 @@ fn falls_back_to_itunes_series_part_key() {
         ("----:com.apple.iTunes:SERIES-PART", "2".to_string()),
         ("episode_sort", "3".to_string()),
     ]);
-    let selected = first_tag_with_lookup(TagField::SeriesPart.read_keys(), |key| {
+    let selected = first_tag_with_lookup(read_keys(TextField::SeriesPart), |key| {
         tags.get(key).cloned()
     });
     assert_eq!(selected.as_deref(), Some("2"));
@@ -45,7 +53,7 @@ fn falls_back_to_itunes_series_part_key() {
 #[test]
 fn falls_back_to_episode_sort_for_series_part() {
     let tags = BTreeMap::from([("episode_sort", "3".to_string())]);
-    let selected = first_tag_with_lookup(TagField::SeriesPart.read_keys(), |key| {
+    let selected = first_tag_with_lookup(read_keys(TextField::SeriesPart), |key| {
         tags.get(key).cloned()
     });
     assert_eq!(selected.as_deref(), Some("3"));
@@ -54,7 +62,7 @@ fn falls_back_to_episode_sort_for_series_part() {
 #[test]
 fn does_not_treat_part_as_series_part_key() {
     let tags = BTreeMap::from([("part", "9".to_string())]);
-    let selected = first_tag_with_lookup(TagField::SeriesPart.read_keys(), |key| {
+    let selected = first_tag_with_lookup(read_keys(TextField::SeriesPart), |key| {
         tags.get(key).cloned()
     });
     assert!(selected.is_none());
@@ -64,34 +72,34 @@ fn does_not_treat_part_as_series_part_key() {
 fn falls_back_to_show_for_series() {
     let tags = BTreeMap::from([("show", "Show Series".to_string())]);
     let selected =
-        first_tag_with_lookup(TagField::Series.read_keys(), |key| tags.get(key).cloned());
+        first_tag_with_lookup(read_keys(TextField::Series), |key| tags.get(key).cloned());
     assert_eq!(selected.as_deref(), Some("Show Series"));
 }
 
 #[test]
 fn every_known_tag_alias_reads_into_its_field() {
-    let rows: [(TagField, &[&str], &[&str]); 2] = [
+    let rows: [(PositionField, &[&str], &[&str]); 2] = [
         (
-            TagField::Track,
+            PositionField::Track,
             &["track", "tracknumber", "trkn"],
             &["tracktotal", "totaltracks", "totaltrack"],
         ),
         (
-            TagField::Disk,
+            PositionField::Disk,
             &["disc", "disk", "discnumber", "disknumber"],
             &["disctotal", "disktotal", "totaldiscs", "totaldisks"],
         ),
     ];
     for (field, number_keys, total_keys) in rows {
+        let keys = position_keys(field);
         for key in number_keys {
             let tags = BTreeMap::from([(*key, "7".to_string())]);
-            let selected = first_tag_with_lookup(field.read_keys(), |name| tags.get(name).cloned());
+            let selected = first_tag_with_lookup(keys.read_number, |name| tags.get(name).cloned());
             assert_eq!(selected.as_deref(), Some("7"), "{field:?} number key {key}");
         }
-        let read_total_keys = field.read_total_keys().expect("position field has totals");
         for key in total_keys {
             let tags = BTreeMap::from([(*key, "42".to_string())]);
-            let selected = first_tag_with_lookup(read_total_keys, |name| tags.get(name).cloned());
+            let selected = first_tag_with_lookup(keys.read_total, |name| tags.get(name).cloned());
             assert_eq!(selected.as_deref(), Some("42"), "{field:?} total key {key}");
         }
     }
@@ -101,7 +109,7 @@ fn every_known_tag_alias_reads_into_its_field() {
     );
 
     let series = |tags: BTreeMap<&str, String>| {
-        first_tag_with_lookup(TagField::Series.read_keys(), |name| tags.get(name).cloned())
+        first_tag_with_lookup(read_keys(TextField::Series), |name| tags.get(name).cloned())
     };
     let all_series_keys = BTreeMap::from([
         ("series", "A".to_string()),

@@ -1,6 +1,5 @@
 use super::types::{OutputCollision, OutputCollisionKind};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -272,7 +271,7 @@ pub(crate) fn next_rename_candidate(
     let ext = requested_path
         .extension()
         .map(|value| value.to_string_lossy())
-        .unwrap_or_else(|| Cow::from("m4b"));
+        .ok_or_else(|| AppError::InvalidInput("Invalid output filename".to_string()))?;
 
     for idx in 1..=99 {
         let candidate = parent.join(format!("{stem}-{idx}.{ext}"));

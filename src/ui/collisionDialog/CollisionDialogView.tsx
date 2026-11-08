@@ -4,7 +4,11 @@ import type { JSX } from '@solidjs/web';
 import { useAppRuntime } from '../../app/runtime';
 import { pathBasename } from '../../lib/path/basename';
 import { Button, Dialog } from '../foundation';
-import type { CollisionPolicy, OutputCollisionKind, PlannedOutput } from '../../types/audio';
+import type {
+	CollisionPolicy,
+	OutputCollisionKind,
+	PlannedOutput,
+} from '../../lib/generated/tauri';
 import './collisionDialog.css';
 
 function formatKind(kind: OutputCollisionKind): string {

@@ -1,23 +1,10 @@
-use super::lifecycle::OperationResultSummary;
+use super::OperationResultSummary;
 use crate::audio;
 use crate::errors::AppErrorEnvelope;
 use crate::output_artifact::{CollisionPolicy, OutputNamingConfig, PlannedOutput};
 pub use abb_processing_core::ProcessResultStatus;
 use std::collections::HashMap;
 use std::path::PathBuf;
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
-#[serde(tag = "handling", rename_all = "camelCase")]
-pub enum AudioHandling {
-    Encode { settings: audio::EncoderSettings },
-    Preserve,
-}
-
-impl AudioHandling {
-    pub fn preserves(&self) -> bool {
-        matches!(self, Self::Preserve)
-    }
-}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -126,8 +113,6 @@ pub struct SupplementalProcessingAsset {
     pub sha256: String,
 }
 
-pub type ProcessResultSummary = OperationResultSummary;
-
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessingPreflightPlan {
@@ -161,7 +146,7 @@ pub struct ProcessResultEntry {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessCommandResult {
-    pub summary: ProcessResultSummary,
+    pub summary: OperationResultSummary,
     /// Backend-owned terminal classification of the run. The UI renders this
     /// instead of re-deriving success/mixed/failed/skipped/cancelled precedence.
     pub terminal_class: abb_processing_core::RunTerminalClass,
@@ -182,7 +167,3 @@ impl ProcessCommandResult {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "types_tests.rs"]
-mod tests;

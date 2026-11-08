@@ -1,12 +1,13 @@
-use crate::audio::{AacDecoder, AudioExecutionRequest, SampleRateConfig};
+use crate::audio::AudioHandling;
+use crate::audio::{AacDecoder, AudioExecutionRequest};
 use crate::errors::AppError;
+use crate::execution::{CancellationChecker, OutputConfig, ProcessingContext, ProcessingSession};
 use crate::metadata::CoverArtPassthroughPolicy;
-use crate::processing::{
-    AudioHandling, CancellationChecker, JobRegistry, OutputConfig, ProcessingContext,
-    ProcessingSession,
-};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use crate::test_cases::support::wav::SAMPLE_RATE;
+
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test]
 async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_residue() {
@@ -22,13 +23,14 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
     let destination = tmp.path().join("out").join("Joined.m4b");
     std::fs::create_dir_all(destination.parent().expect("output parent")).expect("output dir");
     let workspace = tmp.path().join("workspace");
-    let registry = JobRegistry::new(1);
-    let (job_id, _permit) = registry.register_job().await.expect("register join job");
-    let cancelled = Arc::new(AtomicBool::new(false));
-    let checker = CancellationChecker::new(Some(Arc::clone(&cancelled)));
+    let cancelled = CancellationToken::new();
+    let checker = CancellationChecker::new(Some(cancelled.clone()));
     let mut context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-        SampleRateConfig::Auto,
+        Arc::new(ProcessingSession::with_cancellation(
+            uuid::Uuid::new_v4(),
+            checker,
+        )),
+        SAMPLE_RATE,
         OutputConfig::new(&destination),
         workspace.clone(),
     );
@@ -40,7 +42,7 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
         if event.message.starts_with("Joining original audio")
             && listener_events.fetch_add(1, Ordering::AcqRel) + 1 == 2
         {
-            cancelled.store(true, Ordering::Release);
+            cancelled.cancel();
         }
     }));
     let file_info =

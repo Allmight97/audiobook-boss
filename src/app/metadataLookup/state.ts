@@ -1,8 +1,13 @@
-import type { MetadataSource, OnlineMetadataResult } from '../../types/metadata';
-import type { LookupStatus, QueueStep, SessionLookup } from '../../types/session';
+import type {
+	LookupApplyMode,
+	LookupSnapshot,
+	LookupStatus,
+	MetadataSource,
+	OnlineMetadataResult,
+	QueueStep,
+} from '../../lib/generated/tauri';
 
 type MetadataLookupStatusVariant = 'error' | 'success' | 'info';
-export type MetadataLookupApplyMode = 'current' | 'queue';
 export type MetadataLookupSource = 'auto' | MetadataSource;
 
 export type MetadataLookupState = {
@@ -10,7 +15,7 @@ export type MetadataLookupState = {
 	titleQuery: string;
 	authorQuery: string;
 	source: MetadataLookupSource;
-	applyMode: MetadataLookupApplyMode;
+	applyMode: LookupApplyMode;
 	replaceCoverArt: boolean;
 	statusMessage: string;
 	statusVariant: MetadataLookupStatusVariant;
@@ -52,7 +57,6 @@ const FIXED_STATUS: Record<FixedKind, Status> = {
 	applyRejected: error(
 		'Could not apply metadata to the selected file. Review pending edits and try again.',
 	),
-	failed: error('Metadata lookup failed. Check console and try again.'),
 };
 
 function statusOf(status: LookupStatus | null): Status {
@@ -90,7 +94,7 @@ function statusOf(status: LookupStatus | null): Status {
 }
 
 export function toLookupState(
-	lookup: SessionLookup,
+	lookup: LookupSnapshot,
 	typed: { readonly titleQuery?: string; readonly authorQuery?: string },
 ): MetadataLookupState {
 	const status = statusOf(lookup.status);

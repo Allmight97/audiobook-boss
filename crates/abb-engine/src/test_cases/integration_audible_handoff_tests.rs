@@ -1,16 +1,17 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 
 use tempfile::TempDir;
 
+use super::support::form::field_of;
+use super::support::poll::until;
 use crate::app_settings::SettingsRuntime;
 use crate::audio::{AudioIntent, EncoderType};
 use crate::power::PowerManager;
 use crate::remote_source::tests::{offer_library_title, recorded_job_ids, test_runtime_acquiring};
 use crate::remote_source::{
-    AcquireTitles, AcquisitionHandoff, AcquisitionJob, AcquisitionSnapshot, MaterializedSourceFile,
-    ProviderId, RemoteAcquisitionStatus, RemoteSourceRuntime, RemoteUiIntent,
+    AcquireTitles, AcquisitionHandoff, AcquisitionOutcome, AcquisitionSnapshot,
+    MaterializedSourceFile, RemoteAcquisitionStatus, RemoteSourceRuntime, RemoteUiIntent,
 };
 use crate::session::{AudioEdit, MetadataField, Session, SessionDeps, SessionIntent};
 use crate::work_runtime::WorkRuntime;
@@ -21,50 +22,26 @@ fn downloads_one_wav(seconds: u32, title: Option<&'static str>) -> AcquireTitles
     Arc::new(move |request| {
         Box::pin(async move {
             let path = request.job_dir.join("book.wav");
-            super::wav_fixture::write_wav(&path, seconds, title, None);
-            Ok(AcquisitionJob {
-                job_id: request.job_id,
-                provider_id: ProviderId::Audible,
-                status: RemoteAcquisitionStatus::Validated,
-                progress: abb_remote_source_core::acquisition_progress(
-                    abb_remote_source_core::AcquisitionStage::Complete,
-                    Some(1.0),
-                    None,
-                    None,
-                ),
-                materialized_files: vec![MaterializedSourceFile {
+            super::support::wav::write_wav(&path, seconds, title, None);
+            Ok(AcquisitionOutcome {
+                files: vec![MaterializedSourceFile {
                     input_id: "remote-1".into(),
                     title_id: TITLE_ID.into(),
                     path,
                     size_bytes: 0,
                     sha256: String::new(),
                 }],
-                supplemental_assets: Vec::new(),
-                diagnostics: Vec::new(),
-                handoff: None,
+                ..AcquisitionOutcome::default()
             })
         })
     })
-}
-
-async fn until<T>(what: &str, mut ready: impl FnMut() -> Option<T>) -> T {
-    tokio::time::timeout(Duration::from_secs(30), async {
-        loop {
-            if let Some(found) = ready() {
-                return found;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await
-    .unwrap_or_else(|_| panic!("timed out waiting for {what}"))
 }
 
 fn session_acquiring(root: &TempDir, acquire: AcquireTitles) -> (Session, RemoteSourceRuntime) {
     let (settings, jobs, _) =
         SettingsRuntime::start(root.path().join("config"), PowerManager::default());
     let remote = test_runtime_acquiring(root, settings.clone(), acquire);
-    let tasks = crate::engine::EngineTasks::default();
+    let tasks = crate::engine_tasks::EngineTasks::default();
     let session = Session::new(SessionDeps {
         host: crate::host::Host::new(Arc::new(crate::DiscardEvents), PowerManager::default()),
         remote: remote.clone(),
@@ -107,13 +84,7 @@ async fn acquire(session: &Session) -> Box<AcquisitionSnapshot> {
 
 fn shown(session: &Session, field: MetadataField) -> String {
     let metadata = session.snapshot().metadata.expect("metadata part");
-    metadata
-        .form
-        .fields
-        .into_iter()
-        .find(|snapshot| snapshot.field == field)
-        .expect("field")
-        .value
+    field_of(&metadata.form, field).value
 }
 
 #[tokio::test]
@@ -207,7 +178,7 @@ async fn an_edit_left_unsaved_during_an_export_outlives_the_download_and_reaches
 
     let output = exports.join("Unknown Author/Book/Book.m4b");
     let tags = until("the Save to reach the finished output", || {
-        let tags = crate::read_metadata(&output).ok()?;
+        let tags = crate::metadata::read_metadata(&output).ok()?;
         tags.composer.is_some().then_some(tags)
     })
     .await;

@@ -142,11 +142,11 @@ fn a_submission_refuses_what_it_cannot_send() {
     );
 
     let mut cue = alpha.clone();
-    cue.cue_source = Some(CueSource {
-        file_name: "alpha.cue".to_string(),
-        status: CueStatus::NeedsConfirmation,
-        message: String::new(),
-    });
+    cue.cue_source = Some(CueSource::new(
+        "alpha.cue".to_string(),
+        CueStatus::NeedsConfirmation,
+        String::new(),
+    ));
     let refused = build_draft(
         &[title(&cue, std::slice::from_ref(&cue))],
         inputs(),

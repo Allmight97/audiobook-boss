@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { SessionOutcome } from '../../types/session';
+import type { SessionOutcome } from '../../lib/generated/tauri';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { tauriClient } from '../../lib/tauri/client';
@@ -16,7 +16,7 @@ describe('output plan owner', () => {
 
 	async function open(): Promise<AppRuntime> {
 		engine = createFakeEngine();
-		engine.loadTitles([audioFile('/books/a.m4b', { duration: 100, size: 1024 })]);
+		engine.loadTitles([audioFile('/books/a.m4b', { status: 'ready', duration: 100, size: 1024 })]);
 		runtime = await createAppRuntime({ engine });
 		return runtime;
 	}

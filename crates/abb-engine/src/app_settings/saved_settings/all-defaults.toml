@@ -1,0 +1,33 @@
+# A settings file as ABB saves it with every setting at its default: no
+# pinned defaults, and the AAC decoder written as "auto". Keep it loading:
+# contract_tests.rs checks that each value comes back as the user chose it.
+
+[general]
+keep_awake_while_working = true
+press_quit_twice = true
+max_concurrent_jobs = "auto"
+default_acquisition_lane = "audible"
+aac_decoder = "auto"
+
+[audio]
+format = "m4b"
+intent = "auto"
+sample_rate = "auto"
+
+[audio.encoder]
+type = "native_aac"
+bitrate_kbps = 65
+bitrate_mode = "cbr"
+channels = "auto"
+native_aac_speed = 0
+faac_profile = "auto"
+
+[output.naming]
+preset = "absDefault"
+include_year = false
+
+[indexer]
+categories = [3000, 3030]
+
+[startup]
+behavior = "rememberLastState"

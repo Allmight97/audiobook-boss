@@ -1,0 +1,176 @@
+use super::{
+    EventStage, ProgressEvent, PROGRESS_ANALYZING_START, PROGRESS_COMPLETE,
+    PROGRESS_CONVERTING_START, PROGRESS_FINALIZING, PROGRESS_METADATA_START,
+};
+use crate::execution::JobIdentity;
+use abb_processing_core::OperationKind;
+use std::sync::Arc;
+
+pub(crate) type ProgressEventListener = Arc<dyn Fn(&ProgressEvent) + Send + Sync>;
+
+#[derive(Clone)]
+pub(crate) struct EmitContext {
+    pub(crate) operation_kind: OperationKind,
+    pub(crate) identity: JobIdentity,
+}
+
+pub(crate) struct ProgressEmitter {
+    operation_kind: OperationKind,
+    identity: JobIdentity,
+    progress_listener: Option<ProgressEventListener>,
+}
+
+impl ProgressEmitter {
+    pub(crate) fn with_context(context: EmitContext) -> Self {
+        Self {
+            operation_kind: context.operation_kind,
+            identity: context.identity,
+            progress_listener: None,
+        }
+    }
+
+    pub(crate) fn with_progress_listener(
+        mut self,
+        progress_listener: Option<ProgressEventListener>,
+    ) -> Self {
+        self.progress_listener = progress_listener;
+        self
+    }
+
+    fn terminal_event(&self, stage: EventStage, message: &str) -> ProgressEvent {
+        ProgressEvent {
+            operation_kind: self.operation_kind,
+            stage,
+            percentage: if stage == EventStage::Skipped {
+                100.0
+            } else {
+                0.0
+            },
+            message: message.to_string(),
+            current_file: None,
+            eta_seconds: None,
+            job_id: self.identity.job_id.clone(),
+            input_index: Some(self.identity.input_index),
+        }
+    }
+
+    fn emit_terminal_event(&self, stage: EventStage, message: &str) {
+        let event = self.terminal_event(stage, message);
+        self.notify_listener(&event);
+    }
+
+    pub fn emit_analyzing_start(&self, message: &str) {
+        self.emit_event(
+            EventStage::Analyzing,
+            PROGRESS_ANALYZING_START,
+            message,
+            None,
+            None,
+        );
+    }
+
+    pub fn emit_converting_start(&self, message: &str) {
+        self.emit_event(
+            EventStage::Converting,
+            PROGRESS_CONVERTING_START,
+            message,
+            None,
+            None,
+        );
+    }
+
+    pub fn emit_converting_progress(
+        &self,
+        percentage: f32,
+        message: &str,
+        current_file: Option<String>,
+        eta_seconds: Option<f64>,
+    ) {
+        self.emit_event(
+            EventStage::Converting,
+            percentage,
+            message,
+            current_file,
+            eta_seconds,
+        );
+    }
+
+    pub fn emit_metadata_start(&self, message: &str) {
+        self.emit_event(
+            EventStage::Writing,
+            PROGRESS_METADATA_START,
+            message,
+            None,
+            None,
+        );
+    }
+
+    pub fn emit_finalizing(&self, message: &str) {
+        self.emit_event(
+            EventStage::Writing,
+            PROGRESS_FINALIZING,
+            message,
+            None,
+            None,
+        );
+    }
+
+    pub fn emit_complete(&self, message: &str) {
+        self.emit_event(
+            EventStage::Completed,
+            PROGRESS_COMPLETE,
+            message,
+            None,
+            None,
+        );
+    }
+
+    pub fn emit_terminal_failed(&self, message: &str) {
+        self.emit_terminal_event(EventStage::Failed, message);
+    }
+
+    pub fn emit_terminal_cancelled(&self, message: &str) {
+        self.emit_terminal_event(EventStage::Cancelled, message);
+    }
+
+    pub fn emit_terminal_skipped(&self, message: &str) {
+        self.emit_terminal_event(EventStage::Skipped, message);
+    }
+
+    fn emit_event(
+        &self,
+        stage: EventStage,
+        percentage: f32,
+        message: &str,
+        current_file: Option<String>,
+        eta_seconds: Option<f64>,
+    ) {
+        let percentage = if percentage.is_finite() {
+            percentage.clamp(0.0, 100.0)
+        } else {
+            0.0
+        };
+        let event = ProgressEvent {
+            operation_kind: self.operation_kind,
+            stage,
+            percentage,
+            message: message.to_string(),
+            current_file,
+            eta_seconds,
+            job_id: self.identity.job_id.clone(),
+            input_index: Some(self.identity.input_index),
+        };
+
+        self.notify_listener(&event);
+    }
+
+    fn notify_listener(&self, event: &ProgressEvent) {
+        if let Some(listener) = &self.progress_listener {
+            listener(event);
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "emitter_tests.rs"]
+mod tests;

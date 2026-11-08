@@ -5,7 +5,7 @@ use reqwest::{Client, Method, StatusCode, Url};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 
-use crate::app_settings::api_key_header_value;
+use super::api_key::api_key_header_value;
 use crate::errors::{AppError, Result};
 use crate::remote_source::types::{
     release_key, ProviderId, RemoteAcquisitionFailureKind, RemoteRelease, RemoteReleaseCategory,
@@ -180,21 +180,17 @@ impl ReqwestProwlarrAdapter {
             }
         };
 
-        if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+        if rejects_api_key(status) {
             return Ok(ProwlarrGrabOutcome {
                 accepted: false,
                 unconfirmed: false,
-                message: "Indexer rejected the API key.".to_string(),
-                diagnostics: vec![RemoteSourceDiagnostic {
-                    kind: RemoteAcquisitionFailureKind::AuthRequired,
-                    title_id: None,
-                    message: "Indexer rejected the API key.".to_string(),
-                }],
+                message: API_KEY_REJECTED.to_string(),
+                diagnostics: vec![api_key_rejected_diagnostic()],
             });
         }
 
         if !status.is_success() {
-            match failure_message_for_log(&body) {
+            match safe_failure_message(&body) {
                 Some(message) => log::warn!(
                     "remote_source indexer_grab request_id={} stage=prowlarr_failure http_status={} message={:?}",
                     request_id,
@@ -372,20 +368,17 @@ async fn parse_system_status_response(
         ))
     })?;
 
-    if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+    if rejects_api_key(status) {
         return Ok(ProwlarrSystemStatusOutcome {
             ok: false,
-            message: "Indexer rejected the API key.".to_string(),
+            message: API_KEY_REJECTED.to_string(),
         });
     }
 
     if !status.is_success() {
         return Ok(ProwlarrSystemStatusOutcome {
             ok: false,
-            message: format!(
-                "Indexer connection test failed with status {status}: {}",
-                trim_body(&body)
-            ),
+            message: failure_line("Indexer connection test failed", status, &body),
         });
     }
 
@@ -411,26 +404,30 @@ async fn parse_search_response(response: reqwest::Response) -> Result<ProwlarrSe
         AppError::General(format!("Indexer search response unreadable: {error}"))
     })?;
 
-    if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+    if rejects_api_key(status) {
         return Ok(ProwlarrSearchOutcome {
             releases: Vec::new(),
-            diagnostics: vec![RemoteSourceDiagnostic {
-                kind: RemoteAcquisitionFailureKind::AuthRequired,
-                title_id: None,
-                message: "Indexer rejected the API key.".to_string(),
-            }],
+            diagnostics: vec![api_key_rejected_diagnostic()],
         });
     }
 
     if !status.is_success() {
         return Ok(ProwlarrSearchOutcome {
             releases: Vec::new(),
-            diagnostics: vec![search_failed_diagnostic(status, &body)],
+            diagnostics: vec![RemoteSourceDiagnostic {
+                kind: RemoteAcquisitionFailureKind::ReleaseSearchFailed,
+                title_id: None,
+                message: failure_line("Indexer search failed", status, &body),
+            }],
         });
     }
 
     let raw_releases: Vec<ProwlarrReleaseRaw> = serde_json::from_str(&body).map_err(|error| {
-        AppError::General(format!("Indexer search response was invalid JSON: {error}"))
+        AppError::General(format!(
+            "Indexer search response was not a release list (line {}, column {}).",
+            error.line(),
+            error.column()
+        ))
     })?;
 
     let mut diagnostics = Vec::new();
@@ -532,14 +529,24 @@ fn map_protocol(protocol: Option<&str>) -> RemoteReleaseProtocol {
     }
 }
 
-fn search_failed_diagnostic(status: StatusCode, body: &str) -> RemoteSourceDiagnostic {
+const API_KEY_REJECTED: &str = "Indexer rejected the API key.";
+
+fn rejects_api_key(status: StatusCode) -> bool {
+    status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN
+}
+
+fn api_key_rejected_diagnostic() -> RemoteSourceDiagnostic {
     RemoteSourceDiagnostic {
-        kind: RemoteAcquisitionFailureKind::ReleaseSearchFailed,
+        kind: RemoteAcquisitionFailureKind::AuthRequired,
         title_id: None,
-        message: format!(
-            "Indexer search failed with status {status}: {}",
-            trim_body(body)
-        ),
+        message: API_KEY_REJECTED.to_string(),
+    }
+}
+
+fn failure_line(what: &str, status: StatusCode, body: &str) -> String {
+    match safe_failure_message(body) {
+        Some(message) => format!("{what} with status {status}: {message}"),
+        None => format!("{what} with status {status}"),
     }
 }
 
@@ -653,7 +660,7 @@ fn downloader_failure_line(
     }
 }
 
-fn failure_message_for_log(body: &str) -> Option<String> {
+fn safe_failure_message(body: &str) -> Option<String> {
     let value: serde_json::Value = serde_json::from_str(body).ok()?;
     let message = value.get("message")?.as_str()?;
     let redacted = message
@@ -666,11 +673,12 @@ fn failure_message_for_log(body: &str) -> Option<String> {
 
 fn looks_like_url(word: &str) -> bool {
     let lower = word.to_ascii_lowercase();
-    lower.contains("://") || lower.starts_with("www.") || lower.starts_with("magnet:")
-}
-
-fn trim_body(body: &str) -> String {
-    truncated(body, 240)
+    lower.contains("://")
+        || lower.starts_with("www.")
+        || lower.starts_with("magnet:")
+        || lower
+            .split_once('?')
+            .is_some_and(|(_, query)| query.contains('='))
 }
 
 fn truncated(text: &str, limit: usize) -> String {
@@ -746,3 +754,7 @@ mod tests;
 #[cfg(test)]
 #[path = "prowlarr_answer_tests.rs"]
 mod answer_tests;
+
+#[cfg(test)]
+#[path = "prowlarr_failure_tests.rs"]
+mod failure_tests;

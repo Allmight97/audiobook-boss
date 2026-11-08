@@ -20,8 +20,8 @@ async function open() {
 }
 it('sends edited draft, Test, and Save as separate intents and never reads the saved key', async () => {
 	const owner = await open();
-	await owner.loadIndexerConnectionSettings();
-	owner.patchIndexerConnectionSettings({
+	await owner.indexerConnection.load();
+	owner.indexerConnection.patch({
 		baseUrlDraft: 'https://next.test',
 		apiKeyDraft: 'entered-key',
 		categoryIdsDraft: [3030, 3000],
@@ -37,7 +37,7 @@ it('sends edited draft, Test, and Save as separate intents and never reads the s
 			},
 		}),
 	);
-	await owner.testIndexerConnection();
+	await owner.indexerConnection.testConnection();
 	expect(engine.sessionIntents).toContainEqual({
 		kind: 'remote',
 		intent: { kind: 'testConnection' },
@@ -47,7 +47,7 @@ it('sends edited draft, Test, and Save as separate intents and never reads the s
 		intent: { kind: 'saveConnection' },
 	});
 	engine.respond = () => ({ kind: 'remoteSaved' });
-	await owner.saveIndexerConnectionSettings();
+	await owner.indexerConnection.save();
 	expect(engine.sessionIntents).toContainEqual({
 		kind: 'remote',
 		intent: { kind: 'saveConnection' },
@@ -55,24 +55,24 @@ it('sends edited draft, Test, and Save as separate intents and never reads the s
 });
 it('renders engine draft status and preserves the entered key until the engine confirms it was cleared', async () => {
 	const owner = await open();
-	owner.patchIndexerConnectionSettings({ apiKeyDraft: 'new-key' });
+	owner.indexerConnection.patch({ apiKeyDraft: 'new-key' });
 	engine.change((state) => {
 		state.remote.connection.apiKeyEntered = true;
 		state.remote.connection.save = { kind: 'running' };
 		state.remote.connection.test = { kind: 'succeeded' };
 		state.remote.connection.testResult = { ok: false, message: 'Key rejected' };
 	});
-	await vi.waitFor(() => expect(owner.indexerConnection().saveState).toBe('saving'));
-	expect(owner.indexerConnection().testMessage).toBe('Key rejected');
-	expect(owner.indexerConnection().testState).toBe('error');
-	expect(owner.indexerConnection().apiKeyDraft).toBe('new-key');
+	await vi.waitFor(() => expect(owner.indexerConnection.view().saveState).toBe('saving'));
+	expect(owner.indexerConnection.view().testMessage).toBe('Key rejected');
+	expect(owner.indexerConnection.view().testState).toBe('error');
+	expect(owner.indexerConnection.view().apiKeyDraft).toBe('new-key');
 	engine.change((state) => {
 		state.remote.connection.apiKeyEntered = false;
 		state.remote.connection.save = { kind: 'succeeded' };
 	});
-	await vi.waitFor(() => expect(owner.indexerConnection().apiKeyDraft).toBe(''));
-	expect(owner.indexerConnection().saveState).toBe('saved');
-	expect(owner.indexerConnection().apiKeyConfigured).toBe(true);
+	await vi.waitFor(() => expect(owner.indexerConnection.view().apiKeyDraft).toBe(''));
+	expect(owner.indexerConnection.view().saveState).toBe('saved');
+	expect(owner.indexerConnection.view().apiKeyConfigured).toBe(true);
 });
 it('keeps the reason for a refused edit after Test and Save are refused for it', async () => {
 	const owner = await open();
@@ -95,9 +95,9 @@ it('keeps the reason for a refused edit after Test and Save are refused for it',
 		},
 	});
 
-	await owner.testIndexerConnection();
+	await owner.indexerConnection.testConnection();
 
-	expect(owner.indexerConnection()).toMatchObject({
+	expect(owner.indexerConnection.view()).toMatchObject({
 		saveState: 'error',
 		saveError: reason.message,
 	});
@@ -105,7 +105,7 @@ it('keeps the reason for a refused edit after Test and Save are refused for it',
 	engine.change((state) => {
 		state.remote.connection.draftError = null;
 	});
-	expect(owner.indexerConnection().saveError).toBe(
+	expect(owner.indexerConnection.view().saveError).toBe(
 		'Correct the Indexer connection details before saving or testing.',
 	);
 });
@@ -117,29 +117,65 @@ it('reopens from the engine draft without exposing another host’s entered key'
 	});
 	runtime!.dispose();
 	runtime = await createAppRuntime({ engine });
-	expect(runtime.remoteSource.indexerConnection()).toMatchObject({
+	expect(runtime.remoteSource.indexerConnection.view()).toMatchObject({
 		baseUrlDraft: 'https://unsaved.test',
 		apiKeyDraft: '',
 	});
 });
-it('shows the engine draft again after an applied reset, whatever was typed before', async () => {
+it('shows exactly what was typed in the URL field while the engine replies, then the engine draft', async () => {
 	const owner = await open();
-	owner.patchIndexerConnectionSettings({ baseUrlDraft: 'https://indexer.test/' });
+	let answer: () => void = () => {};
+	engine.respond = () =>
+		new Promise((resolve) => {
+			answer = () => resolve({ kind: 'applied' });
+		});
+
+	owner.indexerConnection.patch({ baseUrlDraft: 'HTTPS://Host:443/' });
+	expect(owner.indexerConnection.view().baseUrlDraft).toBe('HTTPS://Host:443/');
+	owner.indexerConnection.patch({ baseUrlDraft: 'HTTPS://Host:443/books' });
+	expect(owner.indexerConnection.view().baseUrlDraft).toBe('HTTPS://Host:443/books');
+
 	engine.change((state) => {
-		state.remote.connection.baseUrl = 'https://indexer.test';
+		state.remote.connection.baseUrl = 'HTTPS://Host:443/books';
 	});
+	answer();
+	await vi.waitFor(() =>
+		expect(owner.indexerConnection.view().baseUrlDraft).toBe('HTTPS://Host:443/books'),
+	);
+});
+it('keeps a refused URL visible beside its reason', async () => {
+	const owner = await open();
+	owner.indexerConnection.patch({ baseUrlDraft: 'ftp://indexer.test' });
+	engine.change((state) => {
+		state.remote.connection.baseUrl = 'ftp://indexer.test';
+		state.remote.connection.draftError = {
+			code: 'invalid_input',
+			category: 'validation',
+			message: 'Indexer URL must use http or https.',
+			detail: null,
+		};
+	});
+
+	await vi.waitFor(() =>
+		expect(owner.indexerConnection.view()).toMatchObject({
+			baseUrlDraft: 'ftp://indexer.test',
+			saveError: 'Indexer URL must use http or https.',
+		}),
+	);
+});
+it('shows the engine’s value once the engine has replied, even if it differs from what was typed', async () => {
+	const owner = await open();
+
+	owner.indexerConnection.patch({ baseUrlDraft: 'HTTPS://Host:443/' });
 	await vi.waitFor(() =>
 		expect(engine.sessionIntents).toContainEqual({
 			kind: 'remote',
 			intent: expect.objectContaining({ kind: 'editConnection' }),
 		}),
 	);
-	expect(owner.indexerConnection().baseUrlDraft).toBe('https://indexer.test/');
-
-	await runtime!.settings.resetAllAppSettings();
 	engine.change((state) => {
-		state.remote.connection.baseUrl = '';
+		state.remote.connection.baseUrl = 'https://host';
 	});
 
-	await vi.waitFor(() => expect(owner.indexerConnection().baseUrlDraft).toBe(''));
+	await vi.waitFor(() => expect(owner.indexerConnection.view().baseUrlDraft).toBe('https://host'));
 });

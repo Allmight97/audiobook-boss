@@ -3,12 +3,18 @@ import type { JSX } from '@solidjs/web';
 
 import { formatEtaRemaining } from '../../lib/format/eta';
 import { useAppRuntime } from '../../app/runtime';
-import { isWorkRunning } from '../../app/workOperations';
-import { Progress } from '../foundation';
-import type { ChildJobSnapshot, OperationSnapshot } from '../../types/workRuntime';
+import {
+	childCancelling,
+	childStatusLabel,
+	operationKindLabel,
+	operationStatusLabel,
+} from '../../app/workOperations';
+import { fileManagerLabel } from '../../lib/platform';
+import { JobRow, Progress, type JobRowAction } from '../foundation';
+import type { ChildJobSnapshot, OperationSnapshot } from '../../lib/generated/tauri';
 import './workCenterView.css';
 
-function completedLabel(
+function withDuration(
 	label: string,
 	timing: { startedAtMs: number | null; finishedAtMs: number | null },
 ): string {
@@ -19,39 +25,21 @@ function completedLabel(
 	return `${label} in ${String(minutes).padStart(2, '0')}:${seconds}`;
 }
 
-function operationStatusLabel(operation: OperationSnapshot): string {
-	const { status } = operation;
-	if (status === 'accepted') return 'Accepted';
-	if (status === 'running') return 'Running';
-	if (status === 'cancelling') return 'Cancelling';
-	if (status === 'completed') return completedLabel('Completed', operation);
-	if (status === 'cancelled') return 'Cancelled';
-	if (status === 'failed') return 'Failed';
-	return 'Mixed';
+function operationStatusText(operation: OperationSnapshot): string {
+	const label = operationStatusLabel(operation.status);
+	return operation.status === 'completed' ? withDuration(label, operation) : label;
 }
 
-function operationKindLabel(kind: OperationSnapshot['kind']): string {
-	if (kind === 'processingBatch') return 'Batch';
-	return 'Metadata';
-}
-
-function childStatusLabel(child: ChildJobSnapshot): string {
+function childStatusText(child: ChildJobSnapshot): string {
 	const { status } = child;
-	if ((status === 'queued' || status === 'running') && child.cancelRequested) return 'Cancelling';
-	if (status === 'queued') return 'Queued';
-	if (status === 'running') return 'Running';
-	if (status === 'completed') return completedLabel('Done', child);
-	if (status === 'skipped') return 'Skipped';
-	if (status === 'cancelled') return 'Cancelled';
-	return 'Failed';
-}
-
-/** Names the host file manager; WebView user agents identify the OS. */
-function revealLabel(): string {
-	const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent;
-	if (agent.includes('Macintosh')) return 'Show in Finder';
-	if (agent.includes('Windows')) return 'Show in File Explorer';
-	return 'Show in Folder';
+	const label = childCancelling(child)
+		? operationStatusLabel('cancelling')
+		: status === 'completed'
+			? withDuration(childStatusLabel(status), child)
+			: childStatusLabel(status);
+	return status === 'running' && child.progress.etaSeconds != null
+		? `${label} · ${formatEtaRemaining(child.progress.etaSeconds)}`
+		: label;
 }
 
 function canCancelSeparateTitle(operation: OperationSnapshot, child: ChildJobSnapshot): boolean {
@@ -94,6 +82,40 @@ export function WorkCenterView(): JSX.Element {
 				(offer) => offer.operationId === operation.operationId && offer.titleId === child.inputId,
 			);
 	const view = workOperations.view;
+	const childActions = (operation: OperationSnapshot, child: ChildJobSnapshot): JobRowAction[] => {
+		const actions: JobRowAction[] = [];
+		if (canCancelSeparateTitle(operation, child))
+			actions.push({
+				id: 'cancel',
+				label: 'Cancel',
+				title: `Cancel ${child.label} only`,
+				onAction: () => void workOperations.cancel(operation.operationId, child.childJobId),
+			});
+		const offer = offerFor(operation, child);
+		if (offer)
+			actions.push(
+				{
+					id: 'restart',
+					label: 'Restart',
+					title: `Restart at ${offer.to}`,
+					onAction: () => void runtime.processing.restart(offer),
+				},
+				{
+					id: 'keepLocation',
+					label: 'Keep Location',
+					title: `Keep ${offer.from} and apply the latest tags`,
+					onAction: () => void runtime.processing.keepLocation(offer),
+				},
+			);
+		if (child.outputPath)
+			actions.push({
+				id: 'reveal',
+				label: fileManagerLabel(),
+				title: child.outputPath,
+				onAction: () => void workOperations.revealOutput(child),
+			});
+		return actions;
+	};
 
 	return (
 		<section class="panel work-center" aria-label="Work Center">
@@ -106,8 +128,8 @@ export function WorkCenterView(): JSX.Element {
 				</div>
 			</div>
 
-			<Show when={view().errorMessage}>
-				{(message) => <div class="work-center-error">{message()}</div>}
+			<Show when={view().error}>
+				{(error) => <div class="work-center-error">{error().message}</div>}
 			</Show>
 
 			<Show
@@ -126,8 +148,11 @@ export function WorkCenterView(): JSX.Element {
 										</span>
 									</div>
 									<div class="work-operation-actions">
-										<span class={`work-status is-${operation().status}`}>
-											{operationStatusLabel(operation())}
+										<span
+											class={`work-status is-${operation().status}`}
+											data-status={operation().status}
+										>
+											{operationStatusText(operation())}
 										</span>
 										<button
 											class="work-action-button"
@@ -146,7 +171,7 @@ export function WorkCenterView(): JSX.Element {
 									<Progress
 										value={operation().progress.percentage}
 										label={`${operation().title} progress`}
-										active={isWorkRunning(operation().status)}
+										active={operation().phase === 'active'}
 										class="work-progress-track"
 									/>
 									<span class="work-progress-value">
@@ -172,71 +197,14 @@ export function WorkCenterView(): JSX.Element {
 									<For each={operation().children} keyed={(child) => child.childJobId}>
 										{(child) => (
 											<>
-												<div class={`work-child-row is-${child().status}`}>
-													<span
-														class="work-child-label"
-														title={child().sourcePath ?? child().label}
-													>
-														{child().label}
-													</span>
-													<span class="work-child-status">
-														{childStatusLabel(child())}
-														<Show
-															when={
-																child().status === 'running' && child().progress.etaSeconds != null
-															}
-														>
-															· {formatEtaRemaining(child().progress.etaSeconds ?? 0)}
-														</Show>
-													</span>
-													<Show when={canCancelSeparateTitle(operation(), child())}>
-														<button
-															class="work-child-action"
-															type="button"
-															title={`Cancel ${child().label} only`}
-															onClick={() =>
-																void workOperations.cancel(
-																	operation().operationId,
-																	child().childJobId,
-																)
-															}
-														>
-															Cancel
-														</button>
-													</Show>
-													<Show when={offerFor(operation(), child())}>
-														{(offer) => (
-															<>
-																<button
-																	class="work-child-action"
-																	type="button"
-																	title={`Restart at ${offer().to}`}
-																	onClick={() => void runtime.processing.restart(offer())}
-																>
-																	Restart
-																</button>
-																<button
-																	class="work-child-action"
-																	type="button"
-																	title={`Keep ${offer().from} and apply the latest tags`}
-																	onClick={() => void runtime.processing.keepLocation(offer())}
-																>
-																	Keep Location
-																</button>
-															</>
-														)}
-													</Show>
-													<Show when={child().outputPath}>
-														<button
-															class="work-child-action"
-															type="button"
-															title={child().outputPath ?? undefined}
-															onClick={() => void workOperations.revealOutput(child())}
-														>
-															{revealLabel()}
-														</button>
-													</Show>
-												</div>
+												<JobRow
+													class="work-child-row"
+													status={child().status}
+													label={child().label}
+													labelTitle={child().sourcePath ?? child().label}
+													statusText={childStatusText(child())}
+													actions={childActions(operation(), child())}
+												/>
 												<Show when={childReason(child())}>
 													{(reason) => (
 														<div class="work-child-reason" title={reason()}>

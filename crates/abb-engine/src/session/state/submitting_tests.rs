@@ -1,6 +1,9 @@
 use super::*;
+use crate::output_artifact::OutputNamingConfig;
 use crate::processing::title_output::UpdateReply;
+use crate::processing::title_output::{TitleOutput, TitleOutputPlan};
 use crate::work_runtime::OperationId;
+use std::sync::Arc;
 
 #[test]
 fn an_export_needs_a_title_from_its_tag_or_the_form() {
@@ -67,7 +70,7 @@ fn a_refused_second_submission_does_not_let_a_third_through() {
     assert_eq!(snapshot.collision_review, Some(review.clone()));
     assert!(snapshot.submission_in_progress);
     assert!(desk.state.cancel_review_named(review.review_id));
-    assert!(!desk.state.working_set.order_locked());
+    assert!(!desk.state.list_locked());
     assert!(desk.state.begin_submission(false).is_some());
 }
 
@@ -95,14 +98,14 @@ fn collision_answers_are_scoped_to_the_question_even_after_rereview_cancel_and_c
     assert_ne!(old, next);
     assert!(desk.state.take_review(old).is_none());
     assert!(!desk.state.cancel_review_named(old));
-    assert!(desk.state.working_set.order_locked());
+    assert!(desk.state.list_locked());
 
     assert!(desk.state.cancel_review_named(next));
     desk.change(|set| {
         set.clear_all();
     })
     .expect("clear all");
-    assert!(desk.state.reserved.is_empty());
+    assert!(desk.state.submitting.sources().is_empty());
     assert!(!desk.state.output_snapshot(0).submission_in_progress);
     let request = desk.state.audio.request();
     desk.state.working_set.append_analyzed(
@@ -137,51 +140,10 @@ fn collision_answers_are_scoped_to_the_question_even_after_rereview_cancel_and_c
     );
     assert!(desk.state.cancel_review_named(current));
     assert!(!desk.state.cancel_review_named(current));
-    assert!(desk.state.reserved.is_empty());
+    assert!(desk.state.submitting.sources().is_empty());
 }
 
-fn prompted_title(desk: &Desk) -> Option<String> {
-    desk.state
-        .output_snapshot(0)
-        .restart_prompt
-        .map(|offer| offer.title_id)
-}
-
-fn save_moves(desk: &mut Desk, titles: &[&str]) -> u64 {
-    let edits: Vec<_> = desk
-        .state
-        .exports
-        .edits(|_| None)
-        .into_iter()
-        .filter(|edit| titles.contains(&edit.title_id.as_str()))
-        .collect();
-    let revision = edits[0].revision;
-    desk.state.record_output_edits(
-        edits
-            .into_iter()
-            .map(|edit| {
-                let reply = UpdateReply::MovesOutput {
-                    from: PathBuf::from("/library/old.m4b"),
-                    to: PathBuf::from(format!("/library/{}.m4b", edit.title_id)),
-                };
-                (edit, Ok(reply))
-            })
-            .collect(),
-    );
-    revision
-}
-
-#[test]
-fn restart_questions_wait_for_answer_work_and_answered_offers_stay_retryable() {
-    use crate::output_artifact::OutputNamingConfig;
-    use crate::processing::title_output::{TitleOutput, TitleOutputPlan};
-    use std::sync::Arc;
-
-    let mut desk = Desk::open(
-        &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
-        &[0],
-    );
-    desk.state.output.set_directory("/library".into());
+fn link_both(desk: &mut Desk) -> Vec<Arc<TitleOutput>> {
     let outputs: Vec<_> = ["alpha", "beta"]
         .iter()
         .map(|name| {
@@ -189,7 +151,7 @@ fn restart_questions_wait_for_answer_work_and_answered_offers_stay_retryable() {
                 TitleOutputPlan {
                     anchor: path(name),
                     sources: Vec::new(),
-                    base: None,
+                    base: crate::metadata::AudiobookMetadata::default(),
                     accepted: None,
                     output_dir: PathBuf::from("/library"),
                     naming: OutputNamingConfig::default(),
@@ -209,6 +171,70 @@ fn restart_questions_wait_for_answer_work_and_answered_offers_stay_retryable() {
         ],
         &outputs,
     );
+    outputs
+}
+
+fn prompted_title(desk: &Desk) -> Option<String> {
+    desk.state
+        .output_snapshot(0)
+        .restart_prompt
+        .map(|offer| offer.title_id)
+}
+
+fn save_moves(desk: &mut Desk, titles: &[&str]) -> u64 {
+    let only: Vec<String> = titles.iter().map(|title| title.to_string()).collect();
+    let edits = desk.state.output_edits(Some(&only));
+    let revision = edits[0].revision;
+    desk.state.record_output_edits(
+        edits
+            .into_iter()
+            .map(|edit| {
+                let reply = UpdateReply::MovesOutput {
+                    from: PathBuf::from("/library/old.m4b"),
+                    to: PathBuf::from(format!("/library/{}.m4b", edit.title_id)),
+                };
+                (edit, Ok(reply))
+            })
+            .collect(),
+    );
+    revision
+}
+
+#[test]
+fn output_edits_join_the_written_and_pending_edits_of_the_asked_titles() {
+    let mut desk = Desk::open(
+        &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
+        &[0],
+    );
+    assert!(desk.state.output_edits(None).is_empty());
+    link_both(&mut desk);
+    desk.state.tags.stage(&path("alpha"), &genre_patch());
+
+    let all = desk.state.output_edits(None);
+    let only_beta = desk.state.output_edits(Some(&["beta".to_string()]));
+
+    let genre_of = |edits: &[crate::session::exports::OutputEdit], title: &str| {
+        edits
+            .iter()
+            .find(|edit| edit.title_id == title)
+            .map(|edit| edit.intent.genre.clone())
+    };
+    assert_eq!(all.len(), 2);
+    assert_eq!(genre_of(&all, "alpha"), Some(set("Mystery")));
+    assert_eq!(genre_of(&all, "beta"), Some(None));
+    assert_eq!(only_beta.len(), 1);
+    assert_eq!(only_beta[0].title_id, "beta");
+    assert!(only_beta[0].revision > all[0].revision);
+}
+
+#[test]
+fn restart_questions_wait_for_answer_work_and_answered_offers_stay_retryable() {
+    let mut desk = Desk::open(
+        &[("alpha", Some(alpha_tags())), ("beta", Some(beta_tags()))],
+        &[0],
+    );
+    desk.state.output.set_directory("/library".into());
+    let outputs = link_both(&mut desk);
     let revision = save_moves(&mut desk, &["alpha", "beta"]);
     assert_eq!(prompted_title(&desk).as_deref(), Some("alpha"));
 
@@ -326,4 +352,115 @@ fn a_swept_grouped_title_does_not_block_the_next_start_or_preview() {
         desk.state
             .finish_submission(&draft, SubmissionStatus::Cancelled);
     }
+}
+
+#[test]
+fn a_cancel_after_the_preview_returned_ends_it_cancelled_and_opens_nothing() {
+    use crate::processing::{ProcessCommandResult, ProcessResultEntry, ProcessResultStatus};
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.state.output.set_directory("/library".to_string());
+    let draft = desk.state.begin_submission(true).expect("preview");
+    let id = draft.operation_id.clone();
+    desk.state.start_preview(&id);
+    let result = ProcessCommandResult::new(vec![ProcessResultEntry {
+        input_index: 0,
+        status: ProcessResultStatus::Success,
+        message: String::new(),
+        error: None,
+        output_path: Some("/library/alpha.preview.m4b".to_string()),
+        supplemental_warning: None,
+        warnings: Vec::new(),
+        job_id: None,
+    }]);
+
+    desk.state
+        .preview
+        .cancel(id.as_str(), None)
+        .expect("cancel the preview");
+    desk.state
+        .finish_submission(&draft, SubmissionStatus::PreviewFinished { result });
+
+    let preview = desk.state.output_snapshot(0).preview_run.expect("preview");
+    assert!(preview.operation.cancel_requested);
+    assert!(preview.operation.is_finished());
+    assert!(!preview.open_ready);
+    assert_eq!(desk.state.preview.take_output(id.as_str()), None);
+}
+
+struct Gate {
+    locked: bool,
+    in_progress: bool,
+    review_shown: bool,
+    import_waits: bool,
+}
+
+fn gate(desk: &Desk) -> Gate {
+    let output = desk.state.output_snapshot(0);
+    Gate {
+        locked: desk.state.working_set.titles(0).order_locked,
+        in_progress: output.submission_in_progress,
+        review_shown: output.collision_review.is_some(),
+        import_waits: desk.state.list_locked(),
+    }
+}
+
+fn assert_gate(desk: &Desk, locked: bool, review_shown: bool, step: &str) {
+    let gate = gate(desk);
+    assert_eq!(gate.locked, locked, "{step}: list lock");
+    assert_eq!(gate.in_progress, locked, "{step}: submission in progress");
+    assert_eq!(gate.review_shown, review_shown, "{step}: review shown");
+    assert_eq!(gate.import_waits, locked, "{step}: import waits");
+}
+
+#[test]
+fn the_list_lock_follows_every_submission_transition() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.state.output.set_directory("/library".to_string());
+    assert_gate(&desk, false, false, "idle");
+
+    let export = desk.state.begin_submission(false).expect("export");
+    assert_gate(&desk, true, false, "export preparing");
+    assert!(desk.state.begin_submission(false).is_none());
+    assert_gate(&desk, true, false, "busy refusal");
+    desk.state.await_review(export.clone(), Vec::new());
+    assert_gate(&desk, true, true, "export awaiting review");
+    let review_id = desk
+        .state
+        .output_snapshot(0)
+        .collision_review
+        .expect("review")
+        .review_id;
+    assert!(desk.state.take_review(review_id).is_some());
+    assert_gate(&desk, true, false, "review answered");
+    desk.state
+        .finish_submission(&export, SubmissionStatus::Cancelled);
+    assert_gate(&desk, false, false, "export ended");
+
+    let preview = desk.state.begin_submission(true).expect("preview");
+    desk.state.await_review(preview.clone(), Vec::new());
+    assert_gate(&desk, true, true, "preview awaiting review");
+    let review_id = desk
+        .state
+        .output_snapshot(0)
+        .collision_review
+        .expect("review")
+        .review_id;
+    assert!(desk.state.cancel_review_named(review_id));
+    assert_gate(&desk, false, false, "preview review cancelled");
+    assert!(!desk.state.cancel_review_named(review_id));
+
+    let preview = desk.state.begin_submission(true).expect("preview");
+    desk.state.start_preview(&preview.operation_id);
+    assert_gate(&desk, true, false, "preview running");
+    desk.state.finish_submission(
+        &preview,
+        SubmissionStatus::Failed {
+            error: crate::errors::AppErrorEnvelope::from(&crate::errors::AppError::Closing),
+        },
+    );
+    assert_gate(&desk, false, false, "preview ended");
+
+    desk.act(MetadataField::Title, FieldAction::Blank);
+    assert!(desk.state.begin_submission(false).is_none());
+    assert_gate(&desk, false, false, "refusal while idle");
 }

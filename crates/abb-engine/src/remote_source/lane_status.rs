@@ -1,7 +1,9 @@
 use super::super::{
     AcquisitionHandoff, AcquisitionJob, HandoffRefusal, RemoteAccountStatus, RemoteSourceDiagnostic,
 };
-use super::{RemoteAuthStatus, RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiSnapshot};
+use super::audible_lane::AudibleLane;
+use super::audible_lane::AudibleSignIn;
+use super::{RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiSnapshot};
 
 const STAGED_FILES_REMOVED: &str = "Staged remote files were removed.";
 
@@ -9,38 +11,38 @@ const STAGED_FILES_REMOVED: &str = "Staged remote files were removed.";
 /// load or sign-in replaced it; only that fact orders a job against them.
 pub(super) fn audible_message(
     remote: &RemoteUiSnapshot,
+    audible: &AudibleLane,
     library: &RemoteLibrarySnapshot,
-    settled_job_line: Option<&str>,
 ) -> String {
-    if let RemoteAuthStatus::Failed { error } = &remote.auth {
+    if let AudibleSignIn::Failed(error) = &audible.sign_in {
         return error.message.clone();
     }
     if let RemoteDraftStatus::Failed { error } = &remote.account_status {
         return error.message.clone();
     }
-    if let Some(line) = settled_job_line {
-        return with_connected_note(line.to_string(), remote);
+    if let Some(line) = &audible.settled_job_line {
+        return with_connected_note(line.clone(), remote);
     }
-    if let RemoteDraftStatus::Failed { error } = &remote.library_status {
+    if let RemoteDraftStatus::Failed { error } = &audible.library_status {
         return error.message.clone();
     }
-    if remote.auth == RemoteAuthStatus::Starting {
+    if matches!(audible.sign_in, AudibleSignIn::Starting) {
         return "Starting Audible authorization.".into();
     }
-    if remote.auth == RemoteAuthStatus::Completing {
+    if matches!(audible.sign_in, AudibleSignIn::Completing) {
         return "Completing Audible connection.".into();
     }
     if remote.account_status == RemoteDraftStatus::Running {
         return "Updating connection.".into();
     }
-    if remote.library_status == RemoteDraftStatus::Running {
+    if audible.library_status == RemoteDraftStatus::Running {
         return "Loading Audible library.".into();
     }
-    if remote.auth == RemoteAuthStatus::AwaitingHandoff {
+    if matches!(audible.sign_in, AudibleSignIn::AwaitingHandoff(_)) {
         return "Complete Audible authorization in your browser, then enter the handoff path, or Connect again."
             .into();
     }
-    if remote.library_status == RemoteDraftStatus::Succeeded {
+    if audible.library_status == RemoteDraftStatus::Succeeded {
         return with_connected_note(library_line(library), remote);
     }
     remote

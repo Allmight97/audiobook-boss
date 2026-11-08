@@ -9,7 +9,6 @@ publish = false
 doctest = false
 
 [dependencies]
-abb-media-core = { path = "../abb-media-core" }
 serde = { version = "1.0.228", features = ["derive"] }
 # pin: prerelease family whose generated TS contract changes between RCs; unpin when specta 2.0.0 is stable
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }

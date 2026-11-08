@@ -36,7 +36,6 @@ fn debug_validate_frame_contract(
     );
 }
 
-/// Encodes frame and writes packets to output.
 pub(super) fn encode_and_write_frame(
     encoder: &mut ff::codec::encoder::audio::Encoder,
     frame: &ff::frame::Audio,

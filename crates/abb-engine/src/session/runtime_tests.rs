@@ -115,7 +115,7 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
     let (settings, _, _) =
         SettingsRuntime::start(config.path().to_path_buf(), PowerManager::default());
     let remote = crate::remote_source::tests::test_runtime_over(&config, settings.clone());
-    let tasks = crate::engine::EngineTasks::default();
+    let tasks = crate::engine_tasks::EngineTasks::default();
     let session = Session::with_network(
         SessionDeps {
             remote,
@@ -235,28 +235,22 @@ impl Rig {
     }
 
     async fn wait_for_titles(&self, count: usize) {
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            while self.listed_paths().len() != count {
-                tokio::task::yield_now().await;
-            }
+        crate::test_cases::support::poll::until_true("titles listed", || {
+            self.listed_paths().len() == count
         })
-        .await
-        .expect("titles listed");
+        .await;
     }
 
     async fn wait_for_notice(&self, notice: InputNotice) {
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            while self.session.snapshot().titles.expect("titles").notice != Some(notice.clone()) {
-                tokio::task::yield_now().await;
-            }
+        crate::test_cases::support::poll::until_true("notice shown", || {
+            self.session.snapshot().titles.expect("titles").notice == Some(notice.clone())
         })
-        .await
-        .expect("notice shown");
+        .await;
     }
 
     fn lock_order(&self, locked: bool) {
         self.session
-            .transition(|state| state.working_set.set_order_locked(locked));
+            .transition(|state| state.hold_list_for_test(locked));
     }
 
     async fn send(&self, intent: SessionIntent) -> SessionOutcome {
@@ -598,24 +592,8 @@ fn preview_path(rig: &Rig) -> String {
 }
 
 fn staged_wav(dir: &std::path::Path, name: &str) -> PathBuf {
-    const SAMPLE_RATE: u32 = 44_100;
-    let data_len = SAMPLE_RATE * 2;
-    let mut bytes = Vec::with_capacity(44 + data_len as usize);
-    bytes.extend_from_slice(b"RIFF");
-    bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
-    bytes.extend_from_slice(b"WAVEfmt ");
-    bytes.extend_from_slice(&16u32.to_le_bytes());
-    bytes.extend_from_slice(&1u16.to_le_bytes());
-    bytes.extend_from_slice(&1u16.to_le_bytes());
-    bytes.extend_from_slice(&SAMPLE_RATE.to_le_bytes());
-    bytes.extend_from_slice(&(SAMPLE_RATE * 2).to_le_bytes());
-    bytes.extend_from_slice(&2u16.to_le_bytes());
-    bytes.extend_from_slice(&16u16.to_le_bytes());
-    bytes.extend_from_slice(b"data");
-    bytes.extend_from_slice(&data_len.to_le_bytes());
-    bytes.resize(44 + data_len as usize, 0);
     let path = dir.join(format!("{name}.wav"));
-    std::fs::write(&path, bytes).expect("write staged WAV");
+    crate::test_cases::support::wav::write_silence_wav(&path, 1);
     path
 }
 
@@ -623,20 +601,8 @@ fn acquired(job_id: &str, audio: &std::path::Path) -> crate::remote_source::Acqu
     let pdf = audio.with_extension("pdf");
     let pdf_bytes = b"%PDF-1.4 companion";
     std::fs::write(&pdf, pdf_bytes).expect("write companion PDF");
-    use crate::remote_source::{
-        AcquisitionJob, MaterializedSourceFile, ProviderId, RemoteAcquisitionStatus,
-        SupplementalAsset,
-    };
+    use crate::remote_source::{AcquisitionJob, MaterializedSourceFile, SupplementalAsset};
     AcquisitionJob {
-        job_id: job_id.to_string(),
-        provider_id: ProviderId::Audible,
-        status: RemoteAcquisitionStatus::Validated,
-        progress: abb_remote_source_core::acquisition_progress(
-            abb_remote_source_core::AcquisitionStage::Complete,
-            Some(1.0),
-            None,
-            None,
-        ),
         materialized_files: vec![MaterializedSourceFile {
             input_id: "remote-1".to_string(),
             title_id: "B0".to_string(),
@@ -653,8 +619,7 @@ fn acquired(job_id: &str, audio: &std::path::Path) -> crate::remote_source::Acqu
             size_bytes: pdf_bytes.len() as u64,
             sha256: abb_media_core::sha256_hex(pdf_bytes),
         }],
-        diagnostics: Vec::new(),
-        handoff: None,
+        ..AcquisitionJob::new(job_id)
     }
 }
 
@@ -739,6 +704,8 @@ mod download_flow;
 mod field_edit;
 #[path = "runtime/import_flow_tests.rs"]
 mod import_flow;
+#[path = "runtime/in_flight_tests.rs"]
+mod in_flight;
 #[path = "runtime/lookup_flow_tests.rs"]
 mod lookup_flow;
 #[path = "runtime/preview_flow_tests.rs"]

@@ -1,4 +1,4 @@
-import { createRoot } from 'solid-js';
+import { createEffect, createMemo, createRoot } from 'solid-js';
 import { createSettingsOwner } from '../appSettings';
 import { createEncodingOwner } from '../encoding';
 import { attachEngineLink } from '../engineLink';
@@ -20,17 +20,18 @@ export async function createAppRuntime(
 	const link = await attachEngineLink(capabilities.engine);
 	return createRoot((disposeRoot) => {
 		const input = createInputOwner({ link, capability: capabilities.input });
-		const settings = createSettingsOwner({
-			link,
-			onAppliedReset: () => remoteSource.discardIndexerConnectionEdits(),
-		});
+		const settings = createSettingsOwner({ link });
 		const metadata = createMetadataOwner({ link, capability: capabilities.metadata });
 		const encoding = createEncodingOwner({ link });
 		const output = createOutputOwner({ link });
 		const lookup = createMetadataLookupOwner({ link });
 		const remoteSource = createRemoteSourceOwner({ link, ...capabilities.remoteSource });
-		const processing = createProcessingOwner({ link, settings });
+		const processing = createProcessingOwner({ link });
 		const workOperations = createWorkOperationsOwner({ link });
+		const settingsDialogOpen = createMemo(() => settings.dialog().isOpen);
+		createEffect(settingsDialogOpen, (open) => {
+			if (open) void remoteSource.indexerConnection.load();
+		});
 		let disposed = false;
 		return {
 			engine: {

@@ -1,29 +1,17 @@
-import { cleanup, render, screen, waitFor } from '@solidjs/testing-library';
+import { screen, waitFor } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { MetadataField } from '../../types/session';
-import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
-
-import type { InputCapability } from '../../lib/tauri/capabilities/input';
+import { describe, expect, it, vi } from 'vitest';
+import type { MetadataField } from '../../lib/generated/tauri';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
-import { App } from '../App';
+import { renderApp } from '../../test/fixtures/renderApp';
 
-function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
-	return {
-		openFiles: vi.fn(async () => ['/books/alpha.m4b']),
-		openDirectory: vi.fn(async () => null),
-		listenDragDrop: vi.fn(async () => () => undefined),
-		listenDragEnter: vi.fn(async () => () => undefined),
-		listenDragLeave: vi.fn(async () => () => undefined),
-		...overrides,
-	};
-}
+const pickAlpha = { openFiles: vi.fn(async () => ['/books/alpha.m4b']) };
 
 function engineWithTaggedBooks({ cover = true } = {}): FakeEngine {
 	const engine = createFakeEngine();
 	const form: Partial<Record<MetadataField, string>> = {};
 	engine.analyze = (paths) =>
-		paths.map((path) => audioFile(path, { duration: 1, size: 1000, label: 'Alpha' }));
+		paths.map((path) => audioFile(path, { status: 'ready', label: 'Alpha' }));
 	engine.respond = (intent) => {
 		if (intent.kind === 'setField') {
 			form[intent.field] = intent.value;
@@ -42,56 +30,28 @@ function engineWithTaggedBooks({ cover = true } = {}): FakeEngine {
 	return engine;
 }
 
-async function renderApp(runtime: AppRuntime) {
-	const rendered = render(() => (
-		<AppRuntimeProvider runtime={runtime}>
-			<App />
-		</AppRuntimeProvider>
-	));
-	await screen.findByTestId('left-column');
-	return rendered;
-}
-
 function lastIntents(engine: FakeEngine, count: number) {
 	return engine.sessionIntents.slice(-count);
 }
 
 describe('metadata workbench shell', () => {
-	let runtime: AppRuntime | undefined;
-
-	afterEach(() => {
-		cleanup();
-		runtime?.dispose();
-		runtime = undefined;
-	});
-
 	it.each([
 		{ name: 'while a cover shows', cover: true, tabIndex: 0 },
 		{ name: 'not when no cover shows', cover: false, tabIndex: -1 },
 	])('lets Tab reach Clear cover $name', async ({ cover, tabIndex }) => {
 		const engine = engineWithTaggedBooks({ cover });
-		runtime = await createAppRuntime({ input: fakeInput(), engine });
-		await renderApp(runtime);
+		await renderApp({ engine, input: pickAlpha });
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
-		await waitFor(() => {
-			expect((document.getElementById('meta-title') as HTMLInputElement | null)?.value).toBe(
-				'Alpha',
-			);
-		});
-		expect((document.getElementById('cover-art-clear-btn') as HTMLButtonElement).tabIndex).toBe(
-			tabIndex,
-		);
+		await waitFor(() => expect(screen.getByLabelText('Book Title')).toHaveValue('Alpha'));
+		expect(screen.getByLabelText('Clear cover art')).toHaveAttribute('tabindex', String(tabIndex));
 	});
 
 	it('sends a typed title and the save to the engine in that order', async () => {
 		const engine = engineWithTaggedBooks();
-		runtime = await createAppRuntime({ input: fakeInput(), engine });
-		await renderApp(runtime);
+		await renderApp({ engine, input: pickAlpha });
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
-		await waitFor(() => {
-			expect((document.getElementById('meta-title') as HTMLInputElement).value).toBe('Alpha');
-		});
-		const title = document.getElementById('meta-title') as HTMLInputElement;
+		await waitFor(() => expect(screen.getByLabelText('Book Title')).toHaveValue('Alpha'));
+		const title = screen.getByLabelText<HTMLInputElement>('Book Title');
 		title.focus();
 		await userEvent.clear(title);
 		await userEvent.type(title, 'Edited');
@@ -124,19 +84,16 @@ describe('metadata workbench shell', () => {
 
 	it('sends each form control to the engine field it edits', async () => {
 		const engine = engineWithTaggedBooks();
-		runtime = await createAppRuntime({ input: fakeInput(), engine });
-		await renderApp(runtime);
+		await renderApp({ engine, input: pickAlpha });
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
-		await waitFor(() => {
-			expect((document.getElementById('meta-title') as HTMLInputElement).value).toBe('Alpha');
-		});
+		await waitFor(() => expect(screen.getByLabelText('Book Title')).toHaveValue('Alpha'));
 		engine.respond = () => undefined;
 		engine.change((state) => {
 			state.metadata.form = { ...state.metadata.form, mode: 'multi' };
 		});
 
-		await userEvent.type(document.getElementById('meta-year') as HTMLInputElement, '2');
-		await userEvent.type(document.getElementById('meta-description') as HTMLTextAreaElement, 'D');
+		await userEvent.type(screen.getByLabelText('Publication Date'), '2');
+		await userEvent.type(screen.getByLabelText('Description'), 'D');
 		await userEvent.selectOptions(await screen.findByTestId('meta-series-part-action'), 'blank');
 
 		await waitFor(() =>
@@ -150,13 +107,10 @@ describe('metadata workbench shell', () => {
 
 	it('saves from the global shortcut', async () => {
 		const engine = engineWithTaggedBooks();
-		runtime = await createAppRuntime({ input: fakeInput(), engine });
-		await renderApp(runtime);
+		await renderApp({ engine, input: pickAlpha });
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
-		await waitFor(() => {
-			expect((document.getElementById('meta-title') as HTMLInputElement).value).toBe('Alpha');
-		});
-		const title = document.getElementById('meta-title') as HTMLInputElement;
+		await waitFor(() => expect(screen.getByLabelText('Book Title')).toHaveValue('Alpha'));
+		const title = screen.getByLabelText<HTMLInputElement>('Book Title');
 		await userEvent.type(title, ' Two');
 		window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true }));
 		await waitFor(() =>

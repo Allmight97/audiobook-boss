@@ -1,40 +1,10 @@
-import { cleanup, render, screen } from '@solidjs/testing-library';
+import { screen } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
-import type { InputCapability } from '../../lib/tauri/capabilities/input';
-import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
-import { App } from '../App';
-
-function fakeInput(): InputCapability {
-	return {
-		openFiles: vi.fn(async () => null),
-		openDirectory: vi.fn(async () => null),
-		listenDragDrop: vi.fn(async () => () => undefined),
-		listenDragEnter: vi.fn(async () => () => undefined),
-		listenDragLeave: vi.fn(async () => () => undefined),
-	};
-}
+import { describe, expect, it, vi } from 'vitest';
+import { createFakeEngine } from '../../test/fixtures/fakeEngine';
+import { renderApp } from '../../test/fixtures/renderApp';
 
 describe('app around the engine', () => {
-	let runtime: AppRuntime | undefined;
-
-	afterEach(() => {
-		cleanup();
-		runtime?.dispose();
-		runtime = undefined;
-	});
-
-	async function renderWith(engine: FakeEngine): Promise<void> {
-		const app = await createAppRuntime({ input: fakeInput(), engine });
-		runtime = app;
-		render(() => (
-			<AppRuntimeProvider runtime={app}>
-				<App />
-			</AppRuntimeProvider>
-		));
-	}
-
 	it('shows a refused change until the user dismisses it', async () => {
 		const engine = createFakeEngine();
 		engine.respond = (intent) =>
@@ -49,10 +19,9 @@ describe('app around the engine', () => {
 						},
 					}
 				: undefined;
-		await renderWith(engine);
-		await screen.findByTestId('left-column');
+		const { runtime } = await renderApp({ engine });
 
-		runtime?.input.toggleSort();
+		runtime.input.toggleSort();
 		expect(await screen.findByText('The list is locked.')).toBeInTheDocument();
 		await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
 		expect(screen.queryByText('The list is locked.')).toBeNull();
@@ -60,8 +29,7 @@ describe('app around the engine', () => {
 
 	it('reminds the user to press Quit again, then clears when the window ends', async () => {
 		const engine = createFakeEngine();
-		await renderWith(engine);
-		await screen.findByTestId('left-column');
+		await renderApp({ engine });
 
 		engine.pressQuitOnce(20);
 

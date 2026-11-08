@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::app_settings::EncoderDefaults;
 use crate::audio::{
-    AudioIntent, AudiobookFormat, BitrateMode, BitrateModeKind, ChannelConfig,
+    AudioIntent, AudiobookFormat, BitrateMode, BitrateModeKind, ChannelConfig, CodecFamily,
     EncoderConfigurationCapability, EncoderSettings, EncoderSettingsCapabilities, EncoderType,
-    FaacProfile, OutputAudio, SampleRateConfig, TitleAudioRequest,
+    FaacProfile, OutputAudio, SampleRateConfig, TitleAudioRequest, FORMATS,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -43,6 +43,18 @@ pub(crate) enum EditResult {
     Changed,
     Same,
     Refused,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum EditScope {
+    Defaults,
+    Title,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RateOffer {
+    by_any_encoder: bool,
+    by_this_encoder: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -93,9 +105,20 @@ pub struct EncoderOption {
     pub available: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FormatOption {
+    pub format: AudiobookFormat,
+    pub codec_family: CodecFamily,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioChoiceFacts {
+    pub format_options: Vec<FormatOption>,
+    pub codec_family: CodecFamily,
+    pub intent_options: Vec<AudioIntent>,
+    pub channel_options: Vec<ChannelConfig>,
     /// The encoder that would run: Opus for Opus formats, and what Auto
     /// resolves to.
     pub effective_encoder: EncoderType,
@@ -103,10 +126,15 @@ pub struct AudioChoiceFacts {
     pub encoder_locked: bool,
     pub downmix_warning: bool,
     pub bitrate_mode: BitrateMode,
+    /// The target kbps the request carries: the Opus bitrate for an Opus
+    /// format, else the AAC one.
+    pub bitrate_kbps: u16,
     pub bitrate_kbps_min: u16,
     pub bitrate_kbps_max: u16,
     pub allowed_modes: Vec<BitrateModeKind>,
     pub faac_profiles: Vec<FaacProfile>,
+    /// Every speed the native AAC encoder accepts, slowest search first.
+    pub native_speed_options: Vec<u8>,
     pub allowed_sample_rates: Vec<u32>,
     /// False when an explicit sample rate is kept that this encoder does not
     /// accept; the user must choose another before export.
@@ -188,7 +216,7 @@ impl AudioChoice {
         }
         self.native_speed = self.native_speed.min(caps.native_speed_max);
         if let SampleRateConfig::Explicit(rate) = self.sample_rate {
-            if !caps.explicit_sample_rates.contains(&rate) {
+            if !self.rate_offer(rate, caps).by_any_encoder {
                 self.sample_rate = if caps.sample_rate_auto {
                     SampleRateConfig::Auto
                 } else {
@@ -215,12 +243,12 @@ impl AudioChoice {
         &mut self,
         edit: AudioEdit,
         caps: Option<&EncoderSettingsCapabilities>,
-        select_encode_on_same: bool,
+        scope: EditScope,
     ) -> EditResult {
         let result = self.apply(edit, caps);
         let selects = match result {
             EditResult::Changed => true,
-            EditResult::Same => select_encode_on_same,
+            EditResult::Same => scope == EditScope::Title,
             EditResult::Refused => false,
         };
         if selects && edit.selects_encode() {
@@ -271,24 +299,21 @@ impl AudioChoice {
                     set(&mut self.aac_bitrate_kbps, kbps)
                 }
             }
-            AudioEdit::SampleRate(rate) => {
-                if let SampleRateConfig::Explicit(hz) = rate {
-                    if !self.allowed_sample_rates(caps).contains(&hz) {
-                        return EditResult::Refused;
-                    }
-                }
-                let offered = match (rate, caps) {
-                    (SampleRateConfig::Auto, Some(caps)) => caps.sample_rate_auto,
-                    (SampleRateConfig::Explicit(hz), Some(caps)) => {
-                        caps.explicit_sample_rates.contains(&hz)
-                    }
-                    (SampleRateConfig::Auto, None) => true,
-                    (SampleRateConfig::Explicit(_), None) => false,
+            AudioEdit::SampleRate(SampleRateConfig::Auto) => {
+                set(&mut self.sample_rate, SampleRateConfig::Auto)
+            }
+            AudioEdit::SampleRate(SampleRateConfig::Explicit(hz)) => {
+                let Some(caps) = caps else {
+                    return EditResult::Refused;
                 };
+                let offer = self.rate_offer(hz, caps);
+                if !offer.by_this_encoder {
+                    return EditResult::Refused;
+                }
                 set(
                     &mut self.sample_rate,
-                    if offered {
-                        rate
+                    if offer.by_any_encoder {
+                        SampleRateConfig::Explicit(hz)
                     } else {
                         SampleRateConfig::Auto
                     },
@@ -307,8 +332,8 @@ impl AudioChoice {
         &self,
         caps: Option<&EncoderSettingsCapabilities>,
     ) -> EncoderType {
-        if self.format.is_opus() {
-            return EncoderType::Opus;
+        if let Some(fixed) = self.format.spec().fixed_encoder() {
+            return fixed;
         }
         match (self.encoder, caps) {
             (EncoderType::Auto, Some(caps)) => caps.availability.auto_encoder,
@@ -346,6 +371,13 @@ impl AudioChoice {
         config.explicit_sample_rates.clone()
     }
 
+    fn rate_offer(&self, hz: u32, caps: &EncoderSettingsCapabilities) -> RateOffer {
+        RateOffer {
+            by_any_encoder: caps.explicit_sample_rates.contains(&hz),
+            by_this_encoder: self.allowed_sample_rates(Some(caps)).contains(&hz),
+        }
+    }
+
     fn bitrate_mode(&self, caps: Option<&EncoderSettingsCapabilities>) -> BitrateMode {
         if self.format.is_opus() {
             return BitrateMode::VbrTarget;
@@ -363,11 +395,7 @@ impl AudioChoice {
     fn settings(&self, caps: Option<&EncoderSettingsCapabilities>) -> EncoderSettings {
         let opus = self.format.is_opus();
         EncoderSettings {
-            encoder_type: if opus {
-                EncoderType::Opus
-            } else {
-                self.encoder
-            },
+            encoder_type: self.format.spec().fixed_encoder().unwrap_or(self.encoder),
             bitrate_kbps: if opus {
                 self.opus_bitrate_kbps
             } else {
@@ -385,7 +413,7 @@ impl AudioChoice {
     fn request_sample_rate(&self, caps: Option<&EncoderSettingsCapabilities>) -> SampleRateConfig {
         match (self.sample_rate, caps) {
             (SampleRateConfig::Explicit(hz), Some(caps))
-                if !caps.explicit_sample_rates.contains(&hz) =>
+                if !self.rate_offer(hz, caps).by_any_encoder =>
             {
                 SampleRateConfig::Auto
             }
@@ -414,18 +442,26 @@ impl AudioChoice {
         let config = self.configuration(caps);
         let allowed_sample_rates = self.allowed_sample_rates(caps);
         let bitrate_mode = self.bitrate_mode(caps);
+        let settings = self.settings(caps);
         AudioChoiceFacts {
+            format_options: FORMATS
+                .into_iter()
+                .map(|spec| FormatOption {
+                    format: spec.format,
+                    codec_family: spec.codec_family,
+                })
+                .collect(),
+            codec_family: self.format.spec().codec_family,
+            intent_options: AudioIntent::ALL.to_vec(),
+            channel_options: caps.map_or_else(Vec::new, |caps| caps.channel_options.clone()),
             effective_encoder: self.effective_encoder(caps),
             encoder_options: caps.map_or_else(Vec::new, |caps| {
                 caps.encoder_types
                     .iter()
                     .copied()
                     .filter(|encoder| {
-                        if self.format.is_opus() {
-                            *encoder == EncoderType::Opus
-                        } else {
-                            !matches!(encoder, EncoderType::Opus | EncoderType::Auto)
-                        }
+                        *encoder != EncoderType::Auto
+                            && self.format.spec().encoders.contains(encoder)
                     })
                     .map(|encoder| EncoderOption {
                         encoder,
@@ -433,9 +469,10 @@ impl AudioChoice {
                     })
                     .collect()
             }),
-            encoder_locked: self.format.is_opus() || caps.is_none(),
+            encoder_locked: self.format.spec().fixed_encoder().is_some() || caps.is_none(),
             downmix_warning: false,
             bitrate_mode,
+            bitrate_kbps: settings.bitrate_kbps,
             bitrate_kbps_min: config.map_or(1, |config| config.bitrate_kbps_min),
             bitrate_kbps_max: config.map_or(0, |config| config.bitrate_kbps_max),
             allowed_modes: config.map_or_else(Vec::new, |config| config.allowed_modes.clone()),
@@ -446,17 +483,16 @@ impl AudioChoice {
                     .map(|entry| entry.profile)
                     .collect()
             }),
-            sample_rate_supported: match self.sample_rate {
-                SampleRateConfig::Explicit(hz) => {
-                    caps.is_none() || allowed_sample_rates.contains(&hz)
+            sample_rate_supported: match (self.sample_rate, caps) {
+                (SampleRateConfig::Explicit(hz), Some(caps)) => {
+                    self.rate_offer(hz, caps).by_this_encoder
                 }
-                SampleRateConfig::Auto => true,
+                _ => true,
             },
+            native_speed_options: caps
+                .map_or_else(Vec::new, |caps| (0..=caps.native_speed_max).collect()),
             allowed_sample_rates,
-            estimate_kbps: match bitrate_mode {
-                BitrateMode::Vbr(_) => None,
-                _ => Some(self.settings(caps).bitrate_kbps),
-            },
+            estimate_kbps: bitrate_mode.fixed_kbps(settings.bitrate_kbps),
         }
     }
 }

@@ -167,22 +167,7 @@ fn validate_audio_format(
                 0.0
             }
         };
-        let chapters = ictx
-            .chapters()
-            .map(|chapter| AudioChapter {
-                title: chapter.metadata().get("title").map(str::to_string),
-                start_ms: ff::Rescale::rescale(
-                    &chapter.start(),
-                    chapter.time_base(),
-                    ff::Rational(1, 1_000),
-                ),
-                end_ms: ff::Rescale::rescale(
-                    &chapter.end(),
-                    chapter.time_base(),
-                    ff::Rational(1, 1_000),
-                ),
-            })
-            .collect();
+        let chapters = crate::metadata::read_chapters(&ictx);
         let display_tags = crate::metadata::display_tags_from_ffmpeg_dict(&ictx.metadata());
         let container_name = ictx.format().name().to_string();
         let length_estimated = crate::metadata::length_is_estimated(&ictx);
@@ -263,7 +248,44 @@ pub fn get_file_list_info<P: AsRef<Path>>(
     Ok(FileListInfo::from_files(files))
 }
 
+fn cue_review_error(cue: &crate::metadata::CueSource) -> AppError {
+    AppError::InvalidInput(format!(
+        "Review {}: confirm its timestamp interpretation or ignore the CUE before converting.",
+        cue.file_name
+    ))
+}
+
 impl FileListInfo {
+    /// The rule for one title's sources: no CUE may wait for review, and CUE
+    /// chapters cannot ride on a merged title.
+    pub(crate) fn check_cue_chapters(files: &[AudioFile]) -> Result<()> {
+        let unreviewed = files
+            .iter()
+            .filter(|file| file.is_valid)
+            .filter_map(|file| file.cue_source.as_ref())
+            .find(|cue| {
+                matches!(
+                    cue.status,
+                    crate::metadata::CueStatus::NeedsConfirmation
+                        | crate::metadata::CueStatus::Invalid
+                )
+            });
+        if let Some(cue) = unreviewed {
+            return Err(cue_review_error(cue));
+        }
+        if files.len() > 1
+            && files
+                .iter()
+                .any(|file| file.chapter_plan.as_ref().is_some_and(|plan| plan.from_cue))
+        {
+            return Err(AppError::InvalidInput(
+                "Merging CUE-bearing inputs is not supported. Separate the titles or ignore CUE chapters."
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn from_files(files: Vec<AudioFile>) -> Self {
         let mut total_duration = 0.0;
         let mut total_size = 0.0;
@@ -306,12 +328,13 @@ pub fn apply_chapter_plans(
             )?;
             file.chapter_plan = Some(plan.clone());
             file.cue_source = None;
-        } else if file.cue_source.is_some() {
-            return Err(AppError::InvalidInput(
-                "Review the sibling CUE in Input before processing, or explicitly ignore it."
-                    .into(),
-            ));
+        } else if let Some(cue) = &file.cue_source {
+            return Err(cue_review_error(cue));
         }
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "file_list_tests.rs"]
+mod tests;

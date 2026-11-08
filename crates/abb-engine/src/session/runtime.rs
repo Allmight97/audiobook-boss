@@ -1,17 +1,16 @@
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use cover_flow::CoverSource;
-use lookup_flow::ChosenResult;
 
 use super::exports::ExportLink;
 use super::intent::{SessionIntent, SessionOutcome, SessionReply};
 use super::lookup::{QueueStep, RESULT_LIMIT};
 use super::plans::PlanTicket;
-use super::state::{GateBlock, SavePlan, SessionState, SessionUpdate};
+use super::state::{ChosenResult, GateBlock, LookupState, SavePlan, SessionState, SessionUpdate};
 use super::submission::{Draft, SubmitRefusal};
 use super::tag_cache::ReadTicket;
 use super::working_set::{SelectionModifiers, WorkingSet};
@@ -61,7 +60,7 @@ pub(crate) struct SessionDeps {
     /// Source files under this root are temporary downloads.
     pub(crate) temporary_root: PathBuf,
     pub(crate) settings: SettingsRuntime,
-    pub(crate) tasks: crate::engine::EngineTasks,
+    pub(crate) tasks: crate::engine_tasks::EngineTasks,
     pub(crate) workspace_root: PathBuf,
     pub(crate) remove_staged: RemoveStaged,
 }
@@ -78,17 +77,9 @@ struct SessionInner {
     deps: SessionDeps,
     network: Network,
     imports: super::import_order::ImportOrder,
-    /// The revision the last event carried.
-    published: AtomicU64,
-    deferred_writer_running: AtomicBool,
+    last_published_revision: AtomicU64,
     sources_freed: tokio::sync::Notify,
     list_unlocked: tokio::sync::Notify,
-    sweeping: AtomicBool,
-    preview_cancels: Mutex<Vec<Arc<AtomicBool>>>,
-    /// Advances with every output change; a delayed record checks it.
-    output_edits: Arc<AtomicU64>,
-    audio_edits: AtomicU64,
-    settings_applied: AtomicU64,
 }
 
 struct Bound {
@@ -142,6 +133,7 @@ enum Rest {
         title_id: String,
         revision: u64,
         link: Box<ExportLink>,
+        held: in_flight::InFlight,
     },
     CoverLoad {
         source: CoverSource,
@@ -212,9 +204,10 @@ impl Session {
                 title_id,
                 revision,
                 link,
+                held,
             } => {
                 session
-                    .keep_location_finished(title_id, revision, *link)
+                    .keep_location_finished(title_id, revision, *link, held)
                     .await
             }
             Rest::CoverLoad { source, started } => session.load_cover(source, started).await,
@@ -239,15 +232,9 @@ impl Session {
                 deps,
                 network,
                 imports: super::import_order::ImportOrder::default(),
-                published: AtomicU64::new(0),
-                deferred_writer_running: AtomicBool::new(false),
+                last_published_revision: AtomicU64::new(0),
                 sources_freed: tokio::sync::Notify::new(),
                 list_unlocked: tokio::sync::Notify::new(),
-                sweeping: AtomicBool::new(false),
-                preview_cancels: Mutex::default(),
-                output_edits: Arc::new(AtomicU64::new(0)),
-                audio_edits: AtomicU64::new(0),
-                settings_applied: AtomicU64::new(0),
             }),
         }
     }
@@ -265,7 +252,7 @@ impl Session {
             let value = change(&mut state);
             let tickets = state.take_plan_tickets();
             state.settle();
-            (value, tickets, self.sweep_due(&state))
+            (value, tickets, self.claim_sweep(&mut state))
         };
         if !tickets.is_empty() {
             self.resolve_plans(tickets);
@@ -296,7 +283,7 @@ impl Session {
             let state = self.lock();
             let since = self
                 .inner
-                .published
+                .last_published_revision
                 .swap(state.revision(), Ordering::SeqCst);
             if since == state.revision() {
                 return;
@@ -475,29 +462,22 @@ impl Session {
             }
 
             I::LookupOpen => self.begin_lookup_open(),
-            I::LookupClose => self.begin_lookup_close(),
-            I::LookupSearch => Rest::LookupSearch {
-                request: self.begin_lookup_action(),
-            },
+            I::LookupClose => self.edit_lookup(LookupState::close),
+            I::LookupSearch => self.begin_lookup_search(),
             I::LookupApply { index, revision } => self.begin_lookup_apply(index, revision),
-            I::LookupSkip => Rest::LookupAdvance {
-                request: self.begin_lookup_action(),
-                step: QueueStep::Skipped,
-            },
+            I::LookupSkip => self.begin_lookup_skip(),
             I::LookupSetTitleQuery { value } => {
-                self.edit_lookup_search(|lookup| lookup.title_query = value)
+                self.edit_lookup(|lookup| lookup.edit_title_query(value))
             }
             I::LookupSetAuthorQuery { value } => {
-                self.edit_lookup_search(|lookup| lookup.author_query = value)
+                self.edit_lookup(|lookup| lookup.edit_author_query(value))
             }
-            I::LookupSetSource { source } => {
-                self.edit_lookup_search(|lookup| lookup.source = source)
-            }
+            I::LookupSetSource { source } => self.edit_lookup(|lookup| lookup.edit_source(source)),
             I::LookupSetApplyMode { mode } => {
-                self.edit_lookup_setting(|lookup| lookup.apply_mode = mode)
+                self.edit_lookup(|lookup| lookup.set_apply_mode(mode))
             }
             I::LookupSetReplaceCover { replace } => {
-                self.edit_lookup_setting(|lookup| lookup.replace_cover = replace)
+                self.edit_lookup(|lookup| lookup.set_replace_cover(replace))
             }
         }
     }
@@ -613,6 +593,7 @@ mod cover_flow;
 mod defaults_flow;
 mod download_flow;
 mod import_flow;
+mod in_flight;
 mod lookup_flow;
 mod preview_flow;
 mod save_flow;

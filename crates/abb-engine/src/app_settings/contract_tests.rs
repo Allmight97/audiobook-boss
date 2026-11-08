@@ -246,6 +246,12 @@ fn every_sample_settings_file_loads_every_choice_this_release_still_offers() {
             Vec::new(),
         ),
         (
+            "all-defaults.toml",
+            include_str!("saved_settings/all-defaults.toml"),
+            AppSettings::default(),
+            Vec::new(),
+        ),
+        (
             "remember-last-state.toml",
             include_str!("saved_settings/remember-last-state.toml"),
             remember_last_state_settings(),
@@ -612,4 +618,28 @@ fn indexer_categories_are_sorted_without_repeats_and_never_empty() {
 
     assert!(rejection(indexer_patch(None, &[])).contains("at least one Indexer category"));
     assert!(rejection(indexer_patch(None, &[0])).contains("at least one Indexer category"));
+}
+
+#[test]
+fn a_default_encoder_that_its_format_cannot_use_is_refused() {
+    let mut accepted = EncoderDefaults::default();
+    accepted.settings.encoder_type = EncoderType::Auto;
+    assert!(accepted.validate().is_ok());
+
+    for (format, encoder) in [
+        (AudiobookFormat::M4b, EncoderType::Opus),
+        (AudiobookFormat::M4aOpus, EncoderType::NativeAac),
+        (AudiobookFormat::MkaOpus, EncoderType::Faac),
+    ] {
+        let mut defaults = EncoderDefaults {
+            format,
+            ..EncoderDefaults::default()
+        };
+        defaults.settings.encoder_type = encoder;
+        let message = defaults.validate().expect_err("mismatch").to_string();
+        assert!(
+            message.contains("must match the selected output format"),
+            "{format:?} with {encoder:?}: {message}"
+        );
+    }
 }

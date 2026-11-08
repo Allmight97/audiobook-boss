@@ -5,7 +5,6 @@
 //! ordered sources in `title_sources`. Identity is the file's `input_id`, so
 //! reorder and sort never change which title a choice belongs to.
 
-use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -13,9 +12,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::audio::{AudioFile, TitleAudioRequest};
 use crate::errors::AppErrorEnvelope;
-use crate::metadata::{CueStatus, MetadataIntentPatch, PatchOp};
+use crate::metadata::{CueChoice, CueStatus, MetadataIntentPatch, PatchOp};
 use crate::metadata_save::Rewrite;
+use crate::natural_order::natural_cmp;
 
+use super::title_status;
 use super::title_totals::{title_totals, PreviewLength, TitleTotals};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
@@ -39,15 +40,6 @@ pub struct SelectionModifiers {
 pub enum MoveDirection {
     Up,
     Down,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum CueChoice {
-    /// Accept a CUE whose timestamps need the hundredths interpretation.
-    ConfirmHundredths,
-    /// Drop the CUE and fall back to the file's embedded chapters.
-    Ignore,
 }
 
 /// What the last import could not do: why it added nothing, or which dropped
@@ -128,10 +120,13 @@ fn identity(file: &AudioFile) -> &str {
 impl WorkingSet {
     pub(crate) fn titles(&self, revision: u64) -> TitlesSnapshot {
         let totals = title_totals(&self.files, &self.title_sources);
+        let mut files = self.files.clone();
+        let mut title_sources = self.title_sources.clone();
+        title_status::publish(&mut files, &mut title_sources);
         TitlesSnapshot {
             revision,
-            files: self.files.clone(),
-            title_sources_by_identity: self.title_sources.clone(),
+            files,
+            title_sources_by_identity: title_sources,
             title_totals: totals.by_title,
             total_size_bytes: totals.total_size_bytes,
             preview_length: totals.preview_length,
@@ -203,10 +198,6 @@ impl WorkingSet {
         self.touch();
     }
 
-    pub(crate) fn order_locked(&self) -> bool {
-        self.order_locked
-    }
-
     pub(crate) fn selected_files(&self) -> Vec<&AudioFile> {
         self.selected_indices
             .iter()
@@ -274,10 +265,6 @@ impl WorkingSet {
         default_audio: &TitleAudioRequest,
     ) {
         self.touch();
-        if self.order_locked {
-            self.notice = Some(InputNotice::OrderLocked);
-            return;
-        }
         let mut seen = self.source_paths();
         let replace = self.files.is_empty();
         let mut appended = Vec::new();
@@ -568,7 +555,7 @@ impl WorkingSet {
         self.restore_selection(&ids, anchor);
     }
 
-    pub(crate) fn set_order_locked(&mut self, locked: bool) {
+    pub(super) fn set_order_locked(&mut self, locked: bool) {
         if self.order_locked != locked {
             self.order_locked = locked;
             self.touch();
@@ -741,18 +728,18 @@ impl WorkingSet {
             let Some(cue) = file.cue_source.as_mut() else {
                 return;
             };
+            if !cue.actions.contains(&choice) {
+                return;
+            }
             match choice {
-                CueChoice::ConfirmHundredths if cue.status == CueStatus::NeedsConfirmation => {
-                    cue.status = CueStatus::Ready;
-                }
-                CueChoice::Ignore if cue.status != CueStatus::EmbeddedPreferred => {
-                    cue.status = CueStatus::Ignored;
+                CueChoice::ConfirmHundredths => cue.set_status(CueStatus::Ready),
+                CueChoice::Ignore => {
+                    cue.set_status(CueStatus::Ignored);
                     if let Some(plan) = file.chapter_plan.as_mut() {
                         plan.from_cue = false;
                         plan.chapters = file.chapters.clone();
                     }
                 }
-                _ => {}
             }
         };
         self.files.iter_mut().for_each(apply);
@@ -785,45 +772,6 @@ fn basename(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_else(|| path.to_string_lossy().into_owned())
-}
-
-/// Case-insensitive comparison that orders digit runs by numeric value, so
-/// "Part 2" sorts before "Part 10".
-fn natural_cmp(left: &str, right: &str) -> Ordering {
-    let left: Vec<char> = left.to_lowercase().chars().collect();
-    let right: Vec<char> = right.to_lowercase().chars().collect();
-    let (mut i, mut j) = (0, 0);
-    while i < left.len() && j < right.len() {
-        if left[i].is_ascii_digit() && right[j].is_ascii_digit() {
-            let digits = |chars: &[char], start: usize| {
-                let end = chars[start..]
-                    .iter()
-                    .position(|c| !c.is_ascii_digit())
-                    .map_or(chars.len(), |offset| start + offset);
-                let run: String = chars[start..end].iter().collect();
-                (run.trim_start_matches('0').to_string(), end)
-            };
-            let (left_run, left_end) = digits(&left, i);
-            let (right_run, right_end) = digits(&right, j);
-            let ordering = left_run
-                .len()
-                .cmp(&right_run.len())
-                .then_with(|| left_run.cmp(&right_run));
-            if ordering != Ordering::Equal {
-                return ordering;
-            }
-            i = left_end;
-            j = right_end;
-        } else {
-            let ordering = left[i].cmp(&right[j]);
-            if ordering != Ordering::Equal {
-                return ordering;
-            }
-            i += 1;
-            j += 1;
-        }
-    }
-    (left.len() - i).cmp(&(right.len() - j))
 }
 
 #[cfg(test)]

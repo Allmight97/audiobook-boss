@@ -1,48 +1,38 @@
+use super::super::lane_tests::awaiting_handoff;
 use super::super::{RemoteUiIntent, UiAction, UiState};
 use super::*;
 use crate::errors::{AppError, AppErrorEnvelope};
+use crate::remote_source::job_state;
 use crate::remote_source::providers::audible::AudibleRequestError;
 use crate::remote_source::{
-    ProviderId, RemoteAcquisitionFailureKind, RemoteAcquisitionStatus, RemoteLibraryResponse,
+    AcquisitionSnapshot, ProviderId, RemoteAcquisitionFailureKind, RemoteLibraryResponse,
     RemoteSourceAccountState,
 };
-use abb_remote_source_core::{acquisition_progress, AcquisitionStage};
+use abb_remote_source_core::AcquisitionStage;
 
 const WARNING: &str = "Sign-in won't be remembered after a restart.";
 
-fn job(id: &str, status: RemoteAcquisitionStatus, stage: AcquisitionStage) -> AcquisitionJob {
-    AcquisitionJob {
-        job_id: id.into(),
-        provider_id: ProviderId::Audible,
-        status,
-        progress: acquisition_progress(stage, Some(1.0), None, None),
-        materialized_files: Vec::new(),
-        supplemental_assets: Vec::new(),
-        diagnostics: Vec::new(),
-        handoff: None,
-    }
+fn running(id: &str, stage: AcquisitionStage) -> AcquisitionSnapshot {
+    job_state::tests::running(id, stage).snapshot()
 }
 
-fn imported(count: usize) -> AcquisitionJob {
-    AcquisitionJob {
-        handoff: Some(AcquisitionHandoff::Imported { count }),
-        ..job(
-            "imported",
-            RemoteAcquisitionStatus::ImportedToFileList,
-            AcquisitionStage::ImportHandoff,
-        )
-    }
+fn imported(count: usize) -> AcquisitionSnapshot {
+    imported_with(count, Vec::new())
 }
 
-fn removed(reason: HandoffRefusal) -> AcquisitionJob {
-    AcquisitionJob {
-        handoff: Some(AcquisitionHandoff::Removed { reason }),
-        ..job(
-            "removed",
-            RemoteAcquisitionStatus::Validated,
-            AcquisitionStage::ImportHandoff,
-        )
-    }
+fn imported_with(count: usize, diagnostics: Vec<RemoteSourceDiagnostic>) -> AcquisitionSnapshot {
+    job_state::tests::imported("imported", count, diagnostics).snapshot()
+}
+
+fn removed(
+    reason: HandoffRefusal,
+    diagnostics: Vec<RemoteSourceDiagnostic>,
+) -> AcquisitionSnapshot {
+    job_state::tests::removed("removed", reason, diagnostics).snapshot()
+}
+
+fn failed(diagnostics: Vec<RemoteSourceDiagnostic>) -> AcquisitionSnapshot {
+    job_state::tests::failed("failed", diagnostics).snapshot()
 }
 
 fn diagnostic(message: &str) -> RemoteSourceDiagnostic {
@@ -95,11 +85,7 @@ fn message(ui: &UiState) -> String {
 #[test]
 fn settling_a_job_publishes_its_line_on_the_remote_part() {
     let mut ui = UiState::default();
-    let running = job(
-        "imported",
-        RemoteAcquisitionStatus::Acquiring,
-        AcquisitionStage::Download,
-    );
+    let running = running("imported", AcquisitionStage::Download);
     ui.acquisition_changed(running.clone());
     assert!(ui.acquisition_changed(running).remote.is_none());
     let update = ui.acquisition_changed(imported(2));
@@ -146,14 +132,14 @@ fn a_new_sign_in_replaces_a_settled_job_line() {
     let mut ui = settled_ui();
     ui.begin(RemoteUiIntent::StartAuth).expect("sign-in starts");
     assert_eq!(message(&ui), "Starting Audible authorization.");
-    ui.snapshot.auth = RemoteAuthStatus::AwaitingHandoff;
+    ui.audible.sign_in = awaiting_handoff();
     assert!(message(&ui).starts_with("Complete Audible authorization in your browser"));
 }
 
 #[test]
 fn completing_a_sign_in_replaces_a_job_that_settled_while_it_waited() {
     let mut ui = UiState::default();
-    ui.snapshot.auth = RemoteAuthStatus::AwaitingHandoff;
+    ui.audible.sign_in = awaiting_handoff();
     ui.acquisition_changed(imported(1));
     ui.begin(RemoteUiIntent::CompleteAuth {
         response_url_handoff_path: None,
@@ -188,9 +174,7 @@ fn a_sign_in_or_account_failure_outranks_a_settled_job() {
         error: envelope("Account read failed."),
     };
     assert_eq!(message(&ui), "Account read failed.");
-    ui.snapshot.auth = RemoteAuthStatus::Failed {
-        error: envelope("Sign-in failed."),
-    };
+    ui.audible.sign_in = AudibleSignIn::Failed(envelope("Sign-in failed."));
     assert_eq!(message(&ui), "Sign-in failed.");
 }
 
@@ -207,9 +191,7 @@ fn ui_after_failed_sign_in_and_account_read() -> UiState {
     ui.snapshot.account_status = RemoteDraftStatus::Failed {
         error: envelope("Account read failed."),
     };
-    ui.snapshot.auth = RemoteAuthStatus::Failed {
-        error: envelope("Sign-in failed."),
-    };
+    ui.audible.sign_in = AudibleSignIn::Failed(envelope("Sign-in failed."));
     ui
 }
 
@@ -219,7 +201,7 @@ fn a_good_library_load_replaces_an_earlier_sign_in_or_account_failure() {
     let request = refresh(&mut ui);
     assert!(ui.library_result(request, &empty_library()));
     assert_eq!(message(&ui), "0 Audible titles loaded.");
-    assert_eq!(ui.snapshot.auth, RemoteAuthStatus::Idle);
+    assert!(matches!(ui.audible.sign_in, AudibleSignIn::Idle));
     assert_eq!(ui.snapshot.account_status, RemoteDraftStatus::Idle);
 }
 
@@ -237,62 +219,66 @@ fn a_failed_library_load_leaves_an_earlier_sign_in_or_account_failure() {
 
 #[test]
 fn settled_jobs_keep_their_outcome_wording() {
-    assert_eq!(settled_job_line(&imported(1)), "1 acquired title imported.");
     assert_eq!(
-        settled_job_line(&imported(3)),
+        settled_job_line(&imported(1).job),
+        "1 acquired title imported."
+    );
+    assert_eq!(
+        settled_job_line(&imported(3).job),
         "3 acquired titles imported."
     );
     assert_eq!(
-        settled_job_line(&removed(HandoffRefusal::ImportFailed {
-            error: envelope("The disk is full."),
-        })),
+        settled_job_line(
+            &removed(
+                HandoffRefusal::ImportFailed {
+                    error: envelope("The disk is full."),
+                },
+                Vec::new()
+            )
+            .job
+        ),
         "The disk is full. Staged remote files were removed."
     );
     assert_eq!(
-        settled_job_line(&removed(HandoffRefusal::NothingAdded)),
+        settled_job_line(&removed(HandoffRefusal::NothingAdded, Vec::new()).job),
         "Acquired titles were not added to the input session. Staged remote files were removed."
     );
 }
 
 #[test]
 fn a_failed_job_shows_its_reason_and_falls_back_to_the_stage_word() {
-    let failed = job(
-        "failed",
-        RemoteAcquisitionStatus::Failed,
-        AcquisitionStage::Failed,
+    assert_eq!(
+        settled_job_line(&failed(Vec::new()).job),
+        "Acquisition failed."
     );
-    assert_eq!(settled_job_line(&failed), "Acquisition failed.");
-    let explained = AcquisitionJob {
-        diagnostics: vec![
-            diagnostic(" Token expired. "),
-            diagnostic("Token expired."),
-            diagnostic("  "),
-            diagnostic("Retrying."),
-        ],
-        ..failed
-    };
-    assert_eq!(settled_job_line(&explained), "Token expired. Retrying.");
+    let explained = failed(vec![
+        diagnostic(" Token expired. "),
+        diagnostic("Token expired."),
+        diagnostic("  "),
+        diagnostic("Retrying."),
+    ]);
+    assert_eq!(settled_job_line(&explained.job), "Token expired. Retrying.");
 }
 
 #[test]
 fn a_settled_import_or_removal_names_the_titles_that_failed() {
-    let partial = AcquisitionJob {
-        diagnostics: vec![
+    let partial = imported_with(
+        1,
+        vec![
             diagnostic("One title failed."),
             diagnostic("One title failed."),
         ],
-        ..imported(1)
-    };
+    );
     assert_eq!(
-        settled_job_line(&partial),
+        settled_job_line(&partial.job),
         "1 acquired title imported. One title failed."
     );
-    let nothing_added = AcquisitionJob {
-        diagnostics: vec![diagnostic("One title failed.")],
-        ..removed(HandoffRefusal::NothingAdded)
-    };
+    let nothing_added = removed(
+        HandoffRefusal::NothingAdded,
+        vec![diagnostic("One title failed.")],
+    );
     assert_eq!(
-        settled_job_line(&nothing_added),
+        settled_job_line(&nothing_added.job),
         "Acquired titles were not added to the input session. Staged remote files were removed. One title failed."
     );
 }
@@ -302,21 +288,21 @@ fn audible_idle_rungs_keep_their_order_and_the_connected_note() {
     let mut ui = UiState::default();
     ui.snapshot.account = connected(ProviderId::Audible, WARNING);
     assert_eq!(message(&ui), WARNING);
-    ui.snapshot.library_status = RemoteDraftStatus::Succeeded;
+    ui.audible.library_status = RemoteDraftStatus::Succeeded;
     assert_eq!(message(&ui), format!("0 Audible titles loaded. {WARNING}"));
     ui.library.diagnostics = vec![diagnostic("Some titles are hidden.")];
     assert_eq!(message(&ui), format!("Some titles are hidden. {WARNING}"));
     ui.snapshot.account_status = RemoteDraftStatus::Running;
     assert_eq!(message(&ui), "Updating connection.");
-    ui.snapshot.auth = RemoteAuthStatus::Completing;
+    ui.audible.sign_in = AudibleSignIn::Completing;
     assert_eq!(message(&ui), "Completing Audible connection.");
 }
 
 #[test]
 fn a_running_connection_update_outranks_a_running_library_load_and_the_handoff_prompt() {
     let mut ui = UiState::default();
-    ui.snapshot.auth = RemoteAuthStatus::AwaitingHandoff;
-    ui.snapshot.library_status = RemoteDraftStatus::Running;
+    ui.audible.sign_in = awaiting_handoff();
+    ui.audible.library_status = RemoteDraftStatus::Running;
     assert_eq!(message(&ui), "Loading Audible library.");
     ui.snapshot.account_status = RemoteDraftStatus::Running;
     assert_eq!(message(&ui), "Updating connection.");
@@ -341,7 +327,7 @@ fn an_account_that_is_not_connected_still_shows_its_message() {
         message: Some("Connect Audible.".into()),
     });
     assert_eq!(message(&ui), "Connect Audible.");
-    ui.snapshot.library_status = RemoteDraftStatus::Succeeded;
+    ui.audible.library_status = RemoteDraftStatus::Succeeded;
     assert_eq!(message(&ui), "0 Audible titles loaded.");
 }
 
@@ -369,10 +355,8 @@ fn the_indexer_line_carries_its_account_failure_and_connected_note() {
 fn audible_failures_stay_out_of_the_indexer_line() {
     let mut ui = UiState::default();
     ui.snapshot.lane = ProviderId::Indexer;
-    ui.snapshot.auth = RemoteAuthStatus::Failed {
-        error: envelope("Audible auth failed"),
-    };
-    ui.snapshot.library_status = RemoteDraftStatus::Failed {
+    ui.audible.sign_in = AudibleSignIn::Failed(envelope("Audible auth failed"));
+    ui.audible.library_status = RemoteDraftStatus::Failed {
         error: envelope("Audible library failed"),
     };
     ui.snapshot.indexer.message = "Indexer ready".into();

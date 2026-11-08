@@ -1,16 +1,17 @@
+use super::support::wav::write_wav;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use abb_engine::output_artifact::CollisionPolicy;
-use abb_engine::session::{InputNotice, MetadataField, SessionIntent, SubmissionStatus};
-use abb_engine::work_runtime::{ChildJobStatus, OperationId, WorkOperationStatus};
-use abb_engine::ShutdownOutcome;
+use crate::output_artifact::CollisionPolicy;
+use crate::session::{InputNotice, MetadataField, SessionIntent, SubmissionStatus};
+use crate::work_runtime::{ChildJobStatus, OperationId, WorkOperationStatus};
+use crate::ShutdownOutcome;
 
-use super::integration_session_desk::{collision_review, finished, submission, Desk};
+use super::integration_session_desk::{collision_review, submission, Desk};
 use super::media_fixtures::{chapters_of, duration_ms, mux_chapters, write_sine_mp3};
-use super::wav_fixture::write_wav;
+use super::support::fs_listing::files_under;
 
-fn imported(desk: &Desk) -> Vec<abb_engine::audio::AudioFile> {
+fn imported(desk: &Desk) -> Vec<crate::audio::AudioFile> {
     desk.engine
         .session_snapshot()
         .titles
@@ -18,39 +19,11 @@ fn imported(desk: &Desk) -> Vec<abb_engine::audio::AudioFile> {
         .files
 }
 
-pub(super) fn files_under(root: &Path) -> Vec<PathBuf> {
-    let mut found = Vec::new();
-    let mut folders = vec![root.to_path_buf()];
-    while let Some(folder) = folders.pop() {
-        for entry in fs::read_dir(&folder).expect("read folder") {
-            let path = entry.expect("entry").path();
-            if path.is_dir() {
-                folders.push(path);
-            } else {
-                found.push(path);
-            }
-        }
-    }
-    found.sort();
-    found
-}
-
 fn name_of(path: &Path) -> String {
     path.file_name()
         .expect("a file name")
         .to_string_lossy()
         .into_owned()
-}
-
-async fn finish_submitted_export(desk: &Desk) -> OperationId {
-    let Some(SubmissionStatus::Submitted { operation_id, .. }) = submission(desk) else {
-        panic!("export not accepted: {:?}", submission(desk));
-    };
-    desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&operation_id))
-    })
-    .await;
-    operation_id
 }
 
 async fn export_renaming_any_collision(desk: &Desk) -> OperationId {
@@ -64,14 +37,14 @@ async fn export_renaming_any_collision(desk: &Desk) -> OperationId {
         })
         .await;
     }
-    finish_submitted_export(desk).await
+    desk.finish_submitted_export().await
 }
 
 fn output_seconds(outputs: &[PathBuf]) -> Vec<u32> {
     let mut seconds: Vec<_> = outputs
         .iter()
         .map(|path| {
-            abb_engine::audio::get_file_list_info(&[path], abb_engine::audio::AacDecoder::Auto)
+            crate::audio::get_file_list_info(&[path], crate::audio::AacDecoder::Auto)
                 .expect("read an output")
                 .files[0]
                 .duration
@@ -162,7 +135,7 @@ async fn a_name_in_either_unicode_form_survives_import_export_and_reimport() {
     let mut output_titles: Vec<_> = outputs
         .iter()
         .map(|path| {
-            abb_engine::read_metadata(path)
+            crate::metadata::read_metadata(path)
                 .expect("read output tags")
                 .title
                 .expect("output title")
@@ -216,7 +189,7 @@ async fn odd_names_and_a_wrong_extension_still_import_and_export() {
         .iter()
         .map(|path| {
             assert!(path.starts_with(&exports), "{path:?}");
-            abb_engine::read_metadata(path)
+            crate::metadata::read_metadata(path)
                 .expect("read output tags")
                 .title
                 .expect("output title")
@@ -257,12 +230,8 @@ async fn a_hundred_file_group_exports_in_order_with_a_chapter_each() {
     })
     .await;
 
-    desk.export().await;
-    desk.wait_until("the book is published", |desk| {
-        !files_under(&desk.root.path().join("exports")).is_empty()
-    })
-    .await;
-    let output = files_under(&desk.root.path().join("exports")).remove(0);
+    let export = desk.export_and_finish().await;
+    let output = desk.output_of(&export);
 
     let chapters = chapters_of(&output);
     assert_eq!(chapters.len(), 100);

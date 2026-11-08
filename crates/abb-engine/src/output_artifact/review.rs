@@ -1,4 +1,5 @@
-use super::types::{CollisionPolicy, PlannedOutputAction, ResolvedOutputPlan};
+use super::types::OutputVerdict;
+use super::types::{CollisionPolicy, ResolvedOutputPlan};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 
 pub(crate) struct OutputPlanReview<'a> {
@@ -38,7 +39,7 @@ pub(crate) fn enforce_output_plan_review<'a>(
     if let Some(output) = outputs
         .iter()
         .copied()
-        .find(|output| abb_output_artifact_core::plan_is_hard_block(output))
+        .find(|output| output.verdict() == OutputVerdict::Blocked)
     {
         return Err(AppError::FileValidation(output_plan_review_message(output)));
     }
@@ -47,16 +48,9 @@ pub(crate) fn enforce_output_plan_review<'a>(
         if let Some(output) = outputs
             .iter()
             .copied()
-            .find(|output| output.action == PlannedOutputAction::ReviewRequired)
+            .find(|output| output.verdict() == OutputVerdict::Review)
         {
             return Err(AppError::FileValidation(output_plan_review_message(output)));
-        }
-
-        if outputs.iter().any(|output| output.collision.is_some()) {
-            return Err(AppError::FileValidation(
-                "Output collisions require review before processing. Open the collision dialog and choose how to continue."
-                    .to_string(),
-            ));
         }
     }
 

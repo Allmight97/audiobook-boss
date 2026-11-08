@@ -95,6 +95,12 @@ pub struct PlannedOutput {
     pub action: PlannedOutputAction,
 }
 
+impl PlannedOutput {
+    pub fn verdict(&self) -> OutputVerdict {
+        output_verdict(self.action, self.collision.as_ref().map(|value| value.kind))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutputCollision {
     pub kind: OutputCollisionKind,
@@ -136,7 +142,15 @@ pub fn derive_output_artifact_path(
                 .file_stem()
                 .map(|value| value.to_string_lossy())
                 .unwrap_or_else(|| "output".into());
-            Ok(parent.join(format!("{stem}.preview.m4b")))
+            let extension = requested_final_path
+                .extension()
+                .map(|value| value.to_string_lossy())
+                .ok_or_else(|| {
+                    OutputArtifactCoreError::InvalidInput(
+                        "The output path has no extension".to_string(),
+                    )
+                })?;
+            Ok(parent.join(format!("{stem}.preview.{extension}")))
         }
     }
 }
@@ -208,9 +222,10 @@ pub fn build_output_path_preview(
     metadata: Option<&NamingMetadata>,
     naming: OutputNamingConfig,
     source_path: Option<&Path>,
+    extension: &str,
 ) -> Result<PathBuf> {
     let values = collect_naming_values(metadata, source_path)?;
-    build_output_path_inner(base_dir, &values, &naming)
+    build_output_path_inner(base_dir, &values, &naming, extension)
 }
 
 pub fn action_requires_output_write(action: PlannedOutputAction) -> bool {
@@ -222,19 +237,63 @@ pub fn action_requires_output_write(action: PlannedOutputAction) -> bool {
     )
 }
 
-pub fn collision_is_hard_block(collision: Option<&OutputCollision>) -> bool {
-    collision.is_some_and(|value| {
+impl OutputCollisionKind {
+    /// A collision with an input source: no policy may write there.
+    pub fn is_hard_block(self) -> bool {
         matches!(
-            value.kind,
-            OutputCollisionKind::SourceDestinationOverlap
-                | OutputCollisionKind::CanonicalPathOverlap
+            self,
+            Self::SourceDestinationOverlap | Self::CanonicalPathOverlap
         )
-    })
+    }
 }
 
-pub fn plan_is_hard_block(plan: &ResolvedOutputPlan) -> bool {
-    matches!(plan.action, PlannedOutputAction::ReviewRequired)
-        && collision_is_hard_block(plan.collision.as_ref())
+/// What the collision policy does with one output. `claimed_conflict` says the
+/// path the collision names is one an earlier output of this batch claimed.
+pub fn resolve_action(
+    kind: Option<OutputCollisionKind>,
+    claimed_conflict: bool,
+    policy: CollisionPolicy,
+) -> PlannedOutputAction {
+    let Some(kind) = kind else {
+        return PlannedOutputAction::Write;
+    };
+    if kind.is_hard_block() {
+        return PlannedOutputAction::ReviewRequired;
+    }
+    let batch_like = match kind {
+        OutputCollisionKind::BatchDuplicate => true,
+        OutputCollisionKind::CaseInsensitiveMatch => claimed_conflict,
+        _ => false,
+    };
+    match policy {
+        CollisionPolicy::Fail => PlannedOutputAction::ReviewRequired,
+        CollisionPolicy::ReplaceExisting if batch_like => PlannedOutputAction::RenameNew,
+        CollisionPolicy::ReplaceExisting => PlannedOutputAction::ReplaceExisting,
+        CollisionPolicy::RenameNew => PlannedOutputAction::RenameNew,
+        CollisionPolicy::SkipExisting => PlannedOutputAction::SkipExisting,
+    }
+}
+
+/// Whether an output may be written as planned, needs the owner's decision,
+/// or can never be written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputVerdict {
+    Proceed,
+    Review,
+    Blocked,
+}
+
+pub fn output_verdict(
+    action: PlannedOutputAction,
+    collision: Option<OutputCollisionKind>,
+) -> OutputVerdict {
+    match (action, collision) {
+        (PlannedOutputAction::ReviewRequired, Some(kind)) if kind.is_hard_block() => {
+            OutputVerdict::Blocked
+        }
+        (PlannedOutputAction::ReviewRequired, _) => OutputVerdict::Review,
+        _ => OutputVerdict::Proceed,
+    }
 }
 
 impl OutputCollision {
@@ -251,6 +310,10 @@ impl OutputCollision {
 }
 
 impl ResolvedOutputPlan {
+    pub fn verdict(&self) -> OutputVerdict {
+        output_verdict(self.action, self.collision.as_ref().map(|value| value.kind))
+    }
+
     pub fn to_public(&self, input_index: usize, input_path: &Path) -> PlannedOutput {
         PlannedOutput {
             input_index,
@@ -283,7 +346,7 @@ pub fn output_plan_review_message(output: &ResolvedOutputPlan, destination: &str
 
 fn output_review_requirement(output: &ResolvedOutputPlan) -> Option<OutputReviewRequirement> {
     (output.action == PlannedOutputAction::ReviewRequired).then(|| OutputReviewRequirement {
-        can_proceed: !plan_is_hard_block(output),
+        can_proceed: output.verdict() != OutputVerdict::Blocked,
         message: output_plan_review_message(
             output,
             &output
@@ -520,7 +583,7 @@ fn render_custom_template(template: &str, values: &NamingValues) -> Result<Strin
     Ok(trimmed.to_string())
 }
 
-fn sanitize_template_relative_path(rendered: &str) -> Result<PathBuf> {
+fn sanitize_template_relative_path(rendered: &str, extension: &str) -> Result<PathBuf> {
     let rendered_path = Path::new(rendered);
     if rendered_path.is_absolute() {
         return Err(OutputArtifactCoreError::FileValidation(
@@ -566,9 +629,14 @@ fn sanitize_template_relative_path(rendered: &str) -> Result<PathBuf> {
     }
 
     if let Some(last) = segments.last_mut() {
-        if !last.to_ascii_lowercase().ends_with(".m4b") {
-            last.push_str(".m4b");
+        const TEMPLATE_SUFFIX: &str = ".m4b";
+        if last.len() > TEMPLATE_SUFFIX.len()
+            && last.to_ascii_lowercase().ends_with(TEMPLATE_SUFFIX)
+        {
+            last.truncate(last.len() - TEMPLATE_SUFFIX.len());
         }
+        last.push('.');
+        last.push_str(extension);
     }
 
     let mut relative = PathBuf::new();
@@ -582,6 +650,7 @@ fn build_output_path_inner(
     base_dir: &Path,
     values: &NamingValues,
     naming: &OutputNamingConfig,
+    extension: &str,
 ) -> Result<PathBuf> {
     let mut dir = base_dir.to_path_buf();
     let filename = match naming.preset {
@@ -603,7 +672,7 @@ fn build_output_path_inner(
             let title_folder =
                 build_abs_title(&values.title, book_part, values.year, naming.include_year);
             dir = dir.join(&title_folder);
-            format!("{title_folder}.m4b")
+            format!("{title_folder}.{extension}")
         }
         NamingPreset::CustomTemplate => {
             let template = naming.custom_template.as_deref().ok_or_else(|| {
@@ -612,7 +681,7 @@ fn build_output_path_inner(
                 )
             })?;
             let rendered = render_custom_template(template, values)?;
-            let relative = sanitize_template_relative_path(&rendered)?;
+            let relative = sanitize_template_relative_path(&rendered, extension)?;
             let parent = relative.parent().unwrap_or_else(|| Path::new(""));
             if !parent.as_os_str().is_empty() {
                 dir = dir.join(parent);

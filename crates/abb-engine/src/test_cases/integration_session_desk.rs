@@ -3,16 +3,19 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use abb_engine::audio::{AudioIntent, EncoderType};
-use abb_engine::session::{
+use crate::audio::{AudioIntent, EncoderType};
+use crate::metadata::{read_metadata, AudiobookMetadata};
+use crate::session::{
     AudioEdit, MetadataField, MetadataSnapshot, SessionIntent, SessionOutcome, SubmissionStatus,
     TitlePlan,
 };
-use abb_engine::work_runtime::WorkOperationStatus;
-use abb_engine::{read_metadata, AudiobookMetadata, Engine, EngineConfig};
+use crate::work_runtime::WorkOperationStatus;
+use crate::{Engine, EngineConfig};
 use tempfile::TempDir;
 
 use super::media_fixtures::MediaLane;
+use super::support::form::field_of;
+use super::support::poll::until_true;
 
 pub(super) struct Desk {
     pub(super) root: TempDir,
@@ -24,8 +27,16 @@ pub(super) fn engine_config(root: &Path) -> EngineConfig {
         cache_dir: root.join("cache"),
         config_dir: root.join("config"),
         app_identifier: "com.audiobook-boss.test".to_string(),
-        events: Arc::new(abb_engine::DiscardEvents),
+        events: Arc::new(crate::DiscardEvents),
     }
+}
+
+pub(super) fn processing_sessions_dir(root: &Path) -> PathBuf {
+    crate::audio::processing_workspace_root(&engine_config(root).cache_dir)
+}
+
+pub(super) fn remote_staging_sessions_dir(root: &Path) -> PathBuf {
+    crate::remote_source::staging_session_root(&engine_config(root).cache_dir)
 }
 
 impl Desk {
@@ -57,7 +68,7 @@ impl Desk {
     }
 
     pub(super) fn residual_workspace_dirs(&self) -> Vec<PathBuf> {
-        let workspace = crate::audio::processing_workspace_root(&self.root.path().join("cache"));
+        let workspace = processing_sessions_dir(self.root.path());
         if !workspace.exists() {
             return Vec::new();
         }
@@ -118,13 +129,18 @@ impl Desk {
     }
 
     pub(super) fn shown(&self, field: MetadataField) -> String {
-        self.metadata()
-            .form
-            .fields
+        field_of(&self.metadata().form, field).value
+    }
+
+    pub(super) fn title_ids(&self) -> Vec<String> {
+        self.engine
+            .session_snapshot()
+            .titles
+            .expect("titles")
+            .files
             .into_iter()
-            .find(|snapshot| snapshot.field == field)
-            .expect("field")
-            .value
+            .map(|file| file.input_id)
+            .collect()
     }
 
     pub(super) async fn prepare_export(&self) {
@@ -134,15 +150,7 @@ impl Desk {
             directory: output.to_string_lossy().into_owned(),
         })
         .await;
-        let title_ids = self
-            .engine
-            .session_snapshot()
-            .titles
-            .expect("titles")
-            .files
-            .into_iter()
-            .map(|file| file.input_id)
-            .collect::<Vec<_>>();
+        let title_ids = self.title_ids();
         for edit in [
             AudioEdit::Intent(AudioIntent::Encode),
             AudioEdit::Encoder(EncoderType::NativeAac),
@@ -155,18 +163,37 @@ impl Desk {
         }
     }
 
-    pub(super) async fn export(&self) -> abb_engine::work_runtime::OperationId {
+    pub(super) async fn export(&self) -> crate::work_runtime::OperationId {
         self.prepare_export().await;
         self.send(SessionIntent::Submit).await;
+        self.submitted_operation()
+    }
+
+    pub(super) async fn export_and_finish(&self) -> crate::work_runtime::OperationId {
+        self.prepare_export().await;
+        self.send(SessionIntent::Submit).await;
+        self.finish_submitted_export().await
+    }
+
+    pub(super) fn submitted_operation(&self) -> crate::work_runtime::OperationId {
         match submission(self) {
             Some(SubmissionStatus::Submitted { operation_id, .. }) => operation_id,
             other => panic!("export not accepted: {other:?}"),
         }
     }
 
+    pub(super) async fn finish_submitted_export(&self) -> crate::work_runtime::OperationId {
+        let operation = self.submitted_operation();
+        self.wait_until("the export finishes", |desk| {
+            desk.export_finished(&operation)
+        })
+        .await;
+        operation
+    }
+
     pub(super) fn export_status(
         &self,
-        operation: &abb_engine::work_runtime::OperationId,
+        operation: &crate::work_runtime::OperationId,
     ) -> WorkOperationStatus {
         self.engine
             .list_work_operations()
@@ -178,7 +205,19 @@ impl Desk {
             .status
     }
 
-    pub(super) fn output_of(&self, operation: &abb_engine::work_runtime::OperationId) -> PathBuf {
+    pub(super) fn export_finished(&self, operation: &crate::work_runtime::OperationId) -> bool {
+        self.engine
+            .list_work_operations()
+            .expect("operations")
+            .operations
+            .into_iter()
+            .find(|snapshot| &snapshot.operation_id == operation)
+            .expect("export is listed")
+            .phase
+            == crate::work_runtime::OperationPhase::Finished
+    }
+
+    pub(super) fn output_of(&self, operation: &crate::work_runtime::OperationId) -> PathBuf {
         let operations = self.engine.list_work_operations().expect("operations");
         let export = operations
             .operations
@@ -199,13 +238,7 @@ impl Desk {
     }
 
     pub(super) async fn wait_until(&self, what: &str, done: impl Fn(&Self) -> bool) {
-        for _ in 0..600 {
-            if done(self) {
-                return;
-            }
-            tokio::time::sleep(Duration::from_millis(25)).await;
-        }
-        panic!("timed out waiting until {what}");
+        until_true(what, || done(self)).await;
     }
 }
 
@@ -217,9 +250,7 @@ pub(super) fn start_once_the_lock_frees(config: impl Fn() -> EngineConfig) -> En
     loop {
         match Engine::start(config()) {
             Ok(engine) => return engine,
-            Err(abb_engine::AppError::AlreadyRunning(_))
-                if std::time::Instant::now() < deadline =>
-            {
+            Err(crate::AppError::AlreadyRunning(_)) if std::time::Instant::now() < deadline => {
                 std::thread::sleep(Duration::from_millis(1));
             }
             Err(error) => panic!("ABB starts after the first one quit: {error}"),
@@ -233,17 +264,7 @@ pub(super) fn genre_on_disk(path: &Path) -> Option<String> {
         .genre
 }
 
-pub(super) fn finished(status: WorkOperationStatus) -> bool {
-    matches!(
-        status,
-        WorkOperationStatus::Completed
-            | WorkOperationStatus::Failed
-            | WorkOperationStatus::Cancelled
-            | WorkOperationStatus::Mixed
-    )
-}
-
-pub(super) fn submission(desk: &Desk) -> Option<abb_engine::session::SubmissionStatus> {
+pub(super) fn submission(desk: &Desk) -> Option<crate::session::SubmissionStatus> {
     desk.engine
         .session_snapshot()
         .output
@@ -251,7 +272,7 @@ pub(super) fn submission(desk: &Desk) -> Option<abb_engine::session::SubmissionS
         .submission
 }
 
-pub(super) fn collision_review(desk: &Desk) -> abb_engine::session::CollisionReview {
+pub(super) fn collision_review(desk: &Desk) -> crate::session::CollisionReview {
     desk.engine
         .session_snapshot()
         .output

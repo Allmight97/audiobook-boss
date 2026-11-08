@@ -1,59 +1,16 @@
-import { cleanup, render, screen, waitFor } from '@solidjs/testing-library';
+import { screen, waitFor, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { OnlineMetadataResult } from '../../types/metadata';
-import type { SessionIntent, SessionLookup } from '../../types/session';
-import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
-
-import type { InputCapability } from '../../lib/tauri/capabilities/input';
+import { describe, expect, it, vi } from 'vitest';
+import type { LookupSnapshot, SessionIntent } from '../../lib/generated/tauri';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
-import { App } from '../App';
+import { lookupResult } from '../../test/fixtures/lookup';
+import { renderApp } from '../../test/fixtures/renderApp';
 
-function lookupResult(): OnlineMetadataResult {
-	return {
-		source: 'audnexus',
-		title: 'Lookup Title',
-		authors: ['Author One'],
-		narrators: ['Narrator One'],
-		description: 'Description',
-		publishedDate: '2020-07',
-		durationSeconds: 3600,
-		audibleOnly: false,
-		series: null,
-		seriesPart: null,
-		subseries: null,
-		subseriesPart: null,
-		cover: 'remote/0/https%3A%2F%2Fexample.com%2Fcover.jpg',
-	};
+function lookupDialog(): HTMLElement {
+	return screen.getByRole('dialog', { name: 'Find Metadata Online', hidden: true });
 }
 
-function fakeInput(): InputCapability {
-	return {
-		openFiles: vi.fn(async () => ['/books/alpha.m4b', '/books/beta.m4b']),
-		openDirectory: vi.fn(async () => null),
-		listenDragDrop: vi.fn(async () => () => undefined),
-		listenDragEnter: vi.fn(async () => () => undefined),
-		listenDragLeave: vi.fn(async () => () => undefined),
-	};
-}
-
-function getStatusText(): string {
-	return (document.getElementById('metadata-lookup-status') as HTMLElement).textContent ?? '';
-}
-
-function getContextText(): string {
-	return (document.getElementById('metadata-lookup-context') as HTMLElement).textContent ?? '';
-}
-
-function applyButton(): HTMLButtonElement {
-	const button = document.querySelector<HTMLButtonElement>(
-		"#metadata-lookup-results button[data-index='0']",
-	);
-	if (!button) throw new Error('Expected an apply button');
-	return button;
-}
-
-function queued(index: number, patch: Partial<SessionLookup> = {}): Partial<SessionLookup> {
+function queued(index: number, patch: Partial<LookupSnapshot> = {}): Partial<LookupSnapshot> {
 	return {
 		open: true,
 		isQueueMode: true,
@@ -72,22 +29,17 @@ function queued(index: number, patch: Partial<SessionLookup> = {}): Partial<Sess
 }
 
 describe('metadata lookup dialog', () => {
-	let runtime: AppRuntime | undefined;
 	let engine: FakeEngine;
 
-	afterEach(() => {
-		cleanup();
-		runtime?.dispose();
-		runtime = undefined;
-	});
-
 	async function openLookupOverTwoTitles(
-		answers: Partial<Record<SessionIntent['kind'], Partial<SessionLookup>>> = {},
+		answers: Partial<Record<SessionIntent['kind'], Partial<LookupSnapshot>>> = {},
 	) {
 		engine = createFakeEngine();
 		engine.analyze = (paths) =>
-			paths.map((path) => audioFile(path, { label: path.includes('beta') ? 'Beta' : 'Alpha' }));
-		const lookupAfter: Partial<Record<SessionIntent['kind'], Partial<SessionLookup>>> = {
+			paths.map((path) =>
+				audioFile(path, { status: 'ready', label: path.includes('beta') ? 'Beta' : 'Alpha' }),
+			);
+		const lookupAfter: Partial<Record<SessionIntent['kind'], Partial<LookupSnapshot>>> = {
 			lookupOpen: queued(0),
 			...answers,
 		};
@@ -99,25 +51,15 @@ describe('metadata lookup dialog', () => {
 			});
 			return { kind: 'applied' };
 		};
-		const app = await createAppRuntime({ input: fakeInput(), engine });
-		runtime = app;
-		render(() => (
-			<AppRuntimeProvider runtime={app}>
-				<App />
-			</AppRuntimeProvider>
-		));
-		await screen.findByTestId('left-column');
-		await userEvent.click(
-			document.querySelector<HTMLButtonElement>('[aria-label="Add audio files"]') as HTMLElement,
-		);
+		const { runtime: app } = await renderApp({
+			engine,
+			input: { openFiles: vi.fn(async () => ['/books/alpha.m4b', '/books/beta.m4b']) },
+		});
+		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => expect(app.input.view().files.length).toBe(2));
 		app.input.selectAll();
-		await userEvent.click(document.getElementById('metadata-lookup-btn') as HTMLElement);
-		await waitFor(() =>
-			expect(document.getElementById('metadata-lookup-modal')?.classList.contains('open')).toBe(
-				true,
-			),
-		);
+		await userEvent.click(screen.getByRole('button', { name: 'Find Metadata' }));
+		await waitFor(() => expect(lookupDialog()).toHaveAttribute('data-state', 'open'));
 	}
 
 	it('sends the cover choice and the chosen result, then shows the next queued title', async () => {
@@ -126,13 +68,14 @@ describe('metadata lookup dialog', () => {
 				status: { kind: 'found', count: 1, partial: false, after: 'applied' },
 			}),
 		});
-		expect(getContextText()).toContain('1 of 2 • Alpha');
+		const dialog = lookupDialog();
+		expect(within(dialog).getByText(/1 of 2 • Alpha/)).toBeInTheDocument();
 
-		await userEvent.click(document.getElementById('metadata-lookup-cover-toggle') as HTMLElement);
-		await userEvent.click(await waitFor(applyButton));
+		await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Replace cover art' }));
+		await userEvent.click(within(dialog).getByRole('button', { name: 'Use Metadata' }));
 
-		await waitFor(() => expect(getStatusText()).toContain('Metadata applied.'));
-		expect(getContextText()).toContain('2 of 2 • Beta');
+		expect(await within(dialog).findByText(/Metadata applied\./)).toBeInTheDocument();
+		expect(within(dialog).getByText(/2 of 2 • Beta/)).toBeInTheDocument();
 		const sent = engine.sessionIntents.map((intent) => intent.kind);
 		expect(sent.indexOf('lookupSetReplaceCover')).toBeLessThan(sent.indexOf('lookupApply'));
 		expect(engine.sessionIntents).toContainEqual({ kind: 'lookupSetReplaceCover', replace: true });
@@ -150,10 +93,11 @@ describe('metadata lookup dialog', () => {
 			}),
 		});
 
-		await userEvent.click(document.getElementById('metadata-lookup-skip-btn') as HTMLElement);
+		const dialog = lookupDialog();
+		await userEvent.click(within(dialog).getByRole('button', { name: 'Skip' }));
 
-		await waitFor(() => expect(getStatusText()).toContain('Skipped.'));
-		expect(getContextText()).toContain('Beta');
+		expect(await within(dialog).findByText(/Skipped\./)).toBeInTheDocument();
+		expect(within(dialog).getByText(/Beta/)).toBeInTheDocument();
 		expect(engine.sessionIntents).toContainEqual({ kind: 'lookupSkip' });
 	});
 
@@ -165,21 +109,16 @@ describe('metadata lookup dialog', () => {
 			}),
 			lookupClose: { open: false },
 		});
-		await waitFor(() => {
-			expect(document.body.textContent ?? '').toContain(
-				'Older CD-era or rare audiobook editions may not be indexed.',
-			);
-		});
+		const dialog = lookupDialog();
+		expect(
+			await within(dialog).findByText(/Older CD-era or rare audiobook editions/),
+		).toBeInTheDocument();
 
-		await userEvent.click(
-			document.getElementById('metadata-lookup-manual-entry-btn') as HTMLElement,
-		);
+		await userEvent.click(within(dialog).getByRole('button', { name: 'Use Manual Entry' }));
 
 		await waitFor(() => {
-			expect(document.getElementById('metadata-lookup-modal')?.classList.contains('open')).toBe(
-				false,
-			);
-			expect((document.activeElement as HTMLElement | null)?.id).toBe('meta-title');
+			expect(dialog).toHaveAttribute('data-state', 'closed');
+			expect(screen.getByLabelText('Book Title')).toHaveFocus();
 		});
 	});
 
@@ -191,9 +130,7 @@ describe('metadata lookup dialog', () => {
 			}),
 		});
 
-		await waitFor(() =>
-			expect(document.body.textContent ?? '').toContain('No online matches found.'),
-		);
+		expect(await within(lookupDialog()).findByText('No online matches found.')).toBeInTheDocument();
 	});
 
 	it('shows a failed search as a failure, not as no matches', async () => {
@@ -205,13 +142,12 @@ describe('metadata lookup dialog', () => {
 			}),
 		});
 
-		await waitFor(() => {
-			expect(getStatusText()).toBe('Search failed. Check your query and try again.');
-		});
-		expect(document.body.textContent ?? '').not.toContain(
-			'Older CD-era or rare audiobook editions may not be indexed.',
-		);
-		expect(document.getElementById('metadata-lookup-manual-entry-btn')).toBeNull();
-		expect(document.querySelector("#metadata-lookup-results button[data-index='0']")).toBeNull();
+		const dialog = lookupDialog();
+		expect(
+			await within(dialog).findByText('Search failed. Check your query and try again.'),
+		).toBeInTheDocument();
+		expect(within(dialog).queryByText(/Older CD-era or rare audiobook editions/)).toBeNull();
+		expect(within(dialog).queryByRole('button', { name: 'Use Manual Entry' })).toBeNull();
+		expect(within(dialog).queryByRole('button', { name: 'Use Metadata' })).toBeNull();
 	});
 });

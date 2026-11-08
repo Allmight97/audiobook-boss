@@ -1,5 +1,4 @@
-use std::sync::Arc;
-
+use super::save_flow::{apply_published, output_update_failure};
 use super::{blocking, Rest, Session};
 use crate::errors::{AppError, AppErrorEnvelope};
 use crate::output_artifact::CollisionPolicy;
@@ -204,6 +203,7 @@ impl Session {
                 title_id,
                 revision,
                 link: Box::new(link),
+                held: self.kept_location(),
             },
             None => Rest::Done(SessionOutcome::Superseded),
         }
@@ -214,9 +214,10 @@ impl Session {
         title_id: String,
         revision: u64,
         link: ExportLink,
+        held: super::in_flight::InFlight,
     ) -> SessionOutcome {
         let outcome = self.keep_location(title_id, revision, link).await;
-        self.transition(SessionState::finish_keep_location);
+        drop(held);
         outcome
     }
 
@@ -241,15 +242,9 @@ impl Session {
         if !published {
             return self.submit(draft).await;
         }
-        let edits = self.transition(|state| {
-            let tags = &state.tags;
-            state
-                .exports
-                .edits(|path| tags.pending(path).map(|pending| pending.patch.clone()))
-                .into_iter()
-                .filter(|edit| edit.title_id == draft_title_id(&draft))
-                .collect()
-        });
+        let title_id = draft_title_id(&draft);
+        let edits =
+            self.transition(|state| state.output_edits(Some(std::slice::from_ref(&title_id))));
         let outputs = self.update_outputs(edits).await;
         self.end_submission(&draft, SubmissionStatus::FinishedBeforeRestart { outputs })
     }
@@ -269,26 +264,18 @@ impl Session {
             }
         };
         if published {
-            let title = Arc::clone(&link.title);
-            if let Err(error) = blocking(move || {
-                title.apply_published();
-                Ok(())
-            })
-            .await
-            {
+            if let Err(error) = apply_published(&link.title).await {
                 return SessionOutcome::Rejected {
                     error: AppErrorEnvelope::from(&error),
                 };
             }
         }
         self.transition(|state| state.kept_location(&title_id, revision));
-        match link.title.update_state().map(|update| update.status) {
-            Some(crate::processing::OutputUpdateStatus::Failed { message }) => {
-                SessionOutcome::Rejected {
-                    error: AppErrorEnvelope::from(&AppError::General(message)),
-                }
-            }
-            _ => SessionOutcome::Applied,
+        match output_update_failure(&link.title) {
+            Some(message) => SessionOutcome::Rejected {
+                error: AppErrorEnvelope::from(&AppError::General(message)),
+            },
+            None => SessionOutcome::Applied,
         }
     }
 

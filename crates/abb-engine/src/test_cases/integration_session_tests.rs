@@ -2,18 +2,19 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use abb_engine::audio::AudiobookFormat;
-use abb_engine::session::{
+use crate::audio::AudiobookFormat;
+use crate::metadata::read_metadata;
+use crate::session::{
     AudioEdit, MetadataField, MetadataStatus, OutputEdits, SessionIntent, SessionOutcome,
     SubmissionStatus, SubmitRefusal, TitlePlan,
 };
-use abb_engine::work_runtime::WorkOperationStatus;
-use abb_engine::{read_metadata, Engine, RunningWork, ShutdownOutcome};
+use crate::work_runtime::WorkOperationStatus;
+use crate::{Engine, RunningWork, ShutdownOutcome};
 use tempfile::TempDir;
 
 use super::integration_session_desk::{
-    collision_review, engine_config, finished, genre_on_disk, start_once_the_lock_frees,
-    submission, Desk,
+    collision_review, engine_config, genre_on_disk, processing_sessions_dir,
+    remote_staging_sessions_dir, start_once_the_lock_frees, submission, Desk,
 };
 use super::media_fixtures::oversized_jpeg;
 
@@ -77,7 +78,7 @@ async fn leftover_downloads_that_cannot_be_removed_do_not_stop_abb_from_starting
     let root = TempDir::new().expect("engine root");
     let outside = root.path().join("outside");
     fs::create_dir_all(outside.join("kept")).expect("outside folder");
-    let sessions = root.path().join("cache/remote-source/sessions");
+    let sessions = remote_staging_sessions_dir(root.path());
     fs::create_dir_all(sessions.parent().expect("staging root")).expect("staging root");
     std::os::unix::fs::symlink(&outside, &sessions).expect("unremovable sessions root");
 
@@ -97,10 +98,8 @@ async fn a_second_abb_on_the_same_folders_refuses_to_start_and_leaves_live_work_
     let root = TempDir::new().expect("engine root");
     let config = || engine_config(root.path());
     let first = Engine::start(config()).expect("first ABB starts");
-    let workspace = root.path().join("cache/processing/sessions/live-export");
-    let download = root
-        .path()
-        .join("cache/remote-source/sessions/live-download");
+    let workspace = processing_sessions_dir(root.path()).join("live-export");
+    let download = remote_staging_sessions_dir(root.path()).join("live-download");
     for live in [&workspace, &download] {
         fs::create_dir_all(live).expect("live work folder");
         fs::write(live.join("part.m4b"), b"audio").expect("live work file");
@@ -162,21 +161,17 @@ async fn a_source_cover_too_large_to_prepare_is_dropped_with_a_warning() {
     let book = desk
         .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
         .await;
-    abb_engine::save_metadata_intent(
+    crate::metadata::save_metadata_intent(
         &book,
-        &abb_engine::MetadataIntentPatch {
-            cover_art: Some(abb_engine::PatchOp::Set(oversized_jpeg())),
+        &crate::metadata::MetadataIntentPatch {
+            cover_art: Some(crate::metadata::PatchOp::Set(oversized_jpeg())),
             ..Default::default()
         },
     )
     .expect("embed the oversized cover in the source");
     desk.import(&book).await;
 
-    let export = desk.export().await;
-    desk.wait_until("the export ends", |desk| {
-        finished(desk.export_status(&export))
-    })
-    .await;
+    let export = desk.export_and_finish().await;
 
     let operations = desk.engine.list_work_operations().expect("operations");
     let title = &operations
@@ -267,10 +262,8 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
 
     // The write lands once the export stops reading the source, which can
     // be just before the export reports finishing.
-    desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&export))
-    })
-    .await;
+    desk.wait_until("the export finishes", |desk| desk.export_finished(&export))
+        .await;
     assert_eq!(desk.export_status(&export), WorkOperationStatus::Completed);
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
     assert!(!desk.metadata().has_pending_edits);
@@ -284,10 +277,7 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
 #[tokio::test]
 async fn save_on_a_temporary_source_in_flight_never_writes_the_download() {
     let desk = Desk::new();
-    let staged = desk
-        .root
-        .path()
-        .join("cache/remote-source/sessions/job-1/alpha.m4b");
+    let staged = remote_staging_sessions_dir(desk.root.path()).join("job-1/alpha.m4b");
     let book = desk.audiobook(&staged, 12.0).await;
     desk.import(&book).await;
     let before = fs::read(&book).expect("read download");
@@ -311,11 +301,12 @@ async fn save_on_a_temporary_source_in_flight_never_writes_the_download() {
     );
     assert_eq!(desk.engine.running_work().waiting_writes, 0);
 
-    desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&export))
+    desk.wait_until("the export finishes", |desk| desk.export_finished(&export))
+        .await;
+    desk.wait_until("no work is left running", |desk| {
+        desk.engine.running_work() == crate::RunningWork::default()
     })
     .await;
-    tokio::time::sleep(Duration::from_millis(100)).await;
 
     assert_eq!(fs::read(&book).expect("read download"), before);
     assert_eq!(
@@ -333,11 +324,7 @@ async fn a_naming_edit_retags_a_finished_output_where_it_is() {
         .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
         .await;
     desk.import(&book).await;
-    let export = desk.export().await;
-    desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&export))
-    })
-    .await;
+    let export = desk.export_and_finish().await;
     let output = desk.output_of(&export);
 
     desk.send(SessionIntent::SetField {
@@ -420,7 +407,7 @@ async fn restarting_a_title_moves_its_unfinished_export_to_the_new_location() {
     })
     .await;
     desk.wait_until("the restarted export finishes", |desk| {
-        finished(desk.export_status(&second))
+        desk.export_finished(&second)
     })
     .await;
     let output = desk.output_of(&second);
@@ -454,7 +441,7 @@ async fn audio_and_output_defaults_are_saved_and_return_after_a_settings_reset()
     );
 
     desk.engine
-        .settings_dispatch(abb_engine::app_settings::SettingsIntent::Reset)
+        .settings_dispatch(crate::app_settings::SettingsIntent::Reset)
         .await;
 
     let snapshot = desk.engine.session_snapshot();
@@ -474,14 +461,14 @@ async fn shutdown_cancels_running_exports_writes_waiting_saves_and_refuses_new_w
     desk.edit_genre_and_save().await;
     let running = desk.engine.running_work();
     assert_eq!((running.exports, running.waiting_writes), (1, 1));
-    assert_eq!(desk.engine.quit_pressed(), abb_engine::QuitPress::Proceed);
+    assert_eq!(desk.engine.quit_pressed(), crate::QuitPress::Proceed);
 
     let outcome = tokio::time::timeout(Duration::from_secs(30), desk.engine.shutdown())
         .await
         .expect("shutdown settles");
     assert_eq!(outcome, ShutdownOutcome::Settled);
 
-    assert!(finished(desk.export_status(&export)));
+    assert!(desk.export_finished(&export));
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
     assert_eq!(desk.engine.running_work(), RunningWork::default());
     desk.send(SessionIntent::Submit).await;
@@ -504,10 +491,8 @@ async fn quit_consent_survives_finished_work_and_closes_admission() {
     let export = desk.export().await;
     let asked = desk.engine.running_work();
     assert_eq!(asked.exports, 1);
-    desk.wait_until("the export finishes", |desk| {
-        finished(desk.export_status(&export))
-    })
-    .await;
+    desk.wait_until("the export finishes", |desk| desk.export_finished(&export))
+        .await;
 
     desk.engine
         .close_for_quit(&asked.consent)
@@ -525,7 +510,7 @@ async fn quit_consent_survives_finished_work_and_closes_admission() {
 
 #[tokio::test]
 async fn quit_consent_names_work_not_counts_and_follows_an_export_from_review_to_running() {
-    use abb_engine::output_artifact::CollisionPolicy;
+    use crate::output_artifact::CollisionPolicy;
 
     let desk = Desk::new();
     let book = desk
@@ -535,11 +520,11 @@ async fn quit_consent_names_work_not_counts_and_follows_an_export_from_review_to
     let first = desk.export().await;
     let asked_for_first = desk
         .engine
-        .close_for_quit(&abb_engine::QuitConsent::default())
+        .close_for_quit(&crate::QuitConsent::default())
         .expect_err("work that started after the question needs consent");
     assert_eq!(asked_for_first.exports, 1);
     desk.wait_until("the first export finishes", |desk| {
-        finished(desk.export_status(&first))
+        desk.export_finished(&first)
     })
     .await;
 
@@ -582,7 +567,7 @@ async fn a_choice_made_while_reset_is_waiting_stays_on_screen_and_on_disk() {
     typing.finish().await;
     let mut reset = Box::pin(
         desk.engine
-            .settings_dispatch(abb_engine::app_settings::SettingsIntent::Reset),
+            .settings_dispatch(crate::app_settings::SettingsIntent::Reset),
     );
     std::future::poll_fn(|cx| {
         assert!(
@@ -650,7 +635,7 @@ async fn save_updates_finished_outputs_in_every_supported_container() {
             panic!("{format:?}: {:?}", submission(&desk));
         };
         desk.wait_until("container export", |desk| {
-            finished(desk.export_status(&operation_id))
+            desk.export_finished(&operation_id)
         })
         .await;
         assert_eq!(
@@ -699,11 +684,7 @@ async fn save_updates_a_grouped_output_without_writing_its_individual_sources() 
     desk.import(&second).await;
     desk.send(SessionIntent::SelectAll).await;
     desk.send(SessionIntent::GroupSelected).await;
-    let operation = desk.export().await;
-    desk.wait_until("grouped export", |desk| {
-        finished(desk.export_status(&operation))
-    })
-    .await;
+    let operation = desk.export_and_finish().await;
     let metadata = desk.edit_genre_and_save().await;
     assert!(
         matches!(
@@ -802,10 +783,8 @@ async fn keep_location_writes_the_latest_offered_tags_to_the_original_export_pat
         .await,
         SessionOutcome::Applied
     );
-    desk.wait_until("kept export", |desk| {
-        finished(desk.export_status(&operation))
-    })
-    .await;
+    desk.wait_until("kept export", |desk| desk.export_finished(&operation))
+        .await;
     let output = desk.output_of(&operation);
     assert_eq!(output, offer.from);
     assert_eq!(
@@ -824,8 +803,8 @@ async fn keep_location_writes_the_latest_offered_tags_to_the_original_export_pat
 
 #[tokio::test]
 async fn the_aac_decoder_setting_chooses_faad3_for_import() {
-    use abb_engine::app_settings::{SettingsIntent, SettingsOutcome};
-    use abb_engine::audio::AacDecoder;
+    use crate::app_settings::{SettingsIntent, SettingsOutcome};
+    use crate::audio::AacDecoder;
 
     let desk = Desk::new();
     let book = desk

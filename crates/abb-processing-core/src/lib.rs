@@ -8,6 +8,16 @@ pub enum OperationKind {
     MetadataSave,
 }
 
+impl OperationKind {
+    /// The `kind=` value of the dev-log records `scripts/dev-log-analysis.ts` parses.
+    pub fn log_label(self) -> &'static str {
+        match self {
+            OperationKind::ProcessingBatch => "processing_batch",
+            OperationKind::MetadataSave => "metadata_save",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OperationResultSummary {
@@ -64,58 +74,6 @@ pub enum RunTerminalClass {
     Mixed,
 }
 
-#[derive(Default)]
-pub struct RunTerminalClassifier {
-    saw_success: bool,
-    saw_skipped: bool,
-    saw_cancelled: bool,
-    saw_failed: bool,
-}
-
-impl RunTerminalClassifier {
-    pub fn observe_status(&mut self, status: ProcessResultStatus) {
-        match status {
-            ProcessResultStatus::Success => self.saw_success = true,
-            ProcessResultStatus::Skipped => self.saw_skipped = true,
-            ProcessResultStatus::Cancelled => self.saw_cancelled = true,
-            ProcessResultStatus::Failed => self.saw_failed = true,
-        }
-    }
-
-    pub fn observe_failure(&mut self) {
-        self.saw_failed = true;
-    }
-
-    pub fn observe_cancelled(&mut self) {
-        self.saw_cancelled = true;
-    }
-
-    pub fn is_fully_cancelled(&self) -> bool {
-        self.saw_cancelled && !(self.saw_success || self.saw_skipped || self.saw_failed)
-    }
-
-    pub fn class(&self) -> RunTerminalClass {
-        let observed = [
-            (self.saw_success, RunTerminalClass::Success),
-            (self.saw_skipped, RunTerminalClass::Skipped),
-            (self.saw_cancelled, RunTerminalClass::Cancelled),
-            (self.saw_failed, RunTerminalClass::Failed),
-        ];
-        let mut classes = observed
-            .into_iter()
-            .filter_map(|(saw_class, class)| saw_class.then_some(class));
-        let Some(first) = classes.next() else {
-            return RunTerminalClass::Empty;
-        };
-
-        if classes.next().is_some() {
-            RunTerminalClass::Mixed
-        } else {
-            first
-        }
-    }
-}
-
 pub fn summarize_result_statuses(
     statuses: impl IntoIterator<Item = ProcessResultStatus>,
 ) -> OperationResultSummary {
@@ -143,20 +101,22 @@ pub fn summarize_result_statuses(
 /// Classifies a run from its aggregate counts. Callers starting from a status
 /// iterator summarize first via `summarize_result_statuses`.
 pub fn classify_run_terminal(summary: &OperationResultSummary) -> RunTerminalClass {
-    let mut classifier = RunTerminalClassifier::default();
-    if summary.succeeded > 0 {
-        classifier.observe_status(ProcessResultStatus::Success);
+    let mut classes = [
+        (summary.succeeded, RunTerminalClass::Success),
+        (summary.skipped, RunTerminalClass::Skipped),
+        (summary.cancelled, RunTerminalClass::Cancelled),
+        (summary.failed, RunTerminalClass::Failed),
+    ]
+    .into_iter()
+    .filter_map(|(count, class)| (count > 0).then_some(class));
+    let Some(first) = classes.next() else {
+        return RunTerminalClass::Empty;
+    };
+    if classes.next().is_some() {
+        RunTerminalClass::Mixed
+    } else {
+        first
     }
-    if summary.skipped > 0 {
-        classifier.observe_status(ProcessResultStatus::Skipped);
-    }
-    if summary.cancelled > 0 {
-        classifier.observe_cancelled();
-    }
-    if summary.failed > 0 {
-        classifier.observe_failure();
-    }
-    classifier.class()
 }
 
 #[cfg(test)]

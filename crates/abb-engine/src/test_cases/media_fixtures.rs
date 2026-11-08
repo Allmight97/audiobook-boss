@@ -1,14 +1,17 @@
 //! Shared synthesized-media helpers for the real-media proofs. Holds no tests.
 
-use abb_engine::audio::{
-    execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
-    ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
+use super::support::encoders::native_encoder_settings;
+use super::support::wav::{write_sine_wav, write_stereo_sine_wav, SAMPLE_RATE};
+use crate::audio::{
+    execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, ChannelConfig,
+    EncoderSettings, SampleRateConfig,
 };
-use abb_engine::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
-use abb_engine::{
-    extract_passthrough_metadata, AppError, AudiobookMetadata, CoverArtPassthroughPolicy,
+use crate::metadata::{
+    extract_passthrough_metadata, AudiobookMetadata, CoverArtPassthroughPolicy,
     MetadataIntentPatch, PassthroughSource,
 };
+use crate::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
+use crate::AppError;
 use image::ImageFormat;
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
@@ -172,10 +175,10 @@ pub(crate) fn duration_ms(path: &Path) -> i64 {
 }
 
 pub(crate) async fn run_planned_title(
-    payload: abb_engine::processing::ProcessPayload,
+    payload: crate::processing::ProcessPayload,
     metadata: Option<std::collections::HashMap<String, MetadataIntentPatch>>,
     workspace: &Path,
-) -> Result<(PathBuf, abb_engine::audio::AudioRunOutcome), AppError> {
+) -> Result<(PathBuf, crate::audio::AudioRunOutcome), AppError> {
     let inspected =
         crate::processing::run::inspect_processing_plan(&payload, metadata.as_ref(), false)?;
     let job = inspected.plan.jobs.into_iter().next().expect("one title");
@@ -192,7 +195,7 @@ pub(crate) async fn run_planned_title(
                 .expect("inspected source")
         })
         .collect();
-    let info = abb_engine::audio::FileListInfo {
+    let info = crate::audio::FileListInfo {
         total_duration: files.iter().filter_map(|file| file.duration).sum(),
         total_size: 0.0,
         valid_count: files.len(),
@@ -203,7 +206,7 @@ pub(crate) async fn run_planned_title(
     fs::create_dir_all(destination.parent().expect("output folder")).expect("output folder");
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
-        SampleRateConfig::Explicit(job.audio_plan.sample_rate),
+        job.audio_plan.sample_rate,
         OutputConfig::from_plan(job.output),
         workspace.to_path_buf(),
     );
@@ -224,8 +227,8 @@ pub(crate) async fn run_planned_title(
 pub(crate) fn single_title_payload(
     source: &Path,
     output_dir: &Path,
-    request: abb_engine::audio::TitleAudioRequest,
-) -> abb_engine::processing::ProcessPayload {
+    request: crate::audio::TitleAudioRequest,
+) -> crate::processing::ProcessPayload {
     fs::create_dir_all(output_dir).expect("output folder");
     serde_json::from_value(serde_json::json!({
         "inputFiles": [source], "audioRequests": [request], "outputDir": output_dir, "aacDecoder": "auto"
@@ -278,10 +281,10 @@ pub(crate) fn audio_packet_bytes(path: &Path) -> Vec<Vec<u8>> {
 }
 
 pub(crate) fn preflight_payload(
-    payload: abb_engine::processing::ProcessPayload,
+    payload: crate::processing::ProcessPayload,
     metadata: Option<HashMap<String, MetadataIntentPatch>>,
     preview: bool,
-) -> crate::Result<abb_engine::processing::ProcessingPreflightPlan> {
+) -> crate::Result<crate::processing::ProcessingPreflightPlan> {
     crate::processing::run::inspect_processing_plan(&payload, metadata.as_ref(), preview)
         .map(|inspected| inspected.plan.to_public())
 }
@@ -490,8 +493,6 @@ pub(crate) fn assert_ffprobe_tag(
     );
 }
 
-pub(crate) const SAMPLE_RATE: u32 = 44_100;
-
 /// Stream `duration_ts` of the first audio stream: playable length including
 /// any padding the encoder or muxer declared.
 pub(crate) fn audio_duration_ts(path: &Path) -> u64 {
@@ -518,42 +519,6 @@ pub(crate) fn decode_pcm_f32(path: &Path) -> Vec<f32> {
     .iter()
     .map(|bytes| f32::from_le_bytes(*bytes))
     .collect()
-}
-
-pub(crate) fn write_sine_wav(path: &Path, seconds: f64, freq_hz: f64) {
-    let total_samples = (seconds * f64::from(SAMPLE_RATE)) as u32;
-    let data_len = total_samples * 2;
-    let mut bytes = Vec::with_capacity(44 + data_len as usize);
-    bytes.extend_from_slice(b"RIFF");
-    bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
-    bytes.extend_from_slice(b"WAVEfmt ");
-    bytes.extend_from_slice(&16u32.to_le_bytes());
-    bytes.extend_from_slice(&1u16.to_le_bytes()); // PCM
-    bytes.extend_from_slice(&1u16.to_le_bytes()); // mono
-    bytes.extend_from_slice(&SAMPLE_RATE.to_le_bytes());
-    bytes.extend_from_slice(&(SAMPLE_RATE * 2).to_le_bytes()); // byte rate
-    bytes.extend_from_slice(&2u16.to_le_bytes()); // block align
-    bytes.extend_from_slice(&16u16.to_le_bytes()); // bits per sample
-    bytes.extend_from_slice(b"data");
-    bytes.extend_from_slice(&data_len.to_le_bytes());
-    for n in 0..total_samples {
-        let t = f64::from(n) / f64::from(SAMPLE_RATE);
-        let sample =
-            (0.3 * (2.0 * std::f64::consts::PI * freq_hz * t).sin() * f64::from(i16::MAX)) as i16;
-        bytes.extend_from_slice(&sample.to_le_bytes());
-    }
-    fs::write(path, bytes).expect("write WAV fixture");
-}
-
-pub(crate) fn native_encoder_settings() -> EncoderSettings {
-    EncoderSettings {
-        encoder_type: EncoderType::NativeAac,
-        bitrate_kbps: 64,
-        bitrate_mode: BitrateMode::Cbr,
-        channels: ChannelConfig::Mono,
-        native_aac_speed: 0,
-        faac_profile: abb_engine::audio::FaacProfile::Auto,
-    }
 }
 
 pub(crate) struct MediaLane {
@@ -611,6 +576,24 @@ impl MediaLane {
         self
     }
 
+    fn resolved_sample_rate(&self) -> u32 {
+        match self.sample_rate {
+            SampleRateConfig::Explicit(rate) => rate,
+            SampleRateConfig::Auto => {
+                let source = get_file_list_info(&self.inputs[..1], self.aac_decoder)
+                    .expect("probe the first source")
+                    .files[0]
+                    .sample_rate
+                    .expect("the first source has a sample rate");
+                crate::audio::automatic_sample_rate(
+                    self.encoder_settings.encoder_type,
+                    self.encoder_settings.faac_profile,
+                    source,
+                )
+            }
+        }
+    }
+
     pub(crate) fn output_path(&self) -> PathBuf {
         self.tmp.path().join("out").join("lane-output.m4b")
     }
@@ -630,7 +613,7 @@ impl MediaLane {
         fs::create_dir_all(output_dir.parent().expect("output parent")).expect("create output dir");
         let mut context = ProcessingContext::new_headless_with_workspace_root(
             Arc::new(session),
-            self.sample_rate,
+            self.resolved_sample_rate(),
             OutputConfig::new(self.output_path()),
             self.workspace_root(),
         );
@@ -755,33 +738,6 @@ pub(crate) fn mux_chapters(audio: &Path, chapters: &[(&str, i64, i64)], path: &P
     ffmpeg(args);
 }
 
-pub(crate) fn write_stereo_sine_wav(path: &Path, seconds: f64, left_hz: f64, right_hz: f64) {
-    let total_samples = (seconds * f64::from(SAMPLE_RATE)) as u32;
-    let data_len = total_samples * 4;
-    let mut bytes = Vec::with_capacity(44 + data_len as usize);
-    bytes.extend_from_slice(b"RIFF");
-    bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
-    bytes.extend_from_slice(b"WAVEfmt ");
-    bytes.extend_from_slice(&16u32.to_le_bytes());
-    bytes.extend_from_slice(&1u16.to_le_bytes()); // PCM
-    bytes.extend_from_slice(&2u16.to_le_bytes()); // stereo
-    bytes.extend_from_slice(&SAMPLE_RATE.to_le_bytes());
-    bytes.extend_from_slice(&(SAMPLE_RATE * 4).to_le_bytes()); // byte rate
-    bytes.extend_from_slice(&4u16.to_le_bytes()); // block align
-    bytes.extend_from_slice(&16u16.to_le_bytes()); // bits per sample
-    bytes.extend_from_slice(b"data");
-    bytes.extend_from_slice(&data_len.to_le_bytes());
-    for n in 0..total_samples {
-        let t = f64::from(n) / f64::from(SAMPLE_RATE);
-        for freq in [left_hz, right_hz] {
-            let sample =
-                (0.3 * (2.0 * std::f64::consts::PI * freq * t).sin() * f64::from(i16::MAX)) as i16;
-            bytes.extend_from_slice(&sample.to_le_bytes());
-        }
-    }
-    fs::write(path, bytes).expect("write stereo WAV fixture");
-}
-
 pub(crate) async fn assert_auto_merge_stereo(settings: EncoderSettings) {
     let fixtures = TempDir::new().expect("mixed channel fixtures");
     let mono = fixtures.path().join("mono.wav");
@@ -838,11 +794,11 @@ pub(crate) fn accepted_chapters(path: &Path) -> Vec<(Option<String>, i64, i64)> 
 }
 
 pub(crate) fn title_audio_request(
-    intent: abb_engine::audio::AudioIntent,
+    intent: crate::audio::AudioIntent,
     settings: EncoderSettings,
-) -> abb_engine::audio::TitleAudioRequest {
-    abb_engine::audio::TitleAudioRequest {
-        output: abb_engine::audio::OutputAudio::M4b { settings },
+) -> crate::audio::TitleAudioRequest {
+    crate::audio::TitleAudioRequest {
+        output: crate::audio::OutputAudio::M4b { settings },
         intent,
         sample_rate: SampleRateConfig::Auto,
     }

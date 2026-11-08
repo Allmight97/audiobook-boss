@@ -166,3 +166,167 @@ fn typed_text_replaces_an_earlier_blank() {
 
     assert_eq!(form.compose_intent().artist, set("Typed"));
 }
+
+type PatchSlot = fn(&MetadataIntentPatch) -> &Option<PatchOp<String>>;
+type MetadataSlot = fn(&AudiobookMetadata) -> &Option<String>;
+
+const PINNED: [(MetadataField, PatchSlot, MetadataSlot); 10] = [
+    (MetadataField::Title, |p| &p.title, |m| &m.title),
+    (MetadataField::Date, |p| &p.date, |m| &m.date),
+    (MetadataField::Author, |p| &p.artist, |m| &m.artist),
+    (MetadataField::Narrator, |p| &p.composer, |m| &m.composer),
+    (MetadataField::Series, |p| &p.series, |m| &m.series),
+    (
+        MetadataField::SeriesPart,
+        |p| &p.series_part,
+        |m| &m.series_part,
+    ),
+    (MetadataField::Subseries, |p| &p.subseries, |m| &m.subseries),
+    (
+        MetadataField::SubseriesPart,
+        |p| &p.subseries_part,
+        |m| &m.subseries_part,
+    ),
+    (MetadataField::Genre, |p| &p.genre, |m| &m.genre),
+    (
+        MetadataField::Description,
+        |p| &p.description,
+        |m| &m.description,
+    ),
+];
+
+fn every_field_filled() -> AudiobookMetadata {
+    AudiobookMetadata {
+        title: Some("Title".to_string()),
+        date: Some("2024-07".to_string()),
+        artist: Some("Author".to_string()),
+        composer: Some("Narrator".to_string()),
+        series: Some("Saga".to_string()),
+        series_part: Some("7".to_string()),
+        subseries: Some("Arc".to_string()),
+        subseries_part: Some("2".to_string()),
+        genre: Some("Fantasy".to_string()),
+        description: Some("About".to_string()),
+        ..Default::default()
+    }
+}
+
+fn only_slot(field: MetadataField, op: PatchOp<String>) -> MetadataIntentPatch {
+    let mut patch = MetadataIntentPatch::default();
+    match field {
+        MetadataField::Title => {
+            patch.title = Some(op.clone());
+            patch.album = Some(op);
+        }
+        MetadataField::Date => patch.date = Some(op),
+        MetadataField::Author => patch.artist = Some(op),
+        MetadataField::Narrator => patch.composer = Some(op),
+        MetadataField::Series => patch.series = Some(op),
+        MetadataField::SeriesPart => patch.series_part = Some(op),
+        MetadataField::Subseries => patch.subseries = Some(op),
+        MetadataField::SubseriesPart => patch.subseries_part = Some(op),
+        MetadataField::Genre => patch.genre = Some(op),
+        MetadataField::Description => patch.description = Some(op),
+    }
+    patch
+}
+
+#[test]
+fn each_field_edits_only_its_own_patch_slot() {
+    for (field, _, _) in PINNED {
+        let mut typed = MetadataForm::single(&every_field_filled());
+        typed.set_value(field, "  New value  ".to_string());
+        assert_eq!(
+            typed.compose_intent(),
+            only_slot(field, PatchOp::Set("New value".to_string())),
+            "{field:?} typed"
+        );
+
+        let mut emptied = MetadataForm::single(&every_field_filled());
+        emptied.set_value(field, "   ".to_string());
+        assert_eq!(
+            emptied.compose_intent(),
+            only_slot(field, PatchOp::Clear),
+            "{field:?} emptied"
+        );
+
+        let mut blanked = MetadataForm::single(&every_field_filled());
+        blanked.set_action(field, FieldAction::Blank);
+        assert_eq!(
+            blanked.compose_intent(),
+            only_slot(field, PatchOp::Clear),
+            "{field:?} blanked"
+        );
+
+        let untouched = MetadataForm::single(&every_field_filled());
+        assert!(!untouched.compose_intent().is_actionable(), "{field:?}");
+    }
+}
+
+#[test]
+fn each_field_shows_its_own_stored_value() {
+    let stored = every_field_filled();
+    let snapshot = MetadataForm::single(&stored).snapshot();
+    for (field, _, read) in PINNED {
+        let expected = read(&stored).as_deref().unwrap_or_default();
+        assert_eq!(snapshot.fields[field.index()].value, expected, "{field:?}");
+    }
+}
+
+#[test]
+fn a_whitespace_date_shows_empty_and_other_stored_text_keeps_its_spaces() {
+    let padded = AudiobookMetadata {
+        date: Some("  ".to_string()),
+        title: Some(" Title ".to_string()),
+        ..Default::default()
+    };
+    let single = MetadataForm::single(&padded).snapshot();
+    assert_eq!(single.fields[MetadataField::Date.index()].value, "");
+    assert_eq!(single.fields[MetadataField::Title.index()].value, " Title ");
+
+    let dated = AudiobookMetadata {
+        date: Some(" 2024 ".to_string()),
+        title: Some(" Title ".to_string()),
+        ..Default::default()
+    };
+    let multi = MetadataForm::multi(&[dated.clone(), dated], 2).snapshot();
+    assert_eq!(multi.fields[MetadataField::Date.index()].value, " 2024 ");
+    assert_eq!(multi.fields[MetadataField::Title.index()].value, "Title");
+}
+
+#[test]
+fn a_lookup_fills_every_field_it_names_and_trims_only_the_date() {
+    let mut form = MetadataForm::single(&AudiobookMetadata::default());
+    form.apply_lookup(&AudiobookMetadata {
+        date: Some(" 2020 ".to_string()),
+        artist: Some(" Name ".to_string()),
+        genre: Some("Mystery".to_string()),
+        ..Default::default()
+    });
+
+    let snapshot = form.snapshot();
+    let value = |field: MetadataField| snapshot.fields[field.index()].value.as_str();
+    assert_eq!(value(MetadataField::Date), "2020");
+    assert_eq!(value(MetadataField::Author), " Name ");
+    assert_eq!(value(MetadataField::Genre), "Mystery");
+    assert!(snapshot.fields[MetadataField::Genre.index()].dirty);
+    assert!(!snapshot.fields[MetadataField::Title.index()].dirty);
+}
+#[test]
+fn the_form_reads_back_as_metadata_with_empty_fields_absent() {
+    let mut form = MetadataForm::single(&every_field_filled());
+    form.set_value(MetadataField::Series, "  ".to_string());
+    form.set_value(MetadataField::Genre, " Mystery ".to_string());
+
+    let metadata = form.metadata();
+
+    for (field, _, read) in PINNED {
+        let expected = match field {
+            MetadataField::Series => None,
+            MetadataField::Genre => Some("Mystery".to_string()),
+            _ => read(&every_field_filled()).clone(),
+        };
+        assert_eq!(read(&metadata), &expected, "{field:?}");
+    }
+    assert_eq!(metadata.album, None);
+}

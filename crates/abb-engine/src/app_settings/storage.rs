@@ -47,71 +47,68 @@ pub(super) fn load(config_dir: &Path) -> Loaded {
 fn recover(table: &toml::Table) -> Loaded {
     let defaults = AppSettings::default();
     let mut reset = Vec::new();
+    let mut load = Loading {
+        table,
+        reset: &mut reset,
+    };
     let settings = AppSettings {
-        keep_awake_while_working: pick(
-            &mut reset,
-            SettingsUnit::KeepAwake,
-            read(table, &["general", "keep_awake_while_working"], Ok),
-        )
-        .unwrap_or(defaults.keep_awake_while_working),
-        press_quit_twice: pick(
-            &mut reset,
-            SettingsUnit::PressQuitTwice,
-            read(table, &["general", "press_quit_twice"], Ok),
-        )
-        .unwrap_or(defaults.press_quit_twice),
-        max_concurrent_jobs: pick(
-            &mut reset,
-            SettingsUnit::JobLimit,
-            read(table, &["general", "max_concurrent_jobs"], job_limit),
-        )
-        .unwrap_or(defaults.max_concurrent_jobs),
-        default_acquisition_lane: pick(
-            &mut reset,
-            SettingsUnit::AcquisitionLane,
-            read(table, &["general", "default_acquisition_lane"], Ok),
-        )
-        .unwrap_or(defaults.default_acquisition_lane),
-        aac_decoder: pick(
-            &mut reset,
-            SettingsUnit::AacDecoder,
-            read(table, &["general", "aac_decoder"], Ok),
-        )
-        .unwrap_or(defaults.aac_decoder),
-        indexer_connection: pick(
-            &mut reset,
-            SettingsUnit::IndexerConnection,
-            read::<Indexer, _>(table, &["indexer"], IndexerConnection::try_from),
-        )
-        .unwrap_or(defaults.indexer_connection),
-        encoder_defaults: pick(
-            &mut reset,
-            SettingsUnit::EncoderDefaults,
-            read::<Audio, _>(table, &["audio"], EncoderDefaults::try_from),
-        )
-        .unwrap_or(defaults.encoder_defaults),
-        output_defaults: pick(
-            &mut reset,
-            SettingsUnit::OutputDefaults,
-            read(table, &["output"], |output: Output| Ok(output.into())),
-        )
-        .unwrap_or(defaults.output_defaults),
-        startup_behavior: pick(
-            &mut reset,
-            SettingsUnit::StartupBehavior,
-            read(table, &["startup", "behavior"], Ok),
-        )
-        .unwrap_or(defaults.startup_behavior),
-        pinned_defaults: pick(
-            &mut reset,
-            SettingsUnit::PinnedDefaults,
-            read::<Pinned, _>(table, &["startup", "pinned"], PinnedDefaults::try_from),
-        ),
+        keep_awake_while_working: load
+            .unit(SettingsUnit::KeepAwake, Ok)
+            .unwrap_or(defaults.keep_awake_while_working),
+        press_quit_twice: load
+            .unit(SettingsUnit::PressQuitTwice, Ok)
+            .unwrap_or(defaults.press_quit_twice),
+        max_concurrent_jobs: load
+            .unit(SettingsUnit::JobLimit, job_limit)
+            .unwrap_or(defaults.max_concurrent_jobs),
+        default_acquisition_lane: load
+            .unit(SettingsUnit::AcquisitionLane, Ok)
+            .unwrap_or(defaults.default_acquisition_lane),
+        aac_decoder: load
+            .unit(SettingsUnit::AacDecoder, Ok)
+            .unwrap_or(defaults.aac_decoder),
+        indexer_connection: load
+            .unit::<Indexer, _>(SettingsUnit::IndexerConnection, IndexerConnection::try_from)
+            .unwrap_or(defaults.indexer_connection),
+        encoder_defaults: load
+            .unit::<Audio, _>(SettingsUnit::EncoderDefaults, EncoderDefaults::try_from)
+            .unwrap_or(defaults.encoder_defaults),
+        output_defaults: load
+            .unit(SettingsUnit::OutputDefaults, |output: Output| {
+                Ok(output.into())
+            })
+            .unwrap_or(defaults.output_defaults),
+        startup_behavior: load
+            .unit(SettingsUnit::StartupBehavior, Ok)
+            .unwrap_or(defaults.startup_behavior),
+        pinned_defaults: load
+            .unit::<Pinned, _>(SettingsUnit::PinnedDefaults, PinnedDefaults::try_from),
     };
     Loaded {
         settings,
         reset,
         set_aside: None,
+    }
+}
+
+struct Loading<'a> {
+    table: &'a toml::Table,
+    reset: &'a mut Vec<SettingsUnit>,
+}
+
+impl Loading<'_> {
+    /// A value that is absent loads as `None`; one this release refuses is
+    /// logged, named in `reset`, and also loads as `None`.
+    fn unit<S: DeserializeOwned, T>(
+        &mut self,
+        unit: SettingsUnit,
+        convert: impl FnOnce(S) -> std::result::Result<T, String>,
+    ) -> Option<T> {
+        read(self.table, unit.path(), convert).unwrap_or_else(|error| {
+            log::warn!("Saved setting {unit:?} is not usable; using its default: {error}");
+            self.reset.push(unit);
+            None
+        })
     }
 }
 
@@ -139,18 +136,6 @@ fn read<S: DeserializeOwned, T>(
         .try_into::<S>()
         .map_err(|error| error.to_string())?;
     convert(saved).map(Some)
-}
-
-fn pick<T>(
-    reset: &mut Vec<SettingsUnit>,
-    unit: SettingsUnit,
-    value: std::result::Result<Option<T>, String>,
-) -> Option<T> {
-    value.unwrap_or_else(|error| {
-        log::warn!("Saved setting {unit:?} is not usable; using its default: {error}");
-        reset.push(unit);
-        None
-    })
 }
 
 /// Keeps the settings file under a name no other file holds, so no later
@@ -207,8 +192,6 @@ struct General {
     press_quit_twice: bool,
     max_concurrent_jobs: AutoOr<usize>,
     default_acquisition_lane: AcquisitionLane,
-    /// Absent from files saved by earlier releases; loads as Auto.
-    #[serde(default)]
     aac_decoder: AacDecoder,
 }
 
@@ -339,23 +322,35 @@ struct Naming {
 
 impl From<&AppSettings> for SavedSettings {
     fn from(settings: &AppSettings) -> Self {
+        let AppSettings {
+            keep_awake_while_working,
+            press_quit_twice,
+            max_concurrent_jobs,
+            encoder_defaults,
+            output_defaults,
+            startup_behavior,
+            pinned_defaults,
+            default_acquisition_lane,
+            aac_decoder,
+            indexer_connection,
+        } = settings;
         Self {
             general: General {
-                keep_awake_while_working: settings.keep_awake_while_working,
-                press_quit_twice: settings.press_quit_twice,
-                max_concurrent_jobs: settings.max_concurrent_jobs.into(),
-                default_acquisition_lane: settings.default_acquisition_lane,
-                aac_decoder: settings.aac_decoder,
+                keep_awake_while_working: *keep_awake_while_working,
+                press_quit_twice: *press_quit_twice,
+                max_concurrent_jobs: (*max_concurrent_jobs).into(),
+                default_acquisition_lane: *default_acquisition_lane,
+                aac_decoder: *aac_decoder,
             },
-            audio: Audio::from(&settings.encoder_defaults),
-            output: Output::from(&settings.output_defaults),
+            audio: Audio::from(encoder_defaults),
+            output: Output::from(output_defaults),
             indexer: Indexer {
-                url: settings.indexer_connection.base_url.clone(),
-                categories: settings.indexer_connection.category_ids.clone(),
+                url: indexer_connection.base_url.clone(),
+                categories: indexer_connection.category_ids.clone(),
             },
             startup: Startup {
-                behavior: settings.startup_behavior,
-                pinned: settings.pinned_defaults.as_ref().map(|pinned| Pinned {
+                behavior: *startup_behavior,
+                pinned: pinned_defaults.as_ref().map(|pinned| Pinned {
                     max_concurrent_jobs: pinned.max_concurrent_jobs.into(),
                     audio: Audio::from(&pinned.encoder_defaults),
                     output: Output::from(&pinned.output_defaults),

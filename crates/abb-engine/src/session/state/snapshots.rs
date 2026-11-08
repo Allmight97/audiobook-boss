@@ -2,10 +2,11 @@ use std::collections::HashSet;
 
 use super::super::audio::{AudioDefaults, AudioSnapshot};
 use super::super::exports::RestartOffer;
-use super::super::lookup::{LookupSnapshot, LookupState};
-use super::super::metadata_form::{MetadataField, MetadataForm};
+use super::super::lookup::LookupSnapshot;
+use super::super::metadata_form::MetadataForm;
 use super::super::output::{OutputPlan, OutputPreview, OutputSnapshot};
 use super::super::working_set::{SelectionSnapshot, TitlesSnapshot, WorkingSet};
+use super::lookup::LookupState;
 use super::{CoverSnapshot, MetadataSnapshot, SessionState, SessionUpdate, TagPreview};
 use crate::audio::{AudioFile, TitleAudioRequest};
 use crate::metadata::{processing_album_sort, AudiobookMetadata};
@@ -73,7 +74,7 @@ impl SessionState {
 
     pub(crate) fn settle(&mut self) {
         self.refresh_displayed_cover();
-        let refusal_is_outdated = self.working_set.order_locked() != self.parts.titles.order_locked
+        let refusal_is_outdated = self.list_locked() != self.parts.titles.order_locked
             || self.working_set.selected_indices() != self.parts.selection.selected_indices;
         if refusal_is_outdated {
             self.audio_refusal = None;
@@ -160,21 +161,7 @@ impl SessionState {
     }
 
     pub(super) fn output_snapshot(&self, revision: u64) -> OutputSnapshot {
-        let value = |field| {
-            let value = self.form.trimmed(field);
-            (!value.is_empty()).then(|| value.to_string())
-        };
-        let metadata = AudiobookMetadata {
-            title: value(MetadataField::Title),
-            artist: value(MetadataField::Author),
-            composer: value(MetadataField::Narrator),
-            date: value(MetadataField::Date),
-            series: value(MetadataField::Series),
-            series_part: value(MetadataField::SeriesPart),
-            subseries: value(MetadataField::Subseries),
-            subseries_part: value(MetadataField::SubseriesPart),
-            ..Default::default()
-        };
+        let metadata = self.form.metadata();
         let title = self.preview_title().map(|file| {
             let format = self
                 .working_set
@@ -184,11 +171,8 @@ impl SessionState {
         });
         let preview = self.output.preview(title);
         OutputSnapshot {
-            submission_in_progress: self.submitting.is_some(),
-            collision_review: self
-                .pending_review
-                .as_ref()
-                .map(|review| review.view.clone()),
+            submission_in_progress: self.submitting.in_progress(),
+            collision_review: self.submitting.review().map(|review| review.view.clone()),
             restart_offers: self.exports.offers(),
             restart_prompt: self.next_restart_prompt(),
             preview_run: self.preview.snapshot(),
@@ -199,7 +183,7 @@ impl SessionState {
     }
 
     fn next_restart_prompt(&self) -> Option<RestartOffer> {
-        if self.submitting.is_some() || self.keeping_locations > 0 || self.writes.save_running() {
+        if self.submitting.in_progress() || self.keeping_location() || self.writes.save_running() {
             return None;
         }
         self.exports.next_prompt(
@@ -242,38 +226,34 @@ impl SessionState {
     }
 
     fn tag_preview(&self) -> TagPreview {
-        let value = |field| self.form.trimmed(field).to_string();
+        let metadata = self.form.metadata();
+        let text = |value: &Option<String>| value.clone().unwrap_or_default();
         TagPreview {
-            title: value(MetadataField::Title),
-            album: value(MetadataField::Title),
-            artist: value(MetadataField::Author),
-            album_artist: value(MetadataField::Author),
-            composer: value(MetadataField::Narrator),
-            series: value(MetadataField::Series),
-            series_part: value(MetadataField::SeriesPart),
-            subseries: value(MetadataField::Subseries),
-            subseries_part: value(MetadataField::SubseriesPart),
-            album_sort: self.album_sort_preview().unwrap_or_default(),
-            year: value(MetadataField::Date),
-            genre: value(MetadataField::Genre),
+            title: text(&metadata.title),
+            album: text(&metadata.title),
+            artist: text(&metadata.artist),
+            album_artist: text(&metadata.artist),
+            composer: text(&metadata.composer),
+            series: text(&metadata.series),
+            series_part: text(&metadata.series_part),
+            subseries: text(&metadata.subseries),
+            subseries_part: text(&metadata.subseries_part),
+            album_sort: self
+                .album_sort_preview(metadata.clone())
+                .unwrap_or_default(),
+            year: text(&metadata.date),
+            genre: text(&metadata.genre),
         }
     }
 
-    fn album_sort_preview(&self) -> Option<String> {
-        let value = |field| {
-            let value = self.form.trimmed(field);
-            (!value.is_empty()).then(|| value.to_string())
-        };
+    fn album_sort_preview(&self, shown: AudiobookMetadata) -> Option<String> {
         let single = match self.bound.as_slice() {
             [title] => self.tags.effective(&title.path),
             _ => None,
         };
         processing_album_sort(&AudiobookMetadata {
-            title: value(MetadataField::Title),
-            series: value(MetadataField::Series),
-            series_part: value(MetadataField::SeriesPart),
             album_sort: single.and_then(|metadata| metadata.album_sort),
-            ..Default::default()
+            ..shown
         })
     }
 }

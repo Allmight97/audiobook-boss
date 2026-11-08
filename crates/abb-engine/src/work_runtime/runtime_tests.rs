@@ -1,9 +1,8 @@
 use super::*;
+use std::path::Path;
 
-#[test]
-fn sources_in_use_still_reports_queued_sources_after_the_state_lock_is_poisoned() {
-    let runtime = WorkRuntime::new(crate::engine::EngineTasks::default());
-    let source = PathBuf::from("/library/book.m4b");
+fn accepted_runtime(source: &Path) -> (WorkRuntime, OperationId) {
+    let runtime = WorkRuntime::new(crate::engine_tasks::EngineTasks::default());
     let operation_id = OperationId("operation-1".to_string());
     let snapshot = new_processing_snapshot(
         operation_id.clone(),
@@ -12,42 +11,125 @@ fn sources_in_use_still_reports_queued_sources_after_the_state_lock_is_poisoned(
         &[source.display().to_string()],
         None,
     );
-    lock_state(&runtime.inner.state)
-        .expect("state lock")
-        .insert_operation(snapshot);
-    runtime
-        .title_sources()
-        .insert(operation_id.0.clone(), vec![vec![source.clone()]]);
+    runtime.lock_operations().expect("operations lock").accept(
+        snapshot,
+        Live {
+            titles: CancelTokens::per_title(1),
+            sources: vec![vec![source.to_path_buf()]],
+        },
+    );
+    (runtime, operation_id)
+}
 
+fn poison(runtime: &WorkRuntime) {
     let poisoned = std::thread::scope(|scope| {
         scope
             .spawn(|| {
-                let _guard = runtime.inner.state.lock().expect("state lock");
-                panic!("poison the state lock");
+                let _guard = runtime.inner.operations.lock().expect("operations lock");
+                panic!("poison the operations lock");
             })
             .join()
     });
     assert!(poisoned.is_err());
-    assert!(runtime.inner.state.is_poisoned());
+    assert!(runtime.inner.operations.is_poisoned());
+}
+
+#[test]
+fn a_source_is_in_use_from_registration_before_the_first_progress_event() {
+    let source = PathBuf::from("/library/book.m4b");
+    let (runtime, operation_id) = accepted_runtime(&source);
+
+    let snapshot = runtime.list_operations().expect("operations").operations;
+    assert_eq!(snapshot[0].operation_id, operation_id);
+    assert_eq!(snapshot[0].status, WorkOperationStatus::Accepted);
+    assert_eq!(runtime.sources_in_use(), HashSet::from([source.clone()]));
+    assert_eq!(runtime.sources_held(), HashSet::from([source]));
+}
+
+#[test]
+fn sources_in_use_still_reports_queued_sources_after_the_lock_is_poisoned() {
+    let source = PathBuf::from("/library/book.m4b");
+    let (runtime, _) = accepted_runtime(&source);
+
+    poison(&runtime);
 
     assert_eq!(runtime.sources_in_use(), HashSet::from([source]));
 }
 
 #[test]
-fn cancelling_one_title_sets_only_its_flag_and_whole_cancel_sets_all() {
-    let flags = CancelFlags::per_title(3);
-    let titles = flags.titles();
+fn sources_held_still_reports_every_source_after_the_lock_is_poisoned() {
+    let source = PathBuf::from("/library/book.m4b");
+    let (runtime, _) = accepted_runtime(&source);
 
-    assert!(flags.cancel_title(1));
-    assert!(!flags.cancel_title(3), "unknown titles are not cancelled");
-    let cancelled: Vec<_> = titles
-        .iter()
-        .map(|flag| flag.load(Ordering::Acquire))
-        .collect();
-    assert_eq!(cancelled, [false, true, false]);
+    poison(&runtime);
 
-    flags.cancel_all();
-    assert!(titles.iter().all(|flag| flag.load(Ordering::Acquire)));
+    assert_eq!(runtime.sources_held(), HashSet::from([source]));
+}
+
+#[test]
+fn a_cancel_is_visible_as_snapshot_and_token_together() {
+    let source = PathBuf::from("/library/book.m4b");
+    let (runtime, operation_id) = accepted_runtime(&source);
+    let tokens = runtime
+        .lock_operations()
+        .expect("operations lock")
+        .live_tokens(&operation_id);
+    assert!(tokens.iter().all(|token| !token.is_cancelled()));
+
+    runtime
+        .cancel_whole_operation(&operation_id)
+        .expect("cancel the operation");
+
+    let operations = runtime.lock_operations().expect("operations lock");
+    let status = operations
+        .state
+        .operation(operation_id.as_str())
+        .map(|operation| operation.status);
+    assert_eq!(status, Some(WorkOperationStatus::Cancelling));
+    assert!(tokens.iter().all(|token| token.is_cancelled()));
+}
+
+struct LockProbe {
+    runtime: std::sync::OnceLock<WorkRuntime>,
+    seen: Mutex<Vec<(bool, usize)>>,
+}
+
+impl crate::EventSink for LockProbe {
+    fn emit(&self, _event: crate::EngineEvent) {
+        let runtime = self.runtime.get().expect("probe is wired to the runtime");
+        let lock_is_free = runtime.inner.operations.try_lock().is_ok();
+        let held = runtime.sources_held().len();
+        self.seen
+            .lock()
+            .expect("probe lock")
+            .push((lock_is_free, held));
+    }
+}
+
+#[test]
+fn finishing_an_export_frees_its_sources_before_anyone_hears_of_it_and_emits_outside_the_lock() {
+    let source = PathBuf::from("/library/book.m4b");
+    let (runtime, operation_id) = accepted_runtime(&source);
+    let probe = Arc::new(LockProbe {
+        runtime: std::sync::OnceLock::new(),
+        seen: Mutex::new(Vec::new()),
+    });
+    assert!(probe.runtime.set(runtime.clone()).is_ok());
+    let host = Host::new(probe.clone(), crate::power::PowerManager::default());
+    let result = crate::processing::ProcessCommandResult::new(Vec::new());
+
+    let finished = runtime
+        .finish_processing_and_emit(&host, &operation_id, Ok(result))
+        .expect("terminal snapshot");
+
+    assert!(finished.is_finished());
+    assert!(runtime.sources_held().is_empty());
+    assert!(runtime.sources_in_use().is_empty());
+    assert_eq!(
+        *probe.seen.lock().expect("probe lock"),
+        [(true, 0)],
+        "one event, sent with the lock free and the sources already released"
+    );
 }
 
 #[test]
@@ -70,7 +152,7 @@ fn work_operation_record_format_is_stable_and_path_free() {
     );
     assert!(!accepted.contains("/private/library"));
 
-    snapshot.status = WorkOperationStatus::Mixed;
+    snapshot.set_status(WorkOperationStatus::Mixed);
     snapshot.terminal_summary = Some(super::super::OperationTerminalSummary {
         total: 2,
         succeeded: 1,
@@ -118,4 +200,66 @@ fn work_operation_record_labels_pin_all_contract_variants() {
         .map(work_operation_event_label),
         ["accepted", "running", "cancel_requested", "terminal"]
     );
+}
+
+#[derive(Default)]
+struct PublishedLocks(Mutex<Vec<(u64, bool)>>);
+
+impl crate::EventSink for PublishedLocks {
+    fn emit(&self, event: EngineEvent) {
+        if let EngineEvent::WorkOperations(update) = event {
+            assert!(update.changed.is_none(), "only the lock changed");
+            self.0
+                .lock()
+                .expect("published")
+                .push((update.revision, update.concurrency_locked));
+        }
+    }
+}
+
+#[test]
+fn the_concurrency_lock_is_published_with_every_job_and_run_change_and_with_the_snapshot() {
+    let registry: crate::ManagedJobRegistry = Arc::new(crate::processing::JobRegistry::new(2));
+    let published = Arc::new(PublishedLocks::default());
+    let host = Host::new(published.clone(), crate::power::PowerManager::default());
+    let runtime = WorkRuntime::new(crate::engine_tasks::EngineTasks::default());
+    runtime.follow_concurrency_lock(&host, &registry);
+    assert!(
+        !runtime
+            .list_operations()
+            .expect("snapshot")
+            .concurrency_locked
+    );
+
+    let tagging = registry.register_job_without_permit();
+    let second = registry.register_job_without_permit();
+    assert!(
+        runtime
+            .list_operations()
+            .expect("snapshot")
+            .concurrency_locked
+    );
+    let run = registry.hold_run();
+    registry.complete_job(tagging);
+    registry.complete_job(second);
+    assert!(
+        runtime
+            .list_operations()
+            .expect("snapshot")
+            .concurrency_locked,
+        "a held run keeps the lock"
+    );
+    drop(run);
+
+    let snapshot = runtime.list_operations().expect("snapshot");
+    assert!(!snapshot.concurrency_locked);
+    let published = published.0.lock().expect("published").clone();
+    assert_eq!(
+        published
+            .iter()
+            .map(|(_, locked)| *locked)
+            .collect::<Vec<_>>(),
+        [true, false]
+    );
+    assert_eq!(published[1].0, snapshot.revision);
 }

@@ -1,16 +1,17 @@
+import { flush } from 'solid-js';
 import { coverSrc } from '../../../lib/tauri/coverSrc';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@solidjs/testing-library';
+import { fireEvent, render, screen, within } from '@solidjs/testing-library';
 import { AppRuntimeProvider } from '../../runtime';
 import { StatusPanelView } from '../../../ui/statusPanel';
 import { PreviewAudioControls } from '../../../ui/previewAudio';
 import { createFakeEngine } from '../../../test/fixtures/fakeEngine';
-import type { SessionOutput } from '../../../types/session';
+import type { OutputSnapshot } from '../../../lib/generated/tauri';
 import { createAppRuntime, type AppRuntime } from '../../runtime';
 
 const PREVIEW_COVER = 'preview/0/preview-1';
 
-function preview(): NonNullable<SessionOutput['previewRun']> {
+function preview(): NonNullable<OutputSnapshot['previewRun']> {
 	const progress = {
 		stage: 'converting' as const,
 		percentage: 42,
@@ -26,6 +27,7 @@ function preview(): NonNullable<SessionOutput['previewRun']> {
 			revision: 2,
 			kind: 'processingBatch',
 			status: 'running',
+			phase: 'active',
 			title: 'Edited book',
 			startedAtMs: 1,
 			finishedAtMs: null,
@@ -133,6 +135,7 @@ describe('engine preview adapter', () => {
 		const engine = createFakeEngine();
 		const queued = preview();
 		queued.operation.status = 'accepted';
+		queued.operation.phase = 'accepted';
 		engine.change((state) => {
 			state.output.previewRun = queued;
 		});
@@ -151,6 +154,7 @@ describe('engine preview adapter', () => {
 		await vi.waitFor(() => expect(bar()).toHaveAttribute('data-active'));
 		const done = preview();
 		done.operation.status = 'completed';
+		done.operation.phase = 'finished';
 		engine.change((state) => {
 			state.output.previewRun = done;
 		});
@@ -197,6 +201,7 @@ describe('engine preview adapter', () => {
 		await vi.waitFor(() => expect(cancel()).toBeEnabled());
 		const cancelling = preview();
 		cancelling.operation.status = 'cancelling';
+		cancelling.operation.phase = 'active';
 		cancelling.operation.cancellable = false;
 		cancelling.operation.cancelRequested = true;
 		engine.change((state) => {
@@ -204,6 +209,36 @@ describe('engine preview adapter', () => {
 		});
 		await vi.waitFor(() => expect(cancel()).toBeDisabled());
 		expect(screen.getByText('Cancelling')).toBeVisible();
+	});
+
+	it('words each title from its own status after a whole-run cancel', async () => {
+		const engine = createFakeEngine();
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		const run = preview();
+		run.operation.status = 'cancelling';
+		run.operation.cancelRequested = true;
+		const [first] = run.operation.children;
+		first.status = 'completed';
+		first.cancelRequested = true;
+		first.message = 'Preview ready.';
+		run.operation.children.push({
+			...first,
+			childJobId: 'input-1',
+			label: 'Second.m4b',
+			status: 'running',
+			message: null,
+		});
+		engine.change((state) => {
+			state.output.previewRun = run;
+		});
+
+		await vi.waitFor(() =>
+			expect(app.processing.status().jobItems.map((item) => item.statusText)).toEqual([
+				'Preview ready.',
+				'Cancelling',
+			]),
+		);
 	});
 
 	it('leaves the engine line on a cancelled preview and reports no failure', async () => {
@@ -301,14 +336,15 @@ describe('engine preview adapter', () => {
 		});
 		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
-		const { container } = render(() => (
+		render(() => (
 			<AppRuntimeProvider runtime={app}>
 				<StatusPanelView />
 			</AppRuntimeProvider>
 		));
-		const row = container.querySelector('.queue-job-row');
-		const cancel = row?.querySelector('button');
-		expect(cancel).toBeInstanceOf(HTMLButtonElement);
+		fireEvent.click(screen.getByRole('button', { name: 'View queue' }));
+		flush();
+		const row = screen.getByText('Book.m4b').closest<HTMLElement>('[data-status]') as HTMLElement;
+		const cancel = within(row).getByRole('button', { name: 'Cancel' });
 
 		const ticked = preview();
 		ticked.operation.children[0].progress = {
@@ -319,11 +355,9 @@ describe('engine preview adapter', () => {
 			state.output.previewRun = ticked;
 		});
 
-		await vi.waitFor(() =>
-			expect(container.querySelector('.queue-job-status')).toHaveTextContent('55.0%'),
-		);
+		await screen.findByText('Rendering excerpt. (55.0%)');
 		expect(cancel).toBeInTheDocument();
-		cancel?.click();
+		cancel.click();
 		await vi.waitFor(() =>
 			expect(engine.sessionIntents).toContainEqual({
 				kind: 'cancelPreview',
@@ -333,12 +367,49 @@ describe('engine preview adapter', () => {
 		);
 	});
 
+	it('keeps a failed open on screen across a later output revision of the same run', async () => {
+		const engine = createFakeEngine();
+		engine.respondPreviewOutput = () => {
+			throw new Error('no default app');
+		};
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		const complete = preview();
+		complete.operation.status = 'completed';
+		complete.openReady = true;
+		complete.cover = null;
+		engine.change((state) => {
+			state.output.previewRun = complete;
+		});
+		await vi.waitFor(() =>
+			expect(app.processing.status().stepText).toContain('Preview could not be opened'),
+		);
+		const message = app.processing.status().stepText;
+
+		const revised = preview();
+		revised.operation.status = 'completed';
+		revised.operation.revision += 1;
+		revised.openReady = true;
+		revised.cover = null;
+		engine.change((state) => {
+			state.output.previewRun = revised;
+		});
+		await vi.waitFor(() => expect(engine.claimedPreviews).toEqual(['preview-1']));
+		expect(app.processing.status().stepText).toBe(message);
+
+		const next = preview();
+		next.operation.operationId = 'preview-2';
+		engine.change((state) => {
+			state.output.previewRun = next;
+		});
+		await vi.waitFor(() =>
+			expect(app.processing.status().stepText).not.toContain('Preview could not be opened'),
+		);
+	});
+
 	it('claims a finished preview once and never claims a cancelled run', async () => {
 		const engine = createFakeEngine();
-		engine.respond = (intent) =>
-			intent.kind === 'takePreviewOutput'
-				? { kind: 'previewOutput', path: '/tmp/Book.preview.m4b' }
-				: undefined;
+		engine.respondPreviewOutput = () => '/tmp/Book.preview.m4b';
 		const app = await createAppRuntime({ engine });
 		runtimes.push(app);
 		const complete = preview();
@@ -364,8 +435,6 @@ describe('engine preview adapter', () => {
 		});
 		expect(app.processing.isProcessing()).toBe(false);
 		expect(engine.openedPreviews).toHaveLength(1);
-		expect(
-			engine.sessionIntents.filter((intent) => intent.kind === 'takePreviewOutput'),
-		).toHaveLength(1);
+		expect(engine.claimedPreviews).toEqual(['preview-1']);
 	});
 });

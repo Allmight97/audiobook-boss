@@ -1,5 +1,6 @@
 use super::types::{
-    ChildJobSnapshot, OperationId, OperationSnapshot, ProgressSnapshot, WorkOperationStatus,
+    ChildJobSnapshot, OperationId, OperationPhase, OperationSnapshot, ProgressSnapshot,
+    WorkOperationStatus,
 };
 use crate::processing::OperationKind;
 use std::path::Path;
@@ -34,6 +35,7 @@ pub(crate) fn new_processing_snapshot(
         revision: 0,
         kind: OperationKind::ProcessingBatch,
         status: WorkOperationStatus::Accepted,
+        phase: OperationPhase::Accepted,
         title,
         started_at_ms: None,
         finished_at_ms: None,
@@ -75,6 +77,7 @@ pub(crate) fn new_metadata_save_snapshot(
         revision: 0,
         kind: OperationKind::MetadataSave,
         status: WorkOperationStatus::Accepted,
+        phase: OperationPhase::Accepted,
         title,
         started_at_ms: None,
         finished_at_ms: None,

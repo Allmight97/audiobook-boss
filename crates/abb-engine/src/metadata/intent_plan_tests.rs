@@ -1,4 +1,4 @@
-use super::{plan_metadata_outcome, plan_metadata_outcome_from, MetadataOutcomeRequest};
+use super::{plan_metadata_outcome, plan_metadata_outcome_from};
 use crate::metadata::{
     AlbumSortPatchOp, AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp,
 };
@@ -9,33 +9,10 @@ use std::path::Path;
 #[test]
 fn effective_processing_metadata_no_patch_reads_source_or_errors() {
     let missing_source = Path::new("/path/that/does/not/exist/input.m4b");
-    let outcome = plan_metadata_outcome(MetadataOutcomeRequest {
-        input_path: Some(missing_source),
-        intent_patch: None,
-    });
+    let outcome = plan_metadata_outcome(missing_source, None);
     assert!(
         outcome.is_err(),
         "missing input should fail read, not return empty metadata"
-    );
-}
-
-#[test]
-fn effective_processing_metadata_uses_overlay_without_source_file() {
-    let patch = MetadataIntentPatch {
-        title: Some(PatchOp::Set("Overlay Only".to_string())),
-        ..Default::default()
-    };
-
-    let resolved = plan_metadata_outcome(MetadataOutcomeRequest {
-        input_path: None,
-        intent_patch: Some(&patch),
-    })
-    .expect("metadata resolves")
-    .effective_metadata;
-
-    assert_eq!(
-        resolved.and_then(|value| value.title),
-        Some("Overlay Only".to_string())
     );
 }
 
@@ -49,13 +26,10 @@ fn processing_outputs_carry_series_album_sort_unless_intent_states_one() {
             album_sort,
             ..Default::default()
         };
-        plan_metadata_outcome(MetadataOutcomeRequest {
-            input_path: None,
-            intent_patch: Some(&patch),
-        })
-        .expect("metadata resolves")
-        .effective_metadata
-        .and_then(|metadata| metadata.album_sort)
+        plan_metadata_outcome_from(AudiobookMetadata::default(), Some(&patch))
+            .expect("metadata resolves")
+            .effective_metadata
+            .album_sort
     };
 
     assert_eq!(album_sort(None).as_deref(), Some("Skyward 02.5 - Sunreach"));
@@ -69,12 +43,9 @@ fn processing_outputs_carry_series_album_sort_unless_intent_states_one() {
 #[test]
 fn write_intent_carries_the_processing_album_sort_for_source_tag_routes() {
     let plan = |patch: Option<&MetadataIntentPatch>| {
-        plan_metadata_outcome(MetadataOutcomeRequest {
-            input_path: None,
-            intent_patch: patch,
-        })
-        .expect("metadata resolves")
-        .write_intent
+        plan_metadata_outcome_from(AudiobookMetadata::default(), patch)
+            .expect("metadata resolves")
+            .write_intent
     };
     let series = MetadataIntentPatch {
         title: Some(PatchOp::Set("Sunreach".to_string())),
@@ -115,11 +86,8 @@ fn effective_processing_metadata_rejects_invalid_patch_values() {
         ..Default::default()
     };
 
-    let err = plan_metadata_outcome(MetadataOutcomeRequest {
-        input_path: None,
-        intent_patch: Some(&patch),
-    })
-    .expect_err("invalid patch should fail");
+    let err = plan_metadata_outcome_from(AudiobookMetadata::default(), Some(&patch))
+        .expect_err("invalid patch should fail");
     assert!(
         err.to_string().contains("Publication date"),
         "unexpected error: {err}"
@@ -138,15 +106,8 @@ fn a_source_with_legacy_series_parts_names_its_output_without_them() {
     };
     let input_path = Path::new("/tmp/source.m4b");
 
-    let outcome = plan_metadata_outcome_from(
-        Some(source),
-        MetadataOutcomeRequest {
-            input_path: Some(input_path),
-            intent_patch: None,
-        },
-    )
-    .expect("source resolves");
-    let naming = outcome.naming_metadata.expect("naming metadata");
+    let outcome = plan_metadata_outcome_from(source, None).expect("source resolves");
+    let naming = outcome.naming_metadata;
 
     assert_eq!(naming.title(), Some("Legacy Source"));
     assert_eq!(naming.series(), Some("Series"));
@@ -158,19 +119,10 @@ fn a_source_with_legacy_series_parts_names_its_output_without_them() {
         Some(&naming),
         OutputNamingConfig::default(),
         Some(input_path),
+        "m4b",
     )
     .expect("legacy source naming should no longer fail");
     assert!(output_path.to_string_lossy().contains("Legacy Source"));
-
-    let empty = plan_metadata_outcome(MetadataOutcomeRequest {
-        input_path: None,
-        intent_patch: None,
-    })
-    .expect("empty request resolves");
-    assert!(
-        empty.naming_metadata.is_none(),
-        "empty request should not invent naming metadata"
-    );
 }
 
 #[test]
@@ -187,20 +139,13 @@ fn a_title_edit_names_the_output_by_the_new_title_without_legacy_parts() {
     };
     let input_path = Path::new("/tmp/source.m4b");
 
-    let outcome = plan_metadata_outcome_from(
-        Some(source),
-        MetadataOutcomeRequest {
-            input_path: Some(input_path),
-            intent_patch: Some(&patch),
-        },
-    )
-    .expect("title edit resolves");
-    let naming = outcome.naming_metadata.expect("naming metadata");
+    let outcome = plan_metadata_outcome_from(source, Some(&patch)).expect("title edit resolves");
+    let naming = outcome.naming_metadata;
 
     assert_eq!(naming.title(), Some("Renamed"));
     assert_eq!(naming.series_part(), None);
     assert_eq!(
-        outcome.effective_metadata.and_then(|value| value.title),
+        outcome.effective_metadata.title,
         Some("Renamed".to_string())
     );
     let output_path = build_output_path_preview(
@@ -208,6 +153,7 @@ fn a_title_edit_names_the_output_by_the_new_title_without_legacy_parts() {
         Some(&naming),
         OutputNamingConfig::default(),
         Some(input_path),
+        "m4b",
     )
     .expect("a title edit should not fail on an inherited legacy part");
     assert!(output_path.to_string_lossy().contains("Renamed"));
@@ -226,14 +172,8 @@ fn a_series_edit_keeps_an_inherited_invalid_series_part_visible() {
         ..Default::default()
     };
 
-    let err = plan_metadata_outcome_from(
-        Some(metadata),
-        MetadataOutcomeRequest {
-            input_path: Some(Path::new("/tmp/source.m4b")),
-            intent_patch: Some(&patch),
-        },
-    )
-    .expect_err("series patch should keep inherited invalid part visible");
+    let err = plan_metadata_outcome_from(metadata, Some(&patch))
+        .expect_err("series patch should keep inherited invalid part visible");
 
     assert!(
         err.to_string().contains("Series sequence"),
@@ -249,12 +189,9 @@ fn outcome_plan_populates_naming_from_resolved_metadata() {
         series_part: Some(PatchOp::Set("7".to_string())),
         ..Default::default()
     };
-    let outcome = plan_metadata_outcome(MetadataOutcomeRequest {
-        input_path: None,
-        intent_patch: Some(&patch),
-    })
-    .expect("metadata outcome should resolve");
-    let naming = outcome.naming_metadata.expect("naming metadata");
+    let outcome = plan_metadata_outcome_from(AudiobookMetadata::default(), Some(&patch))
+        .expect("metadata outcome should resolve");
+    let naming = outcome.naming_metadata;
 
     assert_eq!(naming.title(), Some("Patched Title"));
     assert_eq!(naming.series(), Some("Series"));
@@ -268,11 +205,8 @@ fn outcome_plan_reports_cover_art_clear_policy() {
         ..Default::default()
     };
 
-    let outcome = plan_metadata_outcome(MetadataOutcomeRequest {
-        input_path: None,
-        intent_patch: Some(&patch),
-    })
-    .expect("metadata outcome resolves");
+    let outcome = plan_metadata_outcome_from(AudiobookMetadata::default(), Some(&patch))
+        .expect("metadata outcome resolves");
 
     assert!(
         matches!(

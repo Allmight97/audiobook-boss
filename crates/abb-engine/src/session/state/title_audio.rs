@@ -95,7 +95,7 @@ impl SessionState {
                 None => refusing.push(id.clone()),
             }
         }
-        let refusal = if self.working_set.order_locked() {
+        let refusal = if self.list_locked() {
             Some(AudioRefusal::Locked)
         } else if refusing.is_empty() {
             None
@@ -120,10 +120,7 @@ impl SessionState {
 
     pub(crate) fn apply_default_audio(&mut self, title_ids: &[String]) {
         let request = self.audio.request();
-        let refusal = self
-            .working_set
-            .order_locked()
-            .then_some(AudioRefusal::Locked);
+        let refusal = self.list_locked().then_some(AudioRefusal::Locked);
         let next = title_ids.iter().map(|id| (id, request.clone())).collect();
         self.apply_title_audio(refusal, next);
     }

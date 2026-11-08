@@ -15,6 +15,22 @@ export interface NativeDropPayload {
 
 type InputUnlisten = UnlistenFn;
 
+export function isFileDropEvent(event: unknown): event is NativeDropPayload {
+	if (typeof event !== 'object' || event === null) return false;
+	if (!('paths' in event) || !('position' in event)) return false;
+	const { paths, position } = event;
+	return (
+		Array.isArray(paths) &&
+		paths.every((item) => typeof item === 'string') &&
+		typeof position === 'object' &&
+		position !== null &&
+		'x' in position &&
+		'y' in position &&
+		typeof position.x === 'number' &&
+		typeof position.y === 'number'
+	);
+}
+
 export interface InputCapability {
 	openFiles: (options?: InputOpenFileOptions) => Promise<string[] | null>;
 	openDirectory: () => Promise<string | null>;
@@ -37,7 +53,7 @@ export const liveInputCapability: InputCapability = {
 		),
 	openDirectory: () => tauriClient.openDirectory(),
 	listenDragDrop: (handler) =>
-		tauriClient.listen('tauri://drag-drop', (event) => {
+		tauriClient.listen<NativeDropPayload>('tauri://drag-drop', (event) => {
 			handler(event.payload);
 		}),
 	listenDragEnter: (handler) =>

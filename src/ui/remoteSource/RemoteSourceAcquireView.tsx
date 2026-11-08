@@ -2,9 +2,10 @@ import { createSignal, For, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import { tauriClient } from '../../lib/tauri/client';
 import { toUserMessage } from '../../lib/tauri/appError';
+import { multiSelectClickLabel } from '../../lib/platform';
 import { coverSrc } from '../../lib/tauri/coverSrc';
 
-import type { AcquisitionLane } from '../../types/appSettings';
+import type { AcquisitionLane, RemoteRelease, RemoteTitle } from '../../lib/generated/tauri';
 import {
 	bytesLabel,
 	formatReleaseSizeBytes,
@@ -14,7 +15,6 @@ import {
 } from '../../app/remoteSource';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, CoverImage, CoverThumb, Dialog, Progress } from '../foundation';
-import type { RemoteRelease, RemoteTitle } from '../../types/remoteSource';
 import './remoteSourceAcquire.css';
 
 function RemoteTitleCover(props: { readonly title: RemoteTitle }): JSX.Element {
@@ -53,11 +53,12 @@ export function RemoteSourceAcquireView(): JSX.Element {
 
 	const titleScroll = keepScroll({ top: 0 });
 	const releaseScroll = keepScroll({ top: 0 });
-	const isAudibleLane = () => view().providerId === 'audible';
-	const isIndexerLane = () => view().providerId === 'indexer';
+	const lane = remoteSource.lane;
+	const isAudibleLane = () => lane().id === 'audible';
+	const isIndexerLane = () => lane().id === 'indexer';
 
-	function handleLaneChange(lane: AcquisitionLane): void {
-		void remoteSource.selectLane(lane);
+	function handleLaneChange(chosen: AcquisitionLane): void {
+		void remoteSource.selectLane(chosen);
 	}
 
 	function submitIndexerSearchOnEnter(event: KeyboardEvent): void {
@@ -79,7 +80,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 			<Dialog.Header>
 				<h3 id="remote-source-title">Acquire Audiobooks</h3>
 				<div class="remote-source-header-actions">
-					<Show when={isAudibleLane() && view().accountState?.status === 'connected'}>
+					<Show when={lane().controls.logout}>
 						<Button disabled={view().isBusy} onClick={() => void runAction({ type: 'logout' })}>
 							Logout
 						</Button>
@@ -102,22 +103,22 @@ export function RemoteSourceAcquireView(): JSX.Element {
 							id="remote-source-provider"
 							data-testid="remote-source-provider"
 							disabled={view().isBusy}
-							value={view().providerId}
+							value={lane().id}
 							onChange={(event) => {
 								const value = event.currentTarget.value;
-								const lane = view().providers.find((provider) => provider.providerId === value);
-								if (lane) handleLaneChange(lane.providerId);
+								const chosen = remoteSource.lanes().find((candidate) => candidate.id === value);
+								if (chosen) handleLaneChange(chosen.id);
 							}}
 						>
-							<For each={view().providers} keyed={(provider) => provider.providerId}>
-								{(provider) => <option value={provider().providerId}>{provider().label}</option>}
+							<For each={remoteSource.lanes()} keyed={(candidate) => candidate.id}>
+								{(candidate) => <option value={candidate().id}>{candidate().label}</option>}
 							</For>
 						</select>
 					</div>
 
 					<Show when={isAudibleLane()}>
 						<Show
-							when={view().accountState?.status === 'connected'}
+							when={lane().controls.library}
 							fallback={
 								<>
 									<div class="remote-source-toolbar-field remote-source-toolbar-button">
@@ -204,7 +205,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 						</Show>
 					</Show>
 
-					<Show when={isIndexerLane() && view().accountState?.status === 'connected'}>
+					<Show when={lane().controls.search}>
 						<div class="remote-source-toolbar-field remote-source-indexer-author">
 							<label for="remote-source-indexer-author">Author</label>
 							<input
@@ -281,10 +282,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 							{' '}
 							({remoteSource.hiddenReleaseSelectionCount()} hidden by filter)
 						</Show>
-						<span>
-							{' '}
-							· ⌘-click on Mac or Ctrl-click on Windows/Linux to select multiple releases.
-						</span>
+						<span> · {multiSelectClickLabel()} to select multiple releases.</span>
 					</p>
 				</Show>
 
@@ -292,11 +290,9 @@ export function RemoteSourceAcquireView(): JSX.Element {
 					<Dialog.Status live="polite">{view().statusMessage}</Dialog.Status>
 				</Show>
 
-				<Show when={isIndexerLane() && view().accountState?.status !== 'connected'}>
+				<Show when={lane().controls.setupHint}>
 					<div class="remote-indexer-settings-needed" data-testid="remote-indexer-settings-needed">
-						<p>
-							{view().accountState?.message ?? 'Configure Indexer in Settings before searching.'}
-						</p>
+						<p>{lane().accountMessage ?? 'Configure Indexer in Settings before searching.'}</p>
 						<Button
 							tone="primary"
 							onClick={() => {
@@ -309,7 +305,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 					</div>
 				</Show>
 
-				<Show when={isAudibleLane() && view().accountState?.status === 'connected'}>
+				<Show when={lane().controls.library}>
 					<div class="remote-selection-summary" aria-live="polite">
 						<span>{remoteSource.selectedTitleSummary()}</span>
 						<Show when={view().selectedTitleIds.size > 0}>
@@ -352,7 +348,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 					)}
 				</Show>
 
-				<Show when={isAudibleLane() && view().accountState?.status === 'connected'}>
+				<Show when={lane().controls.library}>
 					<div
 						ref={titleScroll}
 						class="app-modal-results remote-title-list"
@@ -404,7 +400,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 					</div>
 				</Show>
 
-				<Show when={isIndexerLane() && view().accountState?.status === 'connected'}>
+				<Show when={lane().controls.search}>
 					<ul
 						ref={releaseScroll}
 						class="app-modal-results remote-release-list"

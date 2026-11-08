@@ -426,7 +426,8 @@ fn quit_with_consent(app: &tauri::AppHandle, consent: &abb_engine::QuitConsent) 
 }
 
 pub fn run() {
-    log_file::init_logger();
+    let context = tauri::generate_context!();
+    log_file::init_logger(&context.config().identifier);
 
     log::info!("Starting AudioBook Boss application");
 
@@ -484,7 +485,7 @@ pub fn run() {
 
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(|app, event| match event {
             tauri::RunEvent::ExitRequested { api, .. } if hold_quit(app) => {

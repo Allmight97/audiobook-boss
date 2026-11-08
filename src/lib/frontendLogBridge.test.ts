@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const logFrontendMock = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('./tauri/client', () => ({
-	tauriClient: { logFrontend: (...args: unknown[]) => logFrontendMock(...args) },
+	tauriClient: { commands: { logFrontend: (...args: unknown[]) => logFrontendMock(...args) } },
 }));
 
 type Bridge = typeof import('./frontendLogBridge');

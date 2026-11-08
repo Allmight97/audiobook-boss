@@ -5,8 +5,9 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 
 use crate::audio::AudioFile;
-use crate::metadata::output_chapter_count;
-use crate::processing::{PreviewConfig, PREVIEW_SECONDS};
+use crate::metadata::{join_chapters, JoinedSource};
+use crate::processing::preview_config::title_seconds;
+use crate::processing::PREVIEW_SECONDS;
 
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -61,9 +62,13 @@ pub(super) fn title_totals(
             .map_or(std::slice::from_ref(file), Vec::as_slice);
         let valid: Vec<&AudioFile> = sources.iter().filter(|source| source.is_valid).collect();
         let size_of = |source: &AudioFile| source.size.unwrap_or(0.0);
-        let chapter_counts: Vec<usize> = valid
+        let joined_sources: Vec<_> = valid
             .iter()
-            .map(|source| accepted_chapter_count(source))
+            .map(|source| JoinedSource {
+                path: &source.path,
+                duration: source.duration,
+                chapters: accepted_chapter_count(source),
+            })
             .collect();
         total_size_bytes += valid.iter().map(|source| size_of(source)).sum::<f64>();
         if !valid.is_empty() {
@@ -71,12 +76,12 @@ pub(super) fn title_totals(
                 .iter()
                 .map(|source| source.duration.unwrap_or_default())
                 .collect();
-            preview_seconds.push(PreviewConfig.title_seconds(&durations).round() as u32);
+            preview_seconds.push(title_seconds(&durations).round() as u32);
         }
         by_title.insert(
             file.input_id.clone(),
             TitleTotals {
-                chapter_count: output_chapter_count(&chapter_counts),
+                chapter_count: join_chapters(&joined_sources).count,
                 duration_seconds: sources
                     .iter()
                     .map(|source| source.duration.unwrap_or(0.0))

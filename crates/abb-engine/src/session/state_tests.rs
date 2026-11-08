@@ -7,7 +7,7 @@ use crate::audio::{AudioFile, AudioIntent, TitleAudioRequest};
 use crate::errors::AppError;
 use crate::metadata::PatchOp;
 use crate::session::cover_address::{tests::host_request, CoverRequest};
-use crate::session::lookup::QueuedTitle;
+use crate::session::exports::OutputEdits;
 use crate::session::metadata_form::{FieldAction, FieldSnapshot, MetadataField, SeriesPartWarning};
 use crate::session::staged::tests::exported;
 use crate::session::submission::{SubmissionStatus, SubmitRefusal};
@@ -39,8 +39,30 @@ fn audio_request() -> TitleAudioRequest {
     TitleAudioRequest::default_m4b(AudioIntent::Auto)
 }
 
-fn paths_of(items: &[SaveItem]) -> Vec<PathBuf> {
-    items.iter().map(|item| item.path.clone()).collect()
+fn written_batch(items: &[SaveItem]) -> WriteBatch {
+    batch_of(items.iter().cloned().map(written_outcome).collect())
+}
+
+fn batch_of(outcomes: Vec<WriteOutcome>) -> WriteBatch {
+    let succeeded = outcomes.iter().filter(|outcome| outcome.written).count();
+    WriteBatch {
+        failed: outcomes.len() - succeeded,
+        succeeded,
+        cancelled: 0,
+        outcomes,
+    }
+}
+
+fn write_failed() -> AppError {
+    AppError::General("write failed".to_string())
+}
+
+fn written_outcome(item: SaveItem) -> WriteOutcome {
+    WriteOutcome {
+        item,
+        written: true,
+        rewrite: None,
+    }
 }
 
 fn set(value: &str) -> Option<PatchOp<String>> {
@@ -185,12 +207,7 @@ impl Desk {
     }
 
     fn field(&mut self, field: MetadataField) -> FieldSnapshot {
-        self.metadata()
-            .form
-            .fields
-            .into_iter()
-            .find(|snapshot| snapshot.field == field)
-            .expect("field")
+        crate::test_cases::support::form::field_of(&self.metadata().form, field)
     }
 
     fn metadata(&mut self) -> MetadataSnapshot {
@@ -244,24 +261,29 @@ impl Desk {
         self.state.settle();
         let plan = plan?;
         let failing: Vec<PathBuf> = fail.iter().map(|name| path(name)).collect();
-        let saved: Vec<SaveItem> = plan
-            .immediate
+        let batch = batch_of(
+            plan.immediate
+                .iter()
+                .cloned()
+                .map(|item| {
+                    if failing.contains(&item.path) {
+                        WriteOutcome::failed(item)
+                    } else {
+                        written_outcome(item)
+                    }
+                })
+                .collect(),
+        );
+        let saved: Vec<SaveItem> = batch
+            .outcomes
             .iter()
-            .filter(|item| !failing.contains(&item.path))
-            .cloned()
+            .filter(|outcome| outcome.written)
+            .map(|outcome| outcome.item.clone())
             .collect();
         self.record_writes(&saved);
-        let status = MetadataStatus::SaveComplete {
-            succeeded: saved.len(),
-            failed: plan.immediate.len() - saved.len(),
-            cancelled: 0,
-            waiting: plan.waiting,
-            held: plan.held,
-            outputs: Default::default(),
-        };
         let epoch = self.state.epoch;
         self.state
-            .finish_save(epoch, &paths_of(&plan.immediate), &saved, status);
+            .finish_save(epoch, &plan, OutputEdits::default(), Ok(batch));
         self.state.settle();
         Some(plan)
     }
@@ -288,17 +310,20 @@ impl Desk {
     /// Finishes taken writes; `fail` names files whose write fails.
     fn end_deferred(&mut self, taken: Vec<SaveItem>, fail: &[&str]) {
         let failing: Vec<PathBuf> = fail.iter().map(|name| path(name)).collect();
-        let results: Vec<(SaveItem, bool)> = taken
+        let results: Vec<WriteOutcome> = taken
             .into_iter()
             .map(|item| {
-                let written = !failing.contains(&item.path);
-                (item, written)
+                if failing.contains(&item.path) {
+                    WriteOutcome::failed(item)
+                } else {
+                    written_outcome(item)
+                }
             })
             .collect();
         let saved: Vec<SaveItem> = results
             .iter()
-            .filter(|(_, written)| *written)
-            .map(|(item, _)| item.clone())
+            .filter(|outcome| outcome.written)
+            .map(|outcome| outcome.item.clone())
             .collect();
         self.record_writes(&saved);
         self.state.finish_deferred(&results);
@@ -341,6 +366,9 @@ mod bound_form;
 
 #[path = "state/save_tests.rs"]
 mod save;
+
+#[path = "state/lookup_tests.rs"]
+mod lookup;
 
 #[path = "state/sequence_tests.rs"]
 mod sequence;

@@ -19,13 +19,11 @@
 //! processing outside the session's safety rules.
 //!
 //! ```compile_fail
-//! fn disconnect(engine: &abb_engine::Engine) {
-//!     let _ = engine.remote_source().logout(abb_engine::remote_source::ProviderId::Audible);
-//! }
+//! use abb_engine::remote_source::RemoteSourceRuntime;
 //! ```
 //!
 //! ```compile_fail
-//! use abb_engine::save_metadata_intent;
+//! use abb_engine::metadata::save_metadata_intent;
 //! ```
 //! ```compile_fail
 //! use abb_engine::audio::execute_audio_engine;
@@ -43,12 +41,15 @@ mod cover_service;
 mod cover_source;
 mod diagnostics;
 mod engine;
+mod engine_tasks;
 mod errors;
+mod execution;
 mod file_replace;
 mod host;
 mod metadata;
 pub mod metadata_lookup;
 mod metadata_save;
+mod natural_order;
 pub mod output_artifact;
 mod owned_dir;
 mod power;
@@ -75,11 +76,4 @@ pub use quit_press::QuitPress;
 pub(crate) type ManagedJobRegistry = std::sync::Arc<processing::JobRegistry>;
 
 #[cfg(test)]
-extern crate self as abb_engine;
-#[cfg(test)]
 mod test_cases;
-#[cfg(test)]
-pub(crate) use metadata::{
-    extract_passthrough_metadata, finalize_artifact_metadata, read_audio_cover_thumbnail,
-    read_metadata, save_metadata_intent,
-};

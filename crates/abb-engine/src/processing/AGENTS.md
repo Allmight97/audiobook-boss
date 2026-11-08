@@ -11,7 +11,7 @@
   order.
 - Shared lifecycle vocabulary comes from `crate::processing`'s `pub use` list.
   `ProgressEmitter` passes progress to the owning engine reducer.
-  `operation_kind_log_label` is the stable dev-log label that
+  `OperationKind::log_label` is the stable dev-log label that
   `scripts/dev-log-analysis.ts` parses.
 - `TitleOutput` is engine-internal; `OutputUpdate` and `OutputUpdateStatus` are
   host vocabulary (`title_output.rs`).
@@ -28,7 +28,9 @@ accepted before publication is written to the staged file just before
 publication, under the title's lock and the output file lock. One accepted later
 is written to the published file once its size and modification time show ABB
 wrote it. Text tags are diffed from the planned metadata; the cover follows the
-edit's cover intent. A failed tag write never changes the title's export
+edit's cover intent. The plan and this record name the requested path through
+`plan::output_path_for`, so an edit's new name cannot differ from the planned
+one. A failed tag write never changes the title's export
 outcome. An unreadable identity after publication still settles the title as
 published and explicitly refuses unsafe tag updates. A title that ends
 unpublished has its empty folders removed (`output_artifact/AGENTS.md`) before
@@ -45,7 +47,9 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 - `audio_requests` holds one request per output title. Audio resolves each
   request before output collision review; `audio_plans` exposes that result.
   The resolved format sets the extension. Source order and resolved audio plan
-  participate in the review signature. Preview and CUE reconstruction require
+  participate in the review signature (`plan_signature.rs` hashes explicit
+  fields; a new audio-plan or encoder field fails to compile until added).
+  Preview and CUE reconstruction require
   encoding. Chapter plans apply once, in the validation preflight and
   execution share.
 - Settings and sample-rate checks apply only to encoding plans. A copy plan
@@ -67,8 +71,16 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 ## Progress and stages
 
 - Processing emits internal `ProgressEvent` values to its supplied listener.
-- `EventStage` in `progress/mod.rs` maps internal `ProcessingStage` into
-  reducer input.
+- `JobIdentity` (operation id, job id, input index) is built when a job
+  registers; `ProcessingContext`, `ProgressEmitter`, and the `processing_job`
+  log record hold that one value. A title skipped or cancelled before it starts
+  has no job id.
+- `EventStage` (`execution/progress/mod.rs`) is the stage every emitted event
+  carries.
+- A cancelled stage returns `AppError::cancelled()` and emits nothing. The
+  title runner (`run/run_dispatch.rs`) emits Cancelled once, after the title's
+  folders and `TitleOutput` end. Why: a Cancelled event that arrives earlier
+  shows the title finished while its staged files still exist.
 
 ## Job registry (`job_registry/`)
 
@@ -79,14 +91,17 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   starts. It records the job and acquires its permit before execution. A
   metadata Save is a tag write, not an encode: it registers through
   `register_job_without_permit`, so it counts as active work and never waits
-  behind export slots. `BatchScheduler` keeps result order deterministic,
+  behind export slots. `JobRegistry::run_batch` keeps result order deterministic,
   keeps issuing queued work after per-task errors, and gives every scheduled
-  index a terminal result. A queued title whose cancel flag is set starts out
-  of turn, so it ends within the cancel poll and never behind the titles ahead.
+  index a terminal result. A queued title whose cancel token is cancelled starts out
+  of turn the moment it is cancelled, so it fails fast and never waits behind
+  the titles ahead. The permit wait and the scheduler await the token; a
+  wake-up never drops a running title.
 - Presence in the registry map is the job's only lifecycle state: tracked from
   the moment it registers (a permit job, while it waits for the permit);
-  `complete_job` and `fail_job` remove it on every terminal path; a failed, cancelled, or dropped admission removes
-  itself.
+  an admitted job is held as a `RegisteredJob`, which leaves the registry
+  through `complete` or `fail` and, if dropped unsettled, on its own; a failed,
+  cancelled, or dropped admission removes itself.
 - `update_max_concurrent` works only while the registry is idle: no job
   registered and no `ActiveRun` held. WorkRuntime holds one `ActiveRun` from an
   export's acceptance to its end, and the session for a preview, so the gap
@@ -101,10 +116,14 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 - A skipped title never publishes, so an edit for it is refused at once.
   Collision facts refresh after review without re-inspecting sources or
   resolving audio and metadata again.
+- A preview is `OutputKind::Preview`, set once when the plan resolves each
+  title's output. Execution asks `ProcessingContext::is_preview()`; no second
+  flag carries it.
 - Keep preflight side-effect-free. Why: a plan that review refuses leaves no
   folders or files behind.
-- `ProcessingRunOptions.title_cancels` carries one cancel flag per output title
-  from WorkRuntime or the session preview. Each job's admission and
-  `CancellationChecker` (built from that title's flag) observe only that flag;
-  the registry holds no other cancel state. Cancelled titles finish as
-  Cancelled results while siblings continue.
+- `ProcessingRunOptions.titles` carries one `TitleRun` (index, cancel token,
+  and for an export the title's output record) per output title from
+  WorkRuntime or the session preview; a preview has no output records. Each
+  job's admission and `CancellationChecker` (built from that title's token)
+  observe only that token; the registry holds no other cancel state.
+  Cancelled titles finish as Cancelled results while siblings continue.

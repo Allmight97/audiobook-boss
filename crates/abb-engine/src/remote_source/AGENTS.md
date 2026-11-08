@@ -45,16 +45,18 @@ session files, Supplemental Assets, and staging cleanup.
   Grab logging correlates start, HTTP response, and outcome with a request ID
   and keeps credentials, release GUIDs/URLs, and raw response bodies out of the
   entries. Why: Prowlarr's error text can hold indexer download URLs that carry
-  a tracker passkey. A failed grab logs only its status and the body's JSON
-  `message`, cut to 200 characters with URLs replaced; its row shows one line
-  naming the side that is down. Release detail URLs are optional
-  source-provided HTTP(S) links without embedded credentials, never inferred
-  from a release GUID.
+  a tracker passkey. A failed Prowlarr reply (grab, search, connection test)
+  shows or logs only its status and the body's JSON `message`, cut to 200
+  characters with URLs replaced; a non-JSON body gives the status only. A
+  failed grab's row shows one line naming the side that is down. Release
+  detail URLs are optional source-provided HTTP(S) links without embedded
+  credentials, never inferred from a release GUID.
 - The Indexer URL and categories are App Settings' `IndexerConnection`, whose
   `validate` rejects embedded credentials on save and draft testing.
   `remote_source` reads them with `SettingsRuntime::indexer_connection` and
   never stores them. API keys live only in the credential store, scoped to the
-  normalized server URL. Save reserves its settings turn when accepted and
+  normalized server URL, and the Indexer provider owns the check that a key
+  can be sent as a header (`validate_api_key`). Save reserves its settings turn when accepted and
   changes that URL's key after the change applies; a vault failure says the URL
   and categories changed but the key did not, and a failed save never pairs one
   server with another server's key.
@@ -98,6 +100,14 @@ session files, Supplemental Assets, and staging cleanup.
 An acquisition's provider work runs behind one `AcquireTitles` function; see
 its rustdoc in `session_lifecycle.rs`.
 
+The lifecycle registry (`job_state.rs`) holds each job in one state that only
+moves forward: Running, then Validated (files wait for the session) or Settled
+(Imported, Removed, Failed, Cancelled). Progress is a display value and never
+changes the state; a title that fails is a diagnostic, not a terminal stage.
+Snapshot `terminal` is "not Running" and `settled` is "Settled". The provider
+returns an `AcquisitionOutcome` that the lifecycle applies to the job it
+registered.
+
 A finished job hands its files to the session through the engine-set `Handoff`
 and records the outcome on the job. From then on the session decides when the
 download goes (`crate::session`, `staged.rs`) and calls `purge_session`, which
@@ -112,24 +122,32 @@ a part with its own revision; download progress is published at most every
 100 ms, a stage change at once, and a progress tick carries no other part. The
 change that settles the job or rejects the sign-in also carries the remote part.
 Why: a tick stays one job's size at any library size and cannot drop a crossing
-selection change. Snapshot `terminal` and `settled` facts belong here.
+selection change.
 
 ## Working Remote State
 
-- `ui.rs` owns accepted title/PDF/release choices, normalized connection drafts,
-  request generations, and batch outcomes. Its intent match is routing; effect
-  execution stays in `RemoteUiRun`; `audible_lane.rs` owns sign-in, library, and
-  title and PDF choices; `indexer_save.rs` owns the Indexer Save and Reset
-  effects on the draft. Accepted runs execute on `EngineTasks`
+- `ui.rs` holds the intents, the wire snapshots, and `UiState`. Its intent match
+  is routing; effect execution stays in `RemoteUiRun`. Each lane's private
+  facts, predicates (`is_changing`, `is_busy`, `can_disconnect`), and refusal
+  wording live in one struct: `AudibleLane` (`audible_lane.rs`: the
+  `AudibleSignIn` state, library, title and PDF choices) and `IndexerLane` (`indexer_lane.rs`:
+  normalized connection drafts, search and grab, batch outcomes). The
+  Indexer's busy predicates (`indexer_saving`, `indexer_busy`,
+  `refuse_while_indexer_busy`) sit on `UiState` in `indexer_lane.rs` because
+  they read the snapshot's save status.
+  `indexer_save.rs` owns the Indexer Save and Reset effects on the draft. The
+  account read generation is shared: `begin_account_read` and `change_lane`
+  are the only places that start a read or switch lanes, so they bump every
+  generation they must expire. Accepted runs execute on `EngineTasks`
   through the session, whether or not a host awaits the reply.
 - `lane_status.rs` words each lane's status line, called in `UiState::snapshot`
-  as `busy` is. `audibleMessage` is a pure ladder over auth, account, library,
+  as `busy` is. `audibleMessage` is a pure ladder over sign-in, account, library,
   and `settled_job_line`, the one ordering fact: a job's line stays until a
   library load, a sign-in, or a disconnect replaces it, and only the settle
   writes it. A running job's text stays on the acquisition part. On the Indexer
   lane the snapshot's `indexer.message` adds the account failure and connected
-  note to the stored last-event line. `auth`, `accountStatus`, and
-  `libraryStatus` are engine inputs and never reach the wire.
+  note to the stored last-event line. `sign_in`, `account_status`, and
+  `library_status` are engine inputs and never reach the wire.
 - SelectLane reads the selected account and, for connected Audible outside an
   acquisition/handoff, its library; repeated entry coalesces pending reads.
   Account and library requests carry generations: replaced lanes and accepted
@@ -142,20 +160,26 @@ selection change. Snapshot `terminal` and `settled` facts belong here.
 - `RemoteUiSnapshot.busy` says the shown lane refuses new work now; hosts
   disable that lane's actions from it. An acquisition `busy` change also
   moves the remote part, so the update that settles a job frees the lane.
-- Auth start reserves Starting before execution, returns authorization only in
-  its initiating reply, and retains AwaitingHandoff without the URL. Completion
+- `AudibleSignIn` (Idle, Starting, AwaitingHandoff, Completing, Failed,
+  Disconnecting) is the one account-change state; the pending sign-in lives
+  only inside AwaitingHandoff, so a new start, a disconnect, or a failed start
+  drops it. Auth start reserves Starting before execution, returns
+  authorization only in its initiating reply, and retains AwaitingHandoff
+  without the URL. Completion
   reserves credentials until registration and persistence settle. StartAuth,
   Disconnect, acquisition, and lane replacement are refused during completion.
   `AUTH_REGISTRATION_TIMEOUT` bounds registration, so a stalled Amazon
-  endpoint cannot hold the surface until quit. A handoff that cannot be read
-  or holds no auth code keeps the pending sign-in: auth returns to AwaitingHandoff with the
-  reason in `account_status`, so the user can fix the path without a new
-  browser round trip. A completion that took the pending sign-in ends Failed. Shutdown cancels registration before the credential
+  endpoint cannot hold the surface until quit. Accepting a completion moves the
+  pending sign-in out of the UI guard before any network call. A handoff that
+  cannot be read or holds no auth code hands it back: the state returns to
+  AwaitingHandoff with the reason in `account_status`, so the user can fix the
+  path without a new browser round trip. A completion that reached Amazon ends
+  Failed. Shutdown cancels registration before the credential
   commit is admitted and awaits an admitted blocking commit. Keychain reads for Indexer search, grab,
   and Test, the Audible library, and acquisition run on a blocking thread the
   caller awaits (`vault_blocking`, rustdoc). None starts once closing. An Indexer key read for Load is dropped at
   shutdown rather than awaited.
-- Accepted disconnect reserves the UI guard's disconnecting fact through vault
+- Accepted disconnect holds the Disconnecting state through vault
   work outside the guard; account_status Running exposes that pending work.
   Credential deletion failure preserves account/library choices and reports
   Failed. Successful deletion updates account truth before staging cleanup, so
@@ -177,6 +201,14 @@ selection change. Snapshot `terminal` and `settled` facts belong here.
   adapter maps a hit. Select and Grab intents carry only that key; selection,
   grab outcomes, and `sent_releases` all index by it. `indexer.canGrabSelection`
   (some selected release is not Sent) is computed in `UiState::snapshot`.
+- The draft holds the Indexer URL as typed. An edit normalizes it only to set
+  the URL's refusal (`draft_error`); Test and Save normalize it, and a
+  finished Save shows the saved value. Why: rewriting the field
+  under the user's cursor loses keystrokes.
+- The draft snapshot supplies what the Settings form shows about it:
+  `category_options` (the known categories with labels, then any saved or
+  drafted id, so a saved category the list does not know can be unchecked) and
+  `uses_http`. The form holds no category list and no URL rule.
 - The draft starts from the saved settings; Load reads only whether a key is
   stored for the saved URL. An applied Reset replaces the draft, clears its
   errors, failures, and search results, and rereads the account when the Indexer
@@ -200,10 +232,12 @@ acquisition (`AuthRequired` diagnostic) sets the UI state's sign-in-rejected
 fact: the account shows NeedsAuth with the reason, and a later keychain read
 cannot turn it back to Connected. Only a completed sign-in or a disconnect
 clears it. ABB never deletes the stored sign-in on a refusal. A license reply
-with `content_license.status_code` Denied fails that title as `LicenseDenied`,
-and the message gives Audible's reason codes. A `CustomerThrottled` reason means
-a temporary limit or an outdated device registration, so the message says to
-sign in again, then retry later. It is never reported as a missing URL.
+with `content_license.status_code` Denied fails that title as `LicenseDenied`
+even when it carries a download URL, and the message gives Audible's reason
+codes. `license_plan.rs` classifies each reply into one `LicensePlan`
+(import-ready, decrypt, or refused with its failure kind and message). A
+`CustomerThrottled` reason means a temporary limit or an outdated device
+registration, so the message says to sign in again, then retry later. It is never reported as a missing URL.
 Acquisition success means real materialized files. Dash/Widevine acquisition
 stays unsupported until ABB has its own CDM, MPD/PSSH, and content-key design.
 An AAX or AAXC license reply with no usable decryption material fails as

@@ -1,10 +1,8 @@
 mod classification_tests {
     use super::super::classification::{
-        cancellation_error_for_failed_entry, classify_processing_error, is_cancellation_error,
-        ProcessingJobTerminalOutcome,
+        classify_processing_error, is_cancellation_error, ProcessingJobTerminalOutcome,
     };
-    use crate::errors::{AppError, AppErrorCategory, AppErrorCode, AppErrorEnvelope};
-    use crate::processing::{ProcessResultEntry, ProcessResultStatus};
+    use crate::errors::{AppError, AppErrorCategory, AppErrorCode};
 
     #[test]
     fn processing_error_classification_keeps_cancellation_and_failure_distinct() {
@@ -27,54 +25,6 @@ mod classification_tests {
             }
             other => panic!("expected failure outcome, got {other:?}"),
         }
-    }
-
-    #[test]
-    fn cancellation_error_for_failed_entry_returns_cancelled_error() {
-        let entry = ProcessResultEntry {
-            input_index: 2,
-            status: ProcessResultStatus::Failed,
-            message: "Processing was cancelled".to_string(),
-            error: Some(AppErrorEnvelope::new(
-                AppErrorCode::ProcessingCancelled,
-                AppErrorCategory::Cancellation,
-                "Processing was cancelled".to_string(),
-                None,
-            )),
-            output_path: None,
-            supplemental_warning: None,
-            warnings: Vec::new(),
-            job_id: Some("job-123".to_string()),
-        };
-
-        let error = cancellation_error_for_failed_entry(&entry).expect("cancellation error");
-
-        assert!(is_cancellation_error(&error));
-        assert_eq!(error.to_string(), "Processing was cancelled");
-    }
-
-    #[test]
-    fn non_cancellation_errors_stay_failed_results() {
-        let entry = ProcessResultEntry {
-            input_index: 2,
-            status: ProcessResultStatus::Failed,
-            message: "decoder unavailable".to_string(),
-            error: Some(AppErrorEnvelope::new(
-                AppErrorCode::FfmpegError,
-                AppErrorCategory::Toolchain,
-                "decoder unavailable".to_string(),
-                Some("ffmpeg missing".to_string()),
-            )),
-            output_path: None,
-            supplemental_warning: None,
-            warnings: Vec::new(),
-            job_id: Some("job-123".to_string()),
-        };
-
-        assert!(cancellation_error_for_failed_entry(&entry).is_none());
-        assert!(!is_cancellation_error(&AppError::General(
-            "decoder unavailable".to_string()
-        )));
     }
 }
 
@@ -105,7 +55,7 @@ mod entry_tests {
 
     fn planned_batch_job(index: usize, action: PlannedOutputAction) -> PlannedProcessingJob {
         PlannedProcessingJob {
-            source_metadata: None,
+            source_metadata: crate::metadata::AudiobookMetadata::default(),
             source_paths: vec![],
             input_index: index,
             input_path: PathBuf::from(format!("/tmp/input-{index}.m4b")),
@@ -128,7 +78,6 @@ mod entry_tests {
 
     fn batch_plan(jobs: Vec<PlannedProcessingJob>) -> ResolvedProcessingPlan {
         ResolvedProcessingPlan {
-            preview: false,
             collision_policy: CollisionPolicy::SkipExisting,
             plan_signature: "test-plan".to_string(),
             jobs,

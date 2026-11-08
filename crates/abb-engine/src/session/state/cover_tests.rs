@@ -163,16 +163,9 @@ fn a_cover_changed_while_a_save_ran_is_still_unsaved_afterward() {
     let epoch = desk.state.epoch;
     desk.state.finish_save(
         epoch,
-        &paths_of(&plan.immediate),
-        &plan.immediate,
-        MetadataStatus::SaveComplete {
-            succeeded: 1,
-            failed: 0,
-            cancelled: 0,
-            waiting: 0,
-            held: 0,
-            outputs: Default::default(),
-        },
+        &plan,
+        OutputEdits::default(),
+        Ok(written_batch(&plan.immediate)),
     );
     desk.state.settle();
 

@@ -2,8 +2,7 @@ use std::fs;
 use std::io::Read;
 use std::path::Path;
 
-use abb_audible_core::{download_extension_for_strategy, remote_materialized_filename_stem};
-use abb_remote_source_core::AcquisitionStrategy;
+use abb_audible_core::{remote_materialized_filename_stem, DecryptKind};
 use sha2::{Digest, Sha256};
 
 use crate::errors::Result;
@@ -20,12 +19,13 @@ fn lower_hex(bytes: &[u8]) -> String {
 
 pub(in crate::remote_source::providers::audible) fn staged_protected_source_path(
     job_dir: &Path,
-    strategy: AcquisitionStrategy,
+    kind: DecryptKind,
 ) -> std::path::PathBuf {
-    job_dir.join(format!(
-        "source.{}",
-        download_extension_for_strategy(strategy)
-    ))
+    let extension = match kind {
+        DecryptKind::Aax => "aax",
+        DecryptKind::Aaxc => "aaxc",
+    };
+    job_dir.join(format!("source.{extension}"))
 }
 
 pub(in crate::remote_source::providers::audible) fn staged_materialized_path(

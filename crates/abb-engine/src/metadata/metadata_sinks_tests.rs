@@ -1,14 +1,13 @@
-use super::{apply_metadata_ops, Mp4ametaSink};
-use crate::metadata::metadata_ops::plan_metadata_field_ops;
-use crate::metadata::AudiobookMetadata;
+use super::{apply_field_ops, Mp4ametaSink};
+use crate::metadata::{AudiobookMetadata, MetadataWritePlan};
 use mp4ameta::{FreeformIdent, MediaType, Tag};
 
 fn apply_real_sink(metadata: &AudiobookMetadata) -> Tag {
     let mut tag = Tag::default();
-    let ops = plan_metadata_field_ops(metadata);
+    let ops = MetadataWritePlan::from_metadata(metadata).ops;
     {
         let mut sink = Mp4ametaSink::new(&mut tag);
-        apply_metadata_ops(&mut sink, &ops);
+        apply_field_ops(&mut sink, &ops);
     }
     tag
 }
@@ -88,16 +87,17 @@ fn mp4ameta_sink_clear_removes_string_atoms_rather_than_blanking() {
     assert_eq!(tag.strings_of(&itunes_series).next(), Some("Temp Series"));
     assert_eq!(tag.strings_of(&itunes_series_part).next(), Some("9"));
 
-    let clear_ops = plan_metadata_field_ops(&AudiobookMetadata {
+    let clear_ops = MetadataWritePlan::from_metadata(&AudiobookMetadata {
         title: Some("   ".to_string()),
         artist: Some(String::new()),
         series: Some(String::new()),
         series_part: Some(String::new()),
         ..Default::default()
-    });
+    })
+    .ops;
     {
         let mut sink = Mp4ametaSink::new(&mut tag);
-        apply_metadata_ops(&mut sink, &clear_ops);
+        apply_field_ops(&mut sink, &clear_ops);
     }
 
     assert_eq!(tag.title(), None);
@@ -127,11 +127,11 @@ fn mp4ameta_sink_sets_and_reads_back_track_and_disk_in_memory() {
         disk: Some((2, Some(4))),
         ..Default::default()
     };
-    let ops = plan_metadata_field_ops(&metadata);
+    let ops = MetadataWritePlan::from_metadata(&metadata).ops;
 
     {
         let mut sink = Mp4ametaSink::new(&mut tag);
-        apply_metadata_ops(&mut sink, &ops);
+        apply_field_ops(&mut sink, &ops);
     }
 
     assert_eq!(tag.track(), (Some(9), Some(20)));

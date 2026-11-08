@@ -1,0 +1,393 @@
+# m4b mka-untouched
+handling: encode
+container: matroska,webm
+format tags, in file order:
+  title="Seed Title"
+  SORT_ALBUM="Lower Series 01 - Seed Title"
+  ARTIST="Seed Author"
+  ALBUM_ARTIST="Seed Author"
+  ALBUM="Seed Album"
+  COMPOSER="Seed Narrator"
+  GENRE="Seed Genre"
+  DATE="2001-02"
+  YEAR="2001"
+  COMMENT="Seed Comment"
+  DESCRIPTION="Seed Description"
+  SERIES="Lower Series"
+  SERIES-PART="1"
+  DISC="1/3"
+  MEDIA_TYPE="2"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    DURATION=<varies>
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    filename="cover.jpg"
+    mimetype="image/jpeg"
+    picture 630 bytes sha256 7cdbae51ccf7b3a8
+as ABB reads it:
+  title="Seed Title"
+  artist="Seed Author"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02"
+  comment="Seed Comment"
+  description="Seed Description"
+  series="Lower Series"
+  series_part="1"
+  album_sort="Lower Series 01 - Seed Title"
+  disk="(1, Some(3))"
+  cover_art="630 bytes sha256 7cdbae51ccf7b3a8"
+
+# m4b mka-set-all
+handling: encode
+container: matroska,webm
+format tags, in file order:
+  title="Set Title"
+  SORT_ALBUM="Set Sort"
+  ARTIST="Set Author"
+  ALBUM_ARTIST="Set Author"
+  ALBUM="Set Album"
+  COMPOSER="Set Narrator"
+  GENRE="Set Genre"
+  DATE="2020-05"
+  YEAR="2020"
+  COMMENT="Set Comment"
+  DESCRIPTION="Set Description"
+  SERIES="Set Series; Set Subseries"
+  SERIES-PART="2; 3"
+  track="2/9"
+  DISC="1/2"
+  MEDIA_TYPE="2"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    DURATION=<varies>
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    filename="cover.jpg"
+    mimetype="image/jpeg"
+    picture 1303 bytes sha256 f20e86d37462cf39
+as ABB reads it:
+  title="Set Title"
+  artist="Set Author"
+  album="Set Album"
+  composer="Set Narrator"
+  genre="Set Genre"
+  date="2020-05"
+  comment="Set Comment"
+  description="Set Description"
+  series="Set Series"
+  series_part="2"
+  subseries="Set Subseries"
+  subseries_part="3"
+  album_sort="Set Sort"
+  track="(2, Some(9))"
+  disk="(1, Some(2))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+
+# m4b mka-clear-all
+handling: encode
+container: matroska,webm
+format tags, in file order:
+  MEDIA_TYPE="2"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    DURATION=<varies>
+as ABB reads it:
+
+# mp3 mka-untouched
+handling: encode
+container: matroska,webm
+format tags, in file order:
+  title="Seed Title"
+  SORT_ALBUM="Lower Series 01 - Seed Title"
+  ARTIST="Seed Author"
+  ALBUM_ARTIST="Seed Author"
+  ALBUM="Seed Album"
+  COMPOSER="Seed Narrator"
+  GENRE="Seed Genre"
+  DATE="2001-02"
+  YEAR="2001"
+  COMMENT="Seed Comment"
+  DESCRIPTION="Seed Description"
+  SERIES="Lower Series"
+  SERIES-PART="1"
+  DISC="1/3"
+  MEDIA_TYPE="2"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    DURATION=<varies>
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    filename="cover.jpg"
+    mimetype="image/jpeg"
+    picture 1303 bytes sha256 f20e86d37462cf39
+as ABB reads it:
+  title="Seed Title"
+  artist="Seed Author"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02"
+  comment="Seed Comment"
+  description="Seed Description"
+  series="Lower Series"
+  series_part="1"
+  album_sort="Lower Series 01 - Seed Title"
+  disk="(1, Some(3))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+
+# mp3 mka-set-all
+handling: encode
+container: matroska,webm
+format tags, in file order:
+  title="Set Title"
+  SORT_ALBUM="Set Sort"
+  ARTIST="Set Author"
+  ALBUM_ARTIST="Set Author"
+  ALBUM="Set Album"
+  COMPOSER="Set Narrator"
+  GENRE="Set Genre"
+  DATE="2020-05"
+  YEAR="2020"
+  COMMENT="Set Comment"
+  DESCRIPTION="Set Description"
+  SERIES="Set Series; Set Subseries"
+  SERIES-PART="2; 3"
+  track="2/9"
+  DISC="1/2"
+  MEDIA_TYPE="2"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    DURATION=<varies>
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    filename="cover.jpg"
+    mimetype="image/jpeg"
+    picture 1303 bytes sha256 f20e86d37462cf39
+as ABB reads it:
+  title="Set Title"
+  artist="Set Author"
+  album="Set Album"
+  composer="Set Narrator"
+  genre="Set Genre"
+  date="2020-05"
+  comment="Set Comment"
+  description="Set Description"
+  series="Set Series"
+  series_part="2"
+  subseries="Set Subseries"
+  subseries_part="3"
+  album_sort="Set Sort"
+  track="(2, Some(9))"
+  disk="(1, Some(2))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+
+# mp3 mka-clear-all
+handling: encode
+container: matroska,webm
+format tags, in file order:
+  MEDIA_TYPE="2"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    DURATION=<varies>
+as ABB reads it:
+
+# flac mka-untouched
+handling: encode
+container: matroska,webm
+format tags, in file order:
+  title="Seed Title"
+  SORT_ALBUM="Lower Series 01 - Seed Title"
+  ARTIST="Seed Author"
+  ALBUM_ARTIST="Seed Author"
+  ALBUM="Seed Album"
+  COMPOSER="Seed Narrator"
+  GENRE="Seed Genre"
+  DATE="2001-02"
+  YEAR="2001"
+  COMMENT="Seed Comment;Seed Description"
+  SERIES="Lower Series"
+  SERIES-PART="1"
+  DISC="1/3"
+  MEDIA_TYPE="2"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    DURATION=<varies>
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    filename="cover.jpg"
+    mimetype="image/jpeg"
+    picture 1303 bytes sha256 f20e86d37462cf39
+as ABB reads it:
+  title="Seed Title"
+  artist="Seed Author"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02"
+  comment="Seed Comment;Seed Description"
+  series="Lower Series"
+  series_part="1"
+  album_sort="Lower Series 01 - Seed Title"
+  disk="(1, Some(3))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+
+# flac mka-set-all
+handling: encode
+container: matroska,webm
+format tags, in file order:
+  title="Set Title"
+  SORT_ALBUM="Set Sort"
+  ARTIST="Set Author"
+  ALBUM_ARTIST="Set Author"
+  ALBUM="Set Album"
+  COMPOSER="Set Narrator"
+  GENRE="Set Genre"
+  DATE="2020-05"
+  YEAR="2020"
+  COMMENT="Set Comment"
+  DESCRIPTION="Set Description"
+  SERIES="Set Series; Set Subseries"
+  SERIES-PART="2; 3"
+  track="2/9"
+  DISC="1/2"
+  MEDIA_TYPE="2"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    DURATION=<varies>
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    filename="cover.jpg"
+    mimetype="image/jpeg"
+    picture 1303 bytes sha256 f20e86d37462cf39
+as ABB reads it:
+  title="Set Title"
+  artist="Set Author"
+  album="Set Album"
+  composer="Set Narrator"
+  genre="Set Genre"
+  date="2020-05"
+  comment="Set Comment"
+  description="Set Description"
+  series="Set Series"
+  series_part="2"
+  subseries="Set Subseries"
+  subseries_part="3"
+  album_sort="Set Sort"
+  track="(2, Some(9))"
+  disk="(1, Some(2))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+
+# flac mka-clear-all
+handling: encode
+container: matroska,webm
+format tags, in file order:
+  MEDIA_TYPE="2"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    DURATION=<varies>
+as ABB reads it:
+
+# mka mka-untouched
+handling: encode
+container: matroska,webm
+format tags, in file order:
+  title="Seed Title"
+  SORT_ALBUM="Lower Series 01 - Seed Title"
+  ARTIST="Seed Author"
+  ALBUM_ARTIST="Seed Author"
+  ALBUM="Seed Album"
+  COMPOSER="Seed Narrator"
+  GENRE="Seed Genre"
+  DATE="2001-02"
+  YEAR="2001"
+  COMMENT="Seed Comment"
+  DESCRIPTION="Seed Description"
+  SERIES="Lower Series"
+  SERIES-PART="1"
+  DISC="1/3"
+  MEDIA_TYPE="2"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    DURATION=<varies>
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    filename="cover.jpg"
+    mimetype="image/jpeg"
+    picture 1303 bytes sha256 f20e86d37462cf39
+as ABB reads it:
+  title="Seed Title"
+  artist="Seed Author"
+  album="Seed Album"
+  composer="Seed Narrator"
+  genre="Seed Genre"
+  date="2001-02"
+  comment="Seed Comment"
+  description="Seed Description"
+  series="Lower Series"
+  series_part="1"
+  album_sort="Lower Series 01 - Seed Title"
+  disk="(1, Some(3))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+
+# mka mka-set-all
+handling: encode
+container: matroska,webm
+format tags, in file order:
+  title="Set Title"
+  SORT_ALBUM="Set Sort"
+  ARTIST="Set Author"
+  ALBUM_ARTIST="Set Author"
+  ALBUM="Set Album"
+  COMPOSER="Set Narrator"
+  GENRE="Set Genre"
+  DATE="2020-05"
+  YEAR="2020"
+  COMMENT="Set Comment"
+  DESCRIPTION="Set Description"
+  SERIES="Set Series; Set Subseries"
+  SERIES-PART="2; 3"
+  track="2/9"
+  DISC="1/2"
+  MEDIA_TYPE="2"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    DURATION=<varies>
+  1 video MJPEG Disposition(ATTACHED_PIC)
+    filename="cover.jpg"
+    mimetype="image/jpeg"
+    picture 1303 bytes sha256 f20e86d37462cf39
+as ABB reads it:
+  title="Set Title"
+  artist="Set Author"
+  album="Set Album"
+  composer="Set Narrator"
+  genre="Set Genre"
+  date="2020-05"
+  comment="Set Comment"
+  description="Set Description"
+  series="Set Series"
+  series_part="2"
+  subseries="Set Subseries"
+  subseries_part="3"
+  album_sort="Set Sort"
+  track="(2, Some(9))"
+  disk="(1, Some(2))"
+  cover_art="1303 bytes sha256 f20e86d37462cf39"
+
+# mka mka-clear-all
+handling: encode
+container: matroska,webm
+format tags, in file order:
+  MEDIA_TYPE="2"
+  ENCODER=<varies>
+streams:
+  0 audio OPUS Disposition(0x0)
+    DURATION=<varies>
+as ABB reads it:

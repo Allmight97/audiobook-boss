@@ -7,7 +7,7 @@ use super::plans::chapter_plans_for;
 use crate::audio::AudioFile;
 use crate::errors::AppErrorEnvelope;
 use crate::metadata::MetadataIntentPatch;
-use crate::output_artifact::{CollisionPolicy, OutputNamingConfig, PlannedOutput};
+use crate::output_artifact::{CollisionPolicy, OutputNamingConfig, OutputVerdict, PlannedOutput};
 use crate::processing::{
     ProcessCommandResult, ProcessPayload, SupplementalProcessingAsset, TitleSource,
 };
@@ -312,24 +312,20 @@ pub(crate) enum PlanVerdict {
 }
 
 pub(crate) fn plan_verdict(plan: &crate::processing::ProcessingPreflightPlan) -> PlanVerdict {
-    if let Some(message) = plan.outputs.iter().find_map(|output| {
-        output
-            .review
-            .as_ref()
-            .filter(|review| !review.can_proceed)
-            .map(|review| review.message.clone())
-    }) {
-        return PlanVerdict::Blocked(message);
-    }
-    let collisions: Vec<PlannedOutput> = plan
+    if let Some(message) = plan
         .outputs
         .iter()
-        .filter(|output| {
-            output.action == crate::output_artifact::PlannedOutputAction::ReviewRequired
-        })
-        .cloned()
-        .collect();
-    if collisions.is_empty() {
+        .find(|output| output.verdict() == OutputVerdict::Blocked)
+        .and_then(|output| output.review.as_ref())
+        .map(|review| review.message.clone())
+    {
+        return PlanVerdict::Blocked(message);
+    }
+    if plan
+        .outputs
+        .iter()
+        .all(|output| output.verdict() == OutputVerdict::Proceed)
+    {
         PlanVerdict::Proceed
     } else {
         PlanVerdict::Review(

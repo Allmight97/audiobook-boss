@@ -15,7 +15,7 @@ impl Session {
     }
 
     pub(super) fn begin_import(&self, paths: Vec<String>) -> Rest {
-        if self.lock().working_set.order_locked() {
+        if self.lock().list_locked() {
             return Rest::Done(self.import_failed(InputNotice::OrderLocked));
         }
         Rest::Import {
@@ -119,7 +119,7 @@ impl Session {
             tokio::pin!(unlocked);
             unlocked.as_mut().enable();
             let attempt = self.transition(|state| {
-                if state.working_set.order_locked() {
+                if state.list_locked() {
                     return None;
                 }
                 Some(apply(state))

@@ -7,11 +7,9 @@ use super::run_diagnostics::{
     append_run_record, encoding_log_enabled, write_common_run_fields, write_run_header,
     write_run_identity,
 };
-use crate::audio::cleanup::CleanupGuard;
 use crate::audio::processor::plan::MediaProcessingPlan;
-use crate::audio::SampleRateConfig;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::processing::ProcessingContext;
+use crate::execution::ProcessingContext;
 
 struct EncodingRunDiagnostics {
     timing: super::run_diagnostics::RunTiming,
@@ -40,7 +38,6 @@ pub(crate) fn process_input_file(
             "Processing was cancelled before processing file: {}",
             input_label
         );
-        ctx.emitter.emit_cancelled("Processing was cancelled");
         return Err(AppError::cancelled());
     }
 
@@ -137,8 +134,6 @@ fn execute_pipeline(
         let _ = ff::init();
     });
 
-    let mut cleanup_guard = CleanupGuard::new(context.session.id());
-    cleanup_guard.add_path(&plan.output_path);
     let mut enc_ctx = crate::audio::processor::encoder::setup_encoder(plan, metadata, passthrough)?;
 
     if let Some(diagnostics) = diagnostics.as_deref_mut() {
@@ -166,8 +161,6 @@ fn execute_pipeline(
         diagnostics.encoder_details = Some(enc_ctx.diagnostics());
     }
     result?;
-
-    let _ = cleanup_guard.forget_path(&plan.output_path);
 
     if metadata.is_some() {
         log::info!("Audio processing completed with metadata integration");
@@ -208,13 +201,13 @@ fn format_in_process_run(
         &mut output,
         diagnostics.timing.elapsed(),
         &plan.encoder_settings,
-        &plan.sample_rate,
+        plan.sample_rate,
         diagnostics.opened_encoder.as_deref(),
         diagnostics.opened_rate,
         diagnostics.opened_channels,
     );
     write_run_identity(&mut output, context, plan.total_duration);
-    let _ = writeln!(output, "preview={}", context.preview.is_some());
+    let _ = writeln!(output, "preview={}", context.is_preview());
     let _ = writeln!(
         output,
         "temp_output={}",
@@ -249,36 +242,7 @@ pub(crate) fn resolve_target_audio_params(plan: &MediaProcessingPlan) -> Result<
         .ok_or_else(|| {
             AppError::General("Output channels were not resolved before encoder setup.".to_string())
         })?;
-    let target_sample_rate = match plan.sample_rate {
-        SampleRateConfig::Explicit(rate) => rate,
-        SampleRateConfig::Auto => {
-            let rate = probe_first_sample_rate(plan)?;
-            super::super::settings::automatic_sample_rate(
-                plan.encoder_settings.encoder_type,
-                plan.encoder_settings.faac_profile,
-                rate,
-            )
-        }
-    };
-
-    Ok((target_sample_rate, target_channels))
-}
-
-fn probe_first_sample_rate(plan: &MediaProcessingPlan) -> Result<u32> {
-    let first = plan
-        .input_file_paths
-        .first()
-        .ok_or_else(|| AppError::InvalidInput("No input files provided".to_string()))?;
-    let inspection =
-        crate::audio::processor::streams::inspect_audio_decoder(first, plan.aac_decoder)?;
-    log::info!(
-        "probe_first_input path={} selected_decoder={} rate={} channels={}",
-        sanitize_path_for_display(first),
-        inspection.selected_decoder,
-        inspection.sample_rate,
-        inspection.channels
-    );
-    Ok(inspection.sample_rate)
+    Ok((plan.sample_rate, target_channels))
 }
 
 #[cfg(test)]

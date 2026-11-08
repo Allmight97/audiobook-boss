@@ -1,8 +1,7 @@
 use std::fs;
 
-use abb_engine::session::{MetadataField, SessionIntent};
+use crate::session::{MetadataField, SessionIntent};
 
-use super::integration_import_variants_tests::files_under;
 use super::integration_session_desk::Desk;
 use super::media_fixtures::{chapters_of, write_sine_mp3};
 
@@ -37,12 +36,8 @@ async fn five_hundred_cue_chapters_survive_export() {
     })
     .await;
 
-    desk.export().await;
-    desk.wait_until("the book is published", |desk| {
-        !files_under(&desk.root.path().join("exports")).is_empty()
-    })
-    .await;
-    let output = files_under(&desk.root.path().join("exports")).remove(0);
+    let export = desk.export_and_finish().await;
+    let output = desk.output_of(&export);
 
     let chapters = chapters_of(&output);
     assert_eq!(chapters.len(), 500);

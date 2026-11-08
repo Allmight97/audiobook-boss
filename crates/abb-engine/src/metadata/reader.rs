@@ -1,7 +1,9 @@
-use super::ffmpeg_dict::{ID3_ALBUM_SORT_KEY, MP4_ALBUM_SORT_KEY};
+use super::container::Container;
+use super::cover_choice::CoverChoice;
+use super::field_schema::{comment_key_rank, position_keys, text_keys, KeySet, ALBUM_SORT_KEYS};
 use super::{mp4ameta_bridge, normalize_publication_date, split_series_list, AudiobookMetadata};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::metadata::field_schema::TagField;
+use abb_metadata_core::{PositionField, TextField};
 use ffmpeg_next as ff;
 use std::path::Path;
 
@@ -17,9 +19,8 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
 
     ff::init().map_err(AppError::Ffmpeg)?;
     let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
-    let route = super::container::classify_format_name(ictx.format().name());
 
-    if matches!(route, super::container::ContainerRoute::Mp4Family) {
+    if Container::of_input(&ictx).is_mp4_family() {
         drop(ictx);
         let mut metadata = mp4ameta_bridge::read_metadata(path)?;
         metadata.cover_art = normalize_cover_art(metadata.cover_art);
@@ -34,58 +35,47 @@ fn read_metadata_with_ffmpeg_input(ictx: &ff::format::context::Input) -> Result<
 
     let mut metadata = AudiobookMetadata::new();
 
-    metadata.title = dict.get("title").map(str::to_string);
-    metadata.artist = dict.get("artist").map(str::to_string);
-    metadata.album = dict.get("album").map(str::to_string);
-    metadata.composer = dict.get("composer").map(str::to_string);
-    metadata.genre = dict.get("genre").map(str::to_string);
-    metadata.comment = read_comment(&dict);
-    metadata.description = dict.get("description").map(str::to_string);
-    metadata.album_sort = dict
-        .get(ID3_ALBUM_SORT_KEY)
-        .or_else(|| dict.get(MP4_ALBUM_SORT_KEY))
-        .map(str::to_string);
-    metadata.track = parse_position_field(
-        first_tag(&dict, TagField::Track).as_deref(),
-        first_tag_keys(
-            &dict,
-            TagField::Track.read_total_keys().expect("track totals"),
-        )
-        .as_deref(),
-    );
-    metadata.disk = parse_position_field(
-        first_tag(&dict, TagField::Disk).as_deref(),
-        first_tag_keys(
-            &dict,
-            TagField::Disk.read_total_keys().expect("disk totals"),
-        )
-        .as_deref(),
-    );
-
-    let series_raw = first_tag(&dict, TagField::Series);
-    let series_part_raw = first_tag(&dict, TagField::SeriesPart);
-    let (series, subseries) = split_series_list(series_raw.as_deref());
-    let (series_part, subseries_part) = split_series_list(series_part_raw.as_deref());
-    metadata.series = series;
-    metadata.series_part = series_part;
-    metadata.subseries = subseries;
-    metadata.subseries_part = subseries_part;
-
-    metadata.date = dict
-        .get("date")
-        .or_else(|| dict.get("year"))
-        .and_then(normalize_publication_date);
+    for field in TextField::ALL {
+        let value = read_text(&dict, field);
+        match field {
+            TextField::Date => {
+                metadata.date = value.as_deref().and_then(normalize_publication_date);
+            }
+            TextField::Series => {
+                (metadata.series, metadata.subseries) = split_series_list(value.as_deref());
+            }
+            TextField::SeriesPart => {
+                (metadata.series_part, metadata.subseries_part) =
+                    split_series_list(value.as_deref());
+            }
+            _ => *metadata.text_mut(field) = value,
+        }
+    }
+    metadata.album_sort = first_tag_keys(&dict, &ALBUM_SORT_KEYS);
+    for field in PositionField::ALL {
+        let keys = position_keys(field);
+        *metadata.position_mut(field) = parse_position_field(
+            first_tag_keys(&dict, keys.read_number).as_deref(),
+            first_tag_keys(&dict, keys.read_total).as_deref(),
+        );
+    }
 
     metadata.cover_art = extract_attached_pic(ictx);
 
     Ok(metadata)
 }
 
+fn read_text(dict: &ff::DictionaryRef<'_>, field: TextField) -> Option<String> {
+    match text_keys(field).read {
+        KeySet::Keys(keys) => first_tag_keys(dict, keys),
+        KeySet::UserComments => read_comment(dict),
+    }
+}
+
 fn read_comment(dict: &ff::DictionaryRef<'_>) -> Option<String> {
     dict.iter()
         .filter_map(|(key, value)| {
-            super::field_schema::comment_key_rank(key)
-                .map(|rank| (rank, key.to_ascii_lowercase(), value))
+            comment_key_rank(key).map(|rank| (rank, key.to_ascii_lowercase(), value))
         })
         .min_by(|left, right| (left.0, &left.1).cmp(&(right.0, &right.1)))
         .map(|(_, _, value)| value.to_owned())
@@ -102,16 +92,12 @@ where
     keys.iter().find_map(|key| lookup(key))
 }
 
-fn first_tag(dict: &ff::DictionaryRef<'_>, field: TagField) -> Option<String> {
-    first_tag_keys(dict, field.read_keys())
-}
-
 pub fn display_tags_from_ffmpeg_dict(
     dict: &ff::DictionaryRef<'_>,
 ) -> (Option<String>, Option<String>) {
     (
-        first_tag(dict, TagField::Title),
-        first_tag(dict, TagField::Artist),
+        read_text(dict, TextField::Title),
+        read_text(dict, TextField::Artist),
     )
 }
 
@@ -145,9 +131,29 @@ fn parse_total_value(value: &str) -> Option<u32> {
     value.trim().parse::<u32>().ok()
 }
 
+/// The file's cover by the shared choice (`cover_choice`): FFmpeg names an
+/// ID3 or FLAC front cover in the picture's `comment` tag, and a Matroska
+/// attachment's name and MIME type say whether it is a cover.
 pub(super) fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
-    ictx.streams()
-        .find_map(|stream| attached_pic_bytes(&stream))
+    let mut choice = CoverChoice::default();
+    for stream in ictx.streams() {
+        let Some(bytes) = attached_pic_bytes(&stream) else {
+            continue;
+        };
+        if let Some(front) = choice.offer(is_front_cover(&stream), bytes) {
+            return Some(front);
+        }
+    }
+    choice.fallback()
+}
+
+fn is_front_cover(stream: &ff::format::stream::Stream) -> bool {
+    let tags = stream.metadata();
+    tags.get("comment") == Some(super::cover_art::embedding::FRONT_COVER_COMMENT)
+        || super::matroska_cover::is_cover(
+            tags.get("filename").unwrap_or(""),
+            tags.get("mimetype").unwrap_or(""),
+        )
 }
 
 pub(super) fn attached_pic_bytes(stream: &ff::format::stream::Stream) -> Option<Vec<u8>> {

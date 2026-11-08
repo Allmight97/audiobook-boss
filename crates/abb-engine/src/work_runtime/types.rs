@@ -42,6 +42,14 @@ pub enum WorkOperationStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
+pub enum OperationPhase {
+    Accepted,
+    Active,
+    Finished,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub enum ChildJobStatus {
     Queued,
     Running,
@@ -150,6 +158,7 @@ pub struct OperationSnapshot {
     pub revision: u64,
     pub kind: OperationKind,
     pub status: WorkOperationStatus,
+    pub phase: OperationPhase,
     pub title: String,
     pub started_at_ms: Option<i64>,
     pub finished_at_ms: Option<i64>,
@@ -162,26 +171,43 @@ pub struct OperationSnapshot {
     pub log_tail: Vec<OperationLogEntry>,
 }
 
+impl OperationSnapshot {
+    pub(crate) fn set_status(&mut self, status: WorkOperationStatus) {
+        self.status = status;
+        self.phase = super::terminal::phase_of(status);
+    }
+
+    pub(crate) fn is_finished(&self) -> bool {
+        self.phase == OperationPhase::Finished
+    }
+}
+
 /// The operations a host shows, in display order. Active operations come
 /// first, then accepted ones, then finished ones; newest first within each.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkOperationsSnapshot {
-    /// Advances with every change to any operation or to the order.
+    /// Advances with every change to any operation, to the order, or to
+    /// `concurrency_locked`.
     pub revision: u64,
     pub order: Vec<OperationId>,
     pub operations: Vec<OperationSnapshot>,
+    /// The engine refuses a change of the job limit now: a job or an export
+    /// is active.
+    pub concurrency_locked: bool,
 }
 
 /// One change. A host keeps the newest `changed` per operation (by its own
-/// `revision`) and the `order` with the highest `revision`, so updates may
-/// arrive in any order; an operation missing from that order is not shown.
+/// `revision`) and the `order` and `concurrency_locked` of the highest
+/// `revision`, so updates may arrive in any order; an operation missing from
+/// that order is not shown. `changed` is absent when only the lock changed.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkOperationsUpdate {
     pub revision: u64,
     pub order: Vec<OperationId>,
-    pub changed: OperationSnapshot,
+    pub changed: Option<OperationSnapshot>,
+    pub concurrency_locked: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -191,8 +217,7 @@ pub struct WorkSubmissionAccepted {
     pub(crate) titles: Vec<std::sync::Arc<crate::processing::TitleOutput>>,
 }
 
-#[derive(Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone)]
 pub struct SubmitProcessingOperationRequest {
     /// Chosen when the submission was accepted, so it names the same work
     /// before and after the export registers.

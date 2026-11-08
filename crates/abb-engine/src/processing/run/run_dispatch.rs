@@ -2,22 +2,22 @@ use super::run_job::{run_processing_job, supplemental_assets_for_input, Processi
 use super::ProcessingRunOptions;
 use crate::audio;
 use crate::errors::{AppError, Result};
+use crate::execution::EmitContext;
 use crate::host::Host;
 use crate::output_artifact::OutputParentDirCleanup;
-use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::plan::{ExecutionProcessingPlan, ResolvedProcessingPlan};
-use crate::processing::progress::EmitContext;
 use crate::processing::terminal_outcomes::{
     build_all_skipped_batch_result, collect_batch_results, emit_terminal_cancelled_event,
     emit_terminal_failed_event, emit_terminal_skipped_event, no_write_skipped_result,
 };
 use crate::processing::ProcessResultStatus;
+use crate::processing::{JobIdentity, ProgressEventListener};
 use crate::processing::{OperationKind, ProcessCommandResult, ProcessPayload, ProcessResultEntry};
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, PoisonError};
+use tokio_util::sync::CancellationToken;
 
 pub(crate) async fn dispatch_title_jobs(
     host: Host,
@@ -43,6 +43,8 @@ pub(crate) async fn dispatch_title_jobs(
     crate::processing::output_parent_cleanup::finalize_output_parent_cleanup(result, &mut folders)
 }
 
+type TitleFuture = Pin<Box<dyn Future<Output = Result<ProcessResultEntry>> + Send>>;
+
 struct Batch {
     plan: ResolvedProcessingPlan,
     file_info: audio::FileListInfo,
@@ -62,20 +64,11 @@ async fn dispatch_batch_plan(
         file_info,
         folders,
     } = batch;
-    if payload.input_files.is_empty() {
-        return Err(AppError::InvalidInput(
-            "No input files provided for processing".to_string(),
-        ));
-    }
-
     if let Some(result) = build_all_skipped_batch_result(&plan) {
         return Ok(result);
     }
 
-    let mut scheduled_jobs: Vec<Pin<Box<dyn Future<Output = Result<ProcessResultEntry>> + Send>>> =
-        Vec::new();
-    let preview = plan.preview;
-    let mut queue_cancels = Vec::new();
+    let mut scheduled_jobs: Vec<(TitleFuture, Option<CancellationToken>)> = Vec::new();
     for planned_job in plan.jobs {
         if let Some(skipped_entry) =
             no_write_skipped_result(planned_job.input_index, None, &planned_job.output)
@@ -84,20 +77,26 @@ async fn dispatch_batch_plan(
                 options.progress_listener.as_ref(),
                 EmitContext {
                     operation_kind: OperationKind::ProcessingBatch,
-                    job_id: skipped_entry.job_id.clone(),
-                    input_index: Some(skipped_entry.input_index),
+                    identity: JobIdentity {
+                        operation_id: options.operation_id.clone(),
+                        job_id: skipped_entry.job_id.clone(),
+                        input_index: skipped_entry.input_index,
+                    },
                 },
                 &skipped_entry.message,
             );
-            if let Some(title) = options.title_outputs.get(planned_job.input_index) {
-                title.end();
+            if let Some(output) = options
+                .title(planned_job.input_index)
+                .and_then(|title| title.output.as_ref())
+            {
+                output.end();
             }
-            scheduled_jobs.push(Box::pin(async move { Ok(skipped_entry) }));
-            queue_cancels.push(None);
+            scheduled_jobs.push((Box::pin(async move { Ok(skipped_entry) }), None));
             continue;
         }
 
         let input_index = planned_job.input_index;
+        let title = options.title(input_index);
         let request = ProcessingJobRequest {
             host: host.clone(),
             registry: registry.clone(),
@@ -106,12 +105,15 @@ async fn dispatch_batch_plan(
             audio_request: payload.audio_requests[input_index].clone(),
             audio_reason: planned_job.audio_plan.reason.clone(),
             metadata_intent: planned_job.metadata_intent.clone(),
-            sample_rate: audio::SampleRateConfig::Explicit(planned_job.audio_plan.sample_rate),
+            sample_rate: planned_job.audio_plan.sample_rate,
             aac_decoder: payload.accepted_aac_decoder()?,
-            input_index,
+            identity: JobIdentity {
+                operation_id: options.operation_id.clone(),
+                job_id: None,
+                input_index,
+            },
             operation_kind: OperationKind::ProcessingBatch,
-            operation_id: options.operation_id.clone(),
-            title_cancel: options.title_cancels.get(input_index).cloned(),
+            title_cancel: title.map(|title| title.cancel.clone()),
             output_plan: planned_job.output.clone(),
             file_info: crate::processing::plan::title_file_info(
                 &file_info,
@@ -119,29 +121,28 @@ async fn dispatch_batch_plan(
             )?,
             metadata: planned_job.metadata.clone(),
             cover_art_passthrough: planned_job.cover_art_passthrough,
-            preview,
             supplemental_assets: supplemental_assets_for_input(payload, input_index),
             progress_listener: options.progress_listener.clone(),
-            title_output: options.title_outputs.get(input_index).cloned(),
+            title_output: title.and_then(|title| title.output.clone()),
         };
-        queue_cancels.push(options.title_cancels.get(input_index).cloned());
-        scheduled_jobs.push(Box::pin(run_title_job(request, Arc::clone(&folders))));
+        let cancel = request.title_cancel.clone();
+        scheduled_jobs.push((
+            Box::pin(run_title_job(request, Arc::clone(&folders))),
+            cancel,
+        ));
     }
 
-    let outcomes = registry
-        .scheduler()
-        .run_batch(scheduled_jobs, |position| {
-            queue_cancels[position].as_ref().is_some_and(
-                |flag: &Arc<std::sync::atomic::AtomicBool>| flag.load(Ordering::Acquire),
-            )
-        })
-        .await;
-    let finalized_results = finalize_batch_results(outcomes, options.progress_listener.as_ref())?;
+    let outcomes = registry.run_batch(scheduled_jobs).await;
+    let finalized_results = finalize_batch_results(
+        outcomes,
+        &options.operation_id,
+        options.progress_listener.as_ref(),
+    )?;
 
     Ok(ProcessCommandResult::new(finalized_results))
 }
 
-/// Runs one title unless its cancel flag is already set. A title cancelled
+/// Runs one title unless its cancel token is already cancelled. A title cancelled
 /// before its job started emits nothing else, so report it here instead of
 /// leaving its row cancelling until the batch ends. A title that ends without publishing
 /// removes the empty folders made only for it before it reports.
@@ -150,12 +151,13 @@ async fn run_title_job(
     folders: Arc<Mutex<OutputParentDirCleanup>>,
 ) -> Result<ProcessResultEntry> {
     let listener = request.progress_listener.clone();
-    let input_index = request.input_index;
+    let identity = request.identity.clone();
+    let input_index = identity.input_index;
     let title_output = request.title_output.clone();
     let cancelled = request
         .title_cancel
         .as_ref()
-        .is_some_and(|flag| flag.load(Ordering::Acquire));
+        .is_some_and(CancellationToken::is_cancelled);
     let outcome = if cancelled {
         Err(AppError::cancelled())
     } else {
@@ -182,8 +184,7 @@ async fn run_title_job(
             listener.as_ref(),
             EmitContext {
                 operation_kind: OperationKind::ProcessingBatch,
-                job_id: None,
-                input_index: Some(input_index),
+                identity,
             },
             "Processing was cancelled",
         );
@@ -193,6 +194,7 @@ async fn run_title_job(
 
 fn finalize_batch_results(
     outcomes: Vec<Result<ProcessResultEntry>>,
+    operation_id: &Option<String>,
     progress_listener: Option<&ProgressEventListener>,
 ) -> Result<Vec<ProcessResultEntry>> {
     let finalized = collect_batch_results(outcomes)?;
@@ -201,8 +203,11 @@ fn finalize_batch_results(
             progress_listener,
             EmitContext {
                 operation_kind: OperationKind::ProcessingBatch,
-                job_id: event.job_id.clone(),
-                input_index: Some(event.input_index),
+                identity: JobIdentity {
+                    operation_id: operation_id.clone(),
+                    job_id: event.job_id.clone(),
+                    input_index: event.input_index,
+                },
             },
             &event.message,
         );

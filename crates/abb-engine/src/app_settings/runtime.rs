@@ -1,13 +1,13 @@
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 use serde::{Deserialize, Serialize};
 
+use super::edit_stamp::TEMPLATE_PAUSE;
 use super::{
-    storage, AcquisitionLane, AppSettings, AppSettingsPatch, ConcurrencyPreference,
-    EncoderDefaults, IndexerConnection, OutputDefaults, PinnedDefaults, SettingsRecovery,
-    SettingsUnit, StartupBehavior,
+    storage, AcquisitionLane, AppSettings, AppSettingsPatch, ConcurrencyPreference, EditStamp,
+    EncoderDefaults, IndexerConnection, LatestEdit, OutputDefaults, PinnedDefaults,
+    SettingsRecovery, StartupBehavior,
 };
 use crate::audio::AacDecoder;
 use crate::errors::{AppError, AppErrorEnvelope};
@@ -18,13 +18,10 @@ use crate::ManagedJobRegistry;
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SettingsIntent {
-    /// Records defaults a panel has accepted. They stay in effect even when
+    /// Chooses the source an import starts from. It stays in effect even when
     /// the write fails; the snapshot then reports the failure for retry.
-    #[serde(rename_all = "camelCase")]
-    Remember {
-        encoder_defaults: Option<EncoderDefaults>,
-        output_defaults: Option<OutputDefaults>,
-        default_acquisition_lane: Option<AcquisitionLane>,
+    SetDefaultAcquisitionLane {
+        lane: AcquisitionLane,
     },
     /// Changes how many titles export at once. Refused while jobs run.
     SetConcurrency {
@@ -83,6 +80,8 @@ pub struct SettingsSnapshot {
     /// chose that and has pinned some, otherwise the last used.
     #[serde(skip)]
     pub startup_defaults: PinnedDefaults,
+    #[serde(skip)]
+    pub(crate) applied_edits: EditStamp,
     /// What this launch could not keep from the saved settings. Absent after
     /// the next accepted change.
     pub recovery: Option<SettingsRecovery>,
@@ -121,9 +120,7 @@ struct Inner {
     config_dir: PathBuf,
     jobs: ManagedJobRegistry,
     power: PowerManager,
-    aac_decoder: Mutex<AacDecoder>,
-    press_quit_twice: AtomicBool,
-    indexer_connection: Mutex<IndexerConnection>,
+    current: RwLock<Arc<AppSettings>>,
     state: tokio::sync::Mutex<State>,
     /// Completion of the last accepted intent, independent of host waits.
     turn: Mutex<Option<tokio::sync::oneshot::Receiver<()>>>,
@@ -132,28 +129,117 @@ struct Inner {
 enum Change {
     Intent(SettingsIntent),
     IndexerConnection(IndexerConnection),
+    Defaults {
+        encoder_defaults: Option<EncoderDefaults>,
+        output_defaults: Option<OutputDefaults>,
+        stamp: EditStamp,
+    },
+}
+
+#[derive(Default)]
+enum Persistence {
+    #[default]
+    Saved,
+    Pending {
+        error: Option<AppErrorEnvelope>,
+        /// The settings file could be neither read nor kept aside; nothing is
+        /// saved over it until it is kept or gone.
+        set_aside_first: bool,
+        /// The unusable file a failed save already kept aside; recovery names
+        /// it once a save lands.
+        kept: Option<String>,
+    },
+}
+
+impl Persistence {
+    fn unsaved(&self) -> Self {
+        match self {
+            Self::Saved => Self::Pending {
+                error: None,
+                set_aside_first: false,
+                kept: None,
+            },
+            Self::Pending {
+                error,
+                set_aside_first,
+                kept,
+            } => Self::Pending {
+                error: error.clone(),
+                set_aside_first: *set_aside_first,
+                kept: kept.clone(),
+            },
+        }
+    }
+
+    fn error(&self) -> Option<&AppErrorEnvelope> {
+        match self {
+            Self::Saved => None,
+            Self::Pending { error, .. } => error.as_ref(),
+        }
+    }
+
+    fn kept(&self) -> Option<String> {
+        match self {
+            Self::Saved => None,
+            Self::Pending { kept, .. } => kept.clone(),
+        }
+    }
+
+    fn set_aside_first(&self) -> bool {
+        matches!(
+            self,
+            Self::Pending {
+                set_aside_first: true,
+                ..
+            }
+        )
+    }
 }
 
 #[derive(Default)]
 struct State {
     revision: u64,
     accepted: AppSettings,
-    unsaved: bool,
-    save_error: Option<AppErrorEnvelope>,
+    persistence: Persistence,
     recovery: Option<SettingsRecovery>,
-    /// The settings file could be neither read nor kept aside; nothing is
-    /// saved over it until it is kept or gone.
-    unpreserved: bool,
+    applied: EditStamp,
+}
+
+impl State {
+    /// Records how a write ended. A file kept aside stays kept when the save
+    /// after it fails, so the retry does not set aside again and recovery
+    /// names the file once a save lands.
+    fn settle_write(
+        &mut self,
+        set_aside_first: bool,
+        kept: Option<String>,
+        saved: crate::errors::Result<()>,
+    ) {
+        let kept_aside = kept.is_some();
+        let kept = kept.or_else(|| self.persistence.kept());
+        match saved {
+            Ok(()) => {
+                self.persistence = Persistence::Saved;
+                if let Some(name) = kept {
+                    self.recovery.get_or_insert_default().set_aside_as = Some(name);
+                }
+            }
+            Err(error) => {
+                log::warn!("App settings were not saved: {error}");
+                self.persistence = Persistence::Pending {
+                    error: Some(AppErrorEnvelope::from(&error)),
+                    set_aside_first: set_aside_first && !kept_aside,
+                    kept,
+                };
+            }
+        }
+    }
 }
 
 fn startup_defaults(settings: &AppSettings) -> PinnedDefaults {
     match (&settings.startup_behavior, &settings.pinned_defaults) {
         (StartupBehavior::PinnedDefaults, Some(pinned)) => pinned.clone(),
-        _ => PinnedDefaults {
-            max_concurrent_jobs: settings.max_concurrent_jobs,
-            encoder_defaults: settings.encoder_defaults.clone(),
-            output_defaults: settings.output_defaults.clone(),
-        },
+        _ => settings.launch(),
     }
 }
 
@@ -177,9 +263,7 @@ impl SettingsRuntime {
         let loaded = storage::load(&config_dir);
         let mut accepted = loaded.settings;
         let startup = startup_defaults(&accepted);
-        accepted.max_concurrent_jobs = startup.max_concurrent_jobs;
-        accepted.encoder_defaults = startup.encoder_defaults.clone();
-        accepted.output_defaults = startup.output_defaults.clone();
+        accepted.set_launch(startup.clone());
         let jobs: ManagedJobRegistry = Arc::new(match startup.max_concurrent_jobs {
             ConcurrencyPreference::Fixed(value) => JobRegistry::new(value),
             ConcurrencyPreference::Auto => JobRegistry::auto(),
@@ -194,14 +278,7 @@ impl SettingsRuntime {
         if matches!(accepted.startup_behavior, StartupBehavior::PinnedDefaults)
             && accepted.pinned_defaults.is_some()
         {
-            reset.retain(|unit| {
-                !matches!(
-                    unit,
-                    SettingsUnit::JobLimit
-                        | SettingsUnit::EncoderDefaults
-                        | SettingsUnit::OutputDefaults
-                )
-            });
+            reset.retain(|unit| !unit.launch_default());
         }
         let mut recovery = SettingsRecovery {
             reset,
@@ -210,26 +287,24 @@ impl SettingsRuntime {
         match loaded.set_aside {
             Some(Ok(kept)) => recovery.set_aside_as = kept,
             Some(Err(error)) => {
-                state.unpreserved = true;
-                state.unsaved = true;
-                state.save_error = Some(AppErrorEnvelope::from(&not_kept(&error)));
+                state.persistence = Persistence::Pending {
+                    error: Some(AppErrorEnvelope::from(&not_kept(&error))),
+                    set_aside_first: true,
+                    kept: None,
+                };
             }
             None => {}
         }
         state.recovery =
             (!recovery.reset.is_empty() || recovery.set_aside_as.is_some()).then_some(recovery);
-        let aac_decoder = Mutex::new(accepted.aac_decoder);
-        let press_quit_twice = AtomicBool::new(accepted.press_quit_twice);
-        let indexer_connection = Mutex::new(accepted.indexer_connection.clone());
+        let current = RwLock::new(Arc::new(accepted.clone()));
         state.accepted = accepted;
         let runtime = Self {
             inner: Arc::new(Inner {
                 config_dir,
                 jobs: Arc::clone(&jobs),
                 power,
-                aac_decoder,
-                press_quit_twice,
-                indexer_connection,
+                current,
                 state: tokio::sync::Mutex::new(state),
                 turn: Mutex::default(),
             }),
@@ -237,24 +312,26 @@ impl SettingsRuntime {
         (runtime, jobs, startup)
     }
 
+    fn current(&self) -> Arc<AppSettings> {
+        Arc::clone(
+            &self
+                .inner
+                .current
+                .read()
+                .unwrap_or_else(PoisonError::into_inner),
+        )
+    }
+
     pub(crate) fn aac_decoder(&self) -> AacDecoder {
-        *self
-            .inner
-            .aac_decoder
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+        self.current().aac_decoder
     }
 
     pub(crate) fn press_quit_twice(&self) -> bool {
-        self.inner.press_quit_twice.load(Ordering::SeqCst)
+        self.current().press_quit_twice
     }
 
     pub(crate) fn indexer_connection(&self) -> IndexerConnection {
-        self.inner
-            .indexer_connection
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
+        self.current().indexer_connection.clone()
     }
 
     pub(crate) async fn snapshot(&self) -> SettingsSnapshot {
@@ -265,13 +342,14 @@ impl SettingsRuntime {
         SettingsSnapshot {
             revision: state.revision,
             settings: state.accepted.clone(),
-            save_error: state.save_error.clone(),
+            save_error: state.persistence.error().cloned(),
             concurrency: ConcurrencySnapshot {
                 preference: state.accepted.max_concurrent_jobs,
                 effective: self.inner.jobs.max_concurrent(),
                 capabilities: JobRegistry::max_concurrent_jobs_capabilities(),
             },
             startup_defaults: startup_defaults(&state.accepted),
+            applied_edits: state.applied,
             recovery: state.recovery.clone(),
         }
     }
@@ -280,7 +358,7 @@ impl SettingsRuntime {
     pub(crate) fn begin(
         &self,
         intent: SettingsIntent,
-        tasks: &crate::engine::EngineTasks,
+        tasks: &crate::engine_tasks::EngineTasks,
     ) -> SettingsRun {
         self.enqueue(Change::Intent(intent), None, tasks)
     }
@@ -290,29 +368,43 @@ impl SettingsRuntime {
     pub(crate) fn set_indexer_connection(
         &self,
         connection: IndexerConnection,
-        tasks: &crate::engine::EngineTasks,
+        tasks: &crate::engine_tasks::EngineTasks,
     ) -> SettingsRun {
         self.enqueue(Change::IndexerConnection(connection), None, tasks)
+    }
+
+    pub(crate) fn remember_defaults(
+        &self,
+        encoder_defaults: Option<EncoderDefaults>,
+        output_defaults: Option<OutputDefaults>,
+        stamp: EditStamp,
+        tasks: &crate::engine_tasks::EngineTasks,
+    ) -> SettingsRun {
+        self.enqueue(
+            Change::Defaults {
+                encoder_defaults,
+                output_defaults,
+                stamp,
+            },
+            None,
+            tasks,
+        )
     }
 
     pub(crate) fn remember_output_after_pause(
         &self,
         output: OutputDefaults,
-        latest: Arc<std::sync::atomic::AtomicU64>,
-        tasks: &crate::engine::EngineTasks,
+        stamp: EditStamp,
+        latest: LatestEdit,
+        tasks: &crate::engine_tasks::EngineTasks,
     ) -> SettingsRun {
-        let revision = latest.load(std::sync::atomic::Ordering::SeqCst);
         self.enqueue(
-            Change::Intent(SettingsIntent::Remember {
+            Change::Defaults {
                 encoder_defaults: None,
                 output_defaults: Some(output),
-                default_acquisition_lane: None,
-            }),
-            Some((
-                latest,
-                revision,
-                tokio::time::Instant::now() + std::time::Duration::from_millis(400),
-            )),
+                stamp,
+            },
+            Some((latest, tokio::time::Instant::now() + TEMPLATE_PAUSE)),
             tasks,
         )
     }
@@ -320,8 +412,8 @@ impl SettingsRuntime {
     fn enqueue(
         &self,
         change: Change,
-        pause: Option<(Arc<std::sync::atomic::AtomicU64>, u64, tokio::time::Instant)>,
-        tasks: &crate::engine::EngineTasks,
+        pause: Option<(LatestEdit, tokio::time::Instant)>,
+        tasks: &crate::engine_tasks::EngineTasks,
     ) -> SettingsRun {
         let (done, next) = tokio::sync::oneshot::channel();
         let previous = self
@@ -332,7 +424,7 @@ impl SettingsRuntime {
             .replace(next);
         let settings = self.clone();
         let reply = tasks.spawn(async move {
-            if let Some((_, _, deadline)) = &pause {
+            if let Some((_, deadline)) = &pause {
                 tokio::time::sleep_until(*deadline).await;
             }
             if let Some(previous) = previous {
@@ -342,9 +434,7 @@ impl SettingsRuntime {
                 )]
                 let _ = previous.await;
             }
-            let superseded = pause.is_some_and(|(latest, revision, _)| {
-                latest.load(std::sync::atomic::Ordering::SeqCst) != revision
-            });
+            let superseded = pause.is_some_and(|(latest, _)| !latest.is_current());
             let reply = if superseded {
                 SettingsReply {
                     outcome: SettingsOutcome::Applied,
@@ -370,6 +460,27 @@ impl SettingsRuntime {
         let mut state = self.inner.state.lock().await;
         let outcome = match change {
             Change::Intent(intent) => self.apply(&mut state, intent).await,
+            Change::Defaults {
+                encoder_defaults,
+                output_defaults,
+                stamp,
+            } => {
+                if encoder_defaults.is_some() {
+                    state.applied.audio = state.applied.audio.max(stamp.audio);
+                }
+                if output_defaults.is_some() {
+                    state.applied.output = state.applied.output.max(stamp.output);
+                }
+                self.accept(
+                    &mut state,
+                    AppSettingsPatch {
+                        encoder_defaults,
+                        output_defaults,
+                        ..Default::default()
+                    },
+                )
+                .await
+            }
             Change::IndexerConnection(connection) => {
                 self.accept(
                     &mut state,
@@ -390,17 +501,11 @@ impl SettingsRuntime {
 
     async fn apply(&self, state: &mut State, intent: SettingsIntent) -> SettingsOutcome {
         match intent {
-            SettingsIntent::Remember {
-                encoder_defaults,
-                output_defaults,
-                default_acquisition_lane,
-            } => {
+            SettingsIntent::SetDefaultAcquisitionLane { lane } => {
                 self.accept(
                     state,
                     AppSettingsPatch {
-                        encoder_defaults,
-                        output_defaults,
-                        default_acquisition_lane,
+                        default_acquisition_lane: Some(lane),
                         ..Default::default()
                     },
                 )
@@ -465,50 +570,44 @@ impl SettingsRuntime {
         }
         state.recovery = None;
         self.apply_to_runtime(state);
-        state.unsaved = true;
+        state.persistence = state.persistence.unsaved();
         self.write(state).await;
         SettingsOutcome::Applied
     }
 
     async fn write(&self, state: &mut State) {
-        if !state.unsaved {
+        if matches!(state.persistence, Persistence::Saved) {
             return;
         }
         let config_dir = self.inner.config_dir.clone();
         let settings = state.accepted.clone();
-        let unpreserved = state.unpreserved;
+        let set_aside_first = state.persistence.set_aside_first();
         #[expect(clippy::disallowed_methods, reason = "joined by write")]
-        let written = tokio::task::spawn_blocking(move || {
-            let kept = if unpreserved {
-                storage::set_aside(&config_dir).map_err(|error| not_kept(&error))?
+        let (kept, saved) = tokio::task::spawn_blocking(move || {
+            let kept = if set_aside_first {
+                match storage::set_aside(&config_dir) {
+                    Ok(kept) => kept,
+                    Err(error) => return (None, Err(not_kept(&error))),
+                }
             } else {
                 None
             };
-            storage::save(&config_dir, &settings)?;
-            Ok(kept)
+            (kept, storage::save(&config_dir, &settings))
         })
         .await
-        .unwrap_or_else(|error| Err(AppError::General(format!("Settings write failed: {error}"))));
-        match written {
-            Ok(kept) => {
-                state.unsaved = false;
-                state.save_error = None;
-                state.unpreserved = false;
-                if let Some(name) = kept {
-                    state.recovery.get_or_insert_default().set_aside_as = Some(name);
-                }
-            }
-            Err(error) => {
-                log::warn!("App settings were not saved: {error}");
-                state.save_error = Some(AppErrorEnvelope::from(&error));
-            }
-        }
+        .unwrap_or_else(|error| {
+            (
+                None,
+                Err(AppError::General(format!("Settings write failed: {error}"))),
+            )
+        });
+        state.settle_write(set_aside_first, kept, saved);
     }
 
     pub(crate) async fn flush(&self) -> Option<AppErrorEnvelope> {
         let mut state = self.inner.state.lock().await;
         self.write(&mut state).await;
-        state.save_error.clone()
+        state.persistence.error().cloned()
     }
 
     fn apply_to_runtime(&self, state: &State) {
@@ -517,17 +616,9 @@ impl SettingsRuntime {
             .set_enabled(state.accepted.keep_awake_while_working);
         *self
             .inner
-            .aac_decoder
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = state.accepted.aac_decoder;
-        self.inner
-            .press_quit_twice
-            .store(state.accepted.press_quit_twice, Ordering::SeqCst);
-        *self
-            .inner
-            .indexer_connection
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = state.accepted.indexer_connection.clone();
+            .current
+            .write()
+            .unwrap_or_else(PoisonError::into_inner) = Arc::new(state.accepted.clone());
     }
 
     /// Asks the scheduler to accept the change before recording it. A fixed
@@ -541,7 +632,7 @@ impl SettingsRuntime {
             return rejected(&error);
         }
         let requested = preference.requested_value(JobRegistry::default_max());
-        let effective = match self.inner.jobs.update_max_concurrent(requested).await {
+        let effective = match self.inner.jobs.update_max_concurrent(requested) {
             Ok(effective) => effective,
             Err(error) => return rejected(&error),
         };
@@ -557,12 +648,7 @@ impl SettingsRuntime {
     }
 
     async fn pin_current_defaults(&self, state: &mut State) -> SettingsOutcome {
-        let current = &state.accepted;
-        let pinned = PinnedDefaults {
-            max_concurrent_jobs: current.max_concurrent_jobs,
-            encoder_defaults: current.encoder_defaults.clone(),
-            output_defaults: current.output_defaults.clone(),
-        };
+        let pinned = state.accepted.launch();
         self.accept(
             state,
             AppSettingsPatch {
@@ -574,7 +660,7 @@ impl SettingsRuntime {
     }
 
     async fn reset(&self, state: &mut State) -> SettingsOutcome {
-        if self.inner.jobs.reset_to_auto().await.is_err() {
+        if self.inner.jobs.reset_to_auto().is_err() {
             return rejected(&AppError::InvalidInput(
                 "Settings can't be reset while exports are running. Try again when they finish."
                     .to_string(),
@@ -584,10 +670,13 @@ impl SettingsRuntime {
         *state = State {
             revision: state.revision,
             accepted: settings,
-            unsaved: true,
-            save_error: None,
+            persistence: Persistence::Pending {
+                error: None,
+                set_aside_first: state.persistence.set_aside_first(),
+                kept: state.persistence.kept(),
+            },
             recovery: None,
-            unpreserved: state.unpreserved,
+            applied: state.applied,
         };
         self.apply_to_runtime(state);
         self.write(state).await;

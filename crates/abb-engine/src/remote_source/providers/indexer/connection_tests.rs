@@ -1,5 +1,5 @@
 use super::*;
-use crate::remote_source::tests::MemoryVault;
+use crate::remote_source::test_support::MemoryVault;
 use secrecy::ExposeSecret;
 
 fn update(url: Option<&str>, key: Option<&str>) -> RemoteIndexerConnectionUpdate {
@@ -51,14 +51,14 @@ fn configured_request_resolves_the_saved_host_key_once() {
         Some("saved-key".into()),
     )
     .expect("save key");
-    vault.reads.store(0, std::sync::atomic::Ordering::SeqCst);
+    vault.clear_reads();
 
     let connection = configured_connection(saved("https://indexer.test/proxy"), &vault)
         .expect("resolve connection");
     assert_eq!(connection.base_url, "https://indexer.test/proxy");
     assert_eq!(connection.category_ids, [3000, 3030]);
     assert_eq!(connection.api_key.expose_secret(), "saved-key");
-    assert_eq!(vault.reads.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert_eq!(vault.read_count(), 1);
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn an_unconfigured_connection_is_never_resolved_or_read_from_the_vault() {
     assert!(configured_connection(IndexerConnection::default(), &vault).is_err());
     assert!(configured_connection(saved("https://indexer.test"), &vault).is_err());
     assert!(!api_key_configured(&IndexerConnection::default(), &vault).expect("fact"));
-    assert_eq!(vault.reads.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert_eq!(vault.read_count(), 1);
 }
 
 #[test]
@@ -104,5 +104,5 @@ fn draft_test_uses_current_host_key_without_writes() {
     let (_, saved_key) = draft_credentials(&vault, update(Some("http://saved.test"), None))
         .expect("resolve saved host credentials");
     assert_eq!(saved_key.expose_secret(), "saved-key");
-    assert_eq!(vault.secrets.lock().expect("test vault lock").len(), 1);
+    assert_eq!(vault.secret_count(), 1);
 }

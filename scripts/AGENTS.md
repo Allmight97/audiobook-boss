@@ -11,7 +11,10 @@ validity; `scripts/lane-paths.yml` owns the patterns and explicit exemptions.
 It rejects unmapped tracked or changed paths before CI schedules any job.
 `bun scripts/verification.ts plan --explain <path>` prints the lane and pattern
 that select a path, or `unmapped`.
-`verify.sh` owns the lane list and commands.
+`verify.sh` owns the lane list and commands; `verify.sh --describe` prints each
+lane's CI job, platforms, and tools, and `verification.ts` plans jobs and
+records tool versions from it (`verification.test.ts` checks it against the
+`lane_*` functions and `ci.yml`).
 
 Each run keeps logs, input fingerprints, tool identities, and per-lane results
 under `.logs/verification/`. A passing receipt is reusable only for the same
@@ -55,10 +58,14 @@ recorded tool versions still invalidate it.
   selects it for those paths. Accepted advisories live in `.cargo/audit.toml`,
   each naming its crate (`scripts/audit-ignores.test.ts` fails when
   `Cargo.lock` no longer resolves it); license, source, and single-version
-  rules in `deny.toml`.
+  rules in `deny.toml`. `bash scripts/setup.sh supply-chain` installs the
+  pinned `cargo-audit` and `cargo-deny`; CI calls it too, so each tool is
+  pinned once, in `setup.sh`, and a receipt records the versions that ran.
 - `scripts/tauri-contract.test.ts` (`tooling`) also fails on a wire intent in
   `SessionIntent`, `SettingsIntent`, or `RemoteUiIntent` that no non-test source
-  sends; the Rust variant and its sender go together.
+  sends; the Rust variant and its sender go together. It also fails when the
+  `fileAssociations` extensions in `src-tauri/tauri.conf.json` differ from the
+  generated `SUPPORTED_AUDIO_IMPORT_EXTENSIONS`; edit the config to match.
 
 For a narrower loop, run one command from the lane's function in `verify.sh`
 with a test-name filter.
@@ -111,7 +118,10 @@ A change to CI or validation speed quotes before and after numbers from
 
 - A new script enforces a live repo invariant or simplifies a build or release
   workflow, and has a package script or a usage header.
-- The runtime-boundary scanner stays a text scan until TypeScript has a stable
+- The runtime-boundary scanner (`check-tauri-runtime-boundary.ts`) stays a text
+  scan, only for what Oxlint's `no-restricted-imports` cannot name: namespace
+  imports, star re-exports, and `__TAURI_INVOKE`. A value-import restriction
+  goes in `.oxlintrc.json`. A TypeScript-API scanner waits for a stable
   programmatic API; 7.0 offers only `typescript/unstable/*` (Oxlint bans
   importing `typescript`).
 - Oxfmt formats JS, TS, JSON, and CSS. Markdown, YAML, and TOML stay
@@ -180,6 +190,8 @@ A change to CI or validation speed quotes before and after numbers from
 | `package.json` | `undici (override)` | pin: security floor for jsdom's transitive dependency; unpin when jsdom requires this version or newer |
 | `.node-version` | `node` | pin: CI and a fresh setup install this exact build; setup keeps any Node of this major or newer; unpin when the owner moves to a newer Node |
 | `scripts/setup.sh` | Linux FFmpeg CLI (`ffmpeg_cli_release`) | pin: BtbN keeps month-end builds, so a fresh Linux box gets the same readback binary; unpin when the owner moves the media lane to a newer FFmpeg build |
+| `scripts/setup.sh` | `uv` (`uv_version`) | pin: setup downloads this release, checked against its published checksum, only when no `uvx` is on PATH and keeps any `uvx` it finds (`uvx` only runs the workflow and complexity linters); unpin when the owner moves the Python tools to a newer uv |
+| `scripts/setup.sh` | `cargo-audit` and `cargo-deny` (`cargo_audit_version`, `cargo_deny_version`) | pin: advisory and license verdicts stay the same between runs, and each download is checked against a pinned checksum; unpin when the owner bumps either tool |
 | `scripts/check-workflows.sh` | `zizmor` | pin: workflow findings stay the same between runs; unpin when the owner bumps zizmor |
 
 ## Environment
@@ -205,11 +217,21 @@ A change to CI or validation speed quotes before and after numbers from
   trees unused for 14 days are pruned, and the offline source setup fetches. Clippy
   still typechecks the bindings crate: Cargo treats check and build as
   different units.
+- The ABB tools folder (`tools_bin` in `setup.sh`) holds the tools setup pins
+  and installs itself: cargo-audit, cargo-deny, uv (only when no `uvx`
+  exists), node (only when PATH has none of the pinned major), and on Linux
+  ffmpeg, ffprobe and actionlint. On macOS those three come from Homebrew. It
+  defaults to `~/.local/share/audiobook-boss/bin` and `ABB_TOOLS_BIN`
+  overrides it. `--print-env` puts `$BUN_INSTALL/bin` first, then the tools
+  folder, and puts the folder of an FFmpeg found elsewhere (Homebrew) in front
+  of both. Why a separate folder: setup replaces a tool of another version
+  there, so it must not be the owner's `~/.local/bin`
+  (`scripts/setup-pins.test.ts` checks).
 - Linux builds link with mold through clang (`.cargo/config.toml`); `setup.sh
   rust` installs both. A `RUSTFLAGS` variable replaces that config's flags.
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH
   (`ABB_FFMPEG` and `ABB_FFPROBE` override). `setup.sh rust` installs FFmpeg 9
-  into `~/.local/bin` on Linux and uses Homebrew `ffmpeg` on macOS. Those
+  into the ABB tools folder on Linux and uses Homebrew `ffmpeg` on macOS. Those
   lookups live in `--print-env`; do not copy them into callers. Distro FFmpeg 6.x decodes edit
   lists and Opus pre-skip differently, so media tests fail on it as a readback
   artifact, not a regression.

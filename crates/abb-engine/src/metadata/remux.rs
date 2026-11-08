@@ -1,6 +1,8 @@
+use super::container::Container;
 use super::passthrough::PassthroughMetadata;
 use super::{AudiobookMetadata, MetadataWritePlan};
 use crate::errors::{AppError, Result};
+use abb_metadata_core::PatchOp;
 use ffmpeg_next as ff;
 use std::time::Instant;
 
@@ -23,7 +25,7 @@ pub fn rewrite_metadata_with_ffmpeg(
     metadata: Option<&AudiobookMetadata>,
     passthrough: Option<&PassthroughMetadata>,
 ) -> Result<()> {
-    let metadata_plan = metadata.cloned().map(MetadataWritePlan::from_metadata);
+    let metadata_plan = metadata.map(MetadataWritePlan::from_metadata);
     rewrite_metadata_with_ffmpeg_plan_as(input_path, metadata_plan.as_ref(), passthrough, None)
 }
 
@@ -31,7 +33,7 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     input_path: &std::path::Path,
     metadata: Option<&MetadataWritePlan>,
     passthrough: Option<&PassthroughMetadata>,
-    output_format: Option<&str>,
+    output_format: Option<&Container>,
 ) -> Result<()> {
     let temp = meta_temp(input_path)?;
     remux_into(
@@ -61,7 +63,7 @@ pub(super) fn remux_into(
     temp_path: &std::path::Path,
     metadata: Option<&MetadataWritePlan>,
     passthrough: Option<&PassthroughMetadata>,
-    output_format: Option<&str>,
+    output_format: Option<&Container>,
 ) -> Result<()> {
     use crate::diagnostics::stage;
 
@@ -77,20 +79,21 @@ pub(super) fn remux_into(
     );
     let mut octx = stage("metadata_create_output", temp_path, || {
         match output_format {
-            Some(format) => ff::format::output_as(temp_path, format),
-            None if matches!(
-                temp_path.extension().and_then(|ext| ext.to_str()),
-                Some("m4a" | "m4b")
-            ) =>
+            Some(container) => ff::format::output_as(temp_path, container.muxer_name()),
+            None if temp_path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .and_then(Container::from_extension)
+                .is_some_and(|container| container.is_mp4_family()) =>
             {
-                ff::format::output_as(temp_path, "mp4")
+                ff::format::output_as(temp_path, Container::Mp4.muxer_name())
             }
             None => ff::format::output(temp_path),
         }
         .map_err(AppError::Ffmpeg)
     })?;
     if let Some(plan) = metadata {
-        super::metadata_ops::log_write_plan(
+        super::plan_log::log_write_plan(
             plan,
             "ffmpeg_remux",
             &crate::diagnostics::artifact_id(input_path),
@@ -99,12 +102,9 @@ pub(super) fn remux_into(
     log::info!("metadata_route artifact={} input_format={} writer=ffmpeg_remux output_format={} chapters={}",
         crate::diagnostics::artifact_id(input_path), ictx.format().name(), octx.format().name(),
         passthrough.map_or(0, |value| value.chapters.len()));
-    let metadata_value = metadata.map(|plan| &plan.metadata);
-    let cover = ResolvedCover::select(metadata_value, passthrough);
-    let replace_cover = cover.is_some()
-        || metadata_value
-            .and_then(|value| value.cover_art.as_ref())
-            .is_some();
+    let cover_intent = metadata.and_then(|plan| plan.cover.as_ref());
+    let cover = ResolvedCover::select(cover_intent, passthrough);
+    let replace_cover = cover.is_some() || cover_intent.is_some();
     let stream_mapping = stage("metadata_copy_streams", temp_path, || {
         copy_streams(&ictx, &mut octx, replace_cover)
     })?;
@@ -115,7 +115,7 @@ pub(super) fn remux_into(
         copy_container_metadata(&ictx, &mut octx, metadata)
     })?;
 
-    log_cover_selection(input_path, cover, metadata_value);
+    log_cover_selection(input_path, cover, cover_intent);
     let cover_stream_info = if let Some(selection) = cover {
         match add_cover_art_stream_pre_header(&mut octx, selection.bytes()) {
             Ok(stream_info) => stream_info,
@@ -142,7 +142,7 @@ pub(super) fn remux_into(
     let delivered = stage("metadata_copy_packets", temp_path, || {
         stream_copy_packets(&mut ictx, &mut octx, &stream_mapping)
     })?;
-    if ictx.format().name().contains("mp4") && octx.format().name() == "mp4" {
+    if Container::of_input(&ictx).is_mp4_family() && Container::of_output(&octx).is_mp4_family() {
         stage("metadata_copy_hidden_units", temp_path, || {
             copy_hidden_trailing_units(input_path, &mut octx, &stream_mapping, delivered)
         })?;
@@ -164,7 +164,7 @@ fn copy_streams(
     octx: &mut ff::format::context::Output,
     replace_cover: bool,
 ) -> Result<Vec<isize>> {
-    let octx_is_mp4 = octx.format().name() == "mp4";
+    let octx_is_mp4 = Container::of_output(octx).is_mp4_family();
     let stream_len = ictx.streams().len();
     let mut stream_mapping: Vec<isize> = vec![-1; stream_len];
 
@@ -193,7 +193,7 @@ fn copy_streams(
             continue;
         }
 
-        if is_attached_pic && octx.format().name() == "matroska" {
+        if is_attached_pic && Container::of_output(octx) == Container::Matroska {
             // The Matroska muxer drops attached-picture streams; its demuxer
             // turned the source's picture attachments into them.
             if let Some(bytes) = super::reader::attached_pic_bytes(&istream) {
@@ -301,11 +301,11 @@ fn copy_container_metadata(
         Some(plan) => super::ffmpeg_dict::merge_metadata_with_plan(
             ictx.metadata().to_owned(),
             plan,
-            octx.format().name(),
-        )?,
+            &Container::of_output(octx),
+        ),
         None => ictx.metadata().to_owned(),
     };
-    if octx.format().name() == "mp4" {
+    if Container::of_output(octx).is_mp4_family() {
         if let Some(tool) = ictx.metadata().get("encoder") {
             dict.set("encoding_tool", tool);
         }
@@ -327,8 +327,8 @@ fn stream_copy_packets(
     octx: &mut ff::format::context::Output,
     stream_mapping: &[isize],
 ) -> Result<Vec<Option<LastUnit>>> {
-    let exact_opus_clock =
-        ictx.format().name().contains("matroska") && octx.format().name() == "mp4";
+    let exact_opus_clock = Container::of_input(ictx) == Container::Matroska
+        && Container::of_output(octx).is_mp4_family();
     let mut opus_positions = vec![None; ictx.streams().len()];
     let mut delivered = vec![None; ictx.streams().len()];
     loop {
@@ -480,7 +480,7 @@ fn write_container_header(
     let mut options = ff::Dictionary::new();
     // A new Xing header would invent decoder-delay trimming for a source
     // that has none. Keep existing gapless timing when it is present.
-    if octx.format().name() == "mp3"
+    if Container::of_output(octx) == Container::Mp3
         && ictx
             .streams()
             .best(ff::media::Type::Audio)
@@ -496,21 +496,17 @@ fn write_container_header(
 fn log_cover_selection(
     input_path: &std::path::Path,
     cover: Option<ResolvedCover<'_>>,
-    metadata_value: Option<&AudiobookMetadata>,
+    cover_intent: Option<&PatchOp<Vec<u8>>>,
 ) {
     log::info!(
         "metadata_cover artifact={} writer=ffmpeg_remux source={} bytes={} format={:?} decision={}",
         crate::diagnostics::artifact_id(input_path),
-        match cover {
-            Some(ResolvedCover::Explicit(_)) => "explicit",
-            Some(ResolvedCover::Passthrough(_)) => "passthrough",
-            None => "none",
-        },
+        cover.map_or("none", ResolvedCover::source),
         cover.map_or(0, |s| s.bytes().len()),
         cover.and_then(|s| super::cover_art::detect_cover_art_format(s.bytes())),
         if cover.is_some() {
             "embed"
-        } else if metadata_value.and_then(|m| m.cover_art.as_ref()).is_some() {
+        } else if cover_intent.is_some() {
             "explicit_clear"
         } else {
             "no_cover_data"

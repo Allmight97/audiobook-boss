@@ -5,8 +5,12 @@ import {
 	sessionUpdate,
 	type FakeEngine,
 } from '../../test/fixtures/fakeEngine';
-import type { SessionIntent, SessionOutcome, SessionUpdate } from '../../types/session';
-import type { OperationSnapshot } from '../../types/workRuntime';
+import type {
+	OperationSnapshot,
+	SessionIntent,
+	SessionOutcome,
+	SessionUpdate,
+} from '../../lib/generated/tauri';
 import { attachEngineLink, type EngineLink } from './link';
 
 function operation(operationId: string): OperationSnapshot {
@@ -16,6 +20,7 @@ function operation(operationId: string): OperationSnapshot {
 		revision: 1,
 		kind: 'processingBatch',
 		status: 'running',
+		phase: 'active',
 		title: 'Listed',
 		startedAtMs: null,
 		finishedAtMs: null,
@@ -142,7 +147,10 @@ describe('engine link', () => {
 
 	it('keeps the object of every file whose content did not change', async () => {
 		const engine = createFakeEngine();
-		engine.loadTitles([audioFile('/books/a.m4b'), audioFile('/books/b.m4b')]);
+		engine.loadTitles([
+			audioFile('/books/a.m4b', { status: 'ready' }),
+			audioFile('/books/b.m4b', { status: 'ready' }),
+		]);
 		const link = await linkTo(engine);
 		const [first, second] = link.titles().files;
 

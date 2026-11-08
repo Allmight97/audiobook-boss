@@ -140,6 +140,50 @@ fn discover_audio_import_paths_keeps_a_folder_past_a_file_it_cannot_take() {
     assert_eq!(skipped_paths(&actual), vec![bad_name.display().to_string()]);
 }
 
+fn discovered_file_names(names: &[&str]) -> Vec<String> {
+    let temp = TempDir::new().expect("temp dir");
+    for name in names {
+        write_file(&temp.path().join(name));
+    }
+
+    let actual = discover_audio_import_paths(&[temp.path().to_path_buf()]);
+
+    actual
+        .paths
+        .iter()
+        .map(|path| {
+            path.file_name()
+                .expect("file name")
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect()
+}
+
+#[test]
+fn import_order_ignores_leading_zeros_before_the_rest_of_the_name() {
+    assert_eq!(
+        discovered_file_names(&["Chapter 1 - Part 2.mp3", "Chapter 01 - Part 1.mp3"]),
+        ["Chapter 01 - Part 1.mp3", "Chapter 1 - Part 2.mp3"]
+    );
+}
+
+#[test]
+fn import_order_puts_a_name_before_the_same_name_followed_by_a_number() {
+    assert_eq!(
+        discovered_file_names(&["Book1.mp3", "Book.mp3"]),
+        ["Book.mp3", "Book1.mp3"]
+    );
+}
+
+#[test]
+fn import_order_folds_case_beyond_ascii() {
+    assert_eq!(
+        discovered_file_names(&["Über 10.mp3", "über 2.mp3"]),
+        ["über 2.mp3", "Über 10.mp3"]
+    );
+}
+
 fn skipped_paths(discovery: &ImportDiscovery) -> Vec<String> {
     discovery
         .skipped

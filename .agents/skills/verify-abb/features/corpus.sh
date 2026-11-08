@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Corpus: the owner's real audiobooks, copied, go through import, encode,
-# Preserve, and re-import, and keep their title, chapters, and length. Opt in
+# Preserve, and re-import, and keep their title, chapters, length, and tags. Opt in
 # with ABB_CORPUS_DIR=<folder>; run it by name (run.sh corpus). Never part of
 # the default run, and never writes into the corpus folder.
 set -euo pipefail
@@ -29,6 +29,31 @@ chapter_lines() {
 		-show_entries chapter=start_time:chapter_tags=title -of csv=p=0 "$1"
 }
 
+# Every format tag as "lowercased-key=value", sorted: ffprobe -show_format
+# reads the whole tag dictionary, so a tag ABB lost or rewrote shows here.
+tag_lines() {
+	ffprobe -hide_banner -loglevel error -show_entries format_tags -of default=nw=0 "$1" |
+		awk -F= '/^TAG:/ { key = tolower(substr($1, 5)); sub(/^[^=]*=/, ""); print key "=" $0 }' |
+		LC_ALL=C sort
+}
+
+# The muxer and the container stamp these themselves.
+STAMPED_TAG_KEYS='^(encoder|major_brand|minor_version|compatible_brands|creation_time|media_type)='
+
+# lost_tags <source-lines> <output-lines>: source tags whose key the output no
+# longer carries; changed_tags lists a rewritten value, which never fails.
+lost_tags() {
+	local kept
+	kept="$(cut -d= -f1 "$2")"
+	grep -Ev "${STAMPED_TAG_KEYS}" "$1" | while IFS= read -r line; do
+		grep -qxF -- "${line%%=*}" <<<"${kept}" || printf '%s\n' "${line}"
+	done
+}
+
+changed_tags() {
+	LC_ALL=C comm -23 "$1" "$2" | grep -Ev "${STAMPED_TAG_KEYS}" || true
+}
+
 # 0.25 s allows 2112 AAC priming samples at 22.05 kHz (0.1 s) with margin, and
 # does not grow with the book.
 LENGTH_TOLERANCE_SECONDS=0.25
@@ -52,9 +77,11 @@ same_chapters() {
 		END { exit bad }'
 }
 
-# compare_output <label> <source-copy> <output> <expected-title>
+# compare_output <label> <source-copy> <output> <expected-title> <keep-all-tags>
+# An encode builds its tags from the fields ABB models, so a tag it drops is a
+# note; Preserve keeps the file's tags, so a dropped tag fails.
 compare_output() {
-	local label="$1" source="$2" output="$3" title="$4" ok=0
+	local label="$1" source="$2" output="$3" title="$4" keep_all="$5" ok=0 lost changed
 	[[ "$(format_tag "${output}" title)" == "${title}" ]] || {
 		printf 'FAIL %s: title is not %s\n' "${label}" "${title}"
 		ok=1
@@ -69,6 +96,19 @@ compare_output() {
 		printf 'FAIL %s: chapters differ\n' "${label}"
 		ok=1
 	}
+	tag_lines "${source}" >"${work}/source.tags"
+	tag_lines "${output}" >"${work}/output.tags"
+	cp "${work}/source.tags" "${EVIDENCE}/corpus-${label// /-}.source.tags"
+	cp "${work}/output.tags" "${EVIDENCE}/corpus-${label// /-}.output.tags"
+	lost="$(lost_tags "${work}/source.tags" "${work}/output.tags")"
+	if [[ -n "${lost}" && "${keep_all}" == yes ]]; then
+		printf 'FAIL %s: tags lost from the source:\n%s\n' "${label}" "${lost}"
+		ok=1
+	elif [[ -n "${lost}" ]]; then
+		printf 'NOTE %s: tags the output does not carry:\n%s\n' "${label}" "${lost}"
+	fi
+	changed="$(changed_tags "${work}/source.tags" "${work}/output.tags")"
+	[[ -z "${changed}" ]] || printf 'NOTE %s: tag values rewritten (see corpus-%s.output.tags):\n%s\n' "${label}" "${label// /-}" "${changed}"
 	return "${ok}"
 }
 
@@ -88,7 +128,9 @@ run_mode() {
 		printf 'FAIL %s %s: expected one output, found: %s\n' "${n}" "${mode}" "${produced}"
 		return 1
 	}
-	compare_output "${n} ${mode}" "${copy}" "${produced}" "${title}" || return 1
+	local keep_all=no
+	[[ "${mode}" == preserve ]] && keep_all=yes
+	compare_output "${n} ${mode}" "${copy}" "${produced}" "${title}" "${keep_all}" || return 1
 	abb_dev "corpus-${n}-${mode}-again" --json "${produced}" >"${EVIDENCE}/corpus-${n}-${mode}-again.json" ||
 		{
 			printf 'FAIL %s %s: the output does not import again\n' "${n}" "${mode}"

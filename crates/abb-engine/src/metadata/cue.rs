@@ -22,12 +22,49 @@ pub enum CueStatus {
     EmbeddedPreferred,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum CueChoice {
+    /// Accept a CUE whose timestamps need the hundredths interpretation.
+    ConfirmHundredths,
+    /// Drop the CUE and fall back to the file's embedded chapters.
+    Ignore,
+}
+
+impl CueStatus {
+    pub(crate) fn actions(self) -> Vec<CueChoice> {
+        match self {
+            Self::NeedsConfirmation => vec![CueChoice::ConfirmHundredths, CueChoice::Ignore],
+            Self::Ready | Self::Invalid => vec![CueChoice::Ignore],
+            Self::Ignored | Self::EmbeddedPreferred => Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CueSource {
     pub file_name: String,
     pub status: CueStatus,
     pub message: String,
+    /// The choices `choose_cue` accepts while the status is as shown.
+    pub actions: Vec<CueChoice>,
+}
+
+impl CueSource {
+    pub fn new(file_name: String, status: CueStatus, message: String) -> Self {
+        Self {
+            file_name,
+            status,
+            message,
+            actions: status.actions(),
+        }
+    }
+
+    pub(crate) fn set_status(&mut self, status: CueStatus) {
+        self.status = status;
+        self.actions = status.actions();
+    }
 }
 
 pub(crate) fn source_fingerprint_from_metadata(stat: &std::fs::Metadata) -> Result<String> {
@@ -90,30 +127,28 @@ pub(crate) fn inspect_chapter_source(
     if matches.is_empty() {
         return Ok((plan, None));
     }
-    let mut cue = CueSource {
-        file_name: matches[0]
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned(),
-        status: CueStatus::Invalid,
-        message: String::new(),
-    };
+    let file_name = matches[0]
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
+    let mut status = CueStatus::Invalid;
+    let mut message = String::new();
     if !embedded.is_empty() {
-        cue.status = CueStatus::EmbeddedPreferred;
-        cue.message = "Using embedded chapters; sibling CUE was not applied.".into();
+        status = CueStatus::EmbeddedPreferred;
+        message = "Using embedded chapters; sibling CUE was not applied.".into();
     } else if matches.len() != 1 {
-        cue.message =
+        message =
             "Multiple same-stem CUE files found. Keep one sidecar or explicitly ignore CUE.".into();
     } else {
         match read_cue(&matches[0], parent, duration_ms) {
             Ok(sheet) => {
-                cue.status = match sheet.interpretation {
+                status = match sheet.interpretation {
                     CueInterpretation::Frames75 => CueStatus::Ready,
                     CueInterpretation::Hundredths => CueStatus::NeedsConfirmation,
                 };
                 if path.file_name() != Some(std::ffi::OsStr::new(&sheet.file_name)) {
-                    cue.message = format!(
+                    message = format!(
                         "CUE FILE names ‘{}’; using the selected same-stem MP3.",
                         sheet.file_name
                     );
@@ -121,9 +156,10 @@ pub(crate) fn inspect_chapter_source(
                 plan.chapters = sheet.chapters;
                 plan.from_cue = true;
             }
-            Err(error) => cue.message = error.to_string(),
+            Err(error) => message = error.to_string(),
         }
     }
+    let cue = CueSource::new(file_name, status, message);
     Ok((plan, Some(cue)))
 }
 

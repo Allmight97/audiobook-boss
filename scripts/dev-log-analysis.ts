@@ -107,24 +107,6 @@ const JOB_EVENT_STATUSES: Record<string, ReadonlySet<string>> = {
 	terminal: new Set(['success', 'cancelled', 'failed']),
 };
 const IN_PROCESS_ENCODER_STATUSES = new Set(['success', 'failed', 'cancelled']);
-const OUTPUT_PLAN_PHASES = new Set(['preflight', 'process']);
-const OUTPUT_PLAN_POLICIES = new Set(['Fail', 'ReplaceExisting', 'RenameNew', 'SkipExisting']);
-const OUTPUT_PLAN_KINDS = new Set(['Final', 'Preview']);
-const OUTPUT_PLAN_ACTIONS = new Set([
-	'Write',
-	'ReplaceExisting',
-	'RenameNew',
-	'SkipExisting',
-	'ReviewRequired',
-]);
-const OUTPUT_PLAN_COLLISION_KINDS = new Set([
-	'none',
-	'ExistingFile',
-	'BatchDuplicate',
-	'SourceDestinationOverlap',
-	'CanonicalPathOverlap',
-	'CaseInsensitiveMatch',
-]);
 const OUTPUT_PLAN_KEYS = [
 	'phase',
 	'reviewed',
@@ -209,18 +191,13 @@ function outputPlanFromFields(fields: Record<string, string>): OutputPlanEvent |
 	const reviewed = fields.reviewed === 'true' ? true : fields.reviewed === 'false' ? false : null;
 	if (
 		!fields.phase ||
-		!OUTPUT_PLAN_PHASES.has(fields.phase) ||
 		reviewed === null ||
 		!fields.policy ||
-		!OUTPUT_PLAN_POLICIES.has(fields.policy) ||
 		!fields.kind ||
-		!OUTPUT_PLAN_KINDS.has(fields.kind) ||
 		!fields.action ||
-		!OUTPUT_PLAN_ACTIONS.has(fields.action) ||
 		fields.requested === undefined ||
 		fields.resolved === undefined ||
-		!fields.collision_kind ||
-		!OUTPUT_PLAN_COLLISION_KINDS.has(fields.collision_kind)
+		!fields.collision_kind
 	) {
 		return null;
 	}

@@ -18,8 +18,15 @@ imports). Files in one folder import each other relatively.
   resets its `<select>` to the first option, and a button rebuilt by a progress
   tick between press and release loses the click. File list, lookup, and source
   rows pass none: `engineLink` keeps their object identity (`src/app/AGENTS.md`).
+- Host-OS wording (the Quit shortcut, the file manager name, the multi-select
+  modifier) comes from `src/lib/platform`, which reads the user agent when
+  asked. `check-known-mistakes.ts` rejects the user agent and `⌘Q` elsewhere.
 - A view opens an external link with `tauriClient.openUrl` only for a link the
   user clicked: a release's source page and the Opus help link.
+- State a test reads is an attribute: `data-state` on a file row (the engine's
+  title status) and on a dialog (`open` or `closed`), `data-status` on a job
+  row and a Work Center status. Tests find elements by role and accessible
+  name and read those attributes, never CSS classes.
 
 ## Styles
 
@@ -43,16 +50,20 @@ One bullet per view. A view without a bullet has no trap beyond its owner.
   Closing the restart dialog (Escape or close) keeps the
   location. Teardown answers neither question. Both dialogs use the foundation
   `Dialog` (`src/lib/tauri/AGENTS.md`, native dialogs).
-- `encoderPanel`: one `EncoderView` serves Settings defaults (no props), one
-  title (`title`), or a selection (`titles`). A mixed selection shows Mixed; the
+- `encoderPanel`: one `EncoderView` serves Settings defaults, one title, or a
+  selection, by the `scope` it passes to `runtime.encoding.form`. Every element
+  id carries a per-instance suffix, because several panels can be open; tests
+  find controls by label or `data-testid`. A mixed selection shows Mixed; the
   user picks a common format before editing encoder fields. Encoder fields show
   only under User Preference.
 - `fileList`: every selection-changing action sends an Input intent, so the
   engine's draft gate runs; only a file click awaits its outcome. Removal and
   selection pass the title's identity, never its position. The listbox owns
   keyboard handling; rows are not tab stops.
-  `pointerReorder.ts` serves the outer list and `TitleSources`, and removes its
-  listeners on dispose and on `pointercancel`. `AudioHandlingControl` renders
+  `pointerReorder.ts` serves the outer list and `TitleSources`. A drag holds the
+  pressed row's identity key, not its position, and finds positions again at
+  release, so an import or removal mid-drag cannot move another title. It
+  removes its listeners on dispose and on `pointercancel`. `AudioHandlingControl` renders
   in a portal that overlays the list without changing row height; hover or
   focus opens it, click pins it, and locking input closes it. A copied audio
   plan shows a check and an explicit copy label, not color alone.
@@ -76,6 +87,10 @@ One bullet per view. A view without a bullet has no trap beyond its owner.
   scroll position and returns to it once its rows render on reopen.
 - `tagPreview`: with several titles selected, the TSOA row omits each title's
   source value. It can show blank where outputs keep their own.
+- `statusPanel` and `workCenter` render title rows with the foundation
+  `JobRow` and inject their own actions: the panel's Cancel sends the
+  preview's `cancelPreview`, the Work Center's sends the operation's
+  `workOperations.cancel`. Status classes are `is-<generated status value>`.
 - `workCenter`: a title row offers Cancel only in a multi-title operation whose
   child is `cancellable` (the engine clears it once the title is
   cancelling). Restart and Keep Location show

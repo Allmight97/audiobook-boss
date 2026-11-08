@@ -4,8 +4,8 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 use super::super::parse::region_to_tld;
+use super::ProviderEndpoints;
 
-const AUDIBLE_BASE_DOMAIN: &str = "https://api.audible";
 const AUDIBLE_SEARCH_PATH: &str = "1.0/catalog/products";
 const AUDIBLE_RESPONSE_GROUPS: &str =
     "contributors,product_desc,product_attrs,product_extended_attrs,media,product_details,series";
@@ -47,12 +47,12 @@ pub(in crate::metadata_lookup) struct AudiblePerson {
 
 pub(in crate::metadata_lookup) async fn fetch_audible_search(
     client: &Client,
+    endpoints: &ProviderEndpoints,
     query: &str,
     region: &str,
     limit: u8,
 ) -> Result<Vec<AudibleSearchItem>> {
-    let tld = region_to_tld(region);
-    let base = format!("{}.{}", AUDIBLE_BASE_DOMAIN, tld);
+    let base = endpoints.audible_for(region_to_tld(region));
     let mut url = reqwest::Url::parse(&format!("{}/{}", base, AUDIBLE_SEARCH_PATH))
         .map_err(|_| AppError::General("Failed to build Audible URL".to_string()))?;
     url.query_pairs_mut()

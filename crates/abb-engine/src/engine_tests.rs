@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::Mutex;
 
 fn config(root: &Path) -> EngineConfig {
     EngineConfig {
@@ -61,7 +62,10 @@ async fn the_quit_shortcut_quits_on_the_second_press_and_tells_the_host_after_th
     assert_eq!(engine.quit_pressed(), QuitPress::PressAgain);
     assert_eq!(engine.quit_pressed(), QuitPress::Proceed);
 
-    assert_eq!(*hints.0.lock().expect("hints"), vec![3000]);
+    assert_eq!(
+        *hints.0.lock().expect("hints"),
+        vec![crate::quit_press::QUIT_PRESS_WINDOW.as_millis() as u32]
+    );
 }
 
 #[tokio::test]

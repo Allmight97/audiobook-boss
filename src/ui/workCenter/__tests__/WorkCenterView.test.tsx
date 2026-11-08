@@ -1,8 +1,7 @@
 import { cleanup, render, screen } from '@solidjs/testing-library';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../../app/runtime';
-import type { RestartOffer } from '../../../types/session';
-import type { OperationSnapshot } from '../../../types/workRuntime';
+import type { OperationSnapshot, RestartOffer } from '../../../lib/generated/tauri';
 import { createFakeEngine } from '../../../test/fixtures/fakeEngine';
 import { WorkCenterView } from '..';
 
@@ -26,6 +25,7 @@ function completedOperation(): OperationSnapshot {
 		revision: 1,
 		kind: 'processingBatch',
 		status: 'completed',
+		phase: 'finished',
 		title: 'Batch encode (2 files)',
 		startedAtMs: 1_000,
 		finishedAtMs: 20_000,
@@ -93,7 +93,7 @@ async function showOperation(operation: OperationSnapshot, offers: RestartOffer[
 
 it('renders operation wall time and each file duration independently in the existing status labels', async () => {
 	await showOperation(completedOperation());
-	expect(screen.getByText('Completed in 00:19')).toHaveClass('work-status', 'is-completed');
+	expect(screen.getByText('Completed in 00:19')).toHaveAttribute('data-status', 'completed');
 	expect(screen.getByText('Done in 00:18')).toBeVisible();
 	expect(screen.getByText('Done in 00:13')).toBeVisible();
 	expect(screen.getByText('100%')).toBeVisible();
@@ -164,6 +164,7 @@ it('shows why a finished title has no cover', async () => {
 it('cancels one title in a running batch and hides title cancel for a single title', async () => {
 	const operation = completedOperation();
 	operation.status = 'running';
+	operation.phase = 'active';
 	operation.cancellable = true;
 	operation.children = operation.children.map((child) => ({
 		...child,
@@ -185,6 +186,7 @@ it('cancels one title in a running batch and hides title cancel for a single tit
 it('keeps each row and its buttons across a progress update', async () => {
 	const operation = completedOperation();
 	operation.status = 'running';
+	operation.phase = 'active';
 	operation.cancellable = true;
 	operation.children = operation.children.map((child) => ({
 		...child,

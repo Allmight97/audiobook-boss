@@ -3,6 +3,7 @@ use crate::audio::{AudioFile, AudioIntent, TitleAudioRequest};
 use crate::session::metadata_form::MetadataField;
 use crate::session::state::SessionState;
 use crate::session::working_set::SelectionModifiers;
+use crate::test_cases::support::form::field_of;
 
 fn path(name: &str) -> PathBuf {
     PathBuf::from(format!("/staged/{name}.m4b"))
@@ -121,12 +122,41 @@ fn a_failed_removal_is_tried_again_only_after_the_retry_delay() {
     let mut staged = staged();
     staged.finish(["alpha", "beta"]);
     let failed = Instant::now();
+    assert_eq!(staged.next_retry(), None);
     staged.removal_failed("job-1", failed);
+    assert_eq!(staged.next_retry(), Some(failed + RETRY_DELAY));
 
     let free = HashSet::new();
     assert!(staged.removable(&free, failed).is_empty());
     assert!(staged.removable(&free, failed + RETRY_DELAY / 2).is_empty());
     assert_eq!(staged.removable(&free, failed + RETRY_DELAY), ["job-1"]);
+}
+
+#[test]
+fn each_failed_removal_doubles_the_retry_delay_up_to_the_cap_and_reports_only_a_change() {
+    let mut staged = staged();
+    staged.finish(["alpha", "beta"]);
+    let now = Instant::now();
+    let mut delays = Vec::new();
+    for _ in 0..8 {
+        let reported = staged.removal_failed("job-1", now);
+        delays.push((staged.next_retry().expect("retry") - now, reported));
+    }
+
+    let seconds = |secs| Duration::from_secs(secs);
+    assert_eq!(
+        delays,
+        [
+            (seconds(30), Some(seconds(30))),
+            (seconds(60), Some(seconds(60))),
+            (seconds(120), Some(seconds(120))),
+            (seconds(240), Some(seconds(240))),
+            (seconds(480), Some(seconds(480))),
+            (MAX_RETRY_DELAY, Some(MAX_RETRY_DELAY)),
+            (MAX_RETRY_DELAY, None),
+            (MAX_RETRY_DELAY, None),
+        ]
+    );
 }
 
 fn listed(names: &[&str]) -> SessionState {
@@ -171,13 +201,7 @@ fn typed(state: &mut SessionState, value: &str) {
 fn shown_genre(state: &mut SessionState) -> String {
     state.settle();
     let metadata = state.update_since(None).metadata.expect("metadata part");
-    metadata
-        .form
-        .fields
-        .into_iter()
-        .find(|snapshot| snapshot.field == MetadataField::Genre)
-        .expect("genre")
-        .value
+    field_of(&metadata.form, MetadataField::Genre).value
 }
 
 fn pending_genre(state: &SessionState, name: &str) -> bool {
@@ -197,12 +221,7 @@ fn typing_on_a_title_survives_its_download_leaving_even_when_invalid() {
 
     assert_eq!(shown_genre(&mut state), "Mystery");
     let metadata = state.update_since(None).metadata.expect("metadata part");
-    let date = metadata
-        .form
-        .fields
-        .iter()
-        .find(|snapshot| snapshot.field == MetadataField::Date)
-        .expect("date");
+    let date = field_of(&metadata.form, MetadataField::Date);
     assert_eq!(date.value, "soon");
     assert!(date.dirty);
 }

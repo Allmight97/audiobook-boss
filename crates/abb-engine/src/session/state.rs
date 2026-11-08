@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use super::audio::{AudioDefaults, AudioRefusal, AudioSnapshot};
 use super::exports::{Exports, OutputEdits};
-use super::lookup::{LookupSnapshot, LookupState};
+use super::lookup::LookupSnapshot;
 use super::metadata_form::{MetadataForm, MetadataFormSnapshot};
 use super::output::{OutputPlan, OutputSnapshot};
 use super::plans::Plans;
@@ -17,6 +17,8 @@ use crate::metadata::{AudiobookMetadata, MetadataIntentPatch};
 
 mod bound_form;
 mod cover;
+mod default_edits;
+mod lookup;
 mod save;
 mod snapshots;
 mod submitting;
@@ -25,11 +27,13 @@ mod write_queue;
 pub(crate) use bound_form::GateBlock;
 use bound_form::{BoundTitle, StageOutcome};
 use cover::{Cover, SourceCovers};
-pub(crate) use save::SavePlan;
+pub(crate) use default_edits::{Claim, DefaultEdits};
+pub(crate) use lookup::{ApplyStart, ChosenResult, LookupState, NextTitle, QueuedTitle};
+pub(crate) use save::{SavePlan, WriteBatch};
 use snapshots::Parts;
-use submitting::Submitting;
-pub(crate) use write_queue::SaveItem;
+use submitting::Submission;
 use write_queue::WriteQueue;
+pub(crate) use write_queue::{SaveItem, WriteOutcome};
 
 /// Why the last metadata action ended the way it did. Hosts word these.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -159,20 +163,20 @@ pub(crate) struct SessionState {
     pub(crate) lookup: LookupState,
     pub(crate) audio: AudioDefaults,
     pub(crate) output: OutputPlan,
+    pub(crate) edits: DefaultEdits,
+    pub(crate) sweeping: Claim,
+    pub(crate) deferred_writer: Claim,
     pub(crate) preview: super::preview::Preview,
     plans: Plans,
     /// The title and audio-request changes plans were last refreshed for.
     plans_seen: (u64, u64),
     submission: Option<SubmissionStatus>,
-    pending_review: Option<super::submission::PendingReview>,
     review_serial: u64,
-    submitting: Option<Submitting>,
+    submitting: Submission,
     audio_refusal: Option<AudioRefusal>,
     source_covers: SourceCovers,
     keeping_locations: usize,
-    reserved: Vec<PathBuf>,
     pub(crate) staged: StagedSources,
-    pub(super) removing: Vec<PathBuf>,
     pub(crate) exports: Exports,
     form: MetadataForm,
     bound: Vec<BoundTitle>,
@@ -196,19 +200,19 @@ impl Default for SessionState {
             lookup,
             audio: AudioDefaults::default(),
             output: OutputPlan::default(),
+            edits: DefaultEdits::default(),
+            sweeping: Claim::default(),
+            deferred_writer: Claim::default(),
             preview: super::preview::Preview::default(),
             plans: Plans::default(),
             plans_seen: (u64::MAX, u64::MAX),
             submission: None,
-            pending_review: None,
             review_serial: 0,
-            submitting: None,
+            submitting: Submission::Idle,
             audio_refusal: None,
             source_covers: SourceCovers::default(),
             keeping_locations: 0,
-            reserved: Vec::new(),
             staged: StagedSources::default(),
-            removing: Vec::new(),
             exports: Exports::default(),
             form,
             bound: Vec::new(),

@@ -51,6 +51,15 @@ pub enum BitrateMode {
     VbrTarget,
 }
 
+impl BitrateMode {
+    pub(crate) fn fixed_kbps(self, bitrate_kbps: u16) -> Option<u16> {
+        match self {
+            Self::Vbr(_) => None,
+            Self::Cbr | Self::Cvbr | Self::Abr | Self::VbrTarget => Some(bitrate_kbps),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum BitrateModeKind {
@@ -262,7 +271,7 @@ fn is_native_nmr_available() -> bool {
             && ff::ffi::av_opt_set_int(
                 ctx.as_mut_ptr().cast(),
                 c"aac_nmr_speed".as_ptr(),
-                4,
+                i64::from(NATIVE_SPEED_MAX),
                 ff::ffi::AV_OPT_SEARCH_CHILDREN,
             ) >= 0
     }

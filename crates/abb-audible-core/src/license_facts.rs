@@ -1,20 +1,25 @@
+use crate::strategy::AcquisitionStrategy;
 use abb_media_core::{MediaContainerKind, MediaProtectionKind};
-use abb_remote_source_core::{
-    materialized_source_kind_for_container, AcquisitionStrategy, MaterializedSourceKind,
-};
 use serde_json::Value;
 use std::path::Path;
 
-use crate::json_probe::find_nearest_non_empty_string_for_keys;
+use crate::json_probe::{
+    find_nearest_non_empty_string_for_keys, find_nearest_non_empty_string_with_path, OwnedPathStep,
+};
+use crate::reply_keys::{asin, license_response, supplemental_pdf_url, CONTENT_URL_KEYS, DRM_KEYS};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LicenseFacts {
+    pub status_code: Option<String>,
     pub content_url: Option<String>,
-    pub content_kind: MaterializedSourceKind,
+    pub content_url_path: Option<Vec<OwnedPathStep>>,
+    pub content_format: Option<String>,
     pub media_container: MediaContainerKind,
     pub media_protection: MediaProtectionKind,
     pub drm_kind: Option<String>,
     pub supplemental_pdf_url: Option<String>,
+    pub license_response_present: bool,
+    pub asin_present: bool,
     pub denial: Option<LicenseDenial>,
 }
 
@@ -70,34 +75,31 @@ fn license_denial(value: &Value) -> Option<LicenseDenial> {
 }
 
 pub fn license_facts_from_value(value: &Value) -> LicenseFacts {
-    let content_url = [
-        "content_url",
-        "contentUrl",
-        "download_url",
-        "downloadUrl",
-        "offline_url",
-        "offlineUrl",
-        "url",
-    ]
-    .iter()
-    .find_map(|key| find_nearest_non_empty_string_for_keys(value, &[*key]));
+    let (content_url, content_url_path) = CONTENT_URL_KEYS
+        .iter()
+        .find_map(|key| find_nearest_non_empty_string_with_path(value, &[*key]))
+        .unzip();
     let media_container = content_url
         .as_deref()
         .map(classify_media_container_url)
         .unwrap_or(MediaContainerKind::Unknown);
-    let drm_kind = find_nearest_non_empty_string_for_keys(value, &["drm_type", "drmType", "drm"]);
+    let drm_kind = find_nearest_non_empty_string_for_keys(value, &DRM_KEYS);
     let media_protection =
         abb_media_core::protection_for_container(media_container, drm_kind.as_deref());
-    let content_kind = materialized_source_kind_for_container(media_container);
-    let supplemental_pdf_url =
-        find_nearest_non_empty_string_for_keys(value, &["pdf_url", "pdfUrl"]);
+    let license = &value["content_license"];
     LicenseFacts {
+        status_code: license["status_code"].as_str().map(str::to_string),
         content_url,
-        content_kind,
+        content_url_path,
+        content_format: license["content_metadata"]["content_reference"]["content_format"]
+            .as_str()
+            .map(str::to_string),
         media_container,
         media_protection,
         drm_kind,
-        supplemental_pdf_url,
+        supplemental_pdf_url: supplemental_pdf_url(value),
+        license_response_present: license_response(value).is_some(),
+        asin_present: asin(value).is_some(),
         denial: license_denial(value),
     }
 }

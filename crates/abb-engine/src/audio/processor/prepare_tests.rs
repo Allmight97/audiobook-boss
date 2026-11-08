@@ -22,6 +22,7 @@ fn audio_file(name: &str, duration: Option<f64>, is_valid: bool) -> AudioFile {
         chapters: Vec::new(),
         is_valid,
         source_removed: false,
+        status: crate::audio::TitleStatus::Ready,
         cover: None,
         error: None,
     }
@@ -29,27 +30,23 @@ fn audio_file(name: &str, duration: Option<f64>, is_valid: bool) -> AudioFile {
 
 #[tokio::test]
 async fn cancellation_after_workspace_creation_keeps_cleanup_ownership() {
-    use crate::audio::{CleanupGuard, SampleRateConfig};
-    use crate::processing::{JobRegistry, OutputConfig, ProcessingSession};
-    let registry = JobRegistry::new(1);
-    let (job, _permit) = registry.register_job().await.expect("register test job");
-    let checker = crate::processing::CancellationChecker::new(Some(std::sync::Arc::new(
-        std::sync::atomic::AtomicBool::new(true),
-    )));
-    let root = tempfile::TempDir::new().expect("create isolated test directory");
-    let workspace = root.path().join("sessions");
-    let context = ProcessingContext::new_headless_with_workspace_root(
-        std::sync::Arc::new(ProcessingSession::with_cancellation(job.0, checker)),
-        SampleRateConfig::Auto,
-        OutputConfig::new(root.path().join("output.m4b")),
-        workspace.clone(),
-    );
-    let mut cleanup = CleanupGuard::new(context.session.id());
-    assert!(prepare_workspace(&context, &[], &mut cleanup).is_err());
-    drop(cleanup);
+    use crate::audio::{get_file_list_info, AacDecoder};
+    use crate::execution::ProcessingSession;
+    use crate::test_cases::media_fixtures::MediaLane;
+    let lane = MediaLane::with_fixtures(&[1.0]);
+    let files = get_file_list_info(&lane.inputs, AacDecoder::Auto)
+        .expect("probe fixture")
+        .files;
+    let checker =
+        crate::execution::CancellationChecker::new(Some(crate::execution::cancelled_token()));
+    let context = lane.context(ProcessingSession::with_cancellation(
+        uuid::Uuid::new_v4(),
+        checker,
+    ));
+    assert!(prepare(&context, &files).is_err());
     assert_eq!(
-        std::fs::read_dir(workspace)
-            .expect("inspect workspace residue")
+        std::fs::read_dir(lane.workspace_root())
+            .expect("the workspace root was created")
             .count(),
         0
     );
@@ -62,7 +59,7 @@ fn preview_progress_caps_each_file_at_its_excerpt() {
         audio_file("long.mp3", Some(240.0), true),
     ];
 
-    assert_eq!(progress_total_duration(&files, Some(&PreviewConfig)), 53.0);
+    assert_eq!(progress_total_duration(&files, true), 53.0);
 }
 
 #[test]
@@ -72,5 +69,5 @@ fn export_progress_sums_the_file_durations() {
         audio_file("second.mp3", Some(240.0), true),
     ];
 
-    assert_eq!(progress_total_duration(&files, None), 360.0);
+    assert_eq!(progress_total_duration(&files, false), 360.0);
 }

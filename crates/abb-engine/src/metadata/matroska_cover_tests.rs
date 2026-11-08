@@ -53,3 +53,70 @@ fn attachment_read_bounds_payload_and_truncated_elements() {
     assert!(!is_cover("notes.jpg", "image/jpeg"));
     assert!(!is_cover("cover.jpg", "application/octet-stream"));
 }
+
+fn attached(name: &str, mime: &str, data: &[u8]) -> Vec<u8> {
+    let fields = [
+        element(&[0x46, 0x5c], data),
+        element(&[0x46, 0x6e], name.as_bytes()),
+        element(&[0x46, 0x60], mime.as_bytes()),
+    ]
+    .concat();
+    element(&[0x61, 0xa7], &fields)
+}
+
+fn with_attachments(files: &[Vec<u8>]) -> (tempfile::NamedTempFile, u64) {
+    let attachments = element(&[0x19, 0x41, 0xa4, 0x69], &files.concat());
+    let mut file = tempfile::NamedTempFile::new().expect("create Matroska fixture");
+    file.write_all(&element(&[0x18, 0x53, 0x80, 0x67], &attachments))
+        .expect("write fixture");
+    let length = file.as_file().metadata().expect("fixture metadata").len();
+    (file, length)
+}
+
+#[test]
+fn the_cover_named_attachment_wins_wherever_it_sits() {
+    let (mut file, length) = with_attachments(&[
+        attached("scan.png", "image/png", b"first"),
+        attached("cover.jpg", "image/jpeg", b"cover"),
+        attached("back.png", "image/png", b"last"),
+    ]);
+    assert_eq!(
+        read(file.as_file_mut(), length).expect("read cover"),
+        Some(b"cover".to_vec())
+    );
+}
+
+#[test]
+fn without_a_cover_named_attachment_the_first_image_wins() {
+    let (mut file, length) = with_attachments(&[
+        attached("notes.txt", "text/plain", b"text"),
+        attached("scan.png", "image/png", b"first"),
+        attached("back.png", "image/png", b"last"),
+    ]);
+    assert_eq!(
+        read(file.as_file_mut(), length).expect("read cover"),
+        Some(b"first".to_vec())
+    );
+}
+
+#[test]
+fn an_oversized_image_that_is_not_the_cover_is_skipped() {
+    let (mut file, length) = with_attachments(&[
+        attached(
+            "huge.png",
+            "image/png",
+            &vec![0; THUMBNAIL_MAX_ENCODED_BYTES + 1],
+        ),
+        attached("scan.png", "image/png", b"small"),
+    ]);
+    assert_eq!(
+        read(file.as_file_mut(), length).expect("read cover"),
+        Some(b"small".to_vec())
+    );
+}
+
+#[test]
+fn attachments_that_are_not_images_give_no_cover() {
+    let (mut file, length) = with_attachments(&[attached("notes.txt", "text/plain", b"text")]);
+    assert_eq!(read(file.as_file_mut(), length).expect("read cover"), None);
+}

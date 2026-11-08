@@ -114,27 +114,22 @@ pub(crate) fn setup_encoder(
     let resolved_encoder_type = plan.encoder_settings.encoder_type;
     settings_encoder::validate_encoder_settings(&plan.encoder_settings)?;
 
-    let mut octx = ff::format::output_as(
-        &plan.output_path,
-        if plan.output_path.extension().is_some_and(|ext| ext == "mka") {
-            "matroska"
-        } else {
-            "mp4"
-        },
-    )
-    .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
+    let muxer = plan
+        .output_path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .and_then(crate::audio::format_for_extension)
+        .ok_or_else(|| AppError::InvalidInput("Unsupported audiobook container.".into()))?
+        .muxer;
+    let mut octx = ff::format::output_as(&plan.output_path, muxer.ffmpeg_name())
+        .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
 
     if let Some(metadata) = metadata {
-        crate::metadata::set_container_metadata(&mut octx, metadata)
-            .map_err(|e| AppError::General(format!("Failed to set container metadata: {e}")))?;
+        crate::metadata::set_container_metadata(&mut octx, metadata);
         log::debug!("Container metadata set successfully");
     }
 
-    let stream_codec_id = if resolved_encoder_type == EncoderType::Opus {
-        ff::codec::Id::OPUS
-    } else {
-        ff::codec::Id::AAC
-    };
+    let stream_codec_id = crate::audio::codec_family_of(resolved_encoder_type).codec_id();
     let codec = ff::encoder::find(stream_codec_id)
         .ok_or_else(|| AppError::General(format!("{:?} encoder not found", stream_codec_id)))?;
 
@@ -170,35 +165,22 @@ pub(crate) fn setup_encoder(
     ost.set_parameters(enc_ctx.parameters()?);
     let ost_index = ost.index();
 
-    let selected_cover = metadata
-        .and_then(|m| m.cover_art.as_ref().map(|data| (data, "user")))
-        .or_else(|| {
-            passthrough
-                .and_then(|p| p.cover_art.as_ref())
-                .map(|data| (data, "passthrough"))
-        });
-
-    let selected_cover = selected_cover.filter(|(cover_data, _)| !cover_data.is_empty());
+    let selected_cover = crate::metadata::ResolvedCover::select_for_encode(metadata, passthrough);
 
     let cover_art_stream_info = match selected_cover {
-        Some((cover_data, source)) => {
-            let bytes = cover_data.len();
+        Some(cover) => {
             log::info!(
                 "cover_art_plan decision=native_attempt source={} bytes={}",
-                source,
-                bytes
+                cover.source(),
+                cover.bytes().len()
             );
             let cover_art_stream_info =
-                match crate::metadata::add_cover_art_stream_pre_header(&mut octx, cover_data) {
+                match crate::metadata::add_cover_art_stream_pre_header(&mut octx, cover.bytes()) {
                     Ok(stream_info) => stream_info,
-                    Err(error) if source == "passthrough" => {
-                        log::warn!(
-                            "Could not preserve passthrough cover art during native encoding: {}",
-                            error
-                        );
+                    Err(error) => {
+                        cover.handle_embed_failure(error, "native cover art")?;
                         None
                     }
-                    Err(error) => return Err(error),
                 };
             if let Some((stream_idx, format)) = cover_art_stream_info {
                 log::info!("✓ Native cover art stream added successfully (stream={}, format={:?}) - will embed during encoding", stream_idx, format);
@@ -237,37 +219,25 @@ pub(crate) fn setup_encoder(
         }
     }
 
-    if let Some((stream_index, format)) = cover_art_stream_info {
-        if let Some((cover_data, source)) = selected_cover {
-            log::info!(
-                "Writing cover art packet to stream {} ({:?} format, {} bytes, source={})",
-                stream_index,
-                format,
-                cover_data.len(),
-                source
-            );
-            if let Err(error) = crate::metadata::write_cover_art_packet_post_header(
-                &mut octx,
-                stream_index,
-                cover_data,
-                format,
-            ) {
-                if source == "passthrough" {
-                    log::warn!(
-                        "Could not preserve passthrough cover art packet during native encoding: {}",
-                        error
-                    );
-                } else {
-                    return Err(error);
-                }
-            } else {
-                log::info!(
-                    "✓ Native cover art packet written successfully to stream {}",
-                    stream_index
-                );
-            }
-        } else {
-            log::warn!("Cover art stream exists but no cover bytes were available for writing");
+    if let (Some((stream_index, format)), Some(cover)) = (cover_art_stream_info, selected_cover) {
+        log::info!(
+            "Writing cover art packet to stream {} ({:?} format, {} bytes, source={})",
+            stream_index,
+            format,
+            cover.bytes().len(),
+            cover.source()
+        );
+        match crate::metadata::write_cover_art_packet_post_header(
+            &mut octx,
+            stream_index,
+            cover.bytes(),
+            format,
+        ) {
+            Ok(()) => log::info!(
+                "✓ Native cover art packet written successfully to stream {}",
+                stream_index
+            ),
+            Err(error) => cover.handle_embed_failure(error, "native cover art packet")?,
         }
     }
 

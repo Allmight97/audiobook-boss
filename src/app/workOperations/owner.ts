@@ -2,42 +2,42 @@ import { createSignal, type Accessor } from 'solid-js';
 import type { EngineLink } from '../engineLink';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { tauriClient } from '../../lib/tauri/client';
-import type { OperationId, OperationSnapshot } from '../../types/workRuntime';
+import type { OperationId, OperationSnapshot } from '../../lib/generated/tauri';
+
+export type WorkOperationsError = {
+	readonly kind: 'cancel' | 'reveal';
+	readonly message: string;
+};
 
 export type WorkOperationsView = {
 	readonly operations: ReadonlyArray<OperationSnapshot>;
 	readonly cancelPendingByOperationId: Readonly<Partial<Record<string, boolean>>>;
-	readonly errorMessage: string | null;
+	readonly error: WorkOperationsError | null;
 };
 
 export type WorkOperationsOwner = {
 	readonly view: Accessor<WorkOperationsView>;
-	/** Cancels the whole operation, or only the title named by `childJobId`. */
 	cancel: (operationId: OperationId, childJobId?: string) => Promise<void>;
 	revealOutput: (child: { outputPath?: string | null }) => Promise<void>;
 	reset: () => void;
 };
 
-const CANCEL_ERROR_PREFIX = 'Failed to cancel';
-const REVEAL_ERROR_PREFIX = 'Failed to show the exported file';
-
-/** Work runs now, a cancel included until it lands; only running work shows motion. */
-export function isWorkRunning(status: OperationSnapshot['status']): boolean {
-	return status === 'running' || status === 'cancelling';
-}
-
 export function createWorkOperationsOwner(deps: {
 	readonly link: EngineLink;
 }): WorkOperationsOwner {
 	let cancelPendingByOperationId: Readonly<Partial<Record<string, boolean>>> = {};
-	let errorMessage: string | null = null;
+	let error: WorkOperationsError | null = null;
 	let disposed = false;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 
-	function showError(message: string | null): void {
+	function setError(next: WorkOperationsError | null): void {
 		if (disposed) return;
-		errorMessage = message;
+		error = next;
 		bump((n) => n + 1);
+	}
+
+	function clearError(kind: WorkOperationsError['kind']): void {
+		if (error?.kind === kind) setError(null);
 	}
 
 	function setCancelPending(operationId: OperationId, pending: boolean): void {
@@ -50,11 +50,12 @@ export function createWorkOperationsOwner(deps: {
 	async function sendCancel(operationId: OperationId, childJobId?: string): Promise<void> {
 		try {
 			await deps.link.cancelWork(operationId, childJobId);
-			if (errorMessage?.startsWith(CANCEL_ERROR_PREFIX)) showError(null);
-		} catch (error) {
-			showError(
-				`${CANCEL_ERROR_PREFIX} ${childJobId ? 'title' : 'operation'}: ${toUserMessage(error)}`,
-			);
+			clearError('cancel');
+		} catch (cause) {
+			setError({
+				kind: 'cancel',
+				message: `Failed to cancel ${childJobId ? 'title' : 'operation'}: ${toUserMessage(cause)}`,
+			});
 		}
 	}
 
@@ -64,7 +65,7 @@ export function createWorkOperationsOwner(deps: {
 			return {
 				operations: deps.link.workOperations(),
 				cancelPendingByOperationId,
-				errorMessage,
+				error,
 			};
 		},
 		async cancel(operationId, childJobId) {
@@ -78,11 +79,14 @@ export function createWorkOperationsOwner(deps: {
 		},
 		async revealOutput(child) {
 			if (!child.outputPath) return;
-			if (errorMessage?.startsWith(REVEAL_ERROR_PREFIX)) showError(null);
+			clearError('reveal');
 			try {
 				await tauriClient.revealPath(child.outputPath);
-			} catch (error) {
-				showError(`${REVEAL_ERROR_PREFIX}: ${toUserMessage(error)}`);
+			} catch (cause) {
+				setError({
+					kind: 'reveal',
+					message: `Failed to show the exported file: ${toUserMessage(cause)}`,
+				});
 			}
 		},
 		reset() {

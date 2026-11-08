@@ -6,15 +6,15 @@ use std::path::{Path, PathBuf};
 mod buffer;
 mod cleanup;
 mod constants;
-pub(crate) use constants::ALLOWED_IMAGE_EXTENSIONS;
+pub use constants::ALLOWED_IMAGE_EXTENSIONS;
 mod extensions;
 mod file_list;
+mod format;
 mod imports;
 mod path_validation;
 mod processor;
 mod settings;
 mod settings_capabilities;
-mod settings_decoder;
 mod settings_encoder;
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -52,16 +52,31 @@ pub struct AudioFile {
     pub is_valid: bool,
     /// An exported download that ABB removed. The title is finished, not failed.
     pub source_removed: bool,
+    /// Whether this entry can be exported, set by the session on the titles
+    /// and sources it lists: a title takes its sources' combined status.
+    pub status: TitleStatus,
     pub error: Option<String>,
     /// The address of this source's embedded cover, set by the session on
     /// the sources it lists; absent when the source is not valid.
     pub cover: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
+pub enum TitleStatus {
+    Ready,
+    Failed,
+    /// An exported download that ABB removed. The title is finished, not failed.
+    RemovedFinished,
+}
+
+/// What inspection learned about copying a source: whether its container and
+/// codec can be copied unchanged, and the codec family a format must share to
+/// keep it. `None` is a codec no output format holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AudioPreservation {
     pub can_preserve: bool,
+    pub(crate) codec_family: Option<CodecFamily>,
 }
 
 pub type AudioChapter = crate::metadata::ChapterSpec;
@@ -103,6 +118,7 @@ impl AudioFile {
             cue_source: None,
             is_valid: false,
             source_removed: false,
+            status: TitleStatus::Failed,
             cover: None,
             error: None,
         };
@@ -156,6 +172,8 @@ pub enum SampleRateConfig {
 }
 
 pub(crate) use file_list::{apply_chapter_plans, get_file_list_info, FileListInfo};
+pub use format::CodecFamily;
+pub(crate) use format::{codec_family_of, format_for_extension, Muxer, FORMATS};
 pub(crate) use imports::discover_audio_import_paths;
 pub use imports::{
     supported_audio_import_extensions, supported_audio_import_formats_text,
@@ -167,9 +185,22 @@ pub(crate) use processor::{
     AudioExecutionRequest, AudioRunOutcome,
 };
 pub(crate) use processor::{passthrough_sources_from_audio_files, validate_preserved_title};
-pub(crate) use settings::{
-    validate_output_path, validate_preserved_output_path, validate_sample_rate_config,
-};
+#[cfg(test)]
+pub(crate) use settings::automatic_sample_rate;
+pub(crate) use settings::validate_sample_rate_config;
+pub(crate) use settings::{check_output_directory, validate_output_target};
+
+impl AudioFile {
+    pub(crate) fn own_status(&self) -> TitleStatus {
+        if self.source_removed {
+            TitleStatus::RemovedFinished
+        } else if self.is_valid {
+            TitleStatus::Ready
+        } else {
+            TitleStatus::Failed
+        }
+    }
+}
 
 pub(crate) fn validate_preservation_source(file: &AudioFile) -> Result<()> {
     if !file.is_valid || !file.preservation.is_some_and(|value| value.can_preserve) {
@@ -179,18 +210,16 @@ pub(crate) fn validate_preservation_source(file: &AudioFile) -> Result<()> {
     }
     Ok(())
 }
+pub use crate::execution::AacDecoder;
 pub(crate) use settings_capabilities::encoder_settings_capabilities;
 pub use settings_capabilities::{
     EncoderAvailability, EncoderConfigurationCapability, EncoderSettingsCapabilities,
     FaacProfileCapability,
 };
-pub use settings_decoder::AacDecoder;
 pub(crate) use settings_encoder::{validate_encoder_settings, DEFAULT_FAAC_QUALITY};
 pub use settings_encoder::{
     BitrateMode, BitrateModeKind, ChannelConfig, EncoderSettings, EncoderType, FaacProfile,
 };
-
-pub(crate) use cleanup::CleanupGuard;
 
 pub(crate) fn processing_workspace_root(cache_dir: &Path) -> PathBuf {
     processor::processing_workspace_root(cache_dir)
@@ -207,8 +236,8 @@ mod contract_tests;
 
 mod output_plan;
 pub use output_plan::{
-    AudioIntent, AudioPlanField, AudiobookFormat, OutputAudio, TitleAudioError, TitleAudioPlan,
-    TitleAudioRequest,
+    AudioHandling, AudioIntent, AudioPlanField, AudiobookFormat, OutputAudio, TitleAudioError,
+    TitleAudioPlan, TitleAudioRequest,
 };
 
 pub(crate) use output_plan::resolve_title_audio;

@@ -1,46 +1,47 @@
 use crate::errors::{AppError, Result};
 
 pub mod reader;
-pub(crate) mod tag_registry;
 
 mod container;
 mod cue;
 pub use abb_metadata_core::{
     parse_cue, validate_chapters, ChapterSpec, CueInterpretation, CueSheet,
 };
+use container::Container;
 pub(crate) use cue::{
     inspect_chapter_source, source_fingerprint, source_fingerprint_from_metadata,
     validate_chapter_plan, validate_source_fingerprint,
 };
-pub use cue::{ChapterPlan, CueSource, CueStatus};
+pub use cue::{ChapterPlan, CueChoice, CueSource, CueStatus};
 mod chapter_count;
 mod cover_art;
+mod cover_choice;
 mod embedded_cover;
 mod ffi;
 mod ffmpeg_dict;
 mod field_schema;
 mod intent_plan;
 mod matroska_cover;
-mod metadata_ops;
 mod metadata_sinks;
 mod mp4_covr;
 mod mp4ameta_bridge;
 mod passthrough;
+mod plan_log;
 mod remux;
 mod thumbnail;
 
+pub(crate) use abb_metadata_core::MetadataWritePlan;
 pub use abb_metadata_core::{
-    build_series_list, compute_album_sort, normalize_publication_date, processing_album_sort,
+    compute_album_sort, normalize_publication_date, processing_album_sort,
     publication_year_from_date, split_series_list, validate_metadata_intent_patch,
     AlbumSortPatchOp, AudiobookMetadata, MetadataCoreError, MetadataIntentPatch,
     MetadataIntentValidationField, MetadataIntentValidationResult, NamingMetadata, PatchOp,
 };
-pub(crate) use abb_metadata_core::{AlbumSortWriteAction, MetadataWritePlan};
-pub(crate) use chapter_count::{output_chapter_count, synthesizes_chapter_per_source};
+pub(crate) use chapter_count::{join_chapters, JoinedSource};
 pub use intent_plan::CoverArtPassthroughPolicy;
 pub(crate) use intent_plan::{
     plan_metadata_outcome, plan_metadata_outcome_from, plan_metadata_write_for_path,
-    MetadataOutcomePlan, MetadataOutcomeRequest,
+    MetadataOutcomePlan,
 };
 
 impl From<MetadataCoreError> for AppError {
@@ -56,13 +57,14 @@ pub use thumbnail::read_audio_cover_thumbnail;
 pub(crate) use thumbnail::render_display_thumbnail;
 pub(crate) use thumbnail::{optimize_cover_art, prepare_cover_art_for_write};
 
+pub(crate) use cover_art::ResolvedCover;
 pub use cover_art::{add_cover_art_stream_pre_header, write_cover_art_packet_post_header};
 pub(crate) use ffi::length_is_estimated;
 pub use ffmpeg_dict::set_container_metadata;
 pub(crate) use passthrough::prepare_output_cover_art;
 pub use passthrough::{
-    add_chapters_to_output, extract_passthrough_metadata, verify_chapters, PassthroughMetadata,
-    PassthroughSource,
+    add_chapters_to_output, extract_passthrough_metadata, read_chapters, verify_chapters,
+    PassthroughMetadata, PassthroughSource,
 };
 
 pub fn save_metadata_intent(path: &std::path::Path, patch: &MetadataIntentPatch) -> Result<()> {
@@ -80,19 +82,13 @@ pub(crate) fn save_metadata_with_plan(
     let route = crate::diagnostics::stage("metadata_classify", path, || container::classify(path))?;
     let saved = remux::meta_temp(path)?;
     match route {
-        container::ContainerRoute::Mp4Family => {
+        Container::Mp4 => {
             crate::diagnostics::stage("metadata_copy_source", path, || {
                 std::fs::copy(path, saved.path()).map_err(AppError::Io)
             })?;
             mp4ameta_bridge::write_metadata_with_plan(saved.path(), plan)?;
         }
-        route => remux::remux_into(
-            path,
-            saved.path(),
-            Some(plan),
-            None,
-            route.remux_output_format(),
-        )?,
+        route => remux::remux_into(path, saved.path(), Some(plan), None, Some(&route))?,
     }
     commit_checked_save(path, saved)
 }
@@ -190,7 +186,7 @@ pub(crate) fn finish_artifact_tags(
     if let Some(metadata) = metadata {
         let route =
             crate::diagnostics::stage("metadata_classify", path, || container::classify(path))?;
-        if route == container::ContainerRoute::Mp4Family {
+        if route.is_mp4_family() {
             before_tag_write();
             let started = std::time::Instant::now();
             mp4ameta_bridge::write_metadata(path, metadata)?;
@@ -217,25 +213,23 @@ pub(crate) fn remux_preserved_audio_container(
     extension: &str,
     chapters: &[ChapterSpec],
 ) -> Result<()> {
-    let target = match extension {
-        "m4a" | "m4b" => "mp4",
-        "mka" => "matroska",
-        _ => {
-            return Err(crate::errors::AppError::InvalidInput(
-                "Unsupported audiobook container.".into(),
-            ))
-        }
-    };
+    let target = Container::from_extension(extension).ok_or_else(|| {
+        crate::errors::AppError::InvalidInput("Unsupported audiobook container.".into())
+    })?;
     let source = extract_passthrough_metadata(&[PassthroughSource {
         path: path.into(),
         duration: None,
         is_valid: true,
         chapters: None,
     }]);
-    let same_container = container::classify(path)?.remux_output_format() == Some(target);
+    let same_container = container::classify(path)? == target;
     if same_container
-        && passthrough::first_chapter_difference(&source.chapters, chapters, target != "mp4")
-            .is_none()
+        && passthrough::first_chapter_difference(
+            &source.chapters,
+            chapters,
+            target.stores_chapter_ends(),
+        )
+        .is_none()
     {
         return Ok(());
     }
@@ -253,12 +247,12 @@ pub(crate) fn remux_preserved_audio_container(
         cover_art,
         ..Default::default()
     };
-    let plan = MetadataWritePlan::from_metadata(metadata.clone());
+    let plan = MetadataWritePlan::from_metadata(&metadata);
     remux::rewrite_metadata_with_ffmpeg_plan_as(
         path,
         Some(&plan),
         Some(&passthrough),
-        Some(target),
+        Some(&target),
     )?;
     finish_artifact_tags(path, Some(&metadata), None, || {})?;
     Ok(())

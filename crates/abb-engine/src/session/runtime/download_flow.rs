@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use super::{blocking, Bound, Session};
@@ -83,51 +82,73 @@ impl Session {
         }
     }
 
-    pub(super) fn sweep_due(&self, state: &SessionState) -> bool {
+    pub(super) fn claim_sweep(&self, state: &mut SessionState) -> bool {
         !state.staged.is_empty()
-            && !self.inner.sweeping.load(Ordering::SeqCst)
+            && !state.sweeping.held()
             && !state
                 .removable_staged(&self.inner.deps.work.sources_held(), now())
                 .is_empty()
+            && state.sweeping.take()
     }
 
     pub(super) fn sweep_staged(&self) {
-        if self.inner.sweeping.swap(true, Ordering::SeqCst) {
-            return;
-        }
         let session = self.clone();
+        let mut claim = Some(self.sweep_claim());
         self.inner.deps.tasks.spawn(async move {
             loop {
-                let jobs = session.transition(|state| {
+                let (jobs, retry_at) = session.transition(|state| {
                     let held = session.inner.deps.work.sources_held();
                     let jobs = state.begin_staged_removal(&held, now());
                     if jobs.is_empty() {
-                        session.inner.sweeping.store(false, Ordering::SeqCst);
+                        if let Some(claim) = claim.take() {
+                            claim.end_in(state);
+                        }
                     }
-                    jobs
+                    (jobs, state.staged.next_retry())
                 });
                 if jobs.is_empty() {
+                    if let Some(retry_at) = retry_at {
+                        session.retry_sweep_at(retry_at).await;
+                    }
                     return;
                 }
                 for job_id in jobs {
                     let remove = Arc::clone(&session.inner.deps.remove_staged);
                     let id = job_id.clone();
                     let removed = blocking(move || remove(&id)).await;
-                    if let Err(error) = &removed {
-                        log::warn!("Failed to remove staged download job_id={job_id}: {error}");
-                    }
-                    let bound = session.transition(|state| {
-                        let reads = state.finish_staged_removal(&job_id, removed.is_ok(), now());
-                        Bound {
-                            reads,
+                    let (bound, new_retry_delay) = session.transition(|state| {
+                        let finished = state.finish_staged_removal(&job_id, removed.is_ok(), now());
+                        let bound = Bound {
+                            reads: finished.reads,
                             binding: state.binding,
-                        }
+                        };
+                        (bound, finished.new_retry_delay)
                     });
+                    if let Err(error) = &removed {
+                        match new_retry_delay {
+                            Some(delay) => log::warn!(
+                                "Failed to remove staged download job_id={job_id}, retrying in {delay:?}: {error}"
+                            ),
+                            None => log::debug!(
+                                "Failed again to remove staged download job_id={job_id}: {error}"
+                            ),
+                        }
+                    }
                     session.complete_reads(bound).await;
                 }
                 session.publish();
             }
         });
+    }
+
+    async fn retry_sweep_at(&self, retry_at: std::time::Instant) {
+        let wait = async {
+            tokio::time::sleep_until(tokio::time::Instant::from_std(retry_at)).await;
+            Ok(())
+        };
+        if self.inner.deps.tasks.until_closing(wait).await.is_ok() {
+            self.transition(|_| ());
+        }
     }
 
     pub(super) fn export_finished(&self, snapshot: &OperationSnapshot) {

@@ -1,6 +1,6 @@
 use crate::audio::{
     validate_encoder_settings, validate_sample_rate_config, AacDecoder, AudioIntent,
-    AudiobookFormat, EncoderSettings, EncoderType, SampleRateConfig,
+    AudiobookFormat, EncoderSettings, SampleRateConfig,
 };
 use crate::errors::{AppError, Result};
 use crate::output_artifact::OutputNamingConfig;
@@ -71,6 +71,40 @@ pub enum SettingsUnit {
     OutputDefaults,
     StartupBehavior,
     PinnedDefaults,
+}
+
+impl SettingsUnit {
+    /// Where the unit sits in `settings.toml`: loading reads it from here and
+    /// names a reset by it.
+    pub(super) fn path(self) -> &'static [&'static str] {
+        match self {
+            Self::KeepAwake => &["general", "keep_awake_while_working"],
+            Self::PressQuitTwice => &["general", "press_quit_twice"],
+            Self::JobLimit => &["general", "max_concurrent_jobs"],
+            Self::AcquisitionLane => &["general", "default_acquisition_lane"],
+            Self::AacDecoder => &["general", "aac_decoder"],
+            Self::IndexerConnection => &["indexer"],
+            Self::EncoderDefaults => &["audio"],
+            Self::OutputDefaults => &["output"],
+            Self::StartupBehavior => &["startup", "behavior"],
+            Self::PinnedDefaults => &["startup", "pinned"],
+        }
+    }
+
+    /// Part of the launch defaults, which a pinned launch replaces with the
+    /// pinned ones.
+    pub(super) fn launch_default(self) -> bool {
+        match self {
+            Self::JobLimit | Self::EncoderDefaults | Self::OutputDefaults => true,
+            Self::KeepAwake
+            | Self::PressQuitTwice
+            | Self::AcquisitionLane
+            | Self::AacDecoder
+            | Self::IndexerConnection
+            | Self::StartupBehavior
+            | Self::PinnedDefaults => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, PartialEq, Eq, specta::Type)]
@@ -173,49 +207,82 @@ impl Default for EncoderDefaults {
 
 impl AppSettings {
     pub(super) fn merge(mut self, patch: AppSettingsPatch) -> Result<Self> {
-        if let Some(max_concurrent_jobs) = patch.max_concurrent_jobs {
-            self.max_concurrent_jobs = max_concurrent_jobs;
+        let Self {
+            keep_awake_while_working,
+            press_quit_twice,
+            max_concurrent_jobs,
+            encoder_defaults,
+            output_defaults,
+            startup_behavior,
+            pinned_defaults,
+            default_acquisition_lane,
+            aac_decoder,
+            indexer_connection,
+        } = &mut self;
+        let AppSettingsPatch {
+            keep_awake_while_working: patch_keep_awake_while_working,
+            press_quit_twice: patch_press_quit_twice,
+            max_concurrent_jobs: patch_max_concurrent_jobs,
+            encoder_defaults: patch_encoder_defaults,
+            output_defaults: patch_output_defaults,
+            startup_behavior: patch_startup_behavior,
+            pinned_defaults: patch_pinned_defaults,
+            default_acquisition_lane: patch_default_acquisition_lane,
+            aac_decoder: patch_aac_decoder,
+            indexer_connection: patch_indexer_connection,
+        } = patch;
+        replace_with(keep_awake_while_working, patch_keep_awake_while_working);
+        replace_with(press_quit_twice, patch_press_quit_twice);
+        replace_with(max_concurrent_jobs, patch_max_concurrent_jobs);
+        replace_with(encoder_defaults, patch_encoder_defaults);
+        replace_with(output_defaults, patch_output_defaults);
+        replace_with(startup_behavior, patch_startup_behavior);
+        if patch_pinned_defaults.is_some() {
+            *pinned_defaults = patch_pinned_defaults;
         }
-        if let Some(encoder_defaults) = patch.encoder_defaults {
-            self.encoder_defaults = encoder_defaults;
-        }
-        if let Some(output_defaults) = patch.output_defaults {
-            self.output_defaults = output_defaults;
-        }
-        if let Some(startup_behavior) = patch.startup_behavior {
-            self.startup_behavior = startup_behavior;
-        }
-        if let Some(pinned_defaults) = patch.pinned_defaults {
-            self.pinned_defaults = Some(pinned_defaults);
-        }
-        if let Some(default_acquisition_lane) = patch.default_acquisition_lane {
-            self.default_acquisition_lane = default_acquisition_lane;
-        }
-        if let Some(enabled) = patch.keep_awake_while_working {
-            self.keep_awake_while_working = enabled;
-        }
-        if let Some(enabled) = patch.press_quit_twice {
-            self.press_quit_twice = enabled;
-        }
-        if let Some(aac_decoder) = patch.aac_decoder {
-            self.aac_decoder = aac_decoder;
-        }
-        if let Some(indexer_connection) = patch.indexer_connection {
-            self.indexer_connection = indexer_connection;
-        }
+        replace_with(default_acquisition_lane, patch_default_acquisition_lane);
+        replace_with(aac_decoder, patch_aac_decoder);
+        replace_with(indexer_connection, patch_indexer_connection);
         self.validate()?;
         Ok(self)
     }
 
+    /// The job limit and the encoder and output defaults a launch starts
+    /// from: the last used ones, or the pinned ones.
+    pub(super) fn launch(&self) -> PinnedDefaults {
+        PinnedDefaults {
+            max_concurrent_jobs: self.max_concurrent_jobs,
+            encoder_defaults: self.encoder_defaults.clone(),
+            output_defaults: self.output_defaults.clone(),
+        }
+    }
+
+    pub(super) fn set_launch(&mut self, launch: PinnedDefaults) {
+        let PinnedDefaults {
+            max_concurrent_jobs,
+            encoder_defaults,
+            output_defaults,
+        } = launch;
+        self.max_concurrent_jobs = max_concurrent_jobs;
+        self.encoder_defaults = encoder_defaults;
+        self.output_defaults = output_defaults;
+    }
+
     fn validate(&mut self) -> Result<()> {
-        self.max_concurrent_jobs.validate()?;
-        self.encoder_defaults.validate()?;
-        self.output_defaults.normalize();
+        let mut launch = self.launch();
+        launch.validate()?;
+        self.set_launch(launch);
         self.indexer_connection.validate()?;
         if let Some(pinned) = self.pinned_defaults.as_mut() {
             pinned.validate()?;
         }
         Ok(())
+    }
+}
+
+fn replace_with<T>(target: &mut T, patch: Option<T>) {
+    if let Some(value) = patch {
+        *target = value;
     }
 }
 
@@ -258,7 +325,12 @@ impl ConcurrencyPreference {
 
 impl EncoderDefaults {
     pub(super) fn validate(&mut self) -> Result<()> {
-        if self.format.is_opus() != (self.settings.encoder_type == EncoderType::Opus) {
+        if !self
+            .format
+            .spec()
+            .encoders
+            .contains(&self.settings.encoder_type)
+        {
             return Err(AppError::InvalidInput(
                 "The default encoder must match the selected output format.".into(),
             ));

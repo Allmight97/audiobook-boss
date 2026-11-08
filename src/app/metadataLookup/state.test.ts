@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { LookupStatus, SessionLookup } from '../../types/session';
+import type { LookupSnapshot, LookupStatus } from '../../lib/generated/tauri';
 import { toLookupState } from './state';
 
-function lookup(overrides: Partial<SessionLookup> = {}): SessionLookup {
+function lookup(overrides: Partial<LookupSnapshot> = {}): LookupSnapshot {
 	return {
 		revision: 1,
 		open: true,

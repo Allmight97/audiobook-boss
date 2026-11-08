@@ -101,122 +101,6 @@ fn a_read_fills_known_tags_and_only_text_tags_make_it_a_baseline() {
 use super::*;
 
 #[test]
-fn metadata_intent_patch_applies_set_and_clear_ops() {
-    let patch = MetadataIntentPatch {
-        title: Some(PatchOp::Set("Project Hail Mary".to_string())),
-        artist: Some(PatchOp::Clear),
-        date: Some(PatchOp::Clear),
-        album_sort: Some(AlbumSortPatchOp::Clear),
-        cover_art: Some(PatchOp::Clear),
-        ..Default::default()
-    };
-
-    let metadata = patch
-        .to_write_plan_with_source(AudiobookMetadata::default())
-        .expect("patch conversion should succeed")
-        .metadata;
-
-    assert_eq!(metadata.title.as_deref(), Some("Project Hail Mary"));
-    assert_eq!(metadata.artist.as_deref(), Some(""));
-    assert_eq!(metadata.date.as_deref(), Some(""));
-    assert_eq!(metadata.album_sort.as_deref(), Some(""));
-    assert_eq!(metadata.cover_art, Some(Vec::new()));
-}
-
-#[test]
-fn metadata_intent_patch_preserves_album_sort_when_absent() {
-    let patch = MetadataIntentPatch {
-        genre: Some(PatchOp::Set("Sci-Fi".to_string())),
-        ..Default::default()
-    };
-
-    let plan = patch
-        .to_write_plan_with_source(AudiobookMetadata::default())
-        .expect("write plan should preserve album sort");
-
-    assert_eq!(plan.metadata.genre.as_deref(), Some("Sci-Fi"));
-    assert_eq!(plan.metadata.album_sort, None);
-    assert_eq!(plan.album_sort, AlbumSortWriteAction::Preserve);
-}
-
-#[test]
-fn metadata_intent_patch_supports_album_sort_set_and_clear() {
-    let set_plan = MetadataIntentPatch {
-        album_sort: Some(AlbumSortPatchOp::Set("Custom Sort".to_string())),
-        ..Default::default()
-    }
-    .to_write_plan_with_source(AudiobookMetadata::default())
-    .expect("album sort set should compile");
-    assert_eq!(set_plan.metadata.album_sort.as_deref(), Some("Custom Sort"));
-    assert_eq!(
-        set_plan.album_sort,
-        AlbumSortWriteAction::Set("Custom Sort".to_string())
-    );
-
-    let clear_plan = MetadataIntentPatch {
-        album_sort: Some(AlbumSortPatchOp::Clear),
-        ..Default::default()
-    }
-    .to_write_plan_with_source(AudiobookMetadata::default())
-    .expect("album sort clear should compile");
-    assert_eq!(clear_plan.metadata.album_sort.as_deref(), Some(""));
-    assert_eq!(clear_plan.album_sort, AlbumSortWriteAction::Clear);
-}
-
-#[test]
-fn metadata_intent_patch_rejects_invalid_publication_date() {
-    let patch = MetadataIntentPatch {
-        date: Some(PatchOp::Set("2024-13".to_string())),
-        ..Default::default()
-    };
-
-    let err = patch
-        .to_write_plan_with_source(AudiobookMetadata::default())
-        .expect_err("invalid year should be rejected");
-
-    assert!(err.to_string().contains("YYYY"), "unexpected error: {err}");
-}
-
-#[test]
-fn metadata_intent_patch_rejects_series_part_with_slash() {
-    let patch = MetadataIntentPatch {
-        series_part: Some(PatchOp::Set("7/8".to_string())),
-        ..Default::default()
-    };
-
-    let err = patch
-        .to_write_plan_with_source(AudiobookMetadata::default())
-        .expect_err("series part with slash should be rejected");
-
-    assert!(
-        err.to_string()
-            .contains("Series sequence (#) cannot include '/'"),
-        "unexpected error: {err}"
-    );
-}
-
-#[test]
-fn metadata_intent_patch_write_contract_carries_explicit_artifact_intent_only() {
-    let patch = MetadataIntentPatch {
-        title: Some(PatchOp::Set("Read Compatible".to_string())),
-        track: Some(PatchOp::Set((3, Some(12)))),
-        disk: Some(PatchOp::Set((1, Some(2)))),
-        comment: Some(PatchOp::Set("Reader note".to_string())),
-        ..Default::default()
-    };
-
-    let resolved = patch
-        .to_write_plan_with_source(AudiobookMetadata::default())
-        .expect("write metadata compiles with explicit artifact intent")
-        .metadata;
-
-    assert_eq!(resolved.title.as_deref(), Some("Read Compatible"));
-    assert_eq!(resolved.track, Some((3, Some(12))));
-    assert_eq!(resolved.disk, Some((1, Some(2))));
-    assert_eq!(resolved.comment.as_deref(), Some("Reader note"));
-}
-
-#[test]
 fn processing_patch_apply_to_metadata_handles_set_clear_and_absent() {
     let base = AudiobookMetadata {
         title: Some("Old Title".to_string()),
@@ -336,7 +220,7 @@ fn series_family_validation_rejects_touched_orphan_shapes() {
         ..Default::default()
     };
     assert!(subseries_only
-        .to_processing_overlay()
+        .apply_to_metadata(AudiobookMetadata::default())
         .expect_err("orphan subseries should fail")
         .to_string()
         .contains("Sub-series requires a Series"));
@@ -346,7 +230,7 @@ fn series_family_validation_rejects_touched_orphan_shapes() {
         ..Default::default()
     };
     assert!(part_only
-        .to_processing_overlay()
+        .apply_to_metadata(AudiobookMetadata::default())
         .expect_err("orphan series part should fail")
         .to_string()
         .contains("requires a Series"));
@@ -358,31 +242,10 @@ fn series_family_validation_rejects_touched_orphan_shapes() {
         ..Default::default()
     };
     assert!(subseries_part_without_primary_part
-        .to_processing_overlay()
+        .apply_to_metadata(AudiobookMetadata::default())
         .expect_err("subseries part without primary part should fail")
         .to_string()
         .contains("requires Series, Series sequence"));
-}
-
-#[test]
-fn source_aware_write_plan_preserves_valid_partial_subseries() {
-    let source = AudiobookMetadata {
-        series: Some("Primary".to_string()),
-        ..Default::default()
-    };
-    let patch = MetadataIntentPatch {
-        subseries: Some(PatchOp::Set("Sub".to_string())),
-        ..Default::default()
-    };
-
-    let plan = patch
-        .to_write_plan_with_source(source)
-        .expect("primary series allows subseries name");
-
-    assert_eq!(plan.metadata.series.as_deref(), Some("Primary"));
-    assert_eq!(plan.metadata.subseries.as_deref(), Some("Sub"));
-    assert_eq!(plan.metadata.series_part, None);
-    assert_eq!(plan.metadata.subseries_part, None);
 }
 
 #[test]
@@ -400,28 +263,6 @@ fn unrelated_edits_do_not_reject_inherited_orphan_series_tags() {
         .apply_to_metadata(source.clone())
         .expect("non-series intent preserves inherited orphan");
     assert_eq!(merged.series_part.as_deref(), Some("7"));
-
-    let plan = patch
-        .to_write_plan_with_source(source)
-        .expect("non-series write intent should not validate inherited orphan");
-    assert_eq!(plan.metadata.title.as_deref(), Some("Retitled"));
-    assert_eq!(plan.metadata.series_part, None);
-}
-
-#[test]
-fn processing_patch_into_overlay_applies_without_source_metadata() {
-    let patch = MetadataIntentPatch {
-        title: Some(PatchOp::Set("Overlay Title".to_string())),
-        series: Some(PatchOp::Set("Series Name".to_string())),
-        ..Default::default()
-    };
-
-    let resolved = patch
-        .to_processing_overlay()
-        .expect("overlay-only patch should resolve");
-
-    assert_eq!(resolved.title.as_deref(), Some("Overlay Title"));
-    assert_eq!(resolved.series.as_deref(), Some("Series Name"));
 }
 
 #[test]
@@ -445,7 +286,7 @@ fn normalize_publication_date_accepts_year_month_and_full_date_prefix() {
 }
 
 #[test]
-fn validation_reply_carries_only_requested_fields() {
+fn validation_normalizes_requested_fields_and_adds_none() {
     let result = validate_metadata_intent_patch(&MetadataIntentPatch {
         title: Some(PatchOp::Set("NMR 64k".to_string())),
         date: Some(PatchOp::Set("2024-07-15".to_string())),
@@ -455,12 +296,36 @@ fn validation_reply_carries_only_requested_fields() {
     assert!(result.is_valid);
     assert!(result.field_errors.is_empty());
     assert_eq!(
-        serde_json::to_value(&result).expect("serializes")["metadataPatch"],
-        serde_json::json!({
-            "title": { "op": "set", "value": "NMR 64k" },
-            "date": { "op": "set", "value": "2024-07" },
-        })
+        result.metadata_patch,
+        MetadataIntentPatch {
+            title: Some(PatchOp::Set("NMR 64k".to_string())),
+            date: Some(PatchOp::Set("2024-07".to_string())),
+            ..Default::default()
+        }
     );
+}
+
+#[test]
+fn requested_ops_name_each_set_or_cleared_field_in_field_name_order() {
+    let patch = MetadataIntentPatch {
+        title: Some(PatchOp::Set("T".into())),
+        series_part: Some(PatchOp::Clear),
+        album_sort: Some(AlbumSortPatchOp::Set("S".into())),
+        cover_art: Some(PatchOp::Set(vec![1, 2, 3])),
+        track: Some(PatchOp::Clear),
+        ..Default::default()
+    };
+    assert_eq!(
+        patch.requested_ops(),
+        [
+            ("album_sort", "set"),
+            ("cover_art", "set"),
+            ("series_part", "clear"),
+            ("title", "set"),
+            ("track", "clear"),
+        ]
+    );
+    assert!(MetadataIntentPatch::default().requested_ops().is_empty());
 }
 
 #[test]
@@ -501,32 +366,6 @@ fn publication_year_from_date_handles_multibyte_prefix_without_panicking() {
 }
 
 #[test]
-fn artifact_clear_intents_reach_write_plan_sentinels() {
-    let patch = MetadataIntentPatch {
-        comment: Some(PatchOp::Clear),
-        track: Some(PatchOp::Clear),
-        disk: Some(PatchOp::Clear),
-        ..Default::default()
-    };
-
-    let plan = patch
-        .to_write_plan_with_source(AudiobookMetadata::default())
-        .expect("write plan");
-
-    assert_eq!(
-        plan.metadata.comment,
-        Some(String::new()),
-        "comment clear uses the empty-string sentinel the op planner clears on"
-    );
-    assert_eq!(
-        plan.metadata.track,
-        Some((0, None)),
-        "track clear uses the zero-position sentinel the op planner clears on"
-    );
-    assert_eq!(plan.metadata.disk, Some((0, None)));
-}
-
-#[test]
 fn artifact_clear_intents_remove_values_in_processing_semantics() {
     let base = AudiobookMetadata {
         comment: Some("provenance note".to_string()),
@@ -564,14 +403,4 @@ fn absent_artifact_intents_preserve_values() {
     assert_eq!(merged.comment.as_deref(), Some("keep me"));
     assert_eq!(merged.track, Some((3, Some(12))));
     assert_eq!(merged.disk, Some((1, Some(2))));
-
-    let plan = MetadataIntentPatch::default()
-        .to_write_plan_with_source(AudiobookMetadata::default())
-        .expect("write plan");
-    assert_eq!(
-        plan.metadata.comment, None,
-        "an absent field must not clear at write"
-    );
-    assert_eq!(plan.metadata.track, None);
-    assert_eq!(plan.metadata.disk, None);
 }

@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@solidjs/testing-library';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
-import type { SettingsSnapshot } from '../../types/appSettings';
+import type { SettingsSnapshot } from '../../lib/generated/tauri';
 import { SettingsPersistenceNotice } from '.';
 
 let runtime: AppRuntime | undefined;

@@ -102,6 +102,16 @@ const RULES: Rule[] = [
 			'renders a cover outside CoverImage, which owns lazy loading, the fade-in, and the broken-image state. Fix: render `<CoverImage>` from src/ui/foundation.',
 	},
 	{
+		appliesTo: (file) =>
+			/^src\/.*\.tsx?$/.test(file) &&
+			!/\.test\.tsx?$/.test(file) &&
+			!file.startsWith('src/lib/platform/'),
+		comment: /^\s*(\/\/|\*|\/\*)/,
+		findIn: (line) => line.match(/navigator\.userAgent|⌘Q/)?.[0] ?? null,
+		message:
+			'words the host OS outside src/lib/platform. Fix: import the helper or constant from src/lib/platform (src/ui/AGENTS.md).',
+	},
+	{
 		appliesTo: SCRIPT_SOURCE,
 		findIn: (line) =>
 			/\boxlint-disable/.test(line) && !line.includes(' -- ') ? 'oxlint-disable' : null,
@@ -128,6 +138,13 @@ const RULES: Rule[] = [
 		findIn: (line) => line.match(/\bcrate::audio::(?:\{[^}]*)?\bAudioFile\b/)?.[0] ?? null,
 		message:
 			'reads the audio import model from metadata. Fix: pass the paths or tag facts metadata needs (crates/abb-engine/src/metadata/AGENTS.md).',
+	},
+	{
+		appliesTo: ENGINE_DIR('audio'),
+		comment: /^\s*\/\//,
+		findIn: (line) => line.match(/\bcrate::processing\b/)?.[0] ?? null,
+		message:
+			'reaches up into processing from the audio pipeline. Fix: import the leaf name from crate::execution (crates/abb-engine/AGENTS.md, Owner Routes).',
 	},
 	{
 		appliesTo: (file) => PROVIDER_NEUTRAL_OWNERS.some((dir) => ENGINE_DIR(dir)(file)),

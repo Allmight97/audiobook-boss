@@ -1,4 +1,4 @@
-import type { TagPreview } from '../../types/session';
+import type { TagPreview } from '../../lib/generated/tauri';
 
 export type TagRow = {
 	field: keyof TagPreview;

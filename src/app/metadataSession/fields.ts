@@ -1,13 +1,12 @@
 import type {
 	FieldAction,
+	FormMode,
 	MetadataField,
 	MetadataFormSnapshot,
 	SeriesPartWarning,
 	SubseriesPartWarning,
-} from '../../types/session';
+} from '../../lib/generated/tauri';
 
-type MetadataFormMode = 'single' | 'multi';
-export type MetadataFieldAction = FieldAction;
 type MetadataFieldId =
 	| 'meta-title'
 	| 'meta-author'
@@ -126,7 +125,7 @@ export const METADATA_FIELD_DEFINITIONS = [
 
 type MetadataFieldState = {
 	readonly value: string;
-	readonly action: MetadataFieldAction;
+	readonly action: FieldAction;
 	readonly dirty: boolean;
 	readonly mixed: boolean;
 };
@@ -137,7 +136,7 @@ type MetadataWarningState = {
 };
 
 export type MetadataFormState = {
-	readonly mode: MetadataFormMode;
+	readonly mode: FormMode;
 	readonly selectionCount: number;
 	readonly fields: Record<MetadataFieldId, MetadataFieldState>;
 	readonly seriesPartWarning: MetadataWarningState;

@@ -56,14 +56,14 @@ fn license_request_matches_aaxc_adaptive_license_shape() {
     );
 }
 
-use crate::errors::{AppError, Result as AppResult};
+use crate::errors::AppError;
+use crate::remote_source::test_support::{keychain_locked, MemoryVault};
 use crate::remote_source::vault::SecretVault;
 use audible_api::auth::register::Registration;
 use audible_api::auth::{localization, Auth};
-use secrecy::{ExposeSecret, SecretString};
+use secrecy::ExposeSecret;
 use serde_json::json;
 use std::collections::HashMap;
-use std::sync::Mutex;
 
 pub(in crate::remote_source) fn fixture_auth() -> Auth {
     Auth {
@@ -86,85 +86,19 @@ pub(in crate::remote_source) fn fixture_auth() -> Auth {
     }
 }
 
-#[derive(Default)]
-struct MockSecretVault {
-    secrets: Mutex<HashMap<String, String>>,
-    get_error: Mutex<Option<AppError>>,
-    set_error: Mutex<Option<AppError>>,
-    set_calls: Mutex<Vec<String>>,
-    delete_calls: Mutex<Vec<String>>,
-    ephemeral: std::sync::atomic::AtomicBool,
+fn seed_auth(vault: &MemoryVault, key: &str, auth: &Auth) {
+    vault.seed(key, &serde_json::to_string(auth).expect("serialize"));
 }
 
-impl MockSecretVault {
-    fn seed_raw(&self, key: &str, value: &str) {
-        self.secrets
-            .lock()
-            .expect("lock")
-            .insert(key.to_string(), value.to_string());
-    }
-    fn seed_auth(&self, key: &str, auth: &Auth) {
-        let serialized = serde_json::to_string(auth).expect("serialize");
-        self.seed_raw(key, &serialized);
-    }
-    fn set_get_error(&self, error: AppError) {
-        *self.get_error.lock().expect("lock") = Some(error);
-    }
-    fn set_set_error(&self, error: AppError) {
-        *self.set_error.lock().expect("lock") = Some(error);
-    }
-    fn set_calls(&self) -> Vec<String> {
-        self.set_calls.lock().expect("lock").clone()
-    }
-    fn delete_calls(&self) -> Vec<String> {
-        self.delete_calls.lock().expect("lock").clone()
-    }
-    fn set_ephemeral(&self) {
-        self.ephemeral
-            .store(true, std::sync::atomic::Ordering::Relaxed);
-    }
-}
-
-impl SecretVault for MockSecretVault {
-    fn survives_restart(&self) -> bool {
-        !self.ephemeral.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    fn get_secret(&self, key: &str) -> AppResult<Option<SecretString>> {
-        if let Some(error) = self.get_error.lock().expect("lock").take() {
-            return Err(error);
-        }
-        Ok(self
-            .secrets
-            .lock()
-            .expect("lock")
-            .get(key)
-            .map(|value| SecretString::from(value.clone())))
-    }
-    fn set_secret(&self, key: &str, value: SecretString) -> AppResult<()> {
-        self.set_calls.lock().expect("lock").push(key.to_string());
-        if let Some(error) = self.set_error.lock().expect("lock").take() {
-            return Err(error);
-        }
-        self.secrets
-            .lock()
-            .expect("lock")
-            .insert(key.to_string(), value.expose_secret().to_string());
-        Ok(())
-    }
-    fn delete_secret(&self, key: &str) -> AppResult<()> {
-        self.delete_calls
-            .lock()
-            .expect("lock")
-            .push(key.to_string());
-        self.secrets.lock().expect("lock").remove(key);
-        Ok(())
-    }
+pub(in crate::remote_source) fn signed_in_vault() -> MemoryVault {
+    let vault = MemoryVault::default();
+    seed_auth(&vault, AUTH_SECRET_KEY, &fixture_auth());
+    vault
 }
 
 #[test]
 fn persist_auth_stores_serialized_auth_and_reports_connected() {
-    let vault = MockSecretVault::default();
+    let vault = MemoryVault::default();
     let auth = fixture_auth();
 
     let state = AudibleProvider::persist_auth(&vault, &auth).expect("persist");
@@ -184,8 +118,7 @@ fn persist_auth_stores_serialized_auth_and_reports_connected() {
 
 #[test]
 fn persist_auth_propagates_vault_write_error() {
-    let vault = MockSecretVault::default();
-    vault.set_set_error(AppError::ResourceCleanup("keychain locked".to_string()));
+    let vault = MemoryVault::default().failing_writes(keychain_locked);
     let auth = fixture_auth();
 
     let error = AudibleProvider::persist_auth(&vault, &auth).expect_err("propagated");
@@ -196,7 +129,7 @@ fn persist_auth_propagates_vault_write_error() {
 
 #[test]
 fn account_state_needs_auth_when_vault_has_no_secret() {
-    let vault = MockSecretVault::default();
+    let vault = MemoryVault::default();
 
     let state = AudibleProvider::account_state(&vault).expect("state");
 
@@ -209,8 +142,8 @@ fn account_state_needs_auth_when_vault_has_no_secret() {
 
 #[test]
 fn account_state_connected_when_vault_holds_valid_auth() {
-    let vault = MockSecretVault::default();
-    vault.seed_auth(AUTH_SECRET_KEY, &fixture_auth());
+    let vault = MemoryVault::default();
+    seed_auth(&vault, AUTH_SECRET_KEY, &fixture_auth());
 
     let state = AudibleProvider::account_state(&vault).expect("state");
 
@@ -220,8 +153,7 @@ fn account_state_connected_when_vault_holds_valid_auth() {
 
 #[test]
 fn account_state_says_sign_in_will_not_be_remembered_when_the_store_does_not_survive_restart() {
-    let vault = MockSecretVault::default();
-    vault.set_ephemeral();
+    let vault = MemoryVault::default().ephemeral();
 
     let needs_auth = AudibleProvider::account_state(&vault).expect("state");
     assert_eq!(needs_auth.status, RemoteAccountStatus::NeedsAuth);
@@ -233,7 +165,7 @@ fn account_state_says_sign_in_will_not_be_remembered_when_the_store_does_not_sur
         ))
     );
 
-    vault.seed_auth(AUTH_SECRET_KEY, &fixture_auth());
+    seed_auth(&vault, AUTH_SECRET_KEY, &fixture_auth());
     let connected = AudibleProvider::account_state(&vault).expect("state");
     assert_eq!(connected.status, RemoteAccountStatus::Connected);
     assert_eq!(
@@ -244,8 +176,7 @@ fn account_state_says_sign_in_will_not_be_remembered_when_the_store_does_not_sur
 
 #[test]
 fn account_state_propagates_vault_read_error_instead_of_needs_auth() {
-    let vault = MockSecretVault::default();
-    vault.set_get_error(AppError::ResourceCleanup("keychain locked".to_string()));
+    let vault = MemoryVault::default().failing_reads(keychain_locked);
 
     let error = AudibleProvider::account_state(&vault).expect_err("propagated");
 
@@ -254,8 +185,8 @@ fn account_state_propagates_vault_read_error_instead_of_needs_auth() {
 
 #[test]
 fn logout_deletes_secret_and_subsequent_account_state_needs_auth() {
-    let vault = MockSecretVault::default();
-    vault.seed_auth(AUTH_SECRET_KEY, &fixture_auth());
+    let vault = MemoryVault::default();
+    seed_auth(&vault, AUTH_SECRET_KEY, &fixture_auth());
 
     AudibleProvider::logout(&vault).expect("logout");
 
@@ -266,7 +197,7 @@ fn logout_deletes_secret_and_subsequent_account_state_needs_auth() {
 
 #[test]
 fn auth_from_vault_returns_invalid_input_when_not_connected() {
-    let vault = MockSecretVault::default();
+    let vault = MemoryVault::default();
 
     let error = auth_from_vault(&vault).expect_err("not connected");
 
@@ -275,8 +206,7 @@ fn auth_from_vault_returns_invalid_input_when_not_connected() {
 
 #[test]
 fn auth_from_vault_propagates_vault_read_error() {
-    let vault = MockSecretVault::default();
-    vault.set_get_error(AppError::ResourceCleanup("keychain locked".to_string()));
+    let vault = MemoryVault::default().failing_reads(keychain_locked);
 
     let error = auth_from_vault(&vault).expect_err("propagated");
 
@@ -285,9 +215,9 @@ fn auth_from_vault_propagates_vault_read_error() {
 
 #[test]
 fn corrupt_stored_auth_error_does_not_leak_secret_bytes() {
-    let vault = MockSecretVault::default();
+    let vault = MemoryVault::default();
     let secret_payload = "not-valid-json{sensitive-token-value}";
-    vault.seed_raw(AUTH_SECRET_KEY, secret_payload);
+    vault.seed(AUTH_SECRET_KEY, secret_payload);
 
     let account_error = AudibleProvider::account_state(&vault).expect_err("corrupt auth");
     assert!(!account_error.to_string().contains("sensitive-token-value"));

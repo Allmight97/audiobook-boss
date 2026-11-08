@@ -1,17 +1,12 @@
 import { createSignal, type Accessor } from 'solid-js';
 import { createTypingEcho, type EngineLink } from '../engineLink';
-import type { SessionIntent } from '../../types/session';
-import {
-	toLookupState,
-	type MetadataLookupApplyMode,
-	type MetadataLookupSource,
-	type MetadataLookupState,
-} from './state';
+import type { LookupApplyMode, SessionIntent } from '../../lib/generated/tauri';
+import { toLookupState, type MetadataLookupSource, type MetadataLookupState } from './state';
 
 type MetadataLookupAction =
 	| { type: 'applyResult'; index: number }
 	| { type: 'close' }
-	| { type: 'manualEntry' }
+	| { type: 'manualEntry'; afterClose: () => void }
 	| { type: 'open' }
 	| { type: 'search' }
 	| { type: 'skipQueueItem' };
@@ -22,12 +17,10 @@ export type MetadataLookupOwner = {
 	setTitleQuery: (value: string) => void;
 	setAuthorQuery: (value: string) => void;
 	setSource: (value: MetadataLookupSource) => void;
-	setApplyMode: (value: MetadataLookupApplyMode) => void;
+	setApplyMode: (value: LookupApplyMode) => void;
 	setReplaceCover: (value: boolean) => void;
 	reset: () => void;
 };
-
-const METADATA_TITLE_INPUT_ID = 'meta-title';
 
 function intentFor(action: MetadataLookupAction, lookupRevision: number): SessionIntent {
 	switch (action.type) {
@@ -85,7 +78,7 @@ export function createMetadataLookupOwner(deps: {
 				return;
 			}
 			if (action.type === 'manualEntry') {
-				queueMicrotask(() => document.getElementById(METADATA_TITLE_INPUT_ID)?.focus());
+				queueMicrotask(action.afterClose);
 			}
 		},
 		setTitleQuery(value) {

@@ -1,34 +1,52 @@
 import {
-	formatDuration,
-	formatFileSize,
-	formatAudioBitrate,
-	SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT,
 	type AudioFile,
-} from '../../types/audio';
+	type InputNotice,
+	SUPPORTED_AUDIO_IMPORT_SUPPORT_TEXT,
+	type SelectionSnapshot,
+	type TitleTotals,
+	type TitlesSnapshot,
+} from '../../lib/generated/tauri';
+import { formatAudioBitrate, formatDuration, formatFileSize } from '../../lib/format/audio';
 import { toUserMessage } from '../../lib/tauri/appError';
-import type { InputNotice, SessionSelection, SessionTitles } from '../../types/session';
 import { fileIdentityKey, type InputView } from './types';
 
 export function acceptedChapterCount(file: AudioFile): number {
 	return file.chapterPlan?.chapters.length ?? 0;
 }
 
-export function formatFileDetails(
+function readyDetails(
 	file: AudioFile,
-	chapterCount = acceptedChapterCount(file),
+	duration: number | null | undefined,
+	size: number | null | undefined,
+	chapterCount: number,
 ): string {
-	const artist = file.artist ?? '';
-	const artistPrefix = artist ? `${artist} • ` : '';
+	const artistPrefix = file.artist ? `${file.artist} • ` : '';
 	const chapterSuffix = chapterCount
 		? ` • ${chapterCount} chapter${chapterCount === 1 ? '' : 's'}`
 		: '';
-	if (file.isValid && file.duration && file.size) {
-		return `${artistPrefix}${formatDuration(file.duration)} • ${formatFileSize(file.size)} • ${file.format}${chapterSuffix}`;
+	const length = duration ? formatDuration(duration) : '---';
+	const bytes = size ? formatFileSize(size) : '---';
+	return `${artistPrefix}${length} • ${bytes} • ${file.format ?? '---'}${chapterSuffix}`;
+}
+
+export function formatFileDetails(file: AudioFile): string {
+	switch (file.status) {
+		case 'ready':
+			return readyDetails(file, file.duration, file.size, acceptedChapterCount(file));
+		case 'removedFinished':
+			return file.error ?? '';
+		case 'failed':
+			return `Error: ${file.error || 'Invalid file'}`;
 	}
-	if (file.sourceRemoved) {
-		return file.error ?? '';
-	}
-	return `Error: ${file.error || 'Invalid file'}`;
+}
+
+export function titleDetails(
+	file: AudioFile,
+	grouped: boolean,
+	totals: TitleTotals | undefined,
+): string {
+	if (!grouped || file.status !== 'ready') return formatFileDetails(file);
+	return readyDetails(file, totals?.durationSeconds, totals?.sizeBytes, totals?.chapterCount ?? 0);
 }
 
 function inputNoticeText(notice: InputNotice | null): string {
@@ -54,8 +72,8 @@ function inputNoticeText(notice: InputNotice | null): string {
 }
 
 export function toInputView(
-	titles: SessionTitles,
-	selection: SessionSelection,
+	titles: TitlesSnapshot,
+	selection: SelectionSnapshot,
 	local: {
 		readonly errorMessage: string;
 		readonly isDragOver: boolean;
@@ -73,6 +91,7 @@ export function toInputView(
 			const file = files[index];
 			return file ? sourcesOf(file) : [];
 		}),
+		selectedTitles: selection.selectedIndices.flatMap((index) => files[index] ?? []),
 		selectedIndices: selection.selectedIndices,
 		selectedAnchor: selection.selectedAnchor ?? -1,
 		fileCount: files.length,

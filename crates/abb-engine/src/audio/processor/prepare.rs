@@ -1,13 +1,12 @@
 use crate::audio::AudioFile;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::processing::{PreviewConfig, ProcessingContext};
+use crate::execution::preview_config;
+use crate::execution::ProcessingContext;
 
+use super::workspace::Workspace;
 use super::ProcessingWorkflow;
 
-pub(crate) fn validate_processing_inputs(
-    context: &ProcessingContext,
-    files: &[AudioFile],
-) -> Result<()> {
+fn validate_processing_inputs(files: &[AudioFile]) -> Result<()> {
     if files.is_empty() {
         return Err(AppError::InvalidInput("No files to process".to_string()));
     }
@@ -32,51 +31,34 @@ pub(crate) fn validate_processing_inputs(
         )?;
     }
 
-    crate::audio::settings::validate_sample_rate_config(&context.sample_rate)?;
     Ok(())
 }
 
-pub(crate) fn prepare_workspace(
-    context: &ProcessingContext,
-    files: &[AudioFile],
-    cleanup: &mut crate::audio::CleanupGuard,
-) -> Result<ProcessingWorkflow> {
-    let temp_dir = crate::audio::processor::staging::create_processing_workspace_dir(
-        context.session.uuid(),
-        context.processing_workspace_root(),
-    )?;
-
-    cleanup.add_path(&temp_dir);
-    let total_duration = progress_total_duration(files, context.preview.as_ref());
-
-    if context.is_cancelled() {
-        return Err(AppError::cancelled());
-    }
-
-    Ok(ProcessingWorkflow::new(temp_dir, total_duration))
-}
-
-pub(crate) fn progress_total_duration(files: &[AudioFile], preview: Option<&PreviewConfig>) -> f64 {
+fn progress_total_duration(files: &[AudioFile], preview: bool) -> f64 {
     let durations: Vec<f64> = files
         .iter()
         .map(|file| file.duration.unwrap_or_default())
         .collect();
-    preview.map_or_else(
-        || durations.iter().sum(),
-        |preview| preview.title_seconds(&durations),
-    )
+    if preview {
+        preview_config::title_seconds(&durations)
+    } else {
+        durations.iter().sum()
+    }
 }
 
-pub(crate) fn validate_and_prepare(
+pub(super) fn prepare(
     context: &ProcessingContext,
     files: &[AudioFile],
-    cleanup: &mut crate::audio::CleanupGuard,
 ) -> Result<ProcessingWorkflow> {
-    validate_processing_inputs(context, files)?;
+    validate_processing_inputs(files)?;
+    let workspace = Workspace::open(context)?;
     if context.is_cancelled() {
         return Err(AppError::cancelled());
     }
-    prepare_workspace(context, files, cleanup)
+    Ok(ProcessingWorkflow {
+        workspace,
+        total_duration: progress_total_duration(files, context.is_preview()),
+    })
 }
 
 #[cfg(test)]

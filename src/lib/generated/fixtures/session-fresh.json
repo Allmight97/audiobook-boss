@@ -63,11 +63,18 @@
           88200,
           96000
         ],
+        "bitrateKbps": 65,
         "bitrateKbpsMax": 1152,
         "bitrateKbpsMin": 1,
         "bitrateMode": {
           "mode": "cbr"
         },
+        "channelOptions": [
+          "auto",
+          "mono",
+          "stereo"
+        ],
+        "codecFamily": "aac",
         "downmixWarning": false,
         "effectiveEncoder": "native_aac",
         "encoderLocked": false,
@@ -86,6 +93,32 @@
           }
         ],
         "faacProfiles": [],
+        "formatOptions": [
+          {
+            "codecFamily": "aac",
+            "format": "m4b"
+          },
+          {
+            "codecFamily": "opus",
+            "format": "m4aOpus"
+          },
+          {
+            "codecFamily": "opus",
+            "format": "mkaOpus"
+          }
+        ],
+        "intentOptions": [
+          "auto",
+          "preserve",
+          "encode"
+        ],
+        "nativeSpeedOptions": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
         "sampleRateSupported": true
       },
       "request": {
@@ -263,6 +296,18 @@
         3000,
         3030
       ],
+      "categoryOptions": [
+        {
+          "id": 3030,
+          "label": "Audiobooks (3030)",
+          "recommended": true
+        },
+        {
+          "id": 3000,
+          "label": "Audio (3000)",
+          "recommended": false
+        }
+      ],
       "draftError": null,
       "emptyCategoriesRefused": false,
       "save": {
@@ -271,7 +316,8 @@
       "test": {
         "kind": "idle"
       },
-      "testResult": null
+      "testResult": null,
+      "usesHttp": false
     },
     "includePdfByTitleId": {},
     "indexer": {

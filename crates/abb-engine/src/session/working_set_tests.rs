@@ -189,7 +189,7 @@ fn reordering_and_sorting_keep_the_selected_titles_selected() {
 }
 
 #[test]
-fn a_locked_order_blocks_every_mutation_and_explains_a_refused_import() {
+fn a_locked_order_blocks_every_mutation() {
     let mut set = set_with(&["a", "b", "c"]);
     set.select_file(0, NO_MODIFIERS);
     set.select_file(1, MULTI);
@@ -203,11 +203,8 @@ fn a_locked_order_blocks_every_mutation_and_explains_a_refused_import() {
     assert!(!set.clear_all());
     assert!(!set.group_selected());
     set.set_audio_request("a", request(AudioIntent::Encode));
-    set.append_analyzed(vec![file("d")], &request(AudioIntent::Auto));
 
     assert_eq!(names(&set), ["a", "b", "c"]);
-    let snapshot = set.titles(0);
-    assert_eq!(snapshot.notice, Some(InputNotice::OrderLocked));
     assert_eq!(
         set.audio_request("a").expect("request").intent,
         AudioIntent::Auto
@@ -322,23 +319,33 @@ fn a_cue_choice_confirms_or_ignores_without_touching_other_sources() {
         from_cue: true,
         source_fingerprint: "1:1".into(),
     });
-    with_cue.cue_source = Some(CueSource {
-        file_name: "cue.cue".into(),
-        status: CueStatus::NeedsConfirmation,
-        message: String::new(),
-    });
+    with_cue.cue_source = Some(CueSource::new(
+        "cue.cue".into(),
+        CueStatus::NeedsConfirmation,
+        String::new(),
+    ));
     let mut set = WorkingSet::default();
     set.append_analyzed(
         vec![with_cue, file("plain.mp3")],
         &request(AudioIntent::Auto),
     );
 
-    set.choose_cue("cue.mp3", CueChoice::ConfirmHundredths);
     let cue = |set: &WorkingSet| set.files()[0].cue_source.clone().expect("cue source");
+    assert_eq!(
+        cue(&set).actions,
+        [CueChoice::ConfirmHundredths, CueChoice::Ignore]
+    );
+
+    set.choose_cue("cue.mp3", CueChoice::ConfirmHundredths);
+    assert_eq!(cue(&set).status, CueStatus::Ready);
+    assert_eq!(cue(&set).actions, [CueChoice::Ignore]);
+
+    set.choose_cue("cue.mp3", CueChoice::ConfirmHundredths);
     assert_eq!(cue(&set).status, CueStatus::Ready);
 
     set.choose_cue("cue.mp3", CueChoice::Ignore);
     assert_eq!(cue(&set).status, CueStatus::Ignored);
+    assert!(cue(&set).actions.is_empty());
     let plan = set.files()[0].chapter_plan.clone().expect("chapter plan");
     assert!(!plan.from_cue);
     assert_eq!(plan.chapters, embedded);

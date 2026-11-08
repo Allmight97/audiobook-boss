@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AcquisitionJob } from '../../types/remoteSource';
+import type { AcquisitionSnapshot } from '../../lib/generated/tauri';
 import { audioFile, createFakeEngine } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime } from './index';
 
@@ -11,7 +11,7 @@ function createDeferred<T>() {
 	return { promise, resolve };
 }
 
-function runningJob(): AcquisitionJob {
+function runningJob(): AcquisitionSnapshot {
 	return {
 		settled: false,
 		terminal: false,
@@ -92,7 +92,7 @@ describe('app runtime', () => {
 		};
 		expect(third.settings.dialog().isOpen).toBe(false);
 		expect(third.lookup.view().titleQuery).toBe('');
-		expect(third.encoding.view().effectiveFlavor).toBe('native_aac');
+		expect(third.encoding.form({ kind: 'defaults' }).view()?.effectiveFlavor).toBe('native_aac');
 		expect(third.processing.status().stepText).toBe('Current Step: Ready');
 		expect(third.remoteSource.view().isOpen).toBe(false);
 	});
@@ -100,7 +100,7 @@ describe('app runtime', () => {
 	it('a new runtime finds the session a disposed one left, without its view-local state', async () => {
 		const engine = createFakeEngine();
 		const first = await createAppRuntime({ engine });
-		engine.loadTitles([audioFile('/books/alpha.m4b')]);
+		engine.loadTitles([audioFile('/books/alpha.m4b', { status: 'ready' })]);
 		first.input.setDragOver(true);
 		expect(first.input.view().isDragOver).toBe(true);
 		expect(first.input.view().fileCount).toBe(1);

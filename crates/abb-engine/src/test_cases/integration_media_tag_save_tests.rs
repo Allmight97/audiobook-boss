@@ -6,16 +6,15 @@
 
 use super::media_fixtures::{
     assert_ffprobe_tag, ffmpeg, ffprobe_format_tags, minimal_jpg_bytes, picture_codecs,
-    write_sine_mp3, write_sine_mp3_with, write_sine_wav, write_two_picture_fixture, MediaLane,
+    write_sine_mp3, write_sine_mp3_with, write_two_picture_fixture, MediaLane,
 };
-use abb_engine::audio::{
-    execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, SampleRateConfig,
-};
-use abb_engine::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
-use abb_engine::{
+use super::support::wav::{write_sine_wav, SAMPLE_RATE};
+use crate::audio::{execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest};
+use crate::metadata::{
     finalize_artifact_metadata, read_audio_cover_thumbnail, read_metadata, save_metadata_intent,
     AlbumSortPatchOp, AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp,
 };
+use crate::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
 use image::{GenericImageView, ImageFormat};
 use std::fs;
 use std::path::Path;
@@ -106,7 +105,7 @@ fn clearing_the_album_sort_on_an_mka_removes_the_tag_the_file_holds() {
     save_metadata_intent(
         &mka,
         &MetadataIntentPatch {
-            album_sort: Some(abb_engine::AlbumSortPatchOp::Clear),
+            album_sort: Some(crate::metadata::AlbumSortPatchOp::Clear),
             ..Default::default()
         },
     )
@@ -126,7 +125,7 @@ async fn preserving_an_mka_with_cleared_fields_leaves_none_of_them_in_the_copy()
         get_file_list_info(std::slice::from_ref(&source), AacDecoder::Auto).expect("probe source");
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
-        SampleRateConfig::Auto,
+        SAMPLE_RATE,
         OutputConfig::new(&destination),
         dir.path().join("workspace"),
     );

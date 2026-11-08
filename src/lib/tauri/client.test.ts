@@ -26,80 +26,22 @@ describe('tauriClient', () => {
 			},
 		});
 
-		const reply = await tauriClient.settingsDispatch(7, 2, {
-			kind: 'remember',
-			encoderDefaults: null,
-			outputDefaults: null,
-			defaultAcquisitionLane: 'indexer',
+		const reply = await tauriClient.commands.settingsDispatch(7, 2, {
+			kind: 'setDefaultAcquisitionLane',
+			lane: 'indexer',
 		});
 
 		expect(invoke).toHaveBeenLastCalledWith('settings_dispatch', {
 			client: 7,
 			sequence: 2,
 			intent: {
-				kind: 'remember',
-				encoderDefaults: null,
-				outputDefaults: null,
-				defaultAcquisitionLane: 'indexer',
+				kind: 'setDefaultAcquisitionLane',
+				lane: 'indexer',
 			},
 		});
 		expect(reply.outcome).toEqual({ kind: 'applied' });
 		expect(reply.snapshot.settings).toBeNull();
 		expect(reply.snapshot.recovery).toBeNull();
-	});
-
-	it('carries identified decisions and preserves nullable held-question facts', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const { tauriClient } = await import('./client');
-		vi.mocked(invoke).mockResolvedValueOnce({
-			outcome: { kind: 'superseded' },
-			update: {
-				revision: 4,
-				output: {
-					revision: 4,
-					directory: null,
-					preset: 'absDefault',
-					includeYear: false,
-					template: '',
-					naming: { preset: 'absDefault', includeYear: false, customTemplate: null },
-					preview: { kind: 'noDirectory' },
-					submission: null,
-					submissionInProgress: true,
-					collisionReview: {
-						reviewId: 42,
-						outputs: [
-							{
-								inputIndex: 0,
-								inputPath: '/source.m4b',
-								kind: 'final',
-								requestedPath: '/out.m4b',
-								resolvedPath: '/out.m4b',
-								collision: null,
-								action: 'review_required',
-								review: null,
-							},
-						],
-					},
-					restartOffers: [],
-					restartPrompt: null,
-					previewRun: null,
-				},
-			},
-		});
-		const reply = await tauriClient.sessionDispatch(7, 2, {
-			kind: 'chooseCollisionPolicy',
-			reviewId: 41,
-			policy: 'replace_existing',
-		});
-		expect(invoke).toHaveBeenLastCalledWith('session_dispatch', {
-			client: 7,
-			sequence: 2,
-			intent: { kind: 'chooseCollisionPolicy', reviewId: 41, policy: 'replace_existing' },
-		});
-		expect(reply.outcome).toEqual({ kind: 'superseded' });
-		expect(reply.update.output?.collisionReview?.reviewId).toBe(42);
-		expect(reply.update.output?.restartPrompt).toBeNull();
-		expect(reply.update.output?.submissionInProgress).toBe(true);
 	});
 
 	describe('native dialog and opener helpers', () => {
@@ -163,12 +105,37 @@ describe('tauriClient errors', () => {
 
 		const { tauriClient } = await import('./client');
 
-		await expect(tauriClient.cancelWorkOperation('mock-operation-1')).rejects.toMatchObject({
+		await expect(
+			tauriClient.commands.cancelWorkOperation('mock-operation-1', null),
+		).rejects.toMatchObject({
 			code: 'processing_cancelled',
 			category: 'cancellation',
 			message: 'Processing was cancelled',
 			detail: 'user requested stop',
 		});
+	});
+
+	it('never reads a refused command as success', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const { tauriClient } = await import('./client');
+		const commands = Object.values(tauriClient.commands);
+		const refusal = {
+			code: 'processing_cancelled',
+			category: 'cancellation',
+			message: 'Processing was cancelled',
+			detail: 'user requested stop',
+		} satisfies AppErrorEnvelope;
+		for (let sent = 0; sent < commands.length; sent += 1) {
+			vi.mocked(invoke).mockRejectedValueOnce(refusal);
+		}
+
+		await Promise.all(
+			commands.map((command) =>
+				expect(Promise.resolve(Reflect.apply(command, undefined, []))).rejects.toMatchObject({
+					code: 'processing_cancelled',
+				}),
+			),
+		);
 	});
 
 	it('shows the fallback text when an error field is an object', async () => {

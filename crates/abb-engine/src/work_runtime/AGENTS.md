@@ -34,10 +34,11 @@
   tags change only through its `TitleOutput::update`, which the session
   calls), operation snapshots, operation and title cancellation, and Work
   Center event truth.
-- Cancellation: a processing operation holds one cancel flag per output title,
-  and whole-operation cancel sets them all. `cancel_operation` with a
+- Cancellation: a processing operation holds one cancel token per output title,
+  all children of one operation token, and whole-operation cancel cancels the
+  operation token. `cancel_operation` with a
   `child_job_id` cancels only that title. Only processing titles cancel one at
-  a time; a metadata save's files share one flag. Repeating a cancel, or
+  a time; a metadata save's files share one token. Repeating a cancel, or
   cancelling a finished title, returns the current snapshot. Child
   `cancellable` is the authority for offering title cancel; the Work Center
   adds only that the operation has more than one title.
@@ -50,13 +51,25 @@
   progress through the output's Completed event. Keep each child's finish when
   the batch settles; missing timestamps mean unknown, so derive them from
   neither logs nor batch duration.
+- `concurrency_locked` in the operations snapshot and every update is the job
+  registry's rule (a job or a held run is active), the same one that refuses a
+  job-limit change. `follow_concurrency_lock` publishes an update, without a
+  `changed` operation, whenever that rule's answer changes, so the lock can
+  clear after an operation's last update. Hosts keep the value of the update
+  with the highest `revision`.
 - An export holds concurrency fixed from acceptance to its end, including
-  between titles. Title sources are recorded before the operation is visible,
-  so a file is never reported free between acceptance and the first read.
+  between titles. One lock guards every operation's snapshot beside its live
+  record (title cancel tokens and sources). Acceptance inserts both together,
+  so a file is never reported free between acceptance and the first read;
+  only finishing removes the record, in the same critical section that writes
+  the terminal snapshot. Sources are therefore free before `on_finished` runs.
+  Terminalizing runs under the lock; `TitleOutput::end`, event emission and
+  `on_finished` run outside it, because `TitleOutput::end` calls a listener
+  that takes the lock. A cancel cancels its tokens in the same critical section
+  that writes the Cancelling snapshot.
 - A metadata save's children match progress by `input_index` and carry no
   per-file `job_id`: a shared one would cross-match in `apply_progress_event`.
-  A cancel during the registry permit wait ends the operation as Cancelled and
-  keeps the per-file results.
+  A cancel ends the operation as Cancelled and keeps the per-file results.
 - Stamp per-operation `revision` under the state lock before mutable access.
 - Every change reaches hosts as one `EngineEvent::WorkOperations`
   (`WorkOperationsUpdate`): the changed operation plus the display order,
@@ -75,4 +88,19 @@
   its own prune). Running and accepted operations are never pruned.
 - Reach processing through `processing::run`.
 - `WorkProgressStage` is a work_runtime-owned display vocabulary;
-  `src/app/processing/render.ts` words each stage directly.
+  `src/app/workOperations/labels.ts` words each stage.
+- A progress event never changes an operation's status; only the run's result
+  or abort does, through `terminalize` (`state.rs`). Why: the UI,
+  `unfinished_exports`, and `abb-dev` read a terminal status as finished, and a
+  title's cleanup ends after its last progress event. A single-title operation still mirrors its
+  title's stage, message, and ETA.
+- `stage_table.rs` is the one table relating result status, event stage, child
+  status, finished operation status, and display stage. `Cleaning` is the wire
+  value that shows an operation as cancelling (`CANCELLING_STAGE`).
+- `OperationSnapshot.phase` (`accepted`, `active`, `finished`) is the only
+  answer to "has it started" and "is it over". `active` means running or
+  cancelling, including cancelling an operation that never started; read
+  whether it started from `started_at_ms`. `OperationSnapshot::set_status` is
+  the one writer of `status` and derives `phase` from the stage table. Hosts,
+  `abb-dev`, session previews and the UI read `phase` and keep no status list
+  of their own.

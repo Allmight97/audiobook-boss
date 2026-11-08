@@ -6,20 +6,23 @@
 
 use super::media_fixtures::{
     assert_auto_merge_stereo, audio_duration_ts, audio_stream_timing, chapters_of, decode_pcm_f32,
-    ffmpeg, ffprobe, find_atom, minimal_jpg_bytes, native_encoder_settings, next_atom, parse_mdhd,
-    timed_text_chapter_track, write_sine_wav, write_stereo_sine_wav, MediaLane, SAMPLE_RATE,
+    ffmpeg, ffprobe, find_atom, minimal_jpg_bytes, next_atom, parse_mdhd, timed_text_chapter_track,
+    MediaLane,
 };
-use abb_engine::audio::{
-    execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, ChannelConfig,
-    EncoderSettings, SampleRateConfig,
+use super::support::encoders::{native_encoder_settings, stereo_native_encoder_settings};
+use super::support::wav::{write_sine_wav, write_stereo_sine_wav, SAMPLE_RATE};
+use crate::audio::{
+    execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, EncoderSettings,
+    SampleRateConfig,
 };
 #[cfg(target_os = "macos")]
-use abb_engine::audio::{BitrateMode, EncoderType};
-use abb_engine::processing::{
+use crate::audio::{BitrateMode, ChannelConfig, EncoderType};
+use crate::metadata::{read_metadata, AudiobookMetadata, CoverArtPassthroughPolicy};
+use crate::processing::{
     AudioHandling, CancellationChecker, JobRegistry, OutputConfig, ProcessingContext,
     ProcessingSession,
 };
-use abb_engine::{read_metadata, AppError, AudiobookMetadata, CoverArtPassthroughPolicy};
+use crate::AppError;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -31,7 +34,7 @@ async fn native_aac_reprocessing_keeps_the_original_playable_sample_count() {
         native_encoder_settings(),
         EncoderSettings {
             native_aac_speed: 4,
-            faac_profile: abb_engine::audio::FaacProfile::Auto,
+            faac_profile: crate::audio::FaacProfile::Auto,
             ..native_encoder_settings()
         },
     ] {
@@ -90,14 +93,6 @@ async fn assert_reprocessing_sample_count(settings: EncoderSettings) {
 const MAX_ROUTE_DIFFERENCE: f32 = 1e-3;
 
 const AAC_FRAME_SAMPLES: u64 = 1_024;
-
-fn stereo_native_encoder_settings() -> EncoderSettings {
-    EncoderSettings {
-        channels: ChannelConfig::Stereo,
-        bitrate_kbps: 320,
-        ..native_encoder_settings()
-    }
-}
 
 fn decode_to_packed_float_wav(source: &Path, wav: &Path) {
     ffmpeg([
@@ -201,7 +196,8 @@ async fn truncated_audio_fails_without_publishing_a_shortened_book() {
         .expect("fixture value")
         .set_len(end)
         .expect("fixture value");
-    let broken_lane = MediaLane::for_inputs(vec![broken]);
+    let broken_lane = MediaLane::for_inputs(vec![broken])
+        .with_sample_rate(SampleRateConfig::Explicit(SAMPLE_RATE));
     let info = get_file_list_info(&broken_lane.inputs, AacDecoder::Auto).expect("fixture value");
     assert_eq!(
         info.invalid_count, 1,
@@ -364,11 +360,10 @@ async fn a_pre_cancelled_run_publishes_nothing_and_leaves_the_source_alone() {
         let destination = tmp.path().join(name);
         let workspace = tmp.path().join(format!("workspace-{name}"));
         let (job_id, _permit) = registry.register_job().await.expect("register job");
-        let checker =
-            CancellationChecker::new(Some(Arc::new(std::sync::atomic::AtomicBool::new(true))));
+        let checker = CancellationChecker::new(Some(crate::execution::cancelled_token()));
         let context = ProcessingContext::new_headless_with_workspace_root(
             Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
-            SampleRateConfig::Auto,
+            SAMPLE_RATE,
             OutputConfig::new(&destination),
             workspace.clone(),
         );
@@ -417,7 +412,7 @@ async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
         bitrate_mode: BitrateMode::Cvbr,
         channels: ChannelConfig::Mono,
         native_aac_speed: 0,
-        faac_profile: abb_engine::audio::FaacProfile::Auto,
+        faac_profile: crate::audio::FaacProfile::Auto,
     });
     let mut metadata = AudiobookMetadata::new();
     metadata.title = Some("Apple AAC Route".to_string());

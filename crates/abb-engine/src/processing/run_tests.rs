@@ -1,6 +1,6 @@
 use super::run_job::{
     commit_supplemental_assets, register_job_and_validate_output, supplemental_assets_for_input,
-    title_outcome, ProcessingJobLogContext,
+    title_outcome,
 };
 use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
 use crate::output_artifact::OutputKind;
@@ -8,19 +8,10 @@ use crate::processing::terminal_outcomes::ProcessingJobTerminalOutcome;
 use crate::processing::OperationKind;
 use crate::processing::{ProcessPayload, SupplementalProcessingAsset};
 use crate::test_cases::media_fixtures::preflight_payload;
+use crate::test_cases::support::encoders::auto_encoder_settings;
+use crate::test_cases::support::wav::{write_silence_wav, write_sine_wav};
 use std::collections::HashMap;
 use tempfile::TempDir;
-
-fn encoder_settings() -> EncoderSettings {
-    EncoderSettings {
-        encoder_type: EncoderType::Auto,
-        bitrate_kbps: 64,
-        bitrate_mode: BitrateMode::Cbr,
-        channels: ChannelConfig::Auto,
-        native_aac_speed: 0,
-        faac_profile: crate::audio::FaacProfile::Auto,
-    }
-}
 
 fn request_settings(request: &mut crate::audio::TitleAudioRequest) -> &mut EncoderSettings {
     match &mut request.output {
@@ -39,7 +30,7 @@ fn process_payload(overrides: impl FnOnce(&mut ProcessPayload)) -> ProcessPayloa
         output_dir: "/tmp/out".to_string(),
         audio_requests: vec![crate::audio::TitleAudioRequest {
             output: crate::audio::OutputAudio::M4b {
-                settings: encoder_settings(),
+                settings: auto_encoder_settings(),
             },
             intent: crate::audio::AudioIntent::Encode,
             sample_rate: crate::audio::SampleRateConfig::Auto,
@@ -306,32 +297,12 @@ fn stacked_title_plan_keeps_source_order_metadata_and_separate_outputs() {
     }
 }
 
-fn write_silence_wav(path: &std::path::Path, channels: u16) {
-    const SAMPLE_RATE: u32 = 44_100;
-    let data_len = SAMPLE_RATE * 2 * u32::from(channels);
-    let mut bytes = Vec::with_capacity(44 + data_len as usize);
-    bytes.extend_from_slice(b"RIFF");
-    bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
-    bytes.extend_from_slice(b"WAVEfmt ");
-    bytes.extend_from_slice(&16u32.to_le_bytes());
-    bytes.extend_from_slice(&1u16.to_le_bytes());
-    bytes.extend_from_slice(&channels.to_le_bytes());
-    bytes.extend_from_slice(&SAMPLE_RATE.to_le_bytes());
-    bytes.extend_from_slice(&data_len.to_le_bytes());
-    bytes.extend_from_slice(&(2 * channels).to_le_bytes());
-    bytes.extend_from_slice(&16u16.to_le_bytes());
-    bytes.extend_from_slice(b"data");
-    bytes.extend_from_slice(&data_len.to_le_bytes());
-    bytes.resize(44 + data_len as usize, 0);
-    std::fs::write(path, bytes).expect("write WAV fixture");
-}
-
 async fn execute_reviewed_metadata_batch(
     mut payload: ProcessPayload,
     metadata: &HashMap<String, crate::metadata::MetadataIntentPatch>,
     workspace: &std::path::Path,
 ) -> Vec<std::path::PathBuf> {
-    use crate::audio::{execute_audio_engine, AudioExecutionRequest, SampleRateConfig};
+    use crate::audio::{execute_audio_engine, AudioExecutionRequest};
     use crate::processing::{OutputConfig, ProcessingContext, ProcessingSession};
     let inspected = super::inspect_processing_plan(&payload, Some(metadata), false)
         .expect("review metadata batch");
@@ -346,7 +317,7 @@ async fn execute_reviewed_metadata_batch(
         outputs.push(job.output.resolved_path.clone());
         let context = ProcessingContext::new_headless_with_workspace_root(
             std::sync::Arc::new(ProcessingSession::new()),
-            SampleRateConfig::Explicit(job.audio_plan.sample_rate),
+            job.audio_plan.sample_rate,
             OutputConfig::from_plan(job.output),
             workspace.to_path_buf(),
         );
@@ -530,45 +501,17 @@ fn supplemental_asset(
     }
 }
 
-fn batch_log_context() -> ProcessingJobLogContext {
-    ProcessingJobLogContext {
-        operation_id: None,
+fn batch_identity(operation_id: Option<&str>) -> crate::processing::JobIdentity {
+    crate::processing::JobIdentity {
+        operation_id: operation_id.map(str::to_string),
+        job_id: None,
         input_index: 0,
-        operation_kind: OperationKind::ProcessingBatch,
     }
 }
-
-/// Captures lifecycle records emitted through `log` so tests can assert
-/// terminal truth. The only logger the engine's tests install; assertions
-/// filter on this test's operation id, so tests sharing the process do not
-/// interfere.
-struct CapturingLogger {
-    records: std::sync::Mutex<Vec<String>>,
-}
-
-impl log::Log for CapturingLogger {
-    fn enabled(&self, _metadata: &log::Metadata<'_>) -> bool {
-        true
-    }
-
-    fn log(&self, record: &log::Record<'_>) {
-        self.records
-            .lock()
-            .expect("capturing logger lock")
-            .push(record.args().to_string());
-    }
-
-    fn flush(&self) {}
-}
-
-static CAPTURING_LOGGER: CapturingLogger = CapturingLogger {
-    records: std::sync::Mutex::new(Vec::new()),
-};
 
 #[tokio::test]
 async fn failed_output_validation_emits_started_and_failed_terminal_records() {
-    log::set_logger(&CAPTURING_LOGGER).expect("install capturing logger");
-    log::set_max_level(log::LevelFilter::Info);
+    crate::test_cases::log_capture::install();
     let registry = std::sync::Arc::new(crate::processing::JobRegistry::new(2));
     let temp_dir = TempDir::new().expect("create temp dir");
     let invalid_output = temp_dir.path().join("output.mp3");
@@ -576,12 +519,10 @@ async fn failed_output_validation_emits_started_and_failed_terminal_records() {
     if register_job_and_validate_output(
         &registry,
         &invalid_output,
+        crate::audio::AudiobookFormat::M4b,
         None,
-        ProcessingJobLogContext {
-            operation_id: Some("log-proof".into()),
-            ..batch_log_context()
-        },
-        false,
+        batch_identity(Some("log-proof")),
+        OperationKind::ProcessingBatch,
     )
     .await
     .is_ok()
@@ -589,11 +530,7 @@ async fn failed_output_validation_emits_started_and_failed_terminal_records() {
         panic!("invalid extension should fail validation");
     }
 
-    let records = CAPTURING_LOGGER
-        .records
-        .lock()
-        .expect("capturing logger lock")
-        .clone();
+    let records = crate::test_cases::log_capture::records();
     let started: Vec<&String> = records
         .iter()
         .filter(|record| record.contains("processing_job event=started operation_id=log-proof"))
@@ -638,9 +575,10 @@ async fn register_job_and_validate_output_cleans_up_failed_validation() {
     let error = match register_job_and_validate_output(
         &registry,
         &invalid_output,
+        crate::audio::AudiobookFormat::M4b,
         None,
-        batch_log_context(),
-        false,
+        batch_identity(None),
+        OperationKind::ProcessingBatch,
     )
     .await
     {
@@ -649,16 +587,13 @@ async fn register_job_and_validate_output_cleans_up_failed_validation() {
     };
 
     assert!(
-        error
-            .to_string()
-            .contains("Encoded output must be .m4b, .m4a or .mka, got: .mp3"),
+        error.to_string().contains("Output must be .m4b, got: .mp3"),
         "unexpected error: {error}"
     );
 
     assert_eq!(
         registry
             .update_max_concurrent(1)
-            .await
             .expect("idle registry should allow concurrency updates"),
         1
     );
@@ -668,7 +603,7 @@ async fn register_job_and_validate_output_cleans_up_failed_validation() {
 fn preflight_refuses_a_too_long_companion_pdf_name_only_when_the_title_has_one() {
     let temp_dir = TempDir::new().expect("temp dir");
     let source = temp_dir.path().join("source.wav");
-    crate::test_cases::media_fixtures::write_sine_wav(&source, 0.2, 440.0);
+    write_sine_wav(&source, 0.2, 440.0);
     let source_key = source.to_string_lossy().to_string();
     std::fs::create_dir(temp_dir.path().join("out")).expect("create output folder");
     let metadata = HashMap::from([(
