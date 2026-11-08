@@ -16,8 +16,6 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   fails. The notice used to vanish once a retry saved.
 - A cover you pick is saved as the front cover. An MP3 or FLAC used to get it as picture type
   "Other", which some players do not show as the cover.
-- A FLAC keeps Description and Comment apart. Saving both used to merge them into one field and
-  read Description back blank. Description is now stored in a `synopsis` field.
 - Dev builds write their own log file. A dev launch used to append to the installed app's log.
 - An Audible title whose license Audible refuses is no longer downloaded. A refused license
   that still carried a download link used to start the download. ABB now stops and shows

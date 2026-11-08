@@ -169,10 +169,6 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   explicit blank field action, never a sentinel value.
 - Publication-date and series/subseries sequence validation stay in this
   boundary.
-- A FLAC stores Description under `synopsis` (`field_schema::text_keys_in`).
-  Why: FFmpeg's FLAC muxer writes the `comment` key as the Vorbis
-  `DESCRIPTION` field and joins repeated `DESCRIPTION` fields on read, so a
-  `description` key merged into the Comment. Ogg is not an input format.
 - FFmpeg COMM reads prefer `comment`, then undescribed language keys, then
   described comments, with lexical key order breaking ties. Explicit comment
   set/clear removes those user-comment aliases; an absent field preserves them.

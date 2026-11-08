@@ -131,36 +131,6 @@ fn replacing_an_album_sort_drops_the_old_one_whatever_its_key_case() {
 }
 
 #[test]
-fn a_flac_description_has_its_own_key_apart_from_the_comment_the_muxer_maps_to_description() {
-    let flac = Container::Other("flac".to_string());
-    let plan = plan_of(AudiobookMetadata {
-        description: Some("Long".to_string()),
-        comment: Some("Short".to_string()),
-        ..Default::default()
-    });
-
-    let merged = merge_metadata_with_plan(base_dict(), &plan, &flac);
-
-    assert_eq!(merged.get("comment"), Some("Short"));
-    assert_eq!(merged.get("synopsis"), Some("Long"));
-    assert_eq!(merged.get("description"), None);
-
-    let mut existing = ff::Dictionary::new();
-    existing.set("comment", "Short");
-    existing.set("synopsis", "Long");
-    let cleared = merge_metadata_with_plan(
-        existing,
-        &plan_of(AudiobookMetadata {
-            description: Some(String::new()),
-            ..Default::default()
-        }),
-        &flac,
-    );
-    assert_eq!(cleared.get("synopsis"), None);
-    assert_eq!(cleared.get("comment"), Some("Short"));
-}
-
-#[test]
 fn merge_metadata_preserves_album_sort_without_explicit_intent() {
     let plan = plan_of(AudiobookMetadata {
         genre: Some("Sci-Fi".to_string()),
@@ -253,7 +223,7 @@ fn metadata_to_ffmpeg_dict_writes_literal_audiobook_fields() {
         ..Default::default()
     };
 
-    let dict = ffmpeg_dict_for_ops(&plan_of(metadata).ops, &Container::Mp4);
+    let dict = ffmpeg_dict_for_ops(&plan_of(metadata).ops);
 
     assert_eq!(dict.get("title"), Some("Test Audiobook"));
     assert_eq!(dict.get("artist"), Some("Test Author"));

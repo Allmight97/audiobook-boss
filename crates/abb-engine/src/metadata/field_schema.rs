@@ -1,4 +1,3 @@
-use super::container::Container;
 use abb_metadata_core::{PositionField, TextField};
 
 const SERIES: &str = "series";
@@ -73,12 +72,6 @@ const ALBUM: TextKeys = plain(&["album"]);
 const COMPOSER: TextKeys = plain(&["composer"]);
 const GENRE: TextKeys = plain(&["genre"]);
 const DESCRIPTION: TextKeys = plain(&["description"]);
-
-/// FFmpeg writes the generic `comment` key as the Vorbis `DESCRIPTION` field
-/// and joins repeated `DESCRIPTION` fields on read, so a `description` key
-/// there would merge into the Comment. FFmpeg's generic long-description key
-/// `synopsis` keeps the two apart.
-const VORBIS_DESCRIPTION: TextKeys = plain(&["synopsis"]);
 
 const ARTIST: TextKeys = TextKeys {
     read: KeySet::Keys(&["artist"]),
@@ -165,15 +158,6 @@ pub(super) fn text_keys(field: TextField) -> &'static TextKeys {
         TextField::Description => &DESCRIPTION,
         TextField::Series => &SERIES_KEYS,
         TextField::SeriesPart => &SERIES_PART_KEYS,
-    }
-}
-
-/// The field's row for the container a file is read from or written to.
-pub(super) fn text_keys_in(field: TextField, container: &Container) -> &'static TextKeys {
-    if field == TextField::Description && container.uses_vorbis_comments() {
-        &VORBIS_DESCRIPTION
-    } else {
-        text_keys(field)
     }
 }
 

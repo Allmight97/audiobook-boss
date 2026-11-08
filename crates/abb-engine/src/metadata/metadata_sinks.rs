@@ -1,5 +1,4 @@
-use crate::metadata::container::Container;
-use crate::metadata::field_schema::{position_keys, text_keys, text_keys_in, KeySet, ITUNES_MEAN};
+use crate::metadata::field_schema::{position_keys, text_keys, KeySet, ITUNES_MEAN};
 use crate::metadata::publication_year_from_date;
 use crate::metadata::MetadataWritePlan;
 use abb_metadata_core::{FieldOp, PatchOp, PositionField, TextField};
@@ -122,7 +121,7 @@ pub fn apply_field_ops(sink: &mut Mp4ametaSink<'_>, ops: &[FieldOp]) {
 /// The dictionary entries a write sets: each Set op's keys in op order, then
 /// the audiobook media type. A Clear writes nothing; the merge drops the
 /// cleared keys from the existing tags.
-pub fn ffmpeg_dict_for_ops(ops: &[FieldOp], container: &Container) -> ff::Dictionary<'static> {
+pub fn ffmpeg_dict_for_ops(ops: &[FieldOp]) -> ff::Dictionary<'static> {
     let mut dict = ff::Dictionary::new();
     for op in ops {
         match op {
@@ -130,7 +129,7 @@ pub fn ffmpeg_dict_for_ops(ops: &[FieldOp], container: &Container) -> ff::Dictio
                 field,
                 op: PatchOp::Set(value),
             } => {
-                for key in text_keys_in(*field, container).write {
+                for key in text_keys(*field).write {
                     dict.set(key, value);
                 }
                 if *field == TextField::Date {
@@ -161,7 +160,7 @@ pub(crate) struct ExistingKeyRemoval {
 }
 
 impl ExistingKeyRemoval {
-    pub(crate) fn for_plan(plan: &MetadataWritePlan, container: &Container) -> Self {
+    pub(crate) fn for_plan(plan: &MetadataWritePlan) -> Self {
         let dropped = plan
             .ops
             .iter()
@@ -169,11 +168,11 @@ impl ExistingKeyRemoval {
                 FieldOp::Text {
                     field,
                     op: PatchOp::Set(_),
-                } => Some(text_keys_in(*field, container).drop_on_set),
+                } => Some(text_keys(*field).drop_on_set),
                 FieldOp::Text {
                     field,
                     op: PatchOp::Clear,
-                } => Some(text_keys_in(*field, container).drop_on_clear),
+                } => Some(text_keys(*field).drop_on_clear),
                 FieldOp::Position {
                     field,
                     op: PatchOp::Clear,
