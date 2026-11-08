@@ -14,6 +14,7 @@ pub(crate) struct StagedSources {
 }
 
 pub(crate) const RETRY_DELAY: Duration = Duration::from_secs(30);
+pub(crate) const MAX_RETRY_DELAY: Duration = Duration::from_secs(600);
 
 #[derive(Debug, Default)]
 enum Removal {
@@ -38,6 +39,7 @@ struct StagedJob {
     /// By session input id.
     titles: BTreeMap<String, StagedTitle>,
     removal: Removal,
+    last_retry_delay: Option<Duration>,
 }
 
 #[derive(Debug)]
@@ -204,10 +206,15 @@ impl StagedSources {
         self.jobs.remove(job_id);
     }
 
-    pub(crate) fn removal_failed(&mut self, job_id: &str, now: Instant) {
-        if let Some(job) = self.jobs.get_mut(job_id) {
-            job.removal = Removal::RetryAt(now + RETRY_DELAY);
-        }
+    pub(crate) fn removal_failed(&mut self, job_id: &str, now: Instant) -> Option<Duration> {
+        let job = self.jobs.get_mut(job_id)?;
+        let delay = job
+            .last_retry_delay
+            .map_or(RETRY_DELAY, |last| (last * 2).min(MAX_RETRY_DELAY));
+        job.removal = Removal::RetryAt(now + delay);
+        let changed = job.last_retry_delay != Some(delay);
+        job.last_retry_delay = Some(delay);
+        changed.then_some(delay)
     }
 
     pub(crate) fn next_retry(&self) -> Option<Instant> {
@@ -225,21 +232,31 @@ impl StagedSources {
     }
 }
 
+pub(crate) struct FinishedRemoval {
+    pub(crate) reads: Vec<ReadTicket>,
+    pub(crate) new_retry_delay: Option<Duration>,
+}
+
 impl SessionState {
     pub(crate) fn finish_staged_removal(
         &mut self,
         job_id: &str,
         removed: bool,
         now: Instant,
-    ) -> Vec<ReadTicket> {
+    ) -> FinishedRemoval {
         let paths = self.staged.paths(job_id);
         if !removed {
-            self.staged.removal_failed(job_id, now);
-            return Vec::new();
+            return FinishedRemoval {
+                reads: Vec::new(),
+                new_retry_delay: self.staged.removal_failed(job_id, now),
+            };
         }
         self.working_set.sources_removed(&paths);
         self.staged.removed(job_id);
-        self.rebind()
+        FinishedRemoval {
+            reads: self.rebind(),
+            new_retry_delay: None,
+        }
     }
 }
 

@@ -114,6 +114,34 @@ async fn a_failed_removal_is_retried_after_the_delay_with_no_other_change() {
         .await;
 }
 
+#[tokio::test(start_paused = true)]
+async fn each_failed_removal_waits_twice_as_long_before_the_next_retry() {
+    let rig = rig();
+    rig.failing_removals
+        .store(2, std::sync::atomic::Ordering::SeqCst);
+    let staging = tempfile::TempDir::new().expect("staging");
+    let audio = staged_wav(staging.path(), "book");
+    rig.session.import_acquired(acquired("job-1", &audio)).await;
+    let attempts = || rig.removed.lock().expect("removed").len();
+    let delay = crate::session::staged::RETRY_DELAY;
+
+    rig.send(SessionIntent::ClearAll).await;
+    assert_eq!(attempts(), 1);
+
+    tokio::time::sleep(delay + delay / 2).await;
+    crate::test_cases::support::poll::until_true("the first retry", || attempts() == 2).await;
+
+    tokio::time::sleep(delay + delay / 2).await;
+    assert_eq!(
+        attempts(),
+        2,
+        "the second failure waits longer than the first"
+    );
+
+    tokio::time::sleep(delay / 2).await;
+    crate::test_cases::support::poll::until_true("the second retry", || attempts() == 3).await;
+}
+
 #[tokio::test]
 async fn a_download_goes_once_its_title_is_exported() {
     let rig = rig();

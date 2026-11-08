@@ -116,16 +116,24 @@ impl Session {
                     let remove = Arc::clone(&session.inner.deps.remove_staged);
                     let id = job_id.clone();
                     let removed = blocking(move || remove(&id)).await;
-                    if let Err(error) = &removed {
-                        log::warn!("Failed to remove staged download job_id={job_id}: {error}");
-                    }
-                    let bound = session.transition(|state| {
-                        let reads = state.finish_staged_removal(&job_id, removed.is_ok(), now());
-                        Bound {
-                            reads,
+                    let (bound, new_retry_delay) = session.transition(|state| {
+                        let finished = state.finish_staged_removal(&job_id, removed.is_ok(), now());
+                        let bound = Bound {
+                            reads: finished.reads,
                             binding: state.binding,
-                        }
+                        };
+                        (bound, finished.new_retry_delay)
                     });
+                    if let Err(error) = &removed {
+                        match new_retry_delay {
+                            Some(delay) => log::warn!(
+                                "Failed to remove staged download job_id={job_id}, retrying in {delay:?}: {error}"
+                            ),
+                            None => log::debug!(
+                                "Failed again to remove staged download job_id={job_id}: {error}"
+                            ),
+                        }
+                    }
                     session.complete_reads(bound).await;
                 }
                 session.publish();

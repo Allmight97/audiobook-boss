@@ -132,6 +132,33 @@ fn a_failed_removal_is_tried_again_only_after_the_retry_delay() {
     assert_eq!(staged.removable(&free, failed + RETRY_DELAY), ["job-1"]);
 }
 
+#[test]
+fn each_failed_removal_doubles_the_retry_delay_up_to_the_cap_and_reports_only_a_change() {
+    let mut staged = staged();
+    staged.finish(["alpha", "beta"]);
+    let now = Instant::now();
+    let mut delays = Vec::new();
+    for _ in 0..8 {
+        let reported = staged.removal_failed("job-1", now);
+        delays.push((staged.next_retry().expect("retry") - now, reported));
+    }
+
+    let seconds = |secs| Duration::from_secs(secs);
+    assert_eq!(
+        delays,
+        [
+            (seconds(30), Some(seconds(30))),
+            (seconds(60), Some(seconds(60))),
+            (seconds(120), Some(seconds(120))),
+            (seconds(240), Some(seconds(240))),
+            (seconds(480), Some(seconds(480))),
+            (MAX_RETRY_DELAY, Some(MAX_RETRY_DELAY)),
+            (MAX_RETRY_DELAY, None),
+            (MAX_RETRY_DELAY, None),
+        ]
+    );
+}
+
 fn listed(names: &[&str]) -> SessionState {
     let mut state = SessionState::default();
     let files = names
