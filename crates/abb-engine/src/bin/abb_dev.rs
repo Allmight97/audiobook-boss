@@ -521,7 +521,7 @@ async fn produce(
             )
             .await?;
             let operation = follow(engine, feed, &operation_id, options.cancel_title).await?;
-            during_export::await_landed(engine).await?;
+            during_export::await_landed(engine, &options.during_export).await?;
             print_export(engine, &operation).await;
             Ok(export_verdict(&operation, options.cancel_title)?)
         }
@@ -633,10 +633,15 @@ async fn drive(options: &Options, state_dir: PathBuf) -> Result<(), AbbDevStatus
 }
 
 fn save_written(session: &SessionUpdate) -> Result<(), String> {
-    let status = session
-        .metadata
-        .as_ref()
-        .and_then(|metadata| metadata.status.as_ref());
+    save_status_error(
+        session
+            .metadata
+            .as_ref()
+            .and_then(|metadata| metadata.status.as_ref()),
+    )
+}
+
+fn save_status_error(status: Option<&MetadataStatus>) -> Result<(), String> {
     match status {
         Some(MetadataStatus::SaveFailed { error }) => {
             Err(format!("Save failed: {}", error.message))

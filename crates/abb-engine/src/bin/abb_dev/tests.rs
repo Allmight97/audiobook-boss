@@ -26,6 +26,34 @@ fn export_verdict_requires_the_requested_title_to_be_cancelled() {
     }
 }
 
+fn landing(status: Option<MetadataStatus>, save_expected: bool) -> Result<(), String> {
+    match during_export::landed_verdict(status.as_ref(), save_expected) {
+        Ok(()) => Ok(()),
+        Err(AbbDevStatus::SaveFailed(message)) => Err(message),
+        Err(_) => Err("not a save failure".into()),
+    }
+}
+
+#[test]
+fn a_landed_export_save_reports_every_save_failure() {
+    let finished = |failed| MetadataStatus::DeferredWritesFinished { written: 1, failed };
+    let error = abb_engine::AppErrorEnvelope::from(abb_engine::AppError::General("disk".into()));
+    let save_failed = format!("Save failed: {}", error.message);
+    let failed_save = MetadataStatus::SaveFailed { error };
+    assert_eq!(landing(Some(finished(0)), true), Ok(()));
+    assert_eq!(landing(None, false), Ok(()));
+    assert_eq!(
+        landing(Some(finished(2)), true),
+        Err("Save could not write 2 file(s)".into())
+    );
+    assert_eq!(landing(Some(failed_save), true), Err(save_failed));
+    assert_eq!(
+        landing(Some(MetadataStatus::SaveInvalid), true),
+        Err("Save was refused: the edits are invalid".into())
+    );
+    assert!(landing(None, true).is_err());
+}
+
 #[test]
 fn during_export_steps_keep_the_order_given() {
     let args = [

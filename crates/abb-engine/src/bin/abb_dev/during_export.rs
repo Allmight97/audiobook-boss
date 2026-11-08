@@ -4,7 +4,7 @@ use abb_engine::session::{MetadataField, MetadataStatus, SessionIntent};
 use abb_engine::work_runtime::{ChildJobStatus, OperationId, OperationPhase, OperationSnapshot};
 use abb_engine::Engine;
 
-use super::{send, AbbDevStatus, OperationFeed};
+use super::{save_status_error, send, AbbDevStatus, OperationFeed};
 
 const POLL: Duration = Duration::from_millis(10);
 const START_LIMIT: Duration = Duration::from_secs(60);
@@ -156,7 +156,10 @@ pub(super) async fn run_steps(
     Ok(())
 }
 
-pub(super) async fn await_landed(engine: &Engine) -> Result<(), AbbDevStatus> {
+pub(super) async fn await_landed(
+    engine: &Engine,
+    steps: &[DuringExport],
+) -> Result<(), AbbDevStatus> {
     let started = Instant::now();
     while engine.running_work().waiting_writes > 0 {
         if started.elapsed() > LAND_LIMIT {
@@ -164,14 +167,28 @@ pub(super) async fn await_landed(engine: &Engine) -> Result<(), AbbDevStatus> {
         }
         tokio::time::sleep(POLL).await;
     }
-    match engine
-        .session_snapshot()
-        .metadata
-        .and_then(|metadata| metadata.status)
-    {
-        Some(MetadataStatus::DeferredWritesFinished { failed, .. }) if failed > 0 => Err(
-            AbbDevStatus::SaveFailed(format!("Save could not write {failed} file(s)")),
-        ),
-        _ => Ok(()),
+    let save_expected = steps
+        .iter()
+        .any(|step| matches!(step, DuringExport::Set(..)));
+    let session = engine.session_snapshot();
+    landed_verdict(
+        session
+            .metadata
+            .as_ref()
+            .and_then(|metadata| metadata.status.as_ref()),
+        save_expected,
+    )
+}
+
+pub(super) fn landed_verdict(
+    status: Option<&MetadataStatus>,
+    save_expected: bool,
+) -> Result<(), AbbDevStatus> {
+    save_status_error(status).map_err(AbbDevStatus::SaveFailed)?;
+    if save_expected && !matches!(status, Some(MetadataStatus::DeferredWritesFinished { .. })) {
+        return Err(AbbDevStatus::SaveFailed(
+            "the waiting Save did not report that it finished".into(),
+        ));
     }
+    Ok(())
 }
