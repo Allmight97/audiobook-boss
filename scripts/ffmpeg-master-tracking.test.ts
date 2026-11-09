@@ -1,24 +1,19 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-	type Library,
 	type TrackingReport,
 	commitsTouching,
 	daysBehind,
-	enabledBuild,
 	issueToUpdate,
-	librariesFromBuildRs,
 	n91Releases,
 	readPin,
 	renderIssue,
-	trackingPathspecs,
 } from './ffmpeg-master-tracking';
 
 const TITLE = 'Weekly FFmpeg master tracking';
-const repoRoot = path.resolve(import.meta.dirname, '..');
 const repos: string[] = [];
 
 afterEach(() => {
@@ -37,59 +32,6 @@ describe('ffmpeg master tracking', () => {
 		expect(daysBehind('2026-11-04T00:00:00Z', '2026-11-04T23:59:59Z')).toBe(0);
 		expect(daysBehind('2026-11-09T00:00:00Z', '2026-11-04T00:00:00Z')).toBe(0);
 		expect(() => daysBehind('not-a-date', '2026-11-04T00:00:00Z')).toThrow(/did not parse/);
-	});
-
-	it('derives the enabled libraries and pathspecs from the vendored build', () => {
-		const enabled = enabledBuild(
-			readFileSync(path.join(repoRoot, 'crates/abb-engine/Cargo.toml'), 'utf8'),
-			readFileSync(path.join(repoRoot, 'vendor/ffmpeg-next-9.0.0/Cargo.toml'), 'utf8'),
-			librariesFromBuildRs(
-				readFileSync(path.join(repoRoot, 'vendor/ffmpeg-sys-next-9.0.1/build.rs'), 'utf8'),
-			),
-		);
-		expect(enabled.compiles).toBe(true);
-		expect(enabled.libraries).toEqual(['avcodec', 'avformat', 'avutil', 'swresample']);
-		expect(enabled.externals).toEqual(['build-audiotoolbox', 'build-lib-opus']);
-		expect(trackingPathspecs(enabled.libraries, enabled.externals)).toEqual([
-			'libavcodec/aac*',
-			':(glob)**/*opus*',
-			'libavformat/mov*',
-			':(glob)**/*audiotoolbox*',
-			'libavutil',
-			'libswresample',
-		]);
-	});
-
-	it('adds a library the bundled build enables and leaves a disabled one out', () => {
-		const next = `
-[features]
-codec = ["ffmpeg-sys-next/avcodec"]
-format = ["ffmpeg-sys-next/avformat", "codec"]
-software-scaling = ["ffmpeg-sys-next/swscale", "codec"]
-software-resampling = ["ffmpeg-sys-next/swresample"]
-build = ["static", "ffmpeg-sys-next/build"]
-static = ["ffmpeg-sys-next/static"]
-`;
-		const engine = `
-ffmpeg-next = { version = "9.0.0", default-features = false, features = ["format", "software-scaling"] }
-[features]
-bundled-ffmpeg = [
-    "ffmpeg-next/build",
-    "ffmpeg-sys-next/build-lib-opus",
-]
-`;
-		const libraries: Library[] = [
-			{ name: 'avcodec', isFeature: true },
-			{ name: 'avformat', isFeature: true },
-			{ name: 'avutil', isFeature: false },
-			{ name: 'swresample', isFeature: true },
-			{ name: 'swscale', isFeature: true },
-		];
-		const enabled = enabledBuild(engine, next, libraries);
-		expect(enabled.libraries).toEqual(['avcodec', 'avformat', 'avutil', 'swscale']);
-		expect(enabled.externals).toEqual(['build-lib-opus']);
-		expect(trackingPathspecs(enabled.libraries, enabled.externals)).not.toContain('libswresample');
-		expect(trackingPathspecs(enabled.libraries, enabled.externals)).toContain('libswscale');
 	});
 
 	it('treats n9.1 and n9.1.N as the release and ignores the dev tag', () => {

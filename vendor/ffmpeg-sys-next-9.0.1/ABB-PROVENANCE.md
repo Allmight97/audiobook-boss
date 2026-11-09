@@ -40,6 +40,8 @@ What ABB relies on in that source:
    Packet bytes can change while the decoded audio stays identical. A decoded
    difference needs the real-media probe in `crates/abb-engine/src/audio/AGENTS.md`.
 5. Run `bash scripts/verify.sh engine media`.
+6. When `bundled-ffmpeg` features change, update the commit paths in
+   `scripts/ffmpeg-master-tracking.ts`.
 
 FFmpeg is configured with `--disable-autodetect`; its enabled external codec
 library is static libopus, with AudioToolbox supplied by the Apple SDK on macOS.

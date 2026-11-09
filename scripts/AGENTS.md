@@ -119,12 +119,13 @@ A change to CI or validation speed quotes before and after numbers from
 ## FFmpeg master tracking
 
 `.github/workflows/ffmpeg-master-tracking.yml` runs weekly and on demand.
-`scripts/ffmpeg-master-tracking.ts` reads the vendored `ffmpeg-revision`,
-derives commit paths from the bundled build's enabled libraries, and updates
-the one issue titled `Weekly FFmpeg master tracking` that `github-actions[bot]`
-opened with the label `ffmpeg-master-tracking`. Any other issue is left alone.
-The pin file stays where it is. The workflow step sets `GH_TOKEN` from
-`github.token`.
+`scripts/ffmpeg-master-tracking.ts` reads the vendored `ffmpeg-revision` and
+updates the one issue titled `Weekly FFmpeg master tracking` that
+`github-actions[bot]` opened with the label `ffmpeg-master-tracking`. The
+commit paths are a fixed list;
+`vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md` says when to change it. Any
+other issue is left alone. The pin file stays where it is. The workflow step
+sets `GH_TOKEN` from `github.token`.
 
 ## Script rules
 

@@ -3,11 +3,10 @@
  *
  * Usage: bun scripts/ffmpeg-master-tracking.ts
  *
- * Reads the ffmpeg-revision file under vendor, derives the commit paths from
- * the bundled build's enabled libraries, and updates the one issue titled
+ * Reads the ffmpeg-revision file under vendor and updates the one issue titled
  * "Weekly FFmpeg master tracking" that github-actions[bot] opened with the
- * label ffmpeg-master-tracking. Any other issue is left alone. It does not
- * change the pin.
+ * label ffmpeg-master-tracking. The commit paths are the fixed list below.
+ * Any other issue is left alone. It does not change the pin.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -21,14 +20,19 @@ const SHOWN_COMMITS = 40;
 const DAY_MS = 86_400_000;
 const FFMPEG_REPO = 'https://github.com/FFmpeg/FFmpeg.git';
 const FFMPEG_API = 'repos/FFmpeg/FFmpeg';
-// Compile flags, not libraries. build.rs does not map these to an enabled library.
-const COMPILE_MODE = new Set(['build', 'build-portable', 'build-pic']);
+// The bundled build's commit paths. The pin-move checklist names when this list changes.
+const PATHSPECS = [
+	'libavcodec/aac*',
+	':(glob)**/*opus*',
+	'libavformat/mov*',
+	':(glob)**/*audiotoolbox*',
+	'libavutil',
+	'libswresample',
+];
 // FFmpeg publishes n9.1-dev while 9.1 is unreleased, so only n9.1 and n9.1.N count.
 const N91_RELEASE = /^n9\.1(?:\.\d+)*$/;
 const LOG_FORMAT = '%H%x1f%cI%x1f%s%x1e';
 
-export type Library = { name: string; isFeature: boolean };
-export type EnabledBuild = { libraries: string[]; externals: string[]; compiles: boolean };
 export type TagRef = { ref: string; sha: string; type: string };
 export type ReleaseTag = { name: string; sha: string; type: string };
 export type UpstreamCommit = { sha: string; date: string; subject: string };
@@ -75,57 +79,6 @@ export function daysBehind(pinDate: string, headDate: string): number {
 	return Math.floor(elapsed / DAY_MS);
 }
 
-export function librariesFromBuildRs(source: string): Library[] {
-	const found: Library[] = [];
-	for (const match of source.matchAll(/name:\s*"([^"]+)"\s*,\s*is_feature:\s*(true|false)/g)) {
-		const name = match[1];
-		if (name === undefined) continue;
-		found.push({ name, isFeature: match[2] === 'true' });
-	}
-	return found;
-}
-
-export function enabledBuild(
-	engineCargo: string,
-	nextCargo: string,
-	libraries: Library[],
-): EnabledBuild {
-	const table = featureTable(nextCargo);
-	const enabledNext = new Set(dependencyFeatures(engineCargo, 'ffmpeg-next'));
-	const bundled = featureTable(engineCargo).get('bundled-ffmpeg') ?? [];
-	for (const item of bundled) {
-		const name = nextFeatureName(item);
-		if (name !== null) enabledNext.add(name);
-	}
-	closeNextFeatures(enabledNext, table);
-	const sys = sysFeatures(enabledNext, table, bundled);
-	return {
-		libraries: libraries
-			.filter((lib) => !lib.isFeature || sys.has(lib.name))
-			.map((lib) => lib.name),
-		externals: [...sys]
-			.filter((name) => name.startsWith('build-') && !COMPILE_MODE.has(name))
-			.toSorted(),
-		compiles: sys.has('build'),
-	};
-}
-
-export function trackingPathspecs(libraries: string[], externals: string[]): string[] {
-	const enabled = new Set(libraries);
-	const paths: string[] = [];
-	if (enabled.has('avcodec')) paths.push('libavcodec/aac*', ':(glob)**/*opus*');
-	if (enabled.has('avformat')) paths.push('libavformat/mov*');
-	for (const feature of externals) {
-		const glob = externalGlob(feature);
-		if (glob !== null && !paths.includes(glob)) paths.push(glob);
-	}
-	for (const lib of libraries) {
-		if (lib === 'avcodec' || lib === 'avformat') continue;
-		paths.push(`lib${lib}`);
-	}
-	return paths;
-}
-
 export function n91Releases(refs: TagRef[]): ReleaseTag[] {
 	const releases: ReleaseTag[] = [];
 	for (const ref of refs) {
@@ -144,7 +97,10 @@ export function commitsTouching(
 ): { total: number; commits: UpstreamCommit[] } {
 	if (pathspecs.length === 0) return { total: 0, commits: [] };
 	const range = `${from}..${to}`;
-	const total = gitCount(repo, ['rev-list', '--count', range, '--', ...pathspecs]);
+	const total = wholeNumber(
+		git(repo, ['rev-list', '--count', range, '--', ...pathspecs]).trim(),
+		'git count',
+	);
 	if (limit < 1 || total === 0) return { total, commits: [] };
 	const log = git(repo, [
 		'log',
@@ -182,99 +138,14 @@ export function renderIssue(report: TrackingReport): string {
 		'',
 		'## Commits on the enabled libraries',
 		'',
-		`Paths: ${codeList(report.pathspecs)}.`,
+		`Paths: ${report.pathspecs.map(inlineCode).join(', ') || 'none'}.`,
 		'',
 		...commitLines(report),
 		'',
-		footer(report),
+		`Updated by [this run](${report.runUrl}). This issue is updated in place and does not move the pin.`,
 		'',
 	];
 	return lines.join('\n');
-}
-
-function featureTable(cargo: string): Map<string, string[]> {
-	const table = new Map<string, string[]>();
-	const body = tomlSection(cargo, 'features');
-	for (const match of body.matchAll(/^([A-Za-z0-9_-]+)\s*=\s*\[/gm)) {
-		const key = match[1];
-		if (key === undefined) continue;
-		const start = match.index + match[0].length;
-		const end = body.indexOf(']', start);
-		if (end < 0) throw new Error(`unclosed feature array ${key}`);
-		table.set(key, quoted(body.slice(start, end)));
-	}
-	return table;
-}
-
-function tomlSection(text: string, name: string): string {
-	const lines = text.split('\n');
-	const start = lines.findIndex((line) => line.trim() === `[${name}]`);
-	if (start < 0) return '';
-	const rest = lines.slice(start + 1);
-	const end = rest.findIndex((line) => /^\[[^\]]+\]/.test(line.trim()));
-	return (end < 0 ? rest : rest.slice(0, end)).join('\n');
-}
-
-function dependencyFeatures(cargo: string, crateName: string): string[] {
-	const at = cargo.search(new RegExp(`^${crateName}\\s*=`, 'm'));
-	if (at < 0) return [];
-	const brace = cargo.indexOf('{', at);
-	const end = brace < 0 ? -1 : cargo.indexOf('}', brace);
-	if (brace < 0 || end < 0 || brace - at > 80) return [];
-	const features = /features\s*=\s*\[([^\]]*)\]/.exec(cargo.slice(brace, end));
-	return features?.[1] === undefined ? [] : quoted(features[1]);
-}
-
-function quoted(text: string): string[] {
-	return [...text.matchAll(/"([^"]+)"/g)].flatMap((match) =>
-		match[1] === undefined ? [] : [match[1]],
-	);
-}
-
-function nextFeatureName(dep: string): string | null {
-	if (dep.startsWith('ffmpeg-next/')) return dep.slice('ffmpeg-next/'.length);
-	if (!dep.includes('/')) return dep;
-	return null;
-}
-
-function closeNextFeatures(enabled: Set<string>, table: Map<string, string[]>): void {
-	const stack = [...enabled];
-	while (stack.length > 0) {
-		const name = stack.pop();
-		if (name === undefined) break;
-		for (const dep of table.get(name) ?? []) {
-			const next = nextFeatureName(dep);
-			if (next === null || enabled.has(next)) continue;
-			enabled.add(next);
-			stack.push(next);
-		}
-	}
-}
-
-function sysFeatures(
-	enabledNext: Set<string>,
-	table: Map<string, string[]>,
-	bundled: string[],
-): Set<string> {
-	const sys = new Set<string>();
-	for (const name of enabledNext) addSysDeps(sys, table.get(name) ?? []);
-	addSysDeps(sys, bundled);
-	return sys;
-}
-
-function addSysDeps(sys: Set<string>, deps: string[]): void {
-	const prefix = 'ffmpeg-sys-next/';
-	for (const dep of deps) {
-		if (dep.startsWith(prefix)) sys.add(dep.slice(prefix.length));
-	}
-}
-
-function externalGlob(feature: string): string | null {
-	const name = feature.startsWith('build-lib-')
-		? feature.slice('build-lib-'.length)
-		: feature.slice('build-'.length);
-	if (name === '' || name.includes('*') || name.includes('/')) return null;
-	return `:(glob)**/*${name}*`;
 }
 
 function oldest(issues: TrackingIssue[], state: string): TrackingIssue | null {
@@ -316,25 +187,12 @@ function commitLines(report: TrackingReport): string[] {
 	return [...shown, '', note];
 }
 
-function footer(report: TrackingReport): string {
-	return `Updated by [this run](${report.runUrl}). This issue is updated in place and does not move the pin.`;
-}
-
 function countNoun(count: number, noun: string): string {
 	return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
-function codeList(items: string[]): string {
-	if (items.length === 0) return 'none';
-	return items.map(inlineCode).join(', ');
-}
-
 function inlineCode(text: string): string {
 	return `\`${text.replaceAll('`', "'")}\``;
-}
-
-function gitCount(repo: string, args: string[]): number {
-	return wholeNumber(git(repo, args).trim(), 'git count');
 }
 
 function parseLog(text: string): UpstreamCommit[] {
@@ -372,21 +230,9 @@ function childEnv(): NodeJS.ProcessEnv {
 function main(): void {
 	if (process.argv.length > 2) throw new Error('Usage: bun scripts/ffmpeg-master-tracking.ts');
 	const root = path.resolve(import.meta.dirname, '..');
-	const pinFile = soleVendorFile(root, 'ffmpeg-sys-next-', 'ffmpeg-revision');
-	const pin = readPin(readFileSync(pinFile, 'utf8'));
-	const libraries = librariesFromBuildRs(
-		readFileSync(path.join(path.dirname(pinFile), 'build.rs'), 'utf8'),
+	const pin = readPin(
+		readFileSync(soleVendorFile(root, 'ffmpeg-sys-next-', 'ffmpeg-revision'), 'utf8'),
 	);
-	const enabled = enabledBuild(
-		readFileSync(path.join(root, 'crates/abb-engine/Cargo.toml'), 'utf8'),
-		readFileSync(soleVendorFile(root, 'ffmpeg-next-', 'Cargo.toml'), 'utf8'),
-		libraries,
-	);
-	if (!enabled.compiles || enabled.libraries.length === 0) {
-		throw new Error('the vendored build config did not enable any FFmpeg library');
-	}
-	const pathspecs = trackingPathspecs(enabled.libraries, enabled.externals);
-	if (pathspecs.length === 0) throw new Error('the vendored build config produced no commit paths');
 	const compare = fetchCompare(pin);
 	const head = fetchHead();
 	if (compare.baseSha !== pin) throw new Error('the compare base is not the pin');
@@ -398,11 +244,14 @@ function main(): void {
 	try {
 		const localHead = git(dir, ['rev-parse', 'origin/master']).trim();
 		if (localHead !== head.sha) throw new Error('fetched master is not the GitHub HEAD');
-		const ahead = gitCount(dir, ['rev-list', '--count', `${pin}..origin/master`]);
+		const ahead = wholeNumber(
+			git(dir, ['rev-list', '--count', `${pin}..origin/master`]).trim(),
+			'git count',
+		);
 		if (ahead !== compare.aheadBy) {
 			throw new Error(`git counts ${ahead} commits and the compare API counts ${compare.aheadBy}`);
 		}
-		const touched = commitsTouching(dir, pin, 'origin/master', pathspecs, SHOWN_COMMITS);
+		const touched = commitsTouching(dir, pin, 'origin/master', PATHSPECS, SHOWN_COMMITS);
 		const days = daysBehind(compare.baseDate, head.date);
 		const body = renderIssue({
 			pin,
@@ -414,7 +263,7 @@ function main(): void {
 			daysBehind: days,
 			compareUrl: compare.url,
 			releases,
-			pathspecs,
+			pathspecs: PATHSPECS,
 			commits: touched.commits,
 			commitsTotal: touched.total,
 			runUrl: runUrl(),
@@ -442,13 +291,15 @@ function soleVendorFile(root: string, prefix: string, file: string): string {
 }
 
 function fetchCompare(pin: string) {
-	const [baseSha, baseDate, ahead, behind, url] = jsonRow(
-		gh([
-			'api',
-			`${FFMPEG_API}/compare/${pin}...master`,
-			'--jq',
-			'[.base_commit.sha, .base_commit.commit.committer.date, (.ahead_by|tostring), (.behind_by|tostring), .html_url]',
-		]),
+	const [baseSha, baseDate, ahead, behind, url] = stringRow(
+		JSON.parse(
+			gh([
+				'api',
+				`${FFMPEG_API}/compare/${pin}...master`,
+				'--jq',
+				'[.base_commit.sha, .base_commit.commit.committer.date, (.ahead_by|tostring), (.behind_by|tostring), .html_url]',
+			]),
+		) as unknown,
 		5,
 		'compare API',
 	);
@@ -462,8 +313,10 @@ function fetchCompare(pin: string) {
 }
 
 function fetchHead(): { sha: string; date: string } {
-	const [sha, date] = jsonRow(
-		gh(['api', `${FFMPEG_API}/commits/master`, '--jq', '[.sha, .commit.committer.date]']),
+	const [sha, date] = stringRow(
+		JSON.parse(
+			gh(['api', `${FFMPEG_API}/commits/master`, '--jq', '[.sha, .commit.committer.date]']),
+		) as unknown,
 		2,
 		'master HEAD',
 	);
@@ -496,10 +349,6 @@ function tagCommit(tagSha: string): string {
 	return commitSha(sha, 'n9.1 tag');
 }
 
-function jsonRow(body: string, size: number, label: string): string[] {
-	return stringRow(JSON.parse(body) as unknown, size, label);
-}
-
 function stringRow(value: unknown, size: number, label: string): string[] {
 	if (!Array.isArray(value) || value.length !== size) throw new Error(`${label} did not parse`);
 	const row: string[] = [];
@@ -527,10 +376,7 @@ function fetchMaster(pinDate: string): string {
 	const pinTime = Date.parse(pinDate);
 	if (!Number.isFinite(pinTime)) throw new Error('pin date did not parse');
 	const since = new Date(pinTime - DAY_MS).toISOString().slice(0, 10);
-	execFileSync('git', ['-c', 'init.defaultBranch=main', '-C', dir, 'init', '--bare'], {
-		stdio: ['ignore', 'pipe', 'pipe'],
-		env: childEnv(),
-	});
+	git(dir, ['-c', 'init.defaultBranch=main', 'init', '--bare']);
 	git(dir, ['remote', 'add', 'origin', FFMPEG_REPO]);
 	git(dir, [
 		'fetch',
@@ -596,26 +442,13 @@ function listTrackingIssues(): TrackingIssue[] {
 		'--jq',
 		'.[] | select(.pull_request == null) | {number, state, title, author: .user.login, labels: [.labels[].name]}',
 	]);
-	const issues: TrackingIssue[] = [];
-	for (const line of body.split('\n')) {
-		const trimmed = line.trim();
-		if (trimmed === '') continue;
-		issues.push(trackingIssue(JSON.parse(trimmed) as unknown));
-	}
-	return issues;
+	return body.split('\n').flatMap((line) => (line === '' ? [] : [trackingIssue(JSON.parse(line))]));
 }
 
 function trackingIssue(item: unknown): TrackingIssue {
-	if (typeof item !== 'object' || item === null) throw new Error('issue list did not parse');
-	const issue = item as {
-		number?: unknown;
-		state?: unknown;
-		title?: unknown;
-		author?: unknown;
-		labels?: unknown;
-	};
+	const issue = item as TrackingIssue;
 	if (
-		typeof issue.number !== 'number' ||
+		typeof issue?.number !== 'number' ||
 		typeof issue.state !== 'string' ||
 		typeof issue.title !== 'string' ||
 		typeof issue.author !== 'string' ||
@@ -623,18 +456,7 @@ function trackingIssue(item: unknown): TrackingIssue {
 	) {
 		throw new Error('issue list did not parse');
 	}
-	const labels: string[] = [];
-	for (const label of issue.labels) {
-		if (typeof label !== 'string') throw new Error('issue list did not parse');
-		labels.push(label);
-	}
-	return {
-		number: issue.number,
-		state: issue.state,
-		title: issue.title,
-		author: issue.author,
-		labels,
-	};
+	return issue;
 }
 
 function requireUrl(text: string): string {
