@@ -6,7 +6,7 @@ set -euo pipefail
 # Cursor wrapper already points .cursor-original-hooks-path at those hooks.
 #   bash scripts/setup.sh                 # frontend, rust, and supply-chain
 #   bash scripts/setup.sh frontend        # locked Bun, Node, frozen install, actionlint, shellcheck, uv, zizmor
-#   bash scripts/setup.sh rust            # bundled FFmpeg build deps and source, FFmpeg 9 CLI, .NET SDK, helper, uv, cargo fetch
+#   bash scripts/setup.sh rust            # bundled FFmpeg build deps and source, pinned FFmpeg readback CLI, .NET SDK, helper, uv, cargo fetch
 #   bash scripts/setup.sh supply-chain    # pinned cargo-audit and cargo-deny
 #   bash scripts/setup.sh --check [mode]  # install nothing; exit nonzero if something is missing
 #                                         # (no mode checks frontend and rust, not supply-chain)
@@ -15,7 +15,7 @@ set -euo pipefail
 # rust installs nasm and static libopus for the engine's bundled FFmpeg
 # (cargo compiles the vendored revision on first use and caches it in target/),
 # Tauri's GTK/WebKit packages on Linux, the pinned .NET SDK and a real AAXClean
-# helper for this host, and an FFmpeg 9 command-line build for media-lane fixture readback.
+# helper for this host, and the pinned FFmpeg command-line build for media-lane fixture readback.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tools_bin="${ABB_TOOLS_BIN:-$HOME/.local/share/audiobook-boss/bin}"
@@ -215,10 +215,30 @@ brew_ffmpeg_cli() {
 	printf '%s\n' "${prefix}/bin/${name}"
 }
 
+# BtbN appends -YYYYMMDD to the git-describe id stored in ffmpeg_cli_build.
+ffmpeg_version_token() {
+	local bin="$1"
+	"${bin}" -version 2>&1 | awk '$2 == "version" { print $3; exit }' || true
+}
+
+ffmpeg_cli_matches_pin() {
+	local token="$1"
+	[[ "${token}" == "${ffmpeg_cli_build}" || "${token}" == "${ffmpeg_cli_build}-"* ]]
+}
+
+# Major 9 is Homebrew and the previous release-branch CLI. A master autobuild's
+# version token is N-<count>-g<sha>, so the pinned build id counts as well.
+tools_readback_ok() {
+	local bin="$1"
+	[[ -x "${bin}" ]] || return 1
+	[[ "$(ffmpeg_major "${bin}")" == 9 ]] && return 0
+	ffmpeg_cli_matches_pin "$(ffmpeg_version_token "${bin}")"
+}
+
 ffmpeg_bin() {
 	local candidate
 	candidate="${tools_bin}/ffmpeg"
-	if [[ -x "${candidate}" && "$(ffmpeg_major "${candidate}")" == 9 ]]; then
+	if tools_readback_ok "${candidate}"; then
 		printf '%s\n' "${candidate}"
 		return 0
 	fi
@@ -236,7 +256,7 @@ ffmpeg_bin() {
 ffprobe_bin() {
 	local candidate
 	candidate="${tools_bin}/ffprobe"
-	if [[ -x "${candidate}" && "$(ffmpeg_major "${candidate}")" == 9 ]]; then
+	if tools_readback_ok "${candidate}"; then
 		printf '%s\n' "${candidate}"
 		return 0
 	fi
@@ -407,14 +427,14 @@ check_rust() {
 		need "libopus / pkg-config opus (run: bash scripts/setup.sh rust)"
 	fi
 	if ffmpeg_path="$(ffmpeg_bin)"; then
-		ok "ffmpeg 9 (${ffmpeg_path})"
+		ok "ffmpeg readback (${ffmpeg_path})"
 	else
-		need "ffmpeg 9 CLI (run: bash scripts/setup.sh rust)"
+		need "pinned FFmpeg readback CLI (run: bash scripts/setup.sh rust)"
 	fi
 	if ffprobe_path="$(ffprobe_bin)"; then
-		ok "ffprobe 9 (${ffprobe_path})"
+		ok "ffprobe readback (${ffprobe_path})"
 	else
-		need "ffprobe 9 CLI (run: bash scripts/setup.sh rust)"
+		need "pinned FFmpeg readback CLI (run: bash scripts/setup.sh rust)"
 	fi
 	if is_linux; then
 		local missing_packages
@@ -481,6 +501,13 @@ print_path_line() {
 		fi
 	fi
 }
+
+# Linux readback is the BtbN master autobuild of the commit in ffmpeg-revision.
+# Master assets are ffmpeg-<describe>-linux*-gpl.tar.xz. Distro FFmpeg 6.x
+# decodes edit lists and Opus pre-skip differently, so it stays refused.
+# Assigned before --print-env and --check, which both ask which binary this is.
+ffmpeg_cli_release=autobuild-2026-11-09-12-42
+ffmpeg_cli_build=N-128718-gb2b543c079
 
 if [[ "${print_env_only}" -eq 1 ]]; then
 	print_env
@@ -637,18 +664,20 @@ install_rust_packages() {
 	fi
 }
 
-# Media-lane fixtures and readback spawn ffmpeg/ffprobe; distro FFmpeg 6.x
-# decodes edit lists and Opus pre-skip differently than the engine's FFmpeg 9.
-ffmpeg_cli_release=autobuild-2026-10-31-12-59
-ffmpeg_cli_build=n9.0.2-39-g7adfbe40dc
+pinned_readback_installed() {
+	local ff="${tools_bin}/ffmpeg" fp="${tools_bin}/ffprobe"
+	[[ -x "${ff}" && -x "${fp}" ]] || return 1
+	ffmpeg_cli_matches_pin "$(ffmpeg_version_token "${ff}")" \
+		&& ffmpeg_cli_matches_pin "$(ffmpeg_version_token "${fp}")"
+}
 
 ensure_readback_cli() {
-	if ffmpeg_bin >/dev/null && ffprobe_bin >/dev/null; then
-		log "Using FFmpeg 9 readback CLI"
-		return
-	fi
 	if is_darwin; then
 		local brew_ffmpeg brew_ffprobe
+		if ffmpeg_bin >/dev/null && ffprobe_bin >/dev/null; then
+			log "Using FFmpeg 9 readback CLI"
+			return
+		fi
 		brew_pkgs ffmpeg
 		hash -r 2>/dev/null || true
 		if ffmpeg_bin >/dev/null && ffprobe_bin >/dev/null; then
@@ -670,17 +699,21 @@ ensure_readback_cli() {
 		fi
 		exit 1
 	fi
+	if pinned_readback_installed; then
+		log "Using FFmpeg readback CLI ${ffmpeg_cli_build}"
+		return
+	fi
 	local asset tmp
 	case "$(uname -m)" in
-		x86_64) asset="ffmpeg-${ffmpeg_cli_build}-linux64-gpl-9.0.tar.xz" ;;
-		aarch64 | arm64) asset="ffmpeg-${ffmpeg_cli_build}-linuxarm64-gpl-9.0.tar.xz" ;;
+		x86_64) asset="ffmpeg-${ffmpeg_cli_build}-linux64-gpl.tar.xz" ;;
+		aarch64 | arm64) asset="ffmpeg-${ffmpeg_cli_build}-linuxarm64-gpl.tar.xz" ;;
 		*)
 			printf 'error: no FFmpeg CLI build for CPU %s\n' "$(uname -m)" >&2
 			exit 1
 			;;
 	esac
 	tmp="$(mktemp -d)"
-	log "Installing FFmpeg 9 readback CLI into ${tools_bin}"
+	log "Installing FFmpeg readback CLI ${ffmpeg_cli_build} into ${tools_bin}"
 	fetch_verified "https://github.com/BtbN/FFmpeg-Builds/releases/download/${ffmpeg_cli_release}" \
 		"${asset}" checksums.sha256 "${tmp}"
 	tar -xJf "${tmp}/${asset}" -C "${tmp}"

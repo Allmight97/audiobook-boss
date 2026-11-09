@@ -722,6 +722,7 @@ pub enum Id {
     #[cfg(feature = "ffmpeg_9_0")]
     APPLE_APAC,
     PCM_DVDA,
+    PCM_PAMF,
     ITUT_T35,
     ASTC,
     RW2,
@@ -1456,6 +1457,7 @@ impl From<AVCodecID> for Id {
             #[cfg(feature = "ffmpeg_9_0")]
             AV_CODEC_ID_APPLE_APAC => Id::APPLE_APAC,
             AV_CODEC_ID_PCM_DVDA => Id::PCM_DVDA,
+            AV_CODEC_ID_PCM_PAMF => Id::PCM_PAMF,
             AV_CODEC_ID_ITUT_T35 => Id::ITUT_T35,
             AV_CODEC_ID_ASTC => Id::ASTC,
             AV_CODEC_ID_RW2 => Id::RW2,
@@ -2185,6 +2187,7 @@ impl From<Id> for AVCodecID {
             #[cfg(feature = "ffmpeg_9_0")]
             Id::APPLE_APAC => AV_CODEC_ID_APPLE_APAC,
             Id::PCM_DVDA => AV_CODEC_ID_PCM_DVDA,
+            Id::PCM_PAMF => AV_CODEC_ID_PCM_PAMF,
             Id::ITUT_T35 => AV_CODEC_ID_ITUT_T35,
             Id::ASTC => AV_CODEC_ID_ASTC,
             Id::RW2 => AV_CODEC_ID_RW2,

@@ -50,6 +50,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Changed
 
+- Bundled FFmpeg now follows current master. Native AAC still uses the NMR coder,
+  which no release includes yet. This build picks up the AAC coefficient restore,
+  Opus and Ogg Opus link fixes, an HE-AAC SBR reset when the decoder is flushed,
+  and durations for spliced ADTS frames. Linux readback tools are the BtbN build
+  of that same commit.
 - An Audible reply with an empty PDF address now means the title has no Supplemental PDF. The
   library no longer offers one and the title imports without it. An empty address used to count
   as a PDF the title then had to download.
