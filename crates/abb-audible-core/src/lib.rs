@@ -4,6 +4,7 @@ mod library_item;
 mod license;
 mod license_facts;
 mod naming;
+mod protected_file;
 mod reply_keys;
 mod strategy;
 mod title_metadata;
@@ -21,6 +22,10 @@ pub use license_facts::{
 };
 pub use naming::{
     remote_materialized_filename_stem, supplemental_pdf_display_file_name, title_ref,
+};
+pub use protected_file::{
+    mp4_box_header, protected_file_facts, Mp4BoxHeader, ProtectedFileFacts,
+    MP4_BOX_HEADER_PROBE_LEN,
 };
 pub use strategy::AcquisitionStrategy;
 pub use title_metadata::{title_metadata_from_value, TitleMetadata};

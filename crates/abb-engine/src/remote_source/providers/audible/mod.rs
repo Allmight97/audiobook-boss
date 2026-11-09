@@ -14,6 +14,7 @@ mod license;
 mod license_plan;
 mod license_reply_log;
 mod materialization;
+mod protected_file_probe;
 mod registration;
 mod supplemental_pdf;
 

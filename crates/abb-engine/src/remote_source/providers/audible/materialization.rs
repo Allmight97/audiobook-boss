@@ -6,6 +6,7 @@ use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage};
 use super::acquisition::{
     staged_materialized_path, title_progress, with_title_progress, TitleAcquisitionCtx,
 };
+use super::protected_file_probe::log_protected_file_facts;
 use crate::errors::{AppError, Result};
 use crate::remote_source::materializer::{
     AaxcleanLane, AaxcleanMaterializer, AaxcleanSecret, MaterializationRequest,
@@ -35,6 +36,7 @@ pub(super) async fn materialize_protected_download(
         progress_context,
     } = ctx;
     let (helper_lane, secret) = helper_material_from_audible_material(material);
+    log_protected_file_facts(downloaded_path, job_id, title_id, helper_lane).await;
     progress(title_progress(
         progress_context,
         AcquisitionStage::Decryption,

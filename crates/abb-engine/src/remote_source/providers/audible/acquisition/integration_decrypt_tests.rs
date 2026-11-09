@@ -760,6 +760,33 @@ fn material_for_secret(secret: &AaxcleanSecret) -> abb_audible_core::AudibleDecr
     }
 }
 
+#[test]
+fn the_probe_reads_each_lane_brand_and_drm_box_from_the_encrypted_books() {
+    let books = books();
+    let read =
+        crate::remote_source::providers::audible::protected_file_probe::read_protected_file_facts;
+
+    let aax = read(&books.aax).expect("aax facts");
+    let aaxc = read(&books.aaxc).expect("aaxc facts");
+
+    assert_eq!(
+        (
+            aax.major_brand.as_str(),
+            aax.adrm_present,
+            aax.aavd_entry_present
+        ),
+        ("aax ", true, true)
+    );
+    assert_eq!(
+        (
+            aaxc.major_brand.as_str(),
+            aaxc.adrm_present,
+            aaxc.aavd_entry_present
+        ),
+        ("aaxc", false, true)
+    );
+}
+
 #[tokio::test]
 async fn aax_decrypts_to_the_generated_source() {
     let books = books();
