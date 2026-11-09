@@ -115,7 +115,7 @@ A change to CI or validation speed quotes before and after numbers from
   `ABB_DEV_RUST_LOG` sets the log level; `ABB_DEV_USE_EXISTING_RUST_LOG=1`
   keeps `RUST_LOG`.
 - `bash scripts/abb-dev.sh --help` drives an engine session without a
-  window (header of `scripts/abb-dev.sh`).
+  window, Audible included (header of `scripts/abb-dev.sh`).
 - Release artifacts: use `.agents/skills/release`. Public DMG builds publish the
   AAXClean helper from current source; local app builds may reuse a fresh
   helper sidecar whose source, SDK, target, and executable digests still match.

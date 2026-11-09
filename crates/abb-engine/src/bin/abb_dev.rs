@@ -4,9 +4,10 @@
 //! It imports audio, prints the session, and can edit metadata on every
 //! imported title, save, choose audio and output, export or preview, show
 //! progress, cancel one title, edit and re-import while an export reads its
-//! files, and read back the exported tags. It runs under
-//! its own identity and state folder, so it never reads or changes the app's
-//! settings or stored credentials.
+//! files, and read back the exported tags. `abb-dev audible ...` signs in to
+//! Audible, lists the library, and acquires titles through the same engine
+//! API. It runs under its own identity and state folder, so it never reads or
+//! changes the app's settings or stored credentials.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -27,14 +28,20 @@ use abb_engine::work_runtime::{
 };
 use abb_engine::{Engine, EngineConfig, EngineEvent, EventSink};
 
+#[path = "abb_dev/audible.rs"]
+mod audible;
+#[path = "abb_dev/audible_outcome.rs"]
+mod audible_outcome;
 #[path = "abb_dev/during_export.rs"]
 mod during_export;
 use during_export::DuringExport;
 
 const USAGE: &str = "\
 Usage: abb-dev <file-or-folder>... [options]
+       abb-dev audible <sign-in|library|acquire> --state-dir <dir> [options]
 
-Imports audio into an engine session and prints the session.
+Imports audio into an engine session and prints the session. The audible
+commands are listed after these options.
 
 Options:
   --set <field>=<value>   Edit a field on every imported title. Repeatable.
@@ -666,6 +673,7 @@ enum AbbDevStatus {
     Success,
     Help,
     Usage(String),
+    AudibleUsage(String),
     NothingImported,
     SaveFailed(String),
     PendingReview(String),
@@ -687,12 +695,16 @@ impl From<&str> for AbbDevStatus {
 fn exit_code(status: AbbDevStatus) -> ExitCode {
     match status {
         AbbDevStatus::Help => {
-            print!("{USAGE}");
+            print!("{USAGE}\n{}", audible::USAGE);
             ExitCode::SUCCESS
         }
         AbbDevStatus::Success => ExitCode::SUCCESS,
         AbbDevStatus::Usage(message) => {
             eprintln!("abb-dev: {message}\n\n{USAGE}");
+            ExitCode::from(2)
+        }
+        AbbDevStatus::AudibleUsage(message) => {
+            eprintln!("abb-dev: {message}\n\n{}", audible::USAGE);
             ExitCode::from(2)
         }
         AbbDevStatus::NothingImported => {
@@ -714,29 +726,46 @@ fn exit_code(status: AbbDevStatus) -> ExitCode {
     }
 }
 
+async fn import_command(args: Vec<String>) -> AbbDevStatus {
+    let options = match parse(args.into_iter()) {
+        Err(message) => return AbbDevStatus::Usage(message),
+        Ok(options) => options,
+    };
+    let temporary = options.state_dir.is_none();
+    let state_dir = options
+        .state_dir
+        .clone()
+        .unwrap_or_else(|| std::env::temp_dir().join(format!("abb-dev-{}", std::process::id())));
+    let status = run(options, state_dir.clone()).await;
+    if temporary {
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "the throwaway state folder of a finished dev run"
+        )]
+        let _ = std::fs::remove_dir_all(&state_dir);
+    }
+    status
+}
+
+async fn audible_command(args: Vec<String>) -> AbbDevStatus {
+    match audible::parse(args.into_iter()) {
+        Err(message) => AbbDevStatus::AudibleUsage(message),
+        Ok(options) => match audible::run(options).await {
+            Ok(()) => AbbDevStatus::Success,
+            Err(status) => status,
+        },
+    }
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
-    let status = if std::env::args().any(|arg| arg == "--help" || arg == "-h") {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let status = if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         AbbDevStatus::Help
+    } else if args.first().is_some_and(|arg| arg == "audible") {
+        audible_command(args[1..].to_vec()).await
     } else {
-        match parse(std::env::args().skip(1)) {
-            Err(message) => AbbDevStatus::Usage(message),
-            Ok(options) => {
-                let temporary = options.state_dir.is_none();
-                let state_dir = options.state_dir.clone().unwrap_or_else(|| {
-                    std::env::temp_dir().join(format!("abb-dev-{}", std::process::id()))
-                });
-                let status = run(options, state_dir.clone()).await;
-                if temporary {
-                    #[expect(
-                        clippy::let_underscore_must_use,
-                        reason = "the throwaway state folder of a finished dev run"
-                    )]
-                    let _ = std::fs::remove_dir_all(&state_dir);
-                }
-                status
-            }
-        }
+        import_command(args).await
     };
     exit_code(status)
 }

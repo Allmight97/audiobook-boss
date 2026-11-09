@@ -43,6 +43,8 @@ app, a test, and the `abb-dev` tool drive the same code
 - `abb-dev` (`src/bin/abb_dev.rs`) is the smallest host. It runs under its own
   identity and state folder; keep it away from the app's settings and
   credentials.
+  `abb-dev audible` (`src/bin/abb_dev/audible.rs`) reaches Audible only through
+  `SessionIntent::Remote` and the session snapshot, as any host does.
 
 ## Owner Routes
 

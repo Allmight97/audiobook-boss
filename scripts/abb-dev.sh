@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Drives an engine session without a window: import, edit, save, export,
-# collisions, cancel. abb-dev uses its own app identity and a throwaway state
-# folder unless --state-dir is given, so it never touches the app's settings
-# or credentials. Builds inside the repo, where rust-toolchain.toml selects the
+# collisions, cancel. "audible sign-in|library|acquire" drives Audible the same
+# way; only sign-in needs a person. abb-dev uses its own app identity and a
+# throwaway state folder unless --state-dir is given (audible commands need
+# it), so it never touches the app's settings or credentials; its Audible
+# sign-in lives in its own keychain entry. Builds inside the repo, where rust-toolchain.toml selects the
 # compiler, then runs from the caller's folder so relative paths resolve there.
 # Usage: bash scripts/abb-dev.sh --help
 set -euo pipefail
