@@ -4,8 +4,10 @@
  * Usage: bun scripts/ffmpeg-master-tracking.ts
  *
  * Reads the ffmpeg-revision file under vendor, derives the commit paths from
- * the bundled build's enabled libraries, and updates the one issue labeled
- * ffmpeg-master-tracking. It does not change the pin.
+ * the bundled build's enabled libraries, and updates the one issue titled
+ * "Weekly FFmpeg master tracking" that github-actions[bot] opened with the
+ * label ffmpeg-master-tracking. Any other issue is left alone. It does not
+ * change the pin.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -14,6 +16,7 @@ import path from 'node:path';
 
 const LABEL = 'ffmpeg-master-tracking';
 const TITLE = 'Weekly FFmpeg master tracking';
+const BOT = 'github-actions[bot]';
 const SHOWN_COMMITS = 40;
 const DAY_MS = 86_400_000;
 const FFMPEG_REPO = 'https://github.com/FFmpeg/FFmpeg.git';
@@ -24,39 +27,18 @@ const COMPILE_MODE = new Set(['build', 'build-portable', 'build-pic']);
 const N91_RELEASE = /^n9\.1(?:\.\d+)*$/;
 const LOG_FORMAT = '%H%x1f%cI%x1f%s%x1e';
 
-export interface Library {
-	name: string;
-	isFeature: boolean;
-}
-
-export interface EnabledBuild {
-	libraries: string[];
-	externals: string[];
-	compiles: boolean;
-}
-
-export interface TagRef {
-	ref: string;
-	sha: string;
-	type: string;
-}
-
-export interface ReleaseTag {
-	name: string;
-	sha: string;
-	type: string;
-}
-
-export interface UpstreamCommit {
-	sha: string;
-	date: string;
-	subject: string;
-}
-
-export interface TrackingIssue {
+export type Library = { name: string; isFeature: boolean };
+export type EnabledBuild = { libraries: string[]; externals: string[]; compiles: boolean };
+export type TagRef = { ref: string; sha: string; type: string };
+export type ReleaseTag = { name: string; sha: string; type: string };
+export type UpstreamCommit = { sha: string; date: string; subject: string };
+export type TrackingIssue = {
 	number: number;
 	state: string;
-}
+	title: string;
+	author: string;
+	labels: string[];
+};
 
 export interface TrackingReport {
 	pin: string;
@@ -68,13 +50,10 @@ export interface TrackingReport {
 	daysBehind: number;
 	compareUrl: string;
 	releases: { name: string; sha: string }[];
-	libraries: string[];
-	externals: string[];
 	pathspecs: string[];
 	commits: UpstreamCommit[];
 	commitsTotal: number;
-	runUrl: string | null;
-	generatedAt: string;
+	runUrl: string;
 }
 
 interface ExecError {
@@ -82,11 +61,7 @@ interface ExecError {
 }
 
 export function readPin(text: string): string {
-	const pin = text.trim();
-	if (!/^[0-9a-f]{40}$/.test(pin)) {
-		throw new Error('ffmpeg-revision is not a 40-character commit sha');
-	}
-	return pin;
+	return commitSha(text.trim(), 'ffmpeg-revision');
 }
 
 export function daysBehind(pinDate: string, headDate: string): number {
@@ -138,11 +113,8 @@ export function enabledBuild(
 export function trackingPathspecs(libraries: string[], externals: string[]): string[] {
 	const enabled = new Set(libraries);
 	const paths: string[] = [];
-	// `*` does not match `/`, so aac and mov need the directory as well as the file glob.
-	if (enabled.has('avcodec')) {
-		paths.push('libavcodec/aac*', 'libavcodec/aac', ':(glob)**/*opus*');
-	}
-	if (enabled.has('avformat')) paths.push('libavformat/mov*', 'libavformat/mov');
+	if (enabled.has('avcodec')) paths.push('libavcodec/aac*', ':(glob)**/*opus*');
+	if (enabled.has('avformat')) paths.push('libavformat/mov*');
 	for (const feature of externals) {
 		const glob = externalGlob(feature);
 		if (glob !== null && !paths.includes(glob)) paths.push(glob);
@@ -187,15 +159,14 @@ export function commitsTouching(
 }
 
 export function issueToUpdate(issues: TrackingIssue[]): TrackingIssue | null {
-	const open = oldest(issues, 'OPEN');
-	if (open !== null) return open;
-	return oldest(issues, 'CLOSED');
+	const ours = issues.filter(
+		(issue) => issue.title === TITLE && issue.author === BOT && issue.labels.includes(LABEL),
+	);
+	return oldest(ours, 'OPEN') ?? oldest(ours, 'CLOSED');
 }
 
 export function renderIssue(report: TrackingReport): string {
 	const lines = [
-		'<!-- abb-ffmpeg-master-tracking -->',
-		'',
 		n91Paragraph(report.releases),
 		'',
 		behindParagraph(report),
@@ -211,8 +182,6 @@ export function renderIssue(report: TrackingReport): string {
 		'',
 		'## Commits on the enabled libraries',
 		'',
-		`Libraries: ${codeList(report.libraries)}.`,
-		`External build features: ${codeList(report.externals)}.`,
 		`Paths: ${codeList(report.pathspecs)}.`,
 		'',
 		...commitLines(report),
@@ -348,8 +317,7 @@ function commitLines(report: TrackingReport): string[] {
 }
 
 function footer(report: TrackingReport): string {
-	const via = report.runUrl === null ? '' : ` by [this run](${report.runUrl})`;
-	return `Updated ${report.generatedAt}${via}. This issue is updated in place and does not move the pin.`;
+	return `Updated by [this run](${report.runUrl}). This issue is updated in place and does not move the pin.`;
 }
 
 function countNoun(count: number, noun: string): string {
@@ -366,9 +334,7 @@ function inlineCode(text: string): string {
 }
 
 function gitCount(repo: string, args: string[]): number {
-	const count = Number(git(repo, args).trim());
-	if (!Number.isInteger(count)) throw new Error('git did not return an integer count');
-	return count;
+	return wholeNumber(git(repo, args).trim(), 'git count');
 }
 
 function parseLog(text: string): UpstreamCommit[] {
@@ -377,15 +343,10 @@ function parseLog(text: string): UpstreamCommit[] {
 		const trimmed = record.trim();
 		if (trimmed === '') continue;
 		const [sha, date, subject] = trimmed.split('\x1f');
-		if (
-			sha === undefined ||
-			date === undefined ||
-			subject === undefined ||
-			!/^[0-9a-f]{40}$/.test(sha)
-		) {
+		if (sha === undefined || date === undefined || subject === undefined) {
 			throw new Error('git log record did not parse');
 		}
-		commits.push({ sha, date, subject });
+		commits.push({ sha: commitSha(sha, 'git log record'), date, subject });
 	}
 	return commits;
 }
@@ -442,6 +403,7 @@ function main(): void {
 			throw new Error(`git counts ${ahead} commits and the compare API counts ${compare.aheadBy}`);
 		}
 		const touched = commitsTouching(dir, pin, 'origin/master', pathspecs, SHOWN_COMMITS);
+		const days = daysBehind(compare.baseDate, head.date);
 		const body = renderIssue({
 			pin,
 			pinDate: compare.baseDate,
@@ -449,25 +411,19 @@ function main(): void {
 			headDate: head.date,
 			masterAhead: compare.aheadBy,
 			pinNotOnMaster: compare.behindBy,
-			daysBehind: daysBehind(compare.baseDate, head.date),
+			daysBehind: days,
 			compareUrl: compare.url,
 			releases,
-			libraries: enabled.libraries,
-			externals: enabled.externals,
 			pathspecs,
 			commits: touched.commits,
 			commitsTotal: touched.total,
 			runUrl: runUrl(),
-			generatedAt: new Date().toISOString(),
 		});
 		const url = publish(body);
-		console.log(`issue: ${url}`);
-		console.log(`commits behind: ${compare.aheadBy}`);
-		console.log(`days behind: ${daysBehind(compare.baseDate, head.date)}`);
-		console.log(`pin: ${pin}`);
-		console.log(`head: ${head.sha}`);
+		const tagged =
+			releases.length === 0 ? 'not tagged' : releases.map((release) => release.name).join(', ');
 		console.log(
-			`n9.1: ${releases.length === 0 ? 'not tagged' : releases.map((release) => release.name).join(', ')}`,
+			`issue: ${url}; commits behind: ${compare.aheadBy}; days behind: ${days}; pin: ${pin}; head: ${head.sha}; n9.1: ${tagged}`,
 		);
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
@@ -485,62 +441,33 @@ function soleVendorFile(root: string, prefix: string, file: string): string {
 	return found[0];
 }
 
-interface ComparePayload {
-	baseSha: string;
-	baseDate: string;
-	aheadBy: number;
-	behindBy: number;
-	url: string;
-}
-
-function fetchCompare(pin: string): ComparePayload {
-	const body = gh([
-		'api',
-		`${FFMPEG_API}/compare/${pin}...master`,
-		'--jq',
-		'{ahead_by,behind_by,html_url,base_sha:.base_commit.sha,base_date:.base_commit.commit.committer.date}',
-	]);
-	const parsed = JSON.parse(body) as Partial<ComparePayload> & {
-		ahead_by?: unknown;
-		behind_by?: unknown;
-		html_url?: unknown;
-		base_sha?: unknown;
-		base_date?: unknown;
-	};
-	if (
-		typeof parsed.base_sha !== 'string' ||
-		typeof parsed.base_date !== 'string' ||
-		typeof parsed.html_url !== 'string' ||
-		typeof parsed.ahead_by !== 'number' ||
-		typeof parsed.behind_by !== 'number'
-	) {
-		throw new Error('compare API response is missing a count or a sha');
-	}
+function fetchCompare(pin: string) {
+	const [baseSha, baseDate, ahead, behind, url] = jsonRow(
+		gh([
+			'api',
+			`${FFMPEG_API}/compare/${pin}...master`,
+			'--jq',
+			'[.base_commit.sha, .base_commit.commit.committer.date, (.ahead_by|tostring), (.behind_by|tostring), .html_url]',
+		]),
+		5,
+		'compare API',
+	);
 	return {
-		baseSha: parsed.base_sha,
-		baseDate: parsed.base_date,
-		aheadBy: parsed.ahead_by,
-		behindBy: parsed.behind_by,
-		url: parsed.html_url,
+		baseSha: commitSha(baseSha, 'compare base'),
+		baseDate,
+		aheadBy: wholeNumber(ahead, 'ahead_by'),
+		behindBy: wholeNumber(behind, 'behind_by'),
+		url,
 	};
 }
 
 function fetchHead(): { sha: string; date: string } {
-	const body = gh([
-		'api',
-		`${FFMPEG_API}/commits/master`,
-		'--jq',
-		'{sha,date:.commit.committer.date}',
-	]);
-	const parsed = JSON.parse(body) as { sha?: unknown; date?: unknown };
-	if (
-		typeof parsed.sha !== 'string' ||
-		typeof parsed.date !== 'string' ||
-		!/^[0-9a-f]{40}$/.test(parsed.sha)
-	) {
-		throw new Error('master HEAD did not parse');
-	}
-	return { sha: parsed.sha, date: parsed.date };
+	const [sha, date] = jsonRow(
+		gh(['api', `${FFMPEG_API}/commits/master`, '--jq', '[.sha, .commit.committer.date]']),
+		2,
+		'master HEAD',
+	);
+	return { sha: commitSha(sha, 'master HEAD'), date };
 }
 
 function fetchTagRefs(): TagRef[] {
@@ -550,7 +477,7 @@ function fetchTagRefs(): TagRef[] {
 			'api',
 			`${FFMPEG_API}/git/matching-refs/tags/n9.1`,
 			'--jq',
-			'[.[] | {ref, sha: .object.sha, type: .object.type}]',
+			'[.[] | [.ref, .object.sha, .object.type]]',
 		]);
 	} catch (error) {
 		if (isNotFound(error)) return [];
@@ -558,19 +485,41 @@ function fetchTagRefs(): TagRef[] {
 	}
 	const parsed = JSON.parse(body) as unknown;
 	if (!Array.isArray(parsed)) throw new Error('tag list did not parse');
-	return parsed.flatMap((item) => {
-		if (typeof item !== 'object' || item === null) return [];
-		const ref = item as { ref?: unknown; sha?: unknown; type?: unknown };
-		if (typeof ref.ref !== 'string' || typeof ref.sha !== 'string' || typeof ref.type !== 'string')
-			return [];
-		return [{ ref: ref.ref, sha: ref.sha, type: ref.type }];
+	return parsed.map((item) => {
+		const [ref, sha, type] = stringRow(item, 3, 'tag list');
+		return { ref, sha, type };
 	});
 }
 
 function tagCommit(tagSha: string): string {
 	const sha = gh(['api', `${FFMPEG_API}/git/tags/${tagSha}`, '--jq', '.object.sha']).trim();
-	if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error('an n9.1 tag did not resolve to a commit');
-	return sha;
+	return commitSha(sha, 'n9.1 tag');
+}
+
+function jsonRow(body: string, size: number, label: string): string[] {
+	return stringRow(JSON.parse(body) as unknown, size, label);
+}
+
+function stringRow(value: unknown, size: number, label: string): string[] {
+	if (!Array.isArray(value) || value.length !== size) throw new Error(`${label} did not parse`);
+	const row: string[] = [];
+	for (const item of value) {
+		if (typeof item !== 'string' || item === '') throw new Error(`${label} did not parse`);
+		row.push(item);
+	}
+	return row;
+}
+
+function commitSha(value: string | undefined, label: string): string {
+	if (value === undefined || !/^[0-9a-f]{40}$/.test(value)) {
+		throw new Error(`${label} is not a commit sha`);
+	}
+	return value;
+}
+
+function wholeNumber(value: string | undefined, label: string): number {
+	if (value === undefined || !/^\d+$/.test(value)) throw new Error(`${label} did not parse`);
+	return Number(value);
 }
 
 function fetchMaster(pinDate: string): string {
@@ -595,9 +544,8 @@ function fetchMaster(pinDate: string): string {
 	return dir;
 }
 
-function runUrl(): string | null {
-	const url = process.env.TRACKING_RUN_URL;
-	if (url === undefined || url === '') return null;
+function runUrl(): string {
+	const url = process.env.TRACKING_RUN_URL ?? '';
 	if (!/^https:\/\/[^\s)]+$/.test(url)) throw new Error('TRACKING_RUN_URL is not an https URL');
 	return url;
 }
@@ -606,16 +554,7 @@ function publish(body: string): string {
 	const bodyFile = path.join(tmpdir(), `abb-ffmpeg-tracking-${process.pid}.md`);
 	writeFileSync(bodyFile, body);
 	try {
-		gh([
-			'label',
-			'create',
-			LABEL,
-			'--description',
-			'Updated in place by the FFmpeg master tracking workflow',
-			'--color',
-			'1d76db',
-			'--force',
-		]);
+		ensureLabel();
 		const target = issueToUpdate(listTrackingIssues());
 		if (target === null) {
 			return requireUrl(
@@ -623,17 +562,7 @@ function publish(body: string): string {
 			);
 		}
 		if (target.state.toUpperCase() === 'CLOSED') gh(['issue', 'reopen', String(target.number)]);
-		gh([
-			'issue',
-			'edit',
-			String(target.number),
-			'--title',
-			TITLE,
-			'--body-file',
-			bodyFile,
-			'--add-label',
-			LABEL,
-		]);
+		gh(['issue', 'edit', String(target.number), '--body-file', bodyFile]);
 		return requireUrl(
 			gh(['issue', 'view', String(target.number), '--json', 'url', '--jq', '.url']),
 		);
@@ -642,27 +571,70 @@ function publish(body: string): string {
 	}
 }
 
+function ensureLabel(): void {
+	try {
+		gh(['api', `repos/{owner}/{repo}/labels/${LABEL}`]);
+	} catch (error) {
+		if (!isNotFound(error)) throw error;
+		gh([
+			'label',
+			'create',
+			LABEL,
+			'--description',
+			'Updated in place by the FFmpeg master tracking workflow',
+			'--color',
+			'1d76db',
+		]);
+	}
+}
+
 function listTrackingIssues(): TrackingIssue[] {
 	const body = gh([
-		'issue',
-		'list',
-		'--label',
-		LABEL,
-		'--state',
-		'all',
-		'--limit',
-		'50',
-		'--json',
-		'number,state',
+		'api',
+		'--paginate',
+		`repos/{owner}/{repo}/issues?labels=${LABEL}&state=all&per_page=100`,
+		'--jq',
+		'.[] | select(.pull_request == null) | {number, state, title, author: .user.login, labels: [.labels[].name]}',
 	]);
-	const parsed = JSON.parse(body) as unknown;
-	if (!Array.isArray(parsed)) throw new Error('issue list did not parse');
-	return parsed.flatMap((item) => {
-		if (typeof item !== 'object' || item === null) return [];
-		const issue = item as { number?: unknown; state?: unknown };
-		if (typeof issue.number !== 'number' || typeof issue.state !== 'string') return [];
-		return [{ number: issue.number, state: issue.state }];
-	});
+	const issues: TrackingIssue[] = [];
+	for (const line of body.split('\n')) {
+		const trimmed = line.trim();
+		if (trimmed === '') continue;
+		issues.push(trackingIssue(JSON.parse(trimmed) as unknown));
+	}
+	return issues;
+}
+
+function trackingIssue(item: unknown): TrackingIssue {
+	if (typeof item !== 'object' || item === null) throw new Error('issue list did not parse');
+	const issue = item as {
+		number?: unknown;
+		state?: unknown;
+		title?: unknown;
+		author?: unknown;
+		labels?: unknown;
+	};
+	if (
+		typeof issue.number !== 'number' ||
+		typeof issue.state !== 'string' ||
+		typeof issue.title !== 'string' ||
+		typeof issue.author !== 'string' ||
+		!Array.isArray(issue.labels)
+	) {
+		throw new Error('issue list did not parse');
+	}
+	const labels: string[] = [];
+	for (const label of issue.labels) {
+		if (typeof label !== 'string') throw new Error('issue list did not parse');
+		labels.push(label);
+	}
+	return {
+		number: issue.number,
+		state: issue.state,
+		title: issue.title,
+		author: issue.author,
+		labels,
+	};
 }
 
 function requireUrl(text: string): string {

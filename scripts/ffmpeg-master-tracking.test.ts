@@ -17,6 +17,7 @@ import {
 	trackingPathspecs,
 } from './ffmpeg-master-tracking';
 
+const TITLE = 'Weekly FFmpeg master tracking';
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const repos: string[] = [];
 
@@ -51,10 +52,8 @@ describe('ffmpeg master tracking', () => {
 		expect(enabled.externals).toEqual(['build-audiotoolbox', 'build-lib-opus']);
 		expect(trackingPathspecs(enabled.libraries, enabled.externals)).toEqual([
 			'libavcodec/aac*',
-			'libavcodec/aac',
 			':(glob)**/*opus*',
 			'libavformat/mov*',
-			'libavformat/mov',
 			':(glob)**/*audiotoolbox*',
 			'libavutil',
 			'libswresample',
@@ -104,16 +103,16 @@ bundled-ffmpeg = [
 		).toEqual(['n9.1', 'n9.1.2']);
 	});
 
-	it('keeps one issue, preferring the oldest open one', () => {
+	it('edits only a bot issue with the exact title and label', () => {
+		const human = issue(1, 'OPEN', 'someone');
+		const wrongTitle = issue(2, 'OPEN', 'github-actions[bot]', 'Something else');
+		const unlabeled = issue(3, 'OPEN', 'github-actions[bot]', TITLE, []);
+		const closed = issue(4, 'CLOSED', 'github-actions[bot]');
+		const open = issue(5, 'OPEN', 'github-actions[bot]');
 		expect(issueToUpdate([])).toBeNull();
-		expect(
-			issueToUpdate([
-				{ number: 8, state: 'CLOSED' },
-				{ number: 4, state: 'OPEN' },
-				{ number: 2, state: 'OPEN' },
-			])?.number,
-		).toBe(2);
-		expect(issueToUpdate([{ number: 9, state: 'closed' }])?.number).toBe(9);
+		expect(issueToUpdate([human, wrongTitle, unlabeled])).toBeNull();
+		expect(issueToUpdate([human, closed, open])?.number).toBe(5);
+		expect(issueToUpdate([human, { ...closed, state: 'closed' }])?.number).toBe(4);
 	});
 
 	it('lists only commits on the derived paths', () => {
@@ -125,13 +124,7 @@ bundled-ffmpeg = [
 		const opus = commit(repo, 'libavcodec/opusdec.c', '2026-11-05T00:00:00Z');
 		const mov = commit(repo, 'libavformat/movenc.c', '2026-11-06T00:00:00Z');
 		const util = commit(repo, 'libavutil/frame.c', '2026-11-07T00:00:00Z');
-		const paths = [
-			'libavcodec/aac*',
-			'libavcodec/aac',
-			':(glob)**/*opus*',
-			'libavformat/mov*',
-			'libavutil',
-		];
+		const paths = ['libavcodec/aac*', ':(glob)**/*opus*', 'libavformat/mov*', 'libavutil'];
 		const touched = commitsTouching(repo, root, 'HEAD', paths, 40);
 		expect(touched.total).toBe(5);
 		expect(touched.commits.map((entry) => entry.sha)).toEqual([util, mov, opus, aacDir, aac]);
@@ -143,7 +136,8 @@ bundled-ffmpeg = [
 
 	it('renders the counts, the shas, and the n9.1 flag', () => {
 		const absent = renderIssue(report({ releases: [] }));
-		expect(absent).toContain('<!-- abb-ffmpeg-master-tracking -->');
+		expect(absent.startsWith('**n9.1:** not tagged.')).toBe(true);
+		expect(absent).not.toContain('<!--');
 		expect(absent).toContain('**4 commits behind**, **2 days behind**');
 		expect(absent).toContain('Compare API `ahead_by` 4, `behind_by` 0.');
 		expect(absent).toContain(`\`${'a'.repeat(40)}\``);
@@ -158,7 +152,7 @@ bundled-ffmpeg = [
 		);
 
 		const tagged = renderIssue(report({ releases: [{ name: 'n9.1', sha: 'c'.repeat(40) }] }));
-		expect(tagged.startsWith('<!-- abb-ffmpeg-master-tracking -->\n\n**n9.1: TAGGED**')).toBe(true);
+		expect(tagged.startsWith('**n9.1: TAGGED**')).toBe(true);
 		expect(tagged).toContain(`\`n9.1\` at \`${'c'.repeat(40)}\``);
 
 		const current = renderIssue(report({ masterAhead: 0, pinNotOnMaster: 0, daysBehind: 0 }));
@@ -172,6 +166,16 @@ bundled-ffmpeg = [
 	});
 });
 
+function issue(
+	number: number,
+	state: string,
+	author: string,
+	title = TITLE,
+	labels: string[] = ['ffmpeg-master-tracking'],
+) {
+	return { number, state, title, author, labels };
+}
+
 function report(overrides: Partial<TrackingReport>): TrackingReport {
 	return {
 		pin: 'a'.repeat(40),
@@ -183,8 +187,6 @@ function report(overrides: Partial<TrackingReport>): TrackingReport {
 		daysBehind: 2,
 		compareUrl: 'https://github.com/FFmpeg/FFmpeg/compare/pin...master',
 		releases: [],
-		libraries: ['avcodec', 'avformat', 'avutil', 'swresample'],
-		externals: ['build-audiotoolbox', 'build-lib-opus'],
 		pathspecs: ['libavcodec/aac*'],
 		commits: [
 			{
@@ -195,7 +197,6 @@ function report(overrides: Partial<TrackingReport>): TrackingReport {
 		],
 		commitsTotal: 1,
 		runUrl: 'https://github.com/Allmight97/audiobook-boss/actions/runs/1',
-		generatedAt: '2026-11-09T00:00:00Z',
 		...overrides,
 	};
 }

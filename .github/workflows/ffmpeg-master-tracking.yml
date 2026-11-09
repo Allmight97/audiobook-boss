@@ -26,5 +26,6 @@ jobs:
       - run: bash scripts/setup.sh frontend
       - name: Update the tracking issue
         env:
+          GH_TOKEN: ${{ github.token }}
           TRACKING_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: bun scripts/ffmpeg-master-tracking.ts
