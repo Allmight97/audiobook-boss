@@ -95,6 +95,68 @@ describe('tools folder', () => {
 	});
 });
 
+const setupSh = readFileSync(path.join(repoRoot, 'scripts/setup.sh'), 'utf8');
+const pinnedFfmpegRelease = /^ffmpeg_cli_release=(\S+)$/m.exec(setupSh)?.[1];
+const pinnedFfmpegBuild = /^ffmpeg_cli_build=(\S+)$/m.exec(setupSh)?.[1];
+
+function fakeCli(bin: string, name: string, version: string) {
+	mkdirSync(bin, { recursive: true });
+	const file = path.join(bin, name);
+	writeFileSync(file, `#!/bin/bash\necho "ffmpeg version ${version} Copyright"\n`);
+	chmodSync(file, 0o755);
+}
+
+function readbackCli(version: string) {
+	const home = mkdtempSync(path.join(os.tmpdir(), 'abb-setup-ffmpeg-'));
+	scratch.push(home);
+	const tools = path.join(home, 'tools');
+	fakeCli(tools, 'ffmpeg', version);
+	fakeCli(tools, 'ffprobe', version);
+	const script = [
+		`source <(sed '/^require_prerequisites$/,$d' scripts/setup.sh)`,
+		'is_darwin() { return 1; }',
+		'uname() { if [[ "$1" == -m ]]; then printf x86_64; else printf Linux; fi; }',
+		'fetch_verified() { printf "DOWNLOAD %s %s\\n" "$1" "$2"; exit 42; }',
+		'ensure_readback_cli',
+	].join('\n');
+	return spawnSync('bash', ['-c', script], {
+		cwd: repoRoot,
+		encoding: 'utf8',
+		env: {
+			PATH: `${bashDir}:/usr/bin:/bin`,
+			HOME: home,
+			ABB_TOOLS_BIN: tools,
+		},
+	});
+}
+
+describe('FFmpeg readback CLI', () => {
+	it('names the BtbN autobuild of the bundled FFmpeg commit', () => {
+		const revision = readFileSync(
+			path.join(repoRoot, 'vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision'),
+			'utf8',
+		).trim();
+		const short = pinnedFfmpegBuild?.match(/g([0-9a-f]+)$/)?.[1];
+		expect(short && revision.startsWith(short)).toBe(true);
+		expect(pinnedFfmpegRelease).toMatch(/^autobuild-/);
+	});
+
+	it('installs the pinned build when the tools folder has a different FFmpeg 9', () => {
+		const result = readbackCli('n9.0.2-39-g7adfbe40dc-20261031');
+		expect(result.status, result.stderr).toBe(42);
+		expect(result.stdout).toContain(
+			`DOWNLOAD https://github.com/BtbN/FFmpeg-Builds/releases/download/${pinnedFfmpegRelease} ffmpeg-${pinnedFfmpegBuild}-linux64-gpl.tar.xz`,
+		);
+	});
+
+	it('keeps the tools-folder CLI when its version is the pinned build', () => {
+		const result = readbackCli(`${pinnedFfmpegBuild}-20261109`);
+		expect(result.status, result.stderr).toBe(0);
+		expect(result.stdout).not.toContain('DOWNLOAD');
+		expect(result.stdout).toContain(`Using FFmpeg readback CLI ${pinnedFfmpegBuild}`);
+	});
+});
+
 describe('tool pins live in setup.sh', () => {
 	const workflow = readFileSync(path.join(repoRoot, '.github/workflows/ci.yml'), 'utf8');
 

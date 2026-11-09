@@ -191,7 +191,7 @@ A change to CI or validation speed quotes before and after numbers from
 | `package.json` | `nanoid (override)` | pin: security floor for PostCSS's transitive dependency; unpin when PostCSS requires `^3.3.20` or newer |
 | `package.json` | `undici (override)` | pin: security floor for jsdom's transitive dependency; unpin when jsdom requires this version or newer |
 | `.node-version` | `node` | pin: CI and a fresh setup install this exact build; setup keeps any Node of this major or newer; unpin when the owner moves to a newer Node |
-| `scripts/setup.sh` | Linux FFmpeg CLI (`ffmpeg_cli_release`) | pin: BtbN keeps month-end builds, so a fresh Linux box gets the same readback binary; unpin when the owner moves the media lane to a newer FFmpeg build |
+| `scripts/setup.sh` | Linux FFmpeg CLI (`ffmpeg_cli_release`, `ffmpeg_cli_build`) | pin: the BtbN master autobuild of the commit in `ffmpeg-revision`, so Linux readback matches the bundled libraries; unpin when the owner moves that commit |
 | `scripts/setup.sh` | `uv` (`uv_version`) | pin: setup downloads this release, checked against its published checksum, only when no `uvx` is on PATH and keeps any `uvx` it finds (`uvx` only runs the workflow and complexity linters); unpin when the owner moves the Python tools to a newer uv |
 | `scripts/setup.sh` | `cargo-audit` and `cargo-deny` (`cargo_audit_version`, `cargo_deny_version`) | pin: advisory and license verdicts stay the same between runs, and each download is checked against a pinned checksum; unpin when the owner bumps either tool |
 | `scripts/check-workflows.sh` | `zizmor` | pin: workflow findings stay the same between runs; unpin when the owner bumps zizmor |
@@ -232,10 +232,10 @@ A change to CI or validation speed quotes before and after numbers from
 - Linux builds link with mold through clang (`.cargo/config.toml`); `setup.sh
   rust` installs both. A `RUSTFLAGS` variable replaces that config's flags.
 - Media fixtures and readback spawn `ffmpeg` and `ffprobe` from PATH
-  (`ABB_FFMPEG` and `ABB_FFPROBE` override). `setup.sh rust` installs FFmpeg 9
-  into the ABB tools folder on Linux and uses Homebrew `ffmpeg` on macOS. Those
-  lookups live in `--print-env`; do not copy them into callers. Distro FFmpeg 6.x decodes edit
-  lists and Opus pre-skip differently, so media tests fail on it as a readback
-  artifact, not a regression.
+  (`ABB_FFMPEG` and `ABB_FFPROBE` override). `setup.sh rust` installs the pinned
+  BtbN master autobuild into the ABB tools folder on Linux and uses Homebrew
+  `ffmpeg` (major 9) on macOS. Those lookups live in `--print-env`; do not copy
+  them into callers. Distro FFmpeg 6.x decodes edit lists and Opus pre-skip
+  differently, so media tests fail on it as a readback artifact, not a regression.
 - Linux cannot prove Apple AAC (AudioToolbox) behavior; `verify.sh apple`
   skips there and the macOS rust CI leg runs it.

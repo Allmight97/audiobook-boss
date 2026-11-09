@@ -490,6 +490,7 @@ fn fetch() -> io::Result<()> {
     if !status.success() {
         return Err(io::Error::other("failed to apply the FFmpeg source patch"));
     }
+    eprintln!("abb-ffmpeg-cache: applied {FFMPEG_SOURCE_PATCH}");
 
     Ok(())
 }
