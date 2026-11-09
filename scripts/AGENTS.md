@@ -116,6 +116,13 @@ A change to CI or validation speed quotes before and after numbers from
   AAXClean helper from current source; local app builds may reuse a fresh
   helper sidecar whose source, SDK, target, and executable digests still match.
 
+## FFmpeg master tracking
+
+`.github/workflows/ffmpeg-master-tracking.yml` runs weekly and on demand.
+`scripts/ffmpeg-master-tracking.ts` reads the vendored `ffmpeg-revision`,
+derives commit paths from the bundled build's enabled libraries, and updates
+the one issue labeled `ffmpeg-master-tracking`. The pin file stays where it is.
+
 ## Script rules
 
 - A new script enforces a live repo invariant or simplifies a build or release

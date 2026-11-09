@@ -1,0 +1,30 @@
+# Updates one tracking issue. Does not change ffmpeg-revision.
+name: FFmpeg master tracking
+
+on:
+  schedule:
+    - cron: "15 7 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ffmpeg-master-tracking
+  cancel-in-progress: false
+
+jobs:
+  track:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - run: bash scripts/setup.sh frontend
+      - name: Update the tracking issue
+        env:
+          TRACKING_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bun scripts/ffmpeg-master-tracking.ts
