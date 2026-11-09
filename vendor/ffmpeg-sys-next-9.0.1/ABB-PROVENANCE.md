@@ -6,10 +6,13 @@ The upstream manifest declares WTFPL. 9.0.1 adds `-fno-builtin` to bindgen so
 the generated bindings do not declare libc runtime symbols, and it parses
 `libavutil/spherical.h`.
 
-`ffmpeg-revision` holds the one FFmpeg commit ABB builds: a `master` commit,
-because Native AAC's NMR coder is not in a release. The Rust build and
-`scripts/setup.sh` read that file and verify the fetched commit; no other file
-repeats the hash. ABB retains the CoreAudio framework link.
+`ffmpeg-revision` holds the FFmpeg commit ABB builds: a `master` commit,
+because Native AAC's NMR coder is not in a release. The Rust build fetches
+that commit and checks the checkout. `scripts/setup.sh` names it again:
+`ffmpeg_cli_build` is the BtbN describe id, and its `g` suffix is that commit;
+`ffmpeg_cli_release` is the autobuild tag that publishes it. Those two move
+with `ffmpeg-revision`. `scripts/setup-pins.test.ts` fails when the suffix is
+not a prefix of the revision. ABB retains the CoreAudio framework link.
 
 What ABB relies on in that source:
 
@@ -27,8 +30,13 @@ What ABB relies on in that source:
 
 ## Moving the pin
 
-1. Write the new commit to `ffmpeg-revision` and run `bash scripts/setup.sh rust`
-   to fetch it.
+1. Write the new commit to `ffmpeg-revision`, and move `ffmpeg_cli_release` and
+   `ffmpeg_cli_build` in `scripts/setup.sh` to the BtbN master autobuild of
+   that commit. `scripts/setup-pins.test.ts` enforces the pairing: the build
+   id's `g` suffix must be a prefix of `ffmpeg-revision`, and the installer
+   must download `ffmpeg_cli_release` when the tools folder holds a different
+   FFmpeg 9. Then run `bash scripts/setup.sh rust` to fetch the source and
+   that CLI.
 2. Build the engine with its `bundled-ffmpeg` feature
    (`bash scripts/verify.sh engine`). A new upstream enum value fails the build
    in `../ffmpeg-next-9.0.0`; map it there and list it in that crate's
@@ -83,4 +91,8 @@ plus the QuickTime edit and sample timing tables.
 Retire the chapter patch only when the same nonzero-first-chapter regression
 passes against unpatched upstream. Advance source, wrapper mappings and
 header/runtime verification together. Unbundled builds must satisfy the same
-source/patch contract; fixture/readback CLI binaries are a separate toolchain.
+source/patch contract. Linux fixture readback is the BtbN autobuild named by
+`ffmpeg_cli_release` and `ffmpeg_cli_build`, the same commit as
+`ffmpeg-revision`. macOS readback stays Homebrew's major-9 ffmpeg. `--check`
+and `--print-env` accept that pinned build or a major-9 CLI; they do not
+install.
