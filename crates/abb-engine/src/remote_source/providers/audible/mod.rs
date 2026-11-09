@@ -7,6 +7,7 @@ use serde_json::{json, Value};
 
 pub(super) mod acquisition;
 mod audio_download;
+mod decrypt;
 mod diagnostics;
 mod http;
 mod library;

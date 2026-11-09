@@ -8,6 +8,7 @@ mod cleanup;
 mod constants;
 pub use constants::ALLOWED_IMAGE_EXTENSIONS;
 mod extensions;
+mod ffmpeg_log;
 mod file_list;
 mod format;
 mod imports;
@@ -171,6 +172,7 @@ pub enum SampleRateConfig {
     Explicit(u32),
 }
 
+pub(crate) use ffmpeg_log::limit_ffmpeg_logging;
 pub(crate) use file_list::{apply_chapter_plans, get_file_list_info, FileListInfo};
 pub use format::CodecFamily;
 pub(crate) use format::{codec_family_of, format_for_extension, Muxer, FORMATS};

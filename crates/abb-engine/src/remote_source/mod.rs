@@ -6,6 +6,13 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 mod cancellation;
 mod job_state;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the .NET helper stays until a comparison of both decrypters runs, then goes"
+    )
+)]
 mod materializer;
 mod providers;
 mod scoped_output;

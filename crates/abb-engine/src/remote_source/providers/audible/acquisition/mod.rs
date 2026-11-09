@@ -63,7 +63,6 @@ struct FinalizeAcquisitionRequest<'a> {
 pub(in crate::remote_source::providers::audible) struct TitleAcquisitionCtx<'a> {
     pub(super) job_id: &'a str,
     pub(super) title_id: &'a str,
-    pub(super) item_id: &'a str,
     pub(super) item_dir: &'a Path,
     pub(super) progress_context: TitleProgressContext<'a>,
 }
@@ -170,7 +169,6 @@ async fn acquire_one(
     let ctx = TitleAcquisitionCtx {
         job_id,
         title_id,
-        item_id: &item_id,
         item_dir: &item_dir,
         progress_context,
     };

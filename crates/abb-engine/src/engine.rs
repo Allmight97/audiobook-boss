@@ -118,6 +118,7 @@ impl Engine {
     /// remote sources, which read the Indexer connection from those settings.
     pub fn start(config: EngineConfig) -> Result<Self> {
         let cache_dir_lock = lock_cache_dir(&config.cache_dir)?;
+        audio::limit_ffmpeg_logging();
         let power = PowerManager::default();
         let host = Host::new(config.events, power.clone());
         let tasks = EngineTasks::default();

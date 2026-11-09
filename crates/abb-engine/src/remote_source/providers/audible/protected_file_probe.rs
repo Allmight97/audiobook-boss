@@ -3,11 +3,9 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
 use abb_audible_core::{
-    mp4_box_header, protected_file_facts, title_ref, Mp4BoxHeader, ProtectedFileFacts,
+    mp4_box_header, protected_file_facts, title_ref, DecryptKind, Mp4BoxHeader, ProtectedFileFacts,
     MP4_BOX_HEADER_PROBE_LEN,
 };
-
-use crate::remote_source::materializer::AaxcleanLane;
 
 const MAX_METADATA_BOX_BYTES: u64 = 64 * 1024 * 1024;
 
@@ -84,7 +82,7 @@ pub(super) async fn log_protected_file_facts(
     path: &Path,
     job_id: &str,
     title_id: &str,
-    lane: AaxcleanLane,
+    lane: DecryptKind,
 ) {
     let probed = path.to_path_buf();
     #[expect(clippy::disallowed_methods, reason = "awaited on the next line")]

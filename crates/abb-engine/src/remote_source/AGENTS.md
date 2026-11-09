@@ -245,4 +245,4 @@ An AAX or AAXC license reply with no usable decryption material fails as
 that decides, not the reply's shape. An Audible AAX or AAXC file is materialized
 only when its output decodes as audio with FFmpeg's built-in decoder. A wrong
 key fails as `MaterializationFailed`, and the message names the decrypt. For
-AAXC, helper exit 0 is not that proof.
+AAXC, demuxer success is not that proof.

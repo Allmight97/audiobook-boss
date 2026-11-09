@@ -59,7 +59,7 @@ pub(crate) use thumbnail::{optimize_cover_art, prepare_cover_art_for_write};
 
 pub(crate) use cover_art::ResolvedCover;
 pub use cover_art::{add_cover_art_stream_pre_header, write_cover_art_packet_post_header};
-pub(crate) use ffi::length_is_estimated;
+pub(crate) use ffi::{length_is_estimated, set_stream_disposition_and_clear_codec_tag};
 pub use ffmpeg_dict::set_container_metadata;
 pub(crate) use passthrough::prepare_output_cover_art;
 pub use passthrough::{

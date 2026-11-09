@@ -46,7 +46,6 @@ fn test_title_ctx<'a>(
     TitleAcquisitionCtx {
         job_id: "job-1",
         title_id: "B000000001",
-        item_id: "item-1",
         item_dir: job_dir,
         progress_context,
     }

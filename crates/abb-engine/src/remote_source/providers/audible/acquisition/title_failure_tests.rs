@@ -23,7 +23,6 @@ fn acquire_unreadable_titles(count: u32, pause_after_first: Option<Pause>) -> Ac
                 let ctx = TitleAcquisitionCtx {
                     job_id: &request.job_id,
                     title_id: &title_id,
-                    item_id: &title_id,
                     item_dir: &request.job_dir,
                     progress_context: TitleProgressContext {
                         title_id: &title_id,

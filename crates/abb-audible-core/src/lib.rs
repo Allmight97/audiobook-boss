@@ -1,3 +1,4 @@
+mod demuxer_options;
 mod download;
 mod json_probe;
 mod library_item;
@@ -9,6 +10,9 @@ mod reply_keys;
 mod strategy;
 mod title_metadata;
 
+pub use demuxer_options::{
+    demuxer_options, file_matches_decrypt_kind, DemuxerOption, DemuxerOptionsError,
+};
 pub use download::{classify_download_response, DownloadResponseError, ParsedContentRange};
 pub use json_probe::{find_first_string_for_key, OwnedPathStep};
 pub use library_item::{library_items_from_page, LibraryItem};
