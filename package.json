@@ -36,7 +36,7 @@
 		"update:rc": "bun add --exact solid-js@next @solidjs/web@next && bun add --dev --exact @solidjs/vite-plugin@latest @solidjs/testing-library@next"
 	},
 	"dependencies": {
-		"@solidjs/web": "2.0.0-rc.18",
+		"@solidjs/web": "2.0.0-rc.20",
 		"@tauri-apps/api": "^2.12.4",
 		"@tauri-apps/plugin-dialog": "^2.8.4",
 		"@tauri-apps/plugin-opener": "^2.7.2",
