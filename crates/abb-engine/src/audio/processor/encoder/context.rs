@@ -190,7 +190,7 @@ pub(crate) fn setup_encoder(
         log::debug!("Copied {count} accepted chapters");
     }
 
-    let mut muxer = crate::audio::write_layer_output_header(octx)
+    let mut muxer = crate::audio::write_output_header(octx, &abb_ffmpeg::Tags::default())
         .map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
     if let Backend::Faac(encoder) = &enc_ctx {
         muxer

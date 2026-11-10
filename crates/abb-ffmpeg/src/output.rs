@@ -70,14 +70,20 @@ pub struct Muxer(OutputFile);
 
 impl Output {
     pub fn create(path: &Path, muxer: &str) -> Result<Self> {
-        let url = path_text(path, Step::CreateOutput)?;
         let muxer = CString::new(muxer).map_err(|_| Error::NulInText {
             step: Step::CreateOutput,
         })?;
+        Self::create_with(path, Some(&muxer))
+    }
+
+    fn create_with(path: &Path, muxer: Option<&CString>) -> Result<Self> {
+        let url = path_text(path, Step::CreateOutput)?;
+        let muxer = muxer.map_or(ptr::null(), |muxer| muxer.as_ptr());
         let mut ctx = ptr::null_mut();
-        // SAFETY: both strings are NUL-terminated; FFmpeg allocates `ctx`.
+        // SAFETY: `url` is NUL-terminated and `muxer` is null or
+        // NUL-terminated; FFmpeg allocates `ctx`.
         let code = unsafe {
-            sys::avformat_alloc_output_context2(&mut ctx, ptr::null(), muxer.as_ptr(), url.as_ptr())
+            sys::avformat_alloc_output_context2(&mut ctx, ptr::null(), muxer, url.as_ptr())
         };
         Error::check(Step::CreateOutput, code)?;
         let ctx = NonNull::new(ctx).ok_or(Error::OutOfMemory {
@@ -96,6 +102,11 @@ impl Output {
         }
         Error::check(Step::OpenOutputFile, code)?;
         Ok(Self(file))
+    }
+
+    /// Creates the file with the muxer FFmpeg picks for the file name.
+    pub fn create_for_file_name(path: &Path) -> Result<Self> {
+        Self::create_with(path, None)
     }
 
     pub fn muxer_name(&self) -> String {
@@ -229,6 +240,32 @@ impl Output {
             replace_dictionary(&mut (*stream).metadata, dictionary);
         }
         Ok(self.last_stream_index())
+    }
+
+    /// Sets the samples per packet a muxer assumes for an audio stream.
+    pub fn set_stream_frame_size(&mut self, index: usize, samples: u32) -> Result<()> {
+        let step = Step::AddStream;
+        let samples = c_int::try_from(samples).map_err(|_| Error::OutOfRange { step })?;
+        let stream = self.stream(index)?;
+        // SAFETY: `stream` belongs to the live context `self` owns, and every
+        // stream FFmpeg creates has a `codecpar`.
+        unsafe { (*(*stream).codecpar).frame_size = samples };
+        Ok(())
+    }
+
+    /// Sets a picture stream's size in pixels.
+    pub fn set_stream_picture_size(&mut self, index: usize, width: u32, height: u32) -> Result<()> {
+        let step = Step::AddStream;
+        let size = |value: u32| c_int::try_from(value).map_err(|_| Error::OutOfRange { step });
+        let (width, height) = (size(width)?, size(height)?);
+        let stream = self.stream(index)?;
+        // SAFETY: `stream` belongs to the live context `self` owns, and every
+        // stream FFmpeg creates has a `codecpar`.
+        unsafe {
+            (*(*stream).codecpar).width = width;
+            (*(*stream).codecpar).height = height;
+        }
+        Ok(())
     }
 
     /// Restates an audio stream's sample rate, frame size, and initial

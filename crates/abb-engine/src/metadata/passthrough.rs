@@ -1,7 +1,5 @@
 use std::path::PathBuf;
 
-use ffmpeg_next as ff;
-
 use super::chapter_count::{join_chapters, no_length_warning, source_name, JoinedSource};
 use super::container::Container;
 use crate::errors::Result;
@@ -111,12 +109,6 @@ pub(crate) fn prepare_output_cover_art(
 /// Chapters are normalized to milliseconds and offset by cumulative durations
 /// to preserve ordering for multi-file merges.
 pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughMetadata {
-    #[expect(
-        clippy::let_underscore_must_use,
-        reason = "ffmpeg initialization is idempotent; the first ffmpeg call reports a failure"
-    )]
-    let _ = ff::init();
-
     let mut passthrough = PassthroughMetadata::default();
     let mut cumulative_offset_ms: i64 = 0;
 
@@ -125,7 +117,7 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
     let mut unmeasured = Vec::new();
     for (position, file) in valid.iter().enumerate() {
         let chapters_before = passthrough.chapters.len();
-        match ff::format::input(&file.path) {
+        match crate::metadata::open_input(&file.path) {
             Ok(ictx) => {
                 if file.chapters.is_none() {
                     passthrough
@@ -202,19 +194,11 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
 /// The chapters a file carries, titled from the `title` tag, with starts and
 /// ends rounded to milliseconds. Import, passthrough and the final
 /// verification read chapters through this, so they agree.
-pub fn read_chapters(input: &ff::format::context::Input) -> Vec<ChapterSpec> {
-    input
-        .chapters()
-        .map(|chapter| ChapterSpec {
-            title: chapter.metadata().get("title").map(str::to_string),
-            start_ms: rescale_to_ms(chapter.start(), chapter.time_base()),
-            end_ms: rescale_to_ms(chapter.end(), chapter.time_base()),
-        })
-        .collect()
+pub(crate) fn read_chapters(input: &abb_ffmpeg::Input) -> Vec<ChapterSpec> {
+    chapter_specs(&input.chapters())
 }
 
-/// `read_chapters` for chapters read through `abb_ffmpeg`.
-pub(crate) fn layer_chapter_specs(chapters: &[abb_ffmpeg::Chapter]) -> Vec<ChapterSpec> {
+pub(crate) fn chapter_specs(chapters: &[abb_ffmpeg::Chapter]) -> Vec<ChapterSpec> {
     let milliseconds = abb_ffmpeg::Rational::new(1, 1000);
     chapters
         .iter()
@@ -224,6 +208,24 @@ pub(crate) fn layer_chapter_specs(chapters: &[abb_ffmpeg::Chapter]) -> Vec<Chapt
             end_ms: abb_ffmpeg::Rational::rescale(chapter.end, chapter.time_base, milliseconds),
         })
         .collect()
+}
+
+/// A copy of `chapter` that carries only its title tag, with the title's
+/// bytes as they are; a chapter without a title gets an empty one.
+pub(crate) fn titled_chapter(
+    chapter: &abb_ffmpeg::Chapter,
+) -> std::result::Result<abb_ffmpeg::Chapter, abb_ffmpeg::Error> {
+    let step = abb_ffmpeg::Step::AddChapter;
+    let title = match chapter.title() {
+        Some(title) => title.clone(),
+        None => abb_ffmpeg::Text::new("", step)?,
+    };
+    let mut tags = abb_ffmpeg::Tags::default();
+    tags.insert(abb_ffmpeg::Text::new("title", step)?, title);
+    Ok(abb_ffmpeg::Chapter {
+        tags,
+        ..chapter.clone()
+    })
 }
 
 /// Adds the accepted chapters to an output before its header, in
@@ -255,39 +257,6 @@ pub(crate) fn add_chapters(
     Ok(chapters.len())
 }
 
-pub fn add_chapters_to_output(
-    octx: &mut ff::format::context::Output,
-    chapters: &[ChapterSpec],
-) -> Result<usize> {
-    use crate::errors::AppError;
-
-    let mut copied = 0;
-    if chapters.is_empty() {
-        return Ok(0);
-    }
-
-    let time_base = ff::Rational(1, 1000);
-    for (idx, chapter) in chapters.iter().enumerate() {
-        let title = chapter.title.clone().unwrap_or_default();
-        match octx.add_chapter(
-            idx as i64,
-            time_base,
-            chapter.start_ms,
-            chapter.end_ms,
-            &title,
-        ) {
-            Ok(_) => copied += 1,
-            Err(e) => {
-                return Err(AppError::General(format!(
-                    "Failed to add chapter {} ({}): {}",
-                    idx, title, e
-                )))
-            }
-        }
-    }
-    Ok(copied)
-}
-
 pub fn verify_chapters(path: &std::path::Path, expected: &[ChapterSpec]) -> Result<()> {
     crate::diagnostics::stage("metadata_verify_chapters", path, || {
         verify_chapters_inner(path, expected)
@@ -302,8 +271,7 @@ fn verify_chapters_inner(path: &std::path::Path, expected: &[ChapterSpec]) -> Re
         );
         return Ok(());
     }
-    ff::init()?;
-    let input = ff::format::input(path)?;
+    let input = crate::metadata::open_input(path)?;
     let actual = read_chapters(&input);
     let ends_stored = Container::of_input(&input).stores_chapter_ends();
     let mismatch = first_chapter_difference(&actual, expected, ends_stored);
@@ -346,13 +314,6 @@ pub(super) fn first_chapter_difference(
                 || ends_stored && a.end_ms != e.end_ms
         })
         .or_else(|| (actual.len() != expected.len()).then_some(actual.len().min(expected.len())))
-}
-
-fn rescale_to_ms(value: i64, time_base: ff::Rational) -> i64 {
-    use ffmpeg_next::Rational;
-    use ffmpeg_next::Rescale;
-
-    value.rescale(time_base, Rational(1, 1000))
 }
 
 #[cfg(test)]

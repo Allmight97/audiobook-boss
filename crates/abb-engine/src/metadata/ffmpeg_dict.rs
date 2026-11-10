@@ -1,40 +1,43 @@
 use super::container::Container;
 use super::field_schema::{ALBUM_SORT_KEYS, MP4_ALBUM_SORT_KEY};
 use super::{AudiobookMetadata, MetadataWritePlan};
-use crate::metadata::metadata_sinks::{ffmpeg_dict_for_ops, tag_pairs_for_ops, ExistingKeyRemoval};
+use crate::metadata::metadata_sinks::{tag_pairs_for_ops, ExistingKeyRemoval};
 use abb_metadata_core::PatchOp;
 
-use ffmpeg_next as ff;
-
-pub(crate) fn merge_metadata_with_plan<'a>(
-    existing: ff::Dictionary<'a>,
+/// The container tags a save writes: the file's own tags without the ones
+/// the plan replaces or clears, then the plan's values. Kept tags keep their
+/// bytes.
+pub(crate) fn merge_metadata_with_plan(
+    existing: &abb_ffmpeg::Tags,
     plan: &MetadataWritePlan,
     container: &Container,
-) -> ff::Dictionary<'a> {
+) -> crate::errors::Result<abb_ffmpeg::Tags> {
     let removal = ExistingKeyRemoval::for_plan(plan);
     let new_album_sort = match &plan.album_sort {
         Some(PatchOp::Set(value)) => Some(value.as_str()),
         _ => None,
     };
-    let mut merged = ff::Dictionary::new();
+    let step = abb_ffmpeg::Step::SetTags;
+    let mut merged = abb_ffmpeg::Tags::default();
     for (key, value) in existing.iter() {
+        let name = key.display();
         let is_album_sort = ALBUM_SORT_KEYS
             .iter()
-            .any(|sort_key| key.eq_ignore_ascii_case(sort_key));
-        if (plan.album_sort.is_some() && is_album_sort) || removal.removes(key) {
+            .any(|sort_key| name.eq_ignore_ascii_case(sort_key));
+        if (plan.album_sort.is_some() && is_album_sort) || removal.removes(&name) {
             continue;
         }
-        merged.set(key, value);
+        merged.insert(key.clone(), value.clone());
     }
 
-    for (key, value) in ffmpeg_dict_for_ops(&plan.ops).iter() {
-        merged.set(key, value);
+    for (key, value) in tag_pairs_for_ops(&plan.ops) {
+        merged.push(key, &value, step)?;
     }
     if let Some(value) = new_album_sort {
-        merged.set(container.album_sort_key(), value);
+        merged.push(container.album_sort_key(), value, step)?;
     }
 
-    merged
+    Ok(merged)
 }
 
 /// Sets the container tags an encode writes for `metadata`.

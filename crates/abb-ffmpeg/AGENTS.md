@@ -25,6 +25,9 @@ The only ABB code that calls the FFmpeg C API. The engine uses it with no
   `Debug`, and input options FFmpeg did not take come back as names only.
 - Every `unsafe` block has a `// SAFETY:` note; `lib.rs` denies
   `clippy::undocumented_unsafe_blocks`.
+- A read helper returns `None` for a fact FFmpeg does not know (a duration,
+  a start time, a packet position); FFmpeg's "no value" numbers stay inside
+  the layer.
 - `bash scripts/verify.sh engine` runs the crate's tests and clippy. A new
   operation gets a failure-path test: typed error, no file left.
   Check a new owning type with macOS `leaks --atExit` on the test binary.

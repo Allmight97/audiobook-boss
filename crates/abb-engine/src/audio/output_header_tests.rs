@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use ffmpeg_next as ff;
 use tempfile::TempDir;
 
 use super::*;
@@ -108,7 +107,7 @@ fn write_book_with_cover(inputs: &Inputs, output_path: &Path, chapters: Chapters
         .collect();
     add_chapters(&mut output, &specs).expect("chapters");
 
-    let mut muxer = write_layer_output_header(output).expect("header");
+    let mut muxer = write_output_header(output, &abb_ffmpeg::Tags::default()).expect("header");
 
     write_cover_packet(&mut muxer, cover, &inputs.cover).expect("cover packet");
     let out_time_base = muxer.stream_time_base(out_audio).expect("audio out");
@@ -192,25 +191,27 @@ fn a_gap_between_chapter_starts_longer_than_the_sample_rate_allows_keeps_every_s
 #[test]
 fn an_option_the_muxer_does_not_take_is_an_error() {
     let dir = TempDir::new().expect("temp dir");
-    ff::init().expect("ffmpeg");
-    let output = dir.path().join("book.m4b");
-    let mut octx = ff::format::output_as(&output, Muxer::Mp4.ffmpeg_name()).expect("output");
-    let mut stream = octx
-        .add_stream(ff::encoder::find(ff::codec::Id::AAC))
+    let path = dir.path().join("book.m4b");
+    let mut output = abb_ffmpeg::Output::create(&path, Muxer::Mp4.ffmpeg_name()).expect("output");
+    output
+        .add_aac_stream(&abb_ffmpeg::AacStream {
+            high_efficiency: false,
+            rate: 44_100,
+            channels: 2,
+            bit_rate: 128_000,
+            frame_samples: 1024,
+            priming_samples: 0,
+            config: &[0x12, 0x10],
+        })
         .expect("stream");
-    stream.set_time_base((1, 44_100));
-    // SAFETY: the stream belongs to `octx` and the header is not written yet.
-    unsafe {
-        let parameters = stream.parameters().as_mut_ptr();
-        (*parameters).codec_type = ff::ffi::AVMediaType::AVMEDIA_TYPE_AUDIO;
-        (*parameters).codec_id = ff::ffi::AVCodecID::AV_CODEC_ID_AAC;
-        (*parameters).sample_rate = 44_100;
-        ff::ffi::av_channel_layout_default(&mut (*parameters).ch_layout, 2);
-    }
-    let mut options = ff::Dictionary::new();
-    options.set("no_such_option", "1");
+    let mut options = abb_ffmpeg::Tags::default();
+    options
+        .push("no_such_option", "1", abb_ffmpeg::Step::WriteHeader)
+        .expect("option");
 
-    let error = write_output_header(&mut octx, options).expect_err("unknown option");
+    let Err(error) = write_output_header(output, &options) else {
+        panic!("an unknown option must fail the header");
+    };
 
     assert!(error.to_string().contains("no_such_option"), "{error}");
 }

@@ -37,7 +37,6 @@ shared: &shared
 core:
   - *shared
   - scripts/check-rust-tiers.sh
-  - scripts/raw-ffmpeg-allowlist.txt
   - scripts/check-rust-complexity.sh
   - scripts/rust-complexity-allowlist.txt
   - crates/*/src/**

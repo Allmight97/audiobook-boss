@@ -1,8 +1,13 @@
-use super::{ff, read_comment};
+use super::read_comment;
 use super::{first_tag_with_lookup, parse_position_field};
 use crate::metadata::field_schema::{position_keys, text_keys, KeySet};
+use abb_ffmpeg::{Step, Tags};
 use abb_metadata_core::{PositionField, TextField};
 use std::collections::BTreeMap;
+
+fn add(tags: &mut Tags, key: &str, value: &str) {
+    tags.push(key, value, Step::SetTags).expect("tag");
+}
 
 fn read_keys(field: TextField) -> &'static [&'static str] {
     match text_keys(field).read {
@@ -13,15 +18,15 @@ fn read_keys(field: TextField) -> &'static [&'static str] {
 
 #[test]
 fn comment_read_prefers_undescribed_text_and_ignores_itunes_technical_records() {
-    let mut dict = ff::Dictionary::new();
-    dict.set("comment-iTunSMPB-eng", "gapless");
+    let mut dict = Tags::default();
+    add(&mut dict, "comment-iTunSMPB-eng", "gapless");
     assert_eq!(read_comment(&dict), None);
-    dict.set("comment-reader note", "Note");
+    add(&mut dict, "comment-reader note", "Note");
     assert_eq!(read_comment(&dict).as_deref(), Some("Note"));
-    dict.set("comment-fra", "French");
-    dict.set("comment-eng", "English");
+    add(&mut dict, "comment-fra", "French");
+    add(&mut dict, "comment-eng", "English");
     assert_eq!(read_comment(&dict).as_deref(), Some("English"));
-    dict.set("comment", "Canonical");
+    add(&mut dict, "comment", "Canonical");
     assert_eq!(read_comment(&dict).as_deref(), Some("Canonical"));
 }
 

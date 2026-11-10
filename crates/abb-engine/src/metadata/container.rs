@@ -1,10 +1,8 @@
 use std::path::Path;
 
-use ffmpeg_next as ff;
-
 use super::field_schema::{ID3_ALBUM_SORT_KEY, MP4_ALBUM_SORT_KEY};
 use crate::audio::Muxer;
-use crate::errors::{AppError, Result};
+use crate::errors::Result;
 
 /// The container of an audio file, named once from an FFmpeg demuxer or muxer
 /// name or from an extension. `Other` holds the muxer name that writes it.
@@ -41,12 +39,12 @@ impl Container {
         }
     }
 
-    pub(crate) fn of_input(input: &ff::format::context::Input) -> Self {
-        Self::from_format_name(input.format().name())
+    pub(crate) fn of_input(input: &abb_ffmpeg::Input) -> Self {
+        Self::from_format_name(&input.format_name())
     }
 
-    pub(crate) fn of_output(output: &ff::format::context::Output) -> Self {
-        Self::from_format_name(output.format().name())
+    pub(crate) fn of_output(output: &abb_ffmpeg::Output) -> Self {
+        Self::from_format_name(&output.muxer_name())
     }
 
     pub(crate) fn from_extension(extension: &str) -> Option<Self> {
@@ -89,14 +87,12 @@ impl Container {
 }
 
 pub(crate) fn classify(path: &Path) -> Result<Container> {
-    ff::init().map_err(AppError::Ffmpeg)?;
-
-    let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
-    let container = Container::from_format_name(ictx.format().name());
+    let format_name = crate::metadata::open_input(path)?.format_name();
+    let container = Container::from_format_name(&format_name);
     log::info!(
         "metadata_route artifact={} input_format={} route={container:?}",
         crate::diagnostics::artifact_id(path),
-        ictx.format().name()
+        format_name
     );
     Ok(container)
 }

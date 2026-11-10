@@ -89,10 +89,8 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
   channels, duration, and a channel-level check such as RMS/peak parity. Notes
   on Native AAC artifacts separate structural correctness from subjective
   encoder quality.
-- `output_header.rs` holds the only header writers
-  (`check-known-mistakes.ts`): `write_layer_output_header` for an
-  `abb_ffmpeg::Output`, and `write_output_header` for the remux and preserve
-  code still on `ffmpeg-next` (#621 C2). Each pins an MP4's movie timescale to the audio sample rate, or a divisor of
+- `write_output_header` is the only header writer (`check-known-mistakes.ts`).
+  It pins an MP4's movie timescale to the audio sample rate, or a divisor of
   it for a chapter, or a gap between chapter starts, over about 13.5 hours,
   and rejects options the muxer does not take. Why: FFmpeg's own choice drops chapters longer than about 8
   minutes when a cover is present; the mechanism is in its rustdoc.
@@ -106,7 +104,7 @@ walk continues. Unsupported extensions and nested symlinks are left out
 silently. The session decides what a skip means for the user.
 
 A file's duration is the length the selected decoder yields. When FFmpeg
-only estimates it from a bitrate (`length_is_estimated`: an MP3 without a
+only estimates it from a bitrate (`Input::duration_is_estimated`: an MP3 without a
 length header, joined MP3 parts, raw ADTS, Matroska without a Duration),
 analysis measures it (`processor::measured_length_seconds`): packet durations
 less trimmed samples where FFmpeg decodes and the time base counts whole

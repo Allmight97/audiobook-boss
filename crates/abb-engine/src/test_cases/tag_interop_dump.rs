@@ -2,8 +2,7 @@
 //! that pin tag output. Holds no tests.
 
 use crate::metadata::read_metadata;
-use ffmpeg_next::format::stream::Disposition;
-use ffmpeg_next::media::Type;
+use abb_ffmpeg::{Disposition, Medium};
 use mp4ameta::{Data, DataIdent, Tag};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -43,47 +42,45 @@ fn tag_line(key: &str, value: &str) -> String {
 }
 
 fn picture_payloads(path: &Path) -> HashMap<usize, Vec<u8>> {
-    let mut input = ffmpeg_next::format::input(path).expect("open the file");
-    let attached: Vec<usize> = input
-        .streams()
-        .filter(|stream| stream.disposition().contains(Disposition::ATTACHED_PIC))
-        .map(|stream| stream.index())
-        .collect();
+    let input = crate::metadata::open_input(path).expect("open the file");
     input
-        .packets()
-        .filter(|(stream, _)| attached.contains(&stream.index()))
-        .filter_map(|(stream, packet)| Some((stream.index(), packet.data()?.to_vec())))
+        .streams()
+        .iter()
+        .filter(|stream| stream.disposition.contains(Disposition::ATTACHED_PIC))
+        .filter_map(|stream| Some((stream.index, input.attached_picture(stream.index)?)))
         .collect()
 }
 
 fn container_section(path: &Path, out: &mut String) {
-    let input = ffmpeg_next::format::input(path).expect("open the file");
-    writeln!(out, "container: {}", input.format().name()).expect("write to a String");
+    let input = crate::metadata::open_input(path).expect("open the file");
+    writeln!(out, "container: {}", input.format_name()).expect("write to a String");
     writeln!(out, "format tags, in file order:").expect("write to a String");
-    for (key, value) in input.metadata().iter() {
-        writeln!(out, "  {}", tag_line(key, value)).expect("write to a String");
+    for (key, value) in input.tags().iter() {
+        writeln!(out, "  {}", tag_line(&key.display(), &value.display()))
+            .expect("write to a String");
     }
     let payloads = picture_payloads(path);
     writeln!(out, "streams:").expect("write to a String");
     for stream in input.streams() {
-        let medium = match stream.parameters().medium() {
-            Type::Audio => "audio",
-            Type::Video => "video",
-            Type::Attachment => "attachment",
+        let medium = match stream.medium {
+            Medium::Audio => "audio",
+            Medium::Video => "video",
+            Medium::Attachment => "attachment",
             _ => "other",
         };
         writeln!(
             out,
-            "  {} {medium} {:?} {:?}",
-            stream.index(),
-            stream.parameters().id(),
-            stream.disposition()
+            "  {} {medium} {} {:?}",
+            stream.index,
+            stream.codec.name().to_uppercase(),
+            stream.disposition
         )
         .expect("write to a String");
-        for (key, value) in stream.metadata().iter() {
-            writeln!(out, "    {}", tag_line(key, value)).expect("write to a String");
+        for (key, value) in stream.tags.iter() {
+            writeln!(out, "    {}", tag_line(&key.display(), &value.display()))
+                .expect("write to a String");
         }
-        if let Some(payload) = payloads.get(&stream.index()) {
+        if let Some(payload) = payloads.get(&stream.index) {
             writeln!(out, "    picture {}", short_hash(payload)).expect("write to a String");
         }
     }

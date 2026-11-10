@@ -210,13 +210,13 @@ fn write_copy(
     output
         .set_tags(&input.tags())
         .map_err(|error| decrypt_failure("copying the tags", error))?;
-    let mut muxer = crate::audio::write_layer_output_header(output)
+    let mut muxer = crate::audio::write_output_header(output, &abb_ffmpeg::Tags::default())
         .map_err(|error| decrypt_failure("writing the output header", error))?;
     copy_packets(&mut input, &mut muxer, &mapping, control)?;
     muxer
         .finish()
         .map_err(|error| decrypt_failure("finishing the output", error))?;
-    crate::metadata::verify_chapters(partial, &crate::metadata::layer_chapter_specs(&chapters))
+    crate::metadata::verify_chapters(partial, &crate::metadata::chapter_specs(&chapters))
         .map_err(|error| decrypt_failure("checking the chapters", error))
 }
 
@@ -270,13 +270,10 @@ fn open_protected(input: &Path, options: &[DemuxerOption]) -> Result<abb_ffmpeg:
 }
 
 fn is_copied(stream: &abb_ffmpeg::StreamFacts) -> bool {
-    match stream.medium {
-        abb_ffmpeg::Medium::Audio => true,
-        abb_ffmpeg::Medium::Video => stream
-            .disposition
-            .contains(abb_ffmpeg::Disposition::ATTACHED_PIC),
-        abb_ffmpeg::Medium::Attachment | abb_ffmpeg::Medium::Other => false,
-    }
+    use abb_ffmpeg::{Disposition, Medium};
+    stream.medium == Medium::Audio
+        || (stream.medium == Medium::Video
+            && stream.disposition.contains(Disposition::ATTACHED_PIC))
 }
 
 fn copy_streams(
@@ -301,27 +298,11 @@ fn copy_streams(
     Ok(mapping)
 }
 
-/// Every copied chapter carries a title tag; a chapter without one gets an
-/// empty title.
 fn copy_chapters(chapters: &[abb_ffmpeg::Chapter], output: &mut abb_ffmpeg::Output) -> Result<()> {
     for chapter in chapters {
-        let failure = |error| decrypt_failure(&format!("copying chapter {}", chapter.id), error);
-        let step = abb_ffmpeg::Step::AddChapter;
-        let title = match chapter.title() {
-            Some(title) => title.clone(),
-            None => abb_ffmpeg::Text::new("", step).map_err(failure)?,
-        };
-        let mut tags = abb_ffmpeg::Tags::default();
-        tags.insert(
-            abb_ffmpeg::Text::new("title", step).map_err(failure)?,
-            title,
-        );
-        output
-            .add_chapter(&abb_ffmpeg::Chapter {
-                tags,
-                ..chapter.clone()
-            })
-            .map_err(failure)?;
+        crate::metadata::titled_chapter(chapter)
+            .and_then(|chapter| output.add_chapter(&chapter))
+            .map_err(|error| decrypt_failure(&format!("copying chapter {}", chapter.id), error))?;
     }
     Ok(())
 }
@@ -332,7 +313,7 @@ fn copy_packets(
     mapping: &[Option<usize>],
     control: &CopyControl,
 ) -> Result<()> {
-    let duration_seconds = input.duration_micros() as f64 / 1_000_000.0;
+    let duration_seconds = input.duration_micros().unwrap_or(0) as f64 / 1_000_000.0;
     let time_bases: Vec<abb_ffmpeg::Rational> = input
         .streams()
         .iter()

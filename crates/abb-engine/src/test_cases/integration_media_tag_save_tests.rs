@@ -446,7 +446,7 @@ fn mp3_save_writes_series_without_mp4_freeform_names() {
 #[test]
 fn a_save_without_cover_intent_keeps_every_attached_picture() {
     let dir = TempDir::new().expect("temp dir");
-    let both = [ffmpeg_next::codec::Id::MJPEG, ffmpeg_next::codec::Id::PNG];
+    let both = [abb_ffmpeg::CodecId::MJPEG, abb_ffmpeg::CodecId::PNG];
     let retitle = MetadataIntentPatch {
         title: Some(PatchOp::Set("Retitled".to_string())),
         ..Default::default()
@@ -560,10 +560,17 @@ fn id3_language_comments_round_trip_through_unrelated_set_and_clear_intent() {
     )
     .expect("fixture value");
     {
-        let input = ffmpeg_next::format::input(&path).expect("fixture value");
-        let tags = input.metadata();
-        assert_eq!(tags.get("comment-eng"), Some("English comment"));
-        assert_eq!(tags.get("comment-comment-fra"), Some("French comment"));
+        let input = crate::metadata::open_input(&path).expect("fixture value");
+        let tags = input.tags();
+        assert_eq!(
+            tags.get("comment-eng").map(abb_ffmpeg::Text::display),
+            Some("English comment".to_string())
+        );
+        assert_eq!(
+            tags.get("comment-comment-fra")
+                .map(abb_ffmpeg::Text::display),
+            Some("French comment".to_string())
+        );
     }
     save_metadata_intent(
         &path,
@@ -589,9 +596,12 @@ fn id3_language_comments_round_trip_through_unrelated_set_and_clear_intent() {
     )
     .expect("fixture value");
     assert_eq!(read_metadata(&path).expect("fixture value").comment, None);
-    let input = ffmpeg_next::format::input(&path).expect("fixture value");
+    let input = crate::metadata::open_input(&path).expect("fixture value");
     assert_eq!(
-        input.metadata().get("comment-iTunNORM-eng"),
-        Some("technical normalization")
+        input
+            .tags()
+            .get("comment-iTunNORM-eng")
+            .map(abb_ffmpeg::Text::display),
+        Some("technical normalization".to_string())
     );
 }

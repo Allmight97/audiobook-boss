@@ -107,7 +107,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   real bytes.
 - A cover the user picks is written as the front cover: MP3 (ID3 APIC) and
   FLAC take the picture type from the stream's `comment` tag, so
-  `add_cover_art_stream_pre_header` sets `Cover (front)` there. Without it the
+  `add_cover_stream` sets `Cover (front)` there. Without it the
   muxers write type 0 "Other".
 - Cover intent comes only from cover actions (load, drop, clear). A text edit
   or Lookup apply that keeps the cover leaves cover intent absent, so a save

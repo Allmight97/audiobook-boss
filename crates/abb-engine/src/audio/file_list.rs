@@ -1,6 +1,5 @@
 use super::{AacDecoder, AudioChapter, AudioFile, DecoderSelection};
 use crate::errors::{AppError, Result};
-use ffmpeg_next as ff;
 use std::fs;
 use std::path::Path;
 
@@ -103,11 +102,11 @@ struct AudioProperties {
 /// Known MP4 audio packets must fit inside the local file, even when the
 /// demuxer would report ordinary EOF at a missing packet boundary.
 fn validate_mp4_audio_extent(
-    input: &ff::format::context::Input,
-    audio_stream: &ff::Stream<'_>,
+    input: &abb_ffmpeg::Input,
+    audio_stream: usize,
     file_size: u64,
 ) -> Result<()> {
-    if !input.format().name().split(',').any(|name| name == "mp4") {
+    if !input.format_name().split(',').any(|name| name == "mp4") {
         return Ok(());
     }
     let incomplete = || {
@@ -115,20 +114,10 @@ fn validate_mp4_audio_extent(
             "MP4 audio is incomplete or truncated: invalid indexed audio byte range.".into(),
         )
     };
-    // SAFETY: The stream remains borrowed from the live input. These public
-    // index APIs only inspect it; copy each entry's fields before another call.
-    let stream = unsafe { audio_stream.as_ptr() };
-    // SAFETY: `stream` is the valid pointer above, and the call only reads the stream's index.
-    let count = unsafe { ff::ffi::avformat_index_get_entries_count(stream) };
-    for index in 0..count {
-        // SAFETY: `index` is below the entry count, and FFmpeg returns null for any entry it cannot give,
-        // which `as_ref` turns into `None`. Position and size are copied out before the next FFmpeg call.
-        let (position, size) = unsafe {
-            ff::ffi::avformat_index_get_entry(stream.cast_mut(), index)
-                .as_ref()
-                .map(|entry| (entry.pos, entry.size()))
-        }
-        .ok_or_else(incomplete)?;
+    for (position, size) in input
+        .indexed_byte_ranges(audio_stream)
+        .ok_or_else(incomplete)?
+    {
         let position = u64::try_from(position).map_err(|_| incomplete())?;
         let size = u64::try_from(size).map_err(|_| incomplete())?;
         let end = position.checked_add(size).ok_or_else(incomplete)?;
@@ -144,33 +133,29 @@ fn validate_audio_format(
     file_size: u64,
     aac_decoder: AacDecoder,
 ) -> Result<AudioProperties> {
-    ff::init().map_err(AppError::Ffmpeg)?;
-
     let format = crate::audio::extensions::audio_format_for_path(path)?.label;
 
     let (duration, length_estimated, chapters, (tag_title, tag_artist), container_name) = {
-        let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
+        let ictx = crate::metadata::open_input(path)?;
         let audio_stream = ictx
-            .streams()
-            .best(ff::media::Type::Audio)
+            .best_audio_stream()
+            .and_then(|index| ictx.streams().into_iter().nth(index))
             .ok_or_else(|| AppError::InvalidInput("No audio stream found".to_string()))?;
-        validate_mp4_audio_extent(&ictx, &audio_stream, file_size)?;
-        let container = ictx.duration();
-        let duration = if container > 0 {
-            container as f64 / ffmpeg_next::ffi::AV_TIME_BASE as f64
-        } else {
-            let stream_dur = audio_stream.duration();
-            if stream_dur > 0 {
-                let tb = audio_stream.time_base();
-                stream_dur as f64 * (tb.0 as f64 / tb.1 as f64)
-            } else {
-                0.0
-            }
+        validate_mp4_audio_extent(&ictx, audio_stream.index, file_size)?;
+        let duration = match ictx.duration_micros() {
+            Some(container) if container > 0 => container as f64 / 1_000_000.0,
+            _ => match audio_stream.duration {
+                Some(stream_dur) if stream_dur > 0 => {
+                    let tb = audio_stream.time_base;
+                    stream_dur as f64 * (tb.numerator as f64 / tb.denominator as f64)
+                }
+                _ => 0.0,
+            },
         };
         let chapters = crate::metadata::read_chapters(&ictx);
-        let display_tags = crate::metadata::display_tags_from_ffmpeg_dict(&ictx.metadata());
-        let container_name = ictx.format().name().to_string();
-        let length_estimated = crate::metadata::length_is_estimated(&ictx);
+        let display_tags = crate::metadata::display_tags(&ictx.tags());
+        let container_name = ictx.format_name();
+        let length_estimated = ictx.duration_is_estimated();
         (
             duration,
             length_estimated,
