@@ -2,7 +2,8 @@
 # Fails when a Rust tier depends on a crate its tier forbids (crates/AGENTS.md):
 # the engine and the pure cores never depend on a UI toolkit, and the pure
 # cores never depend on FFmpeg, a credential store, or the engine. Only
-# abb-ffmpeg names the FFmpeg binding crates.
+# abb-ffmpeg depends on ffmpeg-sys-next directly or names it in source, and
+# no crate uses the ffmpeg-next wrapper.
 # Usage: bash scripts/check-rust-tiers.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -26,7 +27,21 @@ check() {
 	fi
 }
 
+# Fails when a crate lists a forbidden crate among its own dependencies.
+check_direct() {
+	local crate="$1" forbidden="$2" tree hits
+	tree="$(cargo tree --locked -p "$crate" -e normal --target all --depth 1 --prefix none --format '{p}')"
+	# grep exits 1 when no forbidden crate matches; any other failure fails.
+	hits="$(awk 'NR > 1 { print $1 }' <<<"$tree" | sort -u | grep -E "$forbidden" || [[ $? -eq 1 ]])"
+	if [[ -n "$hits" ]]; then
+		echo "[check-rust-tiers] $crate must not depend directly on: $(echo "$hits" | tr '\n' ' '). Fix: call abb_ffmpeg."
+		failed=1
+	fi
+}
+
 check abb-engine "$ui_toolkit"
+check_direct abb-engine '^ffmpeg-(sys-)?next$'
+check_direct audiobook-boss '^ffmpeg-(sys-)?next$'
 check abb-ffmpeg '^(abb-engine|abb-.*-core|audiobook-boss|faac-sys)$'
 for core in "${cores[@]}"; do
 	check "$core" "$core_forbidden"

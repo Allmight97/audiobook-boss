@@ -51,6 +51,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - ABB retries a failed removal of a finished download's files on its own, after 30 seconds. The
   wait doubles after each failure, up to 10 minutes.
 - A failed processing run with no detail says "Processing failed." once. It used to repeat it.
+- A tag that is not valid UTF-8, such as an ID3v1 or WAV tag written in Latin-1, shows as its
+  text: "Café". It used to show broken characters, and a development build stopped when it
+  exported such a file. Saving another field keeps the tag's original bytes.
 
 ### Changed
 
@@ -78,6 +81,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   one file; encode them instead.
 - Audible decryption no longer needs .NET. ABB decrypts AAX and AAXC downloads itself with the
   bundled FFmpeg, and setup, CI, and the app bundle no longer include a helper program.
+- ABB calls the bundled FFmpeg through its own layer, `abb-ffmpeg`, in place of the `ffmpeg-next`
+  wrapper. Exports of ABB's test files are byte-identical to before. An FFmpeg error now names the step that
+  failed: "FFmpeg error: cannot open the input: Invalid data found when processing input".
 
 ## [1.18.1] - 2026-11-07
 

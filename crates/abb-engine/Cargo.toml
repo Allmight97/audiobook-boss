@@ -27,8 +27,6 @@ tokio = { version = "1.53.3", features = ["full"] }
 tokio-util = { version = "0.7.20", features = ["rt"] }
 uuid = { version = "1.28.0", features = ["v4"] }
 log = "0.4.29"
-ffmpeg-next = { version = "9.0.0", default-features = false, features = ["codec", "format", "software-resampling"] }
-ffmpeg-sys-next = { version = "9.0.1", default-features = false }
 abb-ffmpeg = { path = "../abb-ffmpeg" }
 faac-sys = { path = "../../vendor/faac-sys" }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
@@ -72,13 +70,7 @@ zbus-secret-service-keyring-store = { version = "1.0.1", features = ["rt-async-i
 
 [features]
 default = []
-bundled-ffmpeg = [
-    "ffmpeg-next/build",
-    "abb-ffmpeg/bundled-ffmpeg",
-    "ffmpeg-sys-next/build-audiotoolbox",
-    "ffmpeg-sys-next/build-lib-opus",
-    "ffmpeg-sys-next/build-portable",
-]
+bundled-ffmpeg = ["abb-ffmpeg/bundled-ffmpeg"]
 
 [dev-dependencies]
 tempfile = "3.27.0"
