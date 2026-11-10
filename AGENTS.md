@@ -8,6 +8,9 @@
   `src/lib/tauri/client.ts`, and the generated bindings.
 - Cargo commands run from the repository root. Verification:
   `scripts/AGENTS.md`.
+- Repository procedures (release, end-to-end verification, and others) are
+  skills in `.agents/skills/<name>/SKILL.md`; read the one whose description
+  fits the task.
 - "Public API Strip" means an owned module's allowed import/export surface;
   callers use it instead of private implementation files.
 - Editing guidance: root holds repo-wide rules, a local `AGENTS.md` holds its
@@ -150,6 +153,9 @@ runs; their commands live only in `verify.sh`.
 A list of PRs is a pile of tickets to piece together, and each extra PR is
 another CI run.
 
+- Before opening a PR, list the open ones (`gh pr list`). A related open PR
+  takes the change as a commit; when none is related, ask the owner where it
+  lands.
 - Use as few PRs as the work can coherently use. More than one only when
   truly unavoidable. Never split work just to make it smaller.
 - Use dependency-ordered vertical slices: the first change delivers a complete
@@ -175,13 +181,14 @@ another CI run.
 - After a batch of review fixes on a ready PR of 300 or more changed lines,
   mark it draft before pushing them and ready again after: that starts one
   more agent review. Why: the review runs when a PR leaves draft, never per
-  push (`docs/DECISIONS.md`).
+  push (`docs/claude-on-github.md`).
 - Local proof is the primary proof. CI is the last check, and the main proof
   for a cloud Linux agent. Why the CI policy is what it is:
   `docs/DECISIONS.md`. `gate` is the check `main` requires.
 - Guidance with no implementation (docs, `AGENTS.md`, skills, allowlists)
-  goes through a PR whose `gate` passes, as required by the main ruleset.
-  The pre-commit hook is the fast check before that PR.
+  reaches `main` only through a PR whose `gate` passes, as the main ruleset
+  requires, and joins related open work like any other change. The
+  pre-commit hook is the fast check before that PR.
 
 ## Review Guidelines
 

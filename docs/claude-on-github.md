@@ -33,7 +33,8 @@ a pull request once, when it opens ready or leaves draft, never on a push. It
 skips drafts, pull requests from forks, bot actors, and pull requests that
 change fewer than 300 lines. The `claude-review` label requests a review
 regardless of size; remove and re-add it for each further review. Moving a
-pull request to draft and back to ready also starts one.
+pull request to draft and back to ready also starts one. In a draft, ask with
+an `@claude` comment. A review that posts nothing fails its job.
 
 Turn automatic review off or on with:
 
