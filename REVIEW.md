@@ -1,7 +1,8 @@
 # REVIEW.md
 
-How to review an ABB pull request. The rules live in the `AGENTS.md` chain;
-this file says how to review against them.
+How to review an ABB change: a diff, a commit range, or a pull request. The
+rules live in the `AGENTS.md` chain; this file says how to review against
+them.
 
 ## Scope
 
@@ -10,8 +11,8 @@ this file says how to review against them.
   owning code, and the owning tests.
 - CI runs the format, lint, typecheck, test, and binding checks
   (`.github/workflows/ci.yml`). Leave what they decide to them.
-- When the PR body names local proof instead of CI, check that the named proof
-  covers the changed surface.
+- When the commit message or PR body names local proof instead of CI, check
+  that the named proof covers the changed surface.
 - Skip generated and resolved files (`src/lib/generated/`, `bun.lock`,
   `Cargo.lock`) and vendored upstream bytes (`vendor/faac-sys/upstream/`, the
   FFmpeg and Opus sources). Judge `build.rs`, patches, and provenance files
@@ -20,9 +21,10 @@ this file says how to review against them.
 
 ## Severity
 
-- **Important** blocks merge: the diff breaks a root Hard Invariant, a Golden
-  Path line, or a nested owner's rule, or changes behavior crossing a boundary
-  without a focused test at the owning tier.
+- **Important** must be fixed before the change lands, or at once if it has:
+  the diff breaks a root Hard Invariant, a Golden Path line, or a nested
+  owner's rule, or changes behavior crossing a boundary without a focused test
+  at the owning tier.
 - **Nit**: Refactor Discipline targets, a test that does not earn keep,
   naming, or local clarity. Post at most five; fold the rest into the
   summary.

@@ -28,13 +28,13 @@ before testing `@claude` on a real request. From the CLI:
 gh workflow run claude.yml --repo Allmight97/audiobook-boss --ref main
 ```
 
-The `Claude review` workflow (`claude-review.yml`, `docs/DECISIONS.md`) reviews
-a pull request once, when it opens ready or leaves draft, never on a push. It
-skips drafts, pull requests from forks, bot actors, and pull requests that
+The `Claude review` workflow (`claude-review.yml`, `docs/DECISIONS.md`) runs
+only on pull requests, so a push to `main` gets no automatic review. For a
+pull request it reviews once, when the request opens ready, never on a push.
+It skips drafts, pull requests from forks, bot actors, and pull requests that
 change fewer than 300 lines. The `claude-review` label requests a review
-regardless of size; remove and re-add it for each further review. Moving a
-pull request to draft and back to ready also starts one. In a draft, ask with
-an `@claude` comment. A review that posts nothing fails its job.
+regardless of size; remove and re-add it for each further review. A review
+that posts nothing fails its job.
 
 Turn automatic review off or on with:
 

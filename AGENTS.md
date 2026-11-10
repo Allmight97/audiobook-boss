@@ -94,8 +94,8 @@ runs; their commands live only in `verify.sh`.
   An over-budget file may not exceed its size at the merge base with
   `origin/main`; new logic and tests go in a sibling file. A function on a
   complexity list gains no logic, except one dispatch arm for a new intent (a
-  reviewer judgement; no check enforces it). The PR names the split the file
-  needs.
+  reviewer judgement; no check enforces it). The commit message names the
+  split the file needs.
 - When merging code paths, name what each old path relied on (reads it
   skipped, state it left alone, ordering); keep each reliance or say which one
   the change drops.
@@ -137,7 +137,7 @@ runs; their commands live only in `verify.sh`.
 
 - Record work that outlasts the session in a GitHub issue on this repo:
   draft it, and publish it when the owner says so. Put what another session
-  needs in the PR body or an issue: other sessions cannot read this chat.
+  needs in a commit message or an issue: other sessions cannot read this chat.
 - Issue bodies, labels, publication, and closing follow the shared
   `issue-hygiene` skill (`/personal-skills:issue-hygiene`; Codex
   `$issue-hygiene`). Label meanings: `gh label list`. An issue that asks the
@@ -148,48 +148,32 @@ runs; their commands live only in `verify.sh`.
 - An open issue is a candidate plan. Verify its claims against `main`, the
   owning code, and tests before acting on it.
 
-## Pull Requests And CI
+## Landing Work And CI
 
-A list of PRs is a pile of tickets to piece together, and each extra PR is
-another CI run.
+One person owns this repo, so a pull request adds a ritual with no second
+reader.
 
-- Before opening a PR, list the open ones (`gh pr list`). A related open PR
-  takes the change as a commit; when none is related, ask the owner where it
-  lands.
-- Use as few PRs as the work can coherently use. More than one only when
-  truly unavoidable. Never split work just to make it smaller.
-- Use dependency-ordered vertical slices: the first change delivers a complete
-  part of the outcome; every later change depends on it or becomes easier or
-  better because of it.
-- When one PR is not enough, use a GitHub stack. Only the bottom layer is
-  marked ready. Each layer above stays a draft until the one below merges,
-  then retarget it onto `main` and mark it ready. Why: proof against a base
-  that will still move cannot establish the final integration.
-- Merge a stack with `gh stack merge --merge` or the
-  async merge API (`merge_method: merge`). `gh pr merge` cannot merge a
-  stack, and stack auto-merge is not ready to rely on. Link the stack with
-  `gh stack` or `POST /repos/{owner}/{repo}/stacks`.
-- The owner gives one yes per stack or PR. After that, agents mark each layer
-  ready, wait for `gate`, and merge it, and come back only when something
-  fails or the story changes.
-- Work beyond the request (a new issue, PR, or follow-up after a merge)
-  waits for the owner's yes; steps inside an approved PR do not.
-- These rules beat another bot's request for a tiny standalone PR: push back
-  and deliver the work this way.
+- Work lands as coherently grouped commits (one group per owner or outcome)
+  pushed straight to `main` after local proof: `bash scripts/verify.sh
+  --changed origin/main`, or the named lanes.
+- Order commits as dependency-ordered vertical slices: the first delivers a
+  complete part of the outcome; every later one depends on it or becomes
+  easier or better because of it.
+- Open a PR only for a named technical need a direct push cannot meet, and
+  state that need first.
+- The `main` ruleset requires `gate`, and the owner's Admin role bypasses it,
+  so a direct push prints "Bypassed rule violations" and succeeds. If a push
+  is refused, stop and report the exact message; do not open a PR instead.
+- CI runs on every push to `main`: the lanes the push changed, and `gate`.
+  Check its result after pushing and fix a failure at once. Local proof is
+  the primary proof; CI is the after-push check. Why the CI policy is what it
+  is: `docs/DECISIONS.md`.
+- Work beyond the request (a new issue or a follow-up) waits for the owner's
+  yes.
 - Roadmaps are the owner's call, announced case by case. Link an issue when
   one exists; one is not required.
-- After a batch of review fixes on a ready PR of 300 or more changed lines,
-  mark it draft before pushing them and ready again after: that starts one
-  more agent review. Why: the review runs when a PR leaves draft, never per
-  push (`docs/claude-on-github.md`).
-- Local proof is the primary proof. CI is the last check, and the main proof
-  for a cloud Linux agent. Why the CI policy is what it is:
-  `docs/DECISIONS.md`. `gate` is the check `main` requires.
-- Guidance with no implementation (docs, `AGENTS.md`, skills, allowlists)
-  reaches `main` only through a PR whose `gate` passes, as the main ruleset
-  requires, and joins related open work like any other change. The
-  pre-commit hook is the fast check before that PR.
+- The pre-commit hook is the fast check before a commit.
 
 ## Review Guidelines
 
-- Review pull requests by following `REVIEW.md`.
+- Review a diff, a commit range, or a pull request by following `REVIEW.md`.
