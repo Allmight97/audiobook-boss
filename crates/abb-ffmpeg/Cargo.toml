@@ -1,0 +1,28 @@
+[package]
+name = "abb-ffmpeg"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+publish = false
+
+[lib]
+doctest = false
+
+[dependencies]
+ffmpeg-sys-next = { version = "9.0.1", default-features = false, features = ["avcodec", "avformat", "swresample"] }
+
+[features]
+default = []
+bundled-ffmpeg = [
+    "ffmpeg-sys-next/build",
+    "ffmpeg-sys-next/static",
+    "ffmpeg-sys-next/build-audiotoolbox",
+    "ffmpeg-sys-next/build-lib-opus",
+    "ffmpeg-sys-next/build-portable",
+]
+
+[dev-dependencies]
+tempfile = "3.27.0"
+
+[lints]
+workspace = true

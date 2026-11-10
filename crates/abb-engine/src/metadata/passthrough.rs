@@ -213,6 +213,19 @@ pub fn read_chapters(input: &ff::format::context::Input) -> Vec<ChapterSpec> {
         .collect()
 }
 
+/// `read_chapters` for chapters read through `abb_ffmpeg`.
+pub(crate) fn layer_chapter_specs(chapters: &[abb_ffmpeg::Chapter]) -> Vec<ChapterSpec> {
+    let milliseconds = abb_ffmpeg::Rational::new(1, 1000);
+    chapters
+        .iter()
+        .map(|chapter| ChapterSpec {
+            title: chapter.title().map(abb_ffmpeg::Text::to_string_lossy),
+            start_ms: abb_ffmpeg::Rational::rescale(chapter.start, chapter.time_base, milliseconds),
+            end_ms: abb_ffmpeg::Rational::rescale(chapter.end, chapter.time_base, milliseconds),
+        })
+        .collect()
+}
+
 pub fn add_chapters_to_output(
     octx: &mut ff::format::context::Output,
     chapters: &[ChapterSpec],

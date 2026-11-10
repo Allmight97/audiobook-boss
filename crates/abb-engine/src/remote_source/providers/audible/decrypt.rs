@@ -8,7 +8,6 @@ use abb_audible_core::{
     DemuxerOption,
 };
 use abb_remote_source_core::{acquisition_progress, AcquisitionProgress, AcquisitionStage};
-use ffmpeg_next as ff;
 use secrecy::ExposeSecret;
 use tokio::task::JoinHandle;
 
@@ -202,20 +201,22 @@ fn write_copy(
     options: &[DemuxerOption],
     control: &CopyControl,
 ) -> Result<()> {
-    ff::init().map_err(|error| decrypt_failure("starting FFmpeg", error))?;
-    let mut ictx = open_protected(input, options)?;
-    let mut octx = ff::format::output_as(partial, crate::audio::Muxer::Mp4.ffmpeg_name())
+    let mut input = open_protected(input, options)?;
+    let mut output = abb_ffmpeg::Output::create(partial, crate::audio::Muxer::Mp4.ffmpeg_name())
         .map_err(|error| decrypt_failure("creating the output", error))?;
-    let mapping = copy_streams(&ictx, &mut octx)?;
-    copy_chapters(&ictx, &mut octx)?;
-    octx.set_metadata(ictx.metadata().to_owned());
-    crate::audio::write_output_header(&mut octx, ff::Dictionary::new())
+    let mapping = copy_streams(&input, &mut output)?;
+    let chapters = input.chapters();
+    copy_chapters(&chapters, &mut output)?;
+    output
+        .set_tags(&input.tags())
+        .map_err(|error| decrypt_failure("copying the tags", error))?;
+    let mut muxer = crate::audio::write_layer_output_header(output)
         .map_err(|error| decrypt_failure("writing the output header", error))?;
-    copy_packets(&mut ictx, &mut octx, &mapping, control)?;
-    octx.write_trailer()
+    copy_packets(&mut input, &mut muxer, &mapping, control)?;
+    muxer
+        .finish()
         .map_err(|error| decrypt_failure("finishing the output", error))?;
-    drop(octx);
-    crate::metadata::verify_chapters(partial, &crate::metadata::read_chapters(&ictx))
+    crate::metadata::verify_chapters(partial, &crate::metadata::layer_chapter_specs(&chapters))
         .map_err(|error| decrypt_failure("checking the chapters", error))
 }
 
@@ -246,129 +247,142 @@ fn refuse_lane_mismatch(job: &CopyJob) -> Result<()> {
     )))
 }
 
-fn open_protected(input: &Path, options: &[DemuxerOption]) -> Result<ff::format::context::Input> {
-    let mut dictionary = ff::Dictionary::new();
+fn open_protected(input: &Path, options: &[DemuxerOption]) -> Result<abb_ffmpeg::Input> {
+    let mut secret = abb_ffmpeg::SecretOptions::default();
     for option in options {
-        dictionary.set(option.name, option.value.expose_secret());
+        secret
+            .push(option.name, option.value.expose_secret())
+            .map_err(|error| decrypt_failure("opening the download", error))?;
     }
-    ff::format::input_with_dictionary(input, dictionary)
-        .map_err(|error| decrypt_failure("opening the download", error))
+    let opened = abb_ffmpeg::Input::open(input, &secret)
+        .map_err(|error| decrypt_failure("opening the download", error))?;
+    if opened.unused_options.is_empty() {
+        Ok(opened.input)
+    } else {
+        Err(decrypt_failure(
+            "opening the download",
+            format!(
+                "FFmpeg did not take the options {}",
+                opened.unused_options.join(", ")
+            ),
+        ))
+    }
 }
 
-fn is_copied(stream: &ff::format::stream::Stream) -> bool {
-    match stream.parameters().medium() {
-        ff::media::Type::Audio => true,
-        ff::media::Type::Video => stream
-            .disposition()
-            .contains(ff::format::stream::Disposition::ATTACHED_PIC),
-        _ => false,
+fn is_copied(stream: &abb_ffmpeg::StreamFacts) -> bool {
+    match stream.medium {
+        abb_ffmpeg::Medium::Audio => true,
+        abb_ffmpeg::Medium::Video => stream
+            .disposition
+            .contains(abb_ffmpeg::Disposition::ATTACHED_PIC),
+        abb_ffmpeg::Medium::Other => false,
     }
 }
 
 fn copy_streams(
-    ictx: &ff::format::context::Input,
-    octx: &mut ff::format::context::Output,
+    input: &abb_ffmpeg::Input,
+    output: &mut abb_ffmpeg::Output,
 ) -> Result<Vec<Option<usize>>> {
-    let mut mapping = vec![None; ictx.streams().len()];
-    for istream in ictx.streams().filter(is_copied) {
-        let codec = ff::codec::context::Context::from_parameters(istream.parameters())
-            .map_err(|error| decrypt_failure("reading stream parameters", error))?;
-        let mut ostream = octx
-            .add_stream_with(&codec)
+    let streams = input.streams();
+    let mut mapping = vec![None; streams.len()];
+    for istream in streams.iter().filter(|stream| is_copied(stream)) {
+        let index = output
+            .add_stream_copied_from(input, istream.index)
             .map_err(|error| decrypt_failure("creating an output stream", error))?;
-        ostream.set_time_base(istream.time_base());
-        ostream.set_metadata(istream.metadata().to_owned());
-        crate::metadata::set_stream_disposition_and_clear_codec_tag(
-            &mut ostream,
-            istream.disposition(),
-        );
-        mapping[istream.index()] = Some(ostream.index());
+        output
+            .set_stream_time_base(index, istream.time_base)
+            .and_then(|()| output.set_stream_tags(index, &istream.tags))
+            .and_then(|()| {
+                output.set_stream_disposition_and_clear_codec_tag(index, istream.disposition)
+            })
+            .map_err(|error| decrypt_failure("creating an output stream", error))?;
+        mapping[istream.index] = Some(index);
     }
     Ok(mapping)
 }
 
-fn copy_chapters(
-    ictx: &ff::format::context::Input,
-    octx: &mut ff::format::context::Output,
-) -> Result<()> {
-    for chapter in ictx.chapters() {
-        let title = chapter.metadata().get("title").unwrap_or("").to_string();
-        octx.add_chapter(
-            chapter.id(),
-            chapter.time_base(),
-            chapter.start(),
-            chapter.end(),
-            title,
-        )
-        .map_err(|error| decrypt_failure(&format!("copying chapter {}", chapter.id()), error))?;
+/// A chapter without a title gets an empty one, as the `ffmpeg-next` copy did.
+fn copy_chapters(chapters: &[abb_ffmpeg::Chapter], output: &mut abb_ffmpeg::Output) -> Result<()> {
+    for chapter in chapters {
+        let failure = |error| decrypt_failure(&format!("copying chapter {}", chapter.id), error);
+        let mut tags = abb_ffmpeg::Tags::default();
+        let title = chapter
+            .title()
+            .map(abb_ffmpeg::Text::to_string_lossy)
+            .unwrap_or_default();
+        tags.push("title", &title, abb_ffmpeg::Step::AddChapter)
+            .map_err(failure)?;
+        output
+            .add_chapter(&abb_ffmpeg::Chapter {
+                tags,
+                ..chapter.clone()
+            })
+            .map_err(failure)?;
     }
     Ok(())
 }
 
 fn copy_packets(
-    ictx: &mut ff::format::context::Input,
-    octx: &mut ff::format::context::Output,
+    input: &mut abb_ffmpeg::Input,
+    muxer: &mut abb_ffmpeg::Muxer,
     mapping: &[Option<usize>],
     control: &CopyControl,
 ) -> Result<()> {
-    let duration_seconds = ictx.duration() as f64 / f64::from(ff::ffi::AV_TIME_BASE);
-    while let Some(mut packet) = next_packet(ictx, control)? {
-        let Some(out_index) = mapping.get(packet.stream()).copied().flatten() else {
+    let duration_seconds = input.duration_micros() as f64 / 1_000_000.0;
+    let time_bases: Vec<abb_ffmpeg::Rational> = input
+        .streams()
+        .iter()
+        .map(|stream| stream.time_base)
+        .collect();
+    let mut packet =
+        abb_ffmpeg::Packet::new().map_err(|error| decrypt_failure("reading audio", error))?;
+    while next_packet(input, &mut packet, control)? {
+        let Some(out_index) = mapping.get(packet.stream_index()).copied().flatten() else {
             continue;
         };
-        let in_base = stream_time_base(ictx, packet.stream())?;
+        let in_base = time_bases
+            .get(packet.stream_index())
+            .copied()
+            .ok_or_else(|| decrypt_failure("reading audio", "a packet names a missing stream"))?;
         if let Some(fraction) = packet_fraction(packet.pts(), in_base, duration_seconds) {
             control.set_fraction(fraction);
         }
-        let out_base = stream_time_base_out(octx, out_index)?;
-        packet.set_stream(out_index);
+        let out_base = muxer
+            .stream_time_base(out_index)
+            .map_err(|error| decrypt_failure("writing audio", error))?;
+        packet.set_stream_index(out_index);
         packet.rescale_ts(in_base, out_base);
-        packet
-            .write_interleaved(octx)
+        muxer
+            .write_interleaved(&mut packet)
             .map_err(|error| decrypt_failure("writing audio", error))?;
     }
     Ok(())
 }
 
 fn next_packet(
-    ictx: &mut ff::format::context::Input,
+    input: &mut abb_ffmpeg::Input,
+    packet: &mut abb_ffmpeg::Packet,
     control: &CopyControl,
-) -> Result<Option<ff::Packet>> {
+) -> Result<bool> {
     if control.stop_requested() {
         return Err(remote_acquisition_cancelled());
     }
-    let mut packet = ff::Packet::empty();
-    match packet.read(ictx) {
-        Ok(()) => Ok(Some(packet)),
-        Err(ff::Error::Eof) => Ok(None),
-        Err(error) => Err(decrypt_failure("reading audio", error)),
-    }
-}
-
-fn stream_time_base(ictx: &ff::format::context::Input, index: usize) -> Result<ff::Rational> {
-    ictx.stream(index)
-        .map(|stream| stream.time_base())
-        .ok_or_else(|| decrypt_failure("reading audio", "a packet names a missing stream"))
-}
-
-fn stream_time_base_out(octx: &ff::format::context::Output, index: usize) -> Result<ff::Rational> {
-    octx.stream(index)
-        .map(|stream| stream.time_base())
-        .ok_or_else(|| decrypt_failure("writing audio", "an output stream is missing"))
+    input
+        .read_packet(packet)
+        .map_err(|error| decrypt_failure("reading audio", error))
 }
 
 /// How far a packet's time is through the book, or `None` when either is
 /// unknown.
 fn packet_fraction(
     pts: Option<i64>,
-    time_base: ff::Rational,
+    time_base: abb_ffmpeg::Rational,
     duration_seconds: f64,
 ) -> Option<f32> {
-    if duration_seconds <= 0.0 || time_base.denominator() == 0 {
+    if duration_seconds <= 0.0 || time_base.denominator == 0 {
         return None;
     }
-    let seconds =
-        pts? as f64 * f64::from(time_base.numerator()) / f64::from(time_base.denominator());
+    let seconds = pts? as f64 * f64::from(time_base.numerator) / f64::from(time_base.denominator);
     Some((seconds / duration_seconds).clamp(0.0, 1.0) as f32)
 }
 

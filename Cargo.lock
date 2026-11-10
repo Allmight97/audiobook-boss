@@ -26,6 +26,7 @@ name = "abb-engine"
 version = "0.1.0"
 dependencies = [
  "abb-audible-core",
+ "abb-ffmpeg",
  "abb-media-core",
  "abb-metadata-core",
  "abb-output-artifact-core",
@@ -69,6 +70,14 @@ dependencies = [
  "uuid",
  "windows-native-keyring-store",
  "zbus-secret-service-keyring-store",
+]
+
+[[package]]
+name = "abb-ffmpeg"
+version = "0.1.0"
+dependencies = [
+ "ffmpeg-sys-next",
+ "tempfile",
 ]
 
 [[package]]
