@@ -256,3 +256,36 @@ fn a_muxer_stopped_after_some_packets_removes_its_file() {
 
     assert!(!path.exists(), "a stopped muxer removes its file");
 }
+
+#[test]
+fn a_short_activation_is_a_typed_open_error() {
+    let mut options = abb_ffmpeg::SecretOptions::default();
+    options.push("activation_bytes", "1ceb00").expect("option");
+
+    let error = match abb_ffmpeg::Input::open(&books().aax, &options) {
+        Ok(_) => panic!("opened"),
+        Err(error) => error,
+    };
+
+    assert!(
+        matches!(
+            error,
+            abb_ffmpeg::Error::Ffmpeg {
+                step: abb_ffmpeg::Step::OpenInput,
+                ..
+            }
+        ),
+        "{error:?}"
+    );
+}
+
+/// Positive control for the `leaks` run: the wrapper's `output_as` leaks its
+/// format context when the file cannot open. Run only by hand.
+#[test]
+#[ignore = "leak positive control, run under /usr/bin/leaks"]
+fn wrapper_output_as_leaks_on_an_unopenable_path() {
+    let dir = TempDir::new().expect("dir");
+    let file = dir.path().join("file");
+    std::fs::write(&file, b"x").expect("write");
+    assert!(ff::format::output_as(&file.join("out.m4b"), "mp4").is_err());
+}

@@ -60,6 +60,10 @@ impl Tags {
         self.0.is_empty()
     }
 
+    pub fn insert(&mut self, key: Text, value: Text) {
+        self.0.push((key, value));
+    }
+
     pub fn push(&mut self, key: &str, value: &str, step: Step) -> Result<()> {
         self.0
             .push((Text::new(key, step)?, Text::new(value, step)?));
