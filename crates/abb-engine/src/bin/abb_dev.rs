@@ -47,6 +47,7 @@ Imports audio into an engine session and prints the session. The audible
 and parity commands are listed after these options.
 
 Options:
+  --merge                 Join every imported file into one title.
   --set <field>=<value>   Edit a field on every imported title. Repeatable.
                           Fields: title, date, author, narrator, series,
                           series-part, subseries, subseries-part, genre,
@@ -57,6 +58,10 @@ Options:
   --intent <intent>       Audio handling for every title: auto, preserve, or
                           encode.
   --bitrate <kbps>        Target bitrate for encoded titles.
+  --encoder <encoder>     AAC encoder for encoded titles: auto, native_aac,
+                          aac_at (macOS), or faac.
+  --faac-profile <p>      FAAC profile: auto, aac_lc, or he_aac_v1.
+  --channels <channels>   Output channels: auto, mono, or stereo.
   --decoder <decoder>     AAC decoder for import and export: auto (FFmpeg)
                           or faad (bundled FAAD3).
   --out <folder>          Export folder; created if missing.
@@ -87,6 +92,7 @@ const APP_IDENTIFIER: &str = "com.audiobook-boss.devtool";
 #[derive(Default)]
 struct Options {
     paths: Vec<String>,
+    merge: bool,
     edits: Vec<(MetadataField, String)>,
     save: bool,
     audio: Vec<AudioEdit>,
@@ -149,6 +155,7 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Options, String> {
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--save" => options.save = true,
+            "--merge" => options.merge = true,
             "--export" => options.export = true,
             "--format" => {
                 let format: AudiobookFormat = named("format", &value(&mut args, "--format")?)?;
@@ -162,6 +169,18 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Options, String> {
                 let kbps = value(&mut args, "--bitrate")?;
                 let kbps = kbps.parse().map_err(|_| format!("bad bitrate '{kbps}'"))?;
                 options.audio.push(AudioEdit::Bitrate(kbps));
+            }
+            "--encoder" => {
+                let encoder = named("encoder", &value(&mut args, "--encoder")?)?;
+                options.audio.push(AudioEdit::Encoder(encoder));
+            }
+            "--faac-profile" => {
+                let profile = named("FAAC profile", &value(&mut args, "--faac-profile")?)?;
+                options.audio.push(AudioEdit::FaacProfile(profile));
+            }
+            "--channels" => {
+                let channels = named("channels", &value(&mut args, "--channels")?)?;
+                options.audio.push(AudioEdit::Channels(channels));
             }
             "--decoder" => {
                 options.decoder = Some(named("decoder", &value(&mut args, "--decoder")?)?);
@@ -573,6 +592,19 @@ async fn run(options: Options, state_dir: PathBuf) -> AbbDevStatus {
     }
 }
 
+/// Imports the paths and leaves every title selected, joined into one when
+/// `--merge` asks for it.
+async fn import(engine: &Engine, options: &Options) -> Result<(), String> {
+    let paths = options.paths.clone();
+    send(engine, SessionIntent::Import { paths }).await?;
+    send(engine, SessionIntent::SelectAll).await?;
+    if options.merge {
+        send(engine, SessionIntent::GroupSelected).await?;
+        send(engine, SessionIntent::SelectAll).await?;
+    }
+    Ok(())
+}
+
 async fn drive(options: &Options, state_dir: PathBuf) -> Result<(), AbbDevStatus> {
     let progress = Arc::new(PrintProgress::default());
     let mut feed = progress.feed();
@@ -594,14 +626,7 @@ async fn drive(options: &Options, state_dir: PathBuf) -> Result<(), AbbDevStatus
         }
     }
 
-    send(
-        &engine,
-        SessionIntent::Import {
-            paths: options.paths.clone(),
-        },
-    )
-    .await?;
-    send(&engine, SessionIntent::SelectAll).await?;
+    import(&engine, options).await?;
     apply_edits(&engine, options).await?;
     if options.save {
         send(&engine, SessionIntent::Save).await?;
