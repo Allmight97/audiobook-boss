@@ -15,6 +15,17 @@ impl Muxer {
     }
 }
 
+const MP4_FAMILY_NAMES: [&str; 7] = ["mov", "mp4", "m4a", "ipod", "3gp", "3g2", "mj2"];
+
+/// Whether an FFmpeg format name is in the MP4 family. `name` is
+/// `format().name()`: a muxer name, or a demuxer's comma-separated aliases
+/// (`mov,mp4,m4a,3gp,3g2,mj2`). FFmpeg guesses `ipod` for an `.m4a` or `.m4b`
+/// output opened without a muxer name.
+pub(crate) fn is_mp4_family_format(name: &str) -> bool {
+    name.split(',')
+        .any(|alias| MP4_FAMILY_NAMES.contains(&alias))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum CodecFamily {

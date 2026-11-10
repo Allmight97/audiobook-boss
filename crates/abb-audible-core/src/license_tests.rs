@@ -5,6 +5,12 @@ use serde_json::json;
 
 type Aes128CbcEnc = cbc::Encryptor<Aes128>;
 
+fn bytes<const N: usize>(hex: &str) -> [u8; N] {
+    std::array::from_fn(|index| {
+        u8::from_str_radix(&hex[index * 2..index * 2 + 2], 16).expect("hex")
+    })
+}
+
 fn fixture_decrypt_context() -> AudibleLicenseDecryptContext {
     AudibleLicenseDecryptContext {
         device_type: "A2CZJZGLK2JJVM".to_string(),
@@ -63,9 +69,9 @@ fn aax_license_response_decrypts_adrm_voucher_activation_bytes() {
 
     assert_eq!(material.kind(), DecryptKind::Aax);
     match material {
-        AudibleDecryptionMaterial::Aax {
-            activation_bytes_hex,
-        } => assert_eq!(activation_bytes_hex.expose_secret(), "0a1b2c3d"),
+        AudibleDecryptionMaterial::Aax { activation_bytes } => {
+            assert_eq!(activation_bytes.expose_secret(), &bytes::<4>("0a1b2c3d"))
+        }
         AudibleDecryptionMaterial::Aaxc { .. } => panic!("unexpected aaxc material"),
     }
 }
@@ -104,9 +110,15 @@ fn aaxc_license_response_decrypts_adrm_voucher_key_iv() {
 
     assert_eq!(material.kind(), DecryptKind::Aaxc);
     match material {
-        AudibleDecryptionMaterial::Aaxc { key_hex, iv_hex } => {
-            assert_eq!(key_hex.expose_secret(), "0a0b0c0d0e0f1a1b1c1d1e1f2a2b2c2d");
-            assert_eq!(iv_hex.expose_secret(), "2e2f3a3b3c3d3e3f4a4b4c4d4e4f5a5b");
+        AudibleDecryptionMaterial::Aaxc { key, iv } => {
+            assert_eq!(
+                key.expose_secret(),
+                &bytes::<16>("0a0b0c0d0e0f1a1b1c1d1e1f2a2b2c2d")
+            );
+            assert_eq!(
+                iv.expose_secret(),
+                &bytes::<16>("2e2f3a3b3c3d3e3f4a4b4c4d4e4f5a5b")
+            );
         }
         AudibleDecryptionMaterial::Aax { .. } => panic!("unexpected aax material"),
     }
@@ -134,9 +146,9 @@ fn aax_license_material_extracts_activation_bytes_without_public_surface() {
     .material;
 
     match material {
-        AudibleDecryptionMaterial::Aax {
-            activation_bytes_hex,
-        } => assert_eq!(activation_bytes_hex.expose_secret(), "0a1b2c3d"),
+        AudibleDecryptionMaterial::Aax { activation_bytes } => {
+            assert_eq!(activation_bytes.expose_secret(), &bytes::<4>("0a1b2c3d"))
+        }
         AudibleDecryptionMaterial::Aaxc { .. } => panic!("unexpected aaxc material"),
     }
 }
@@ -163,9 +175,9 @@ fn aax_license_material_extracts_url_safe_unpadded_voucher_key() {
     .material;
 
     match material {
-        AudibleDecryptionMaterial::Aax {
-            activation_bytes_hex,
-        } => assert_eq!(activation_bytes_hex.expose_secret(), "fbffeedd"),
+        AudibleDecryptionMaterial::Aax { activation_bytes } => {
+            assert_eq!(activation_bytes.expose_secret(), &bytes::<4>("fbffeedd"))
+        }
         AudibleDecryptionMaterial::Aaxc { .. } => panic!("unexpected aaxc material"),
     }
 }
@@ -196,9 +208,15 @@ fn aaxc_license_material_extracts_key_and_iv_from_hex_or_base64() {
     .material;
 
     match material {
-        AudibleDecryptionMaterial::Aaxc { key_hex, iv_hex } => {
-            assert_eq!(key_hex.expose_secret(), "0a0b0c0d0e0f1a1b1c1d1e1f2a2b2c2d");
-            assert_eq!(iv_hex.expose_secret(), "2e2f3a3b3c3d3e3f4a4b4c4d4e4f5a5b");
+        AudibleDecryptionMaterial::Aaxc { key, iv } => {
+            assert_eq!(
+                key.expose_secret(),
+                &bytes::<16>("0a0b0c0d0e0f1a1b1c1d1e1f2a2b2c2d")
+            );
+            assert_eq!(
+                iv.expose_secret(),
+                &bytes::<16>("2e2f3a3b3c3d3e3f4a4b4c4d4e4f5a5b")
+            );
         }
         AudibleDecryptionMaterial::Aax { .. } => panic!("unexpected aax material"),
     }

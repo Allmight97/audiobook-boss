@@ -8,10 +8,19 @@ use crate::audio::Muxer;
 use crate::metadata::{add_cover_art_stream_pre_header, write_cover_art_packet_post_header};
 use crate::test_cases::media_fixtures::ffmpeg;
 
-const LONG_CHAPTERS_MS: [(i64, i64, &str); 3] = [
+type Chapters<'a> = &'a [(i64, i64, &'a str)];
+
+const LONG_CHAPTERS_MS: Chapters = &[
     (0, 600_000, "One"),
     (600_000, 1_200_000, "Two"),
     (1_200_000, 1_201_000, "Three"),
+];
+
+const FOURTEEN_HOURS_MS: i64 = 14 * 3_600_000;
+
+const BEYOND_THE_SAMPLE_RATE_MS: Chapters = &[
+    (0, FOURTEEN_HOURS_MS, "Whole day"),
+    (FOURTEEN_HOURS_MS, FOURTEEN_HOURS_MS + 1_000, "Epilogue"),
 ];
 
 struct Inputs {
@@ -62,7 +71,7 @@ fn inputs() -> Inputs {
 /// Writes an MP4 the way the decrypt copy does: the audio stream copied, a
 /// cover whose time base is the 1/90000 an Audible download carries, and the
 /// given chapters.
-fn write_book_with_cover(inputs: &Inputs, output: &Path) {
+fn write_book_with_cover(inputs: &Inputs, output: &Path, chapters: Chapters) {
     ff::init().expect("ffmpeg");
     let mut ictx = ff::format::input(&inputs.audio).expect("open audio");
     let mut octx = ff::format::output_as(output, Muxer::Mp4.ffmpeg_name()).expect("output");
@@ -81,7 +90,7 @@ fn write_book_with_cover(inputs: &Inputs, output: &Path) {
     octx.stream_mut(cover_index)
         .expect("cover stream")
         .set_time_base((1, 90_000));
-    for (id, (start, end, title)) in LONG_CHAPTERS_MS.iter().enumerate() {
+    for (id, (start, end, title)) in chapters.iter().enumerate() {
         octx.add_chapter(id as i64, (1, 1000), *start, *end, title)
             .expect("chapter");
     }
@@ -120,18 +129,37 @@ fn chapter_starts_and_titles(path: &Path) -> Vec<(i64, String)> {
         .collect()
 }
 
+fn expected_starts_and_titles(chapters: Chapters) -> Vec<(i64, String)> {
+    chapters
+        .iter()
+        .map(|(start, _, title)| (*start, (*title).to_string()))
+        .collect()
+}
+
 #[test]
 fn an_mp4_with_a_cover_keeps_chapters_longer_than_eight_minutes() {
     let inputs = inputs();
     let output = inputs._dir.path().join("book.m4b");
 
-    write_book_with_cover(&inputs, &output);
+    write_book_with_cover(&inputs, &output, LONG_CHAPTERS_MS);
 
-    let expected: Vec<(i64, String)> = LONG_CHAPTERS_MS
-        .iter()
-        .map(|(start, _, title)| (*start, (*title).to_string()))
-        .collect();
-    assert_eq!(chapter_starts_and_titles(&output), expected);
+    assert_eq!(
+        chapter_starts_and_titles(&output),
+        expected_starts_and_titles(LONG_CHAPTERS_MS)
+    );
+}
+
+#[test]
+fn a_chapter_longer_than_the_sample_rate_allows_keeps_its_start_and_title() {
+    let inputs = inputs();
+    let output = inputs._dir.path().join("book.m4b");
+
+    write_book_with_cover(&inputs, &output, BEYOND_THE_SAMPLE_RATE_MS);
+
+    assert_eq!(
+        chapter_starts_and_titles(&output),
+        expected_starts_and_titles(BEYOND_THE_SAMPLE_RATE_MS)
+    );
 }
 
 #[test]

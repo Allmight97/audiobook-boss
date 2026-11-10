@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use abb_audible_core::{
-    demuxer_options, file_matches_decrypt_kind, AudibleDecryptionMaterial, DecryptKind,
+    demuxer_options, file_matches_decrypt_kind, title_ref, AudibleDecryptionMaterial, DecryptKind,
     DemuxerOption,
 };
 use abb_remote_source_core::{acquisition_progress, AcquisitionProgress, AcquisitionStage};
@@ -23,6 +23,8 @@ pub(super) struct DecryptRequest<'a> {
     pub(super) input: &'a Path,
     pub(super) output: &'a Path,
     pub(super) material: &'a AudibleDecryptionMaterial,
+    pub(super) job_id: &'a str,
+    pub(super) title_id: &'a str,
 }
 
 #[derive(Clone, Default)]
@@ -59,6 +61,8 @@ impl Drop for StopOnDrop {
 }
 
 struct CopyJob {
+    job_id: String,
+    title_ref: String,
     input: PathBuf,
     partial: PathBuf,
     kind: DecryptKind,
@@ -68,24 +72,25 @@ struct CopyJob {
 
 /// Decrypts an Audible AAX or AAXC download into an MP4 by stream copy. Packet
 /// success does not prove the key: AAXC decrypts to noise under a wrong key,
-/// so the caller still checks that the output decodes.
+/// so the partial must decode as audio and read back its chapters before it
+/// is committed to its final path.
 pub(super) async fn decrypt_download(
     request: DecryptRequest<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<PathBuf> {
     ensure_not_cancelled(is_cancelled)?;
-    let options = demuxer_options(request.material)
-        .map_err(|error| AppError::General(format!("Audible decrypt refused its key: {error}")))?;
     let mut staged = StagedTempFile::new(request.output);
     staged.prepare()?;
     let control = CopyControl::default();
     let _stop_on_drop = StopOnDrop(control.clone());
     let job = CopyJob {
+        job_id: request.job_id.to_string(),
+        title_ref: title_ref(request.title_id),
         input: request.input.to_path_buf(),
         partial: staged.partial_path().to_path_buf(),
         kind: request.material.kind(),
-        options,
+        options: demuxer_options(request.material),
         control: control.clone(),
     };
     #[expect(
@@ -143,8 +148,25 @@ fn decrypt_failure(step: &str, error: impl std::fmt::Display) -> AppError {
 }
 
 fn copy_decrypted(job: CopyJob) -> Result<()> {
-    refuse_lane_mismatch(&job.input, job.kind)?;
-    stream_copy(&job.input, &job.partial, &job.options, &job.control)
+    refuse_lane_mismatch(&job)?;
+    stream_copy(&job.input, &job.partial, &job.options, &job.control)?;
+    confirm_decodes_as_audio(&job)
+}
+
+fn confirm_decodes_as_audio(job: &CopyJob) -> Result<()> {
+    if crate::audio::probe_builtin_audio_decoder(&job.partial).is_ok() {
+        return Ok(());
+    }
+    log::warn!(
+        "remote_source audible stage=decrypt_output_rejected job_id={} title_ref={}",
+        job.job_id,
+        job.title_ref
+    );
+    remove_logging_failure(&job.partial);
+    Err(AppError::General(
+        "Audible decrypt did not produce decodable audio. Provider-private details were withheld from UI and logs."
+            .to_string(),
+    ))
 }
 
 /// Removes its own partial when it fails or is stopped: an aborted caller may
@@ -191,19 +213,30 @@ fn write_copy(
         .map_err(|error| decrypt_failure("checking the chapters", error))
 }
 
-fn refuse_lane_mismatch(input: &Path, kind: DecryptKind) -> Result<()> {
-    let facts = read_protected_file_facts(input)
+fn refuse_lane_mismatch(job: &CopyJob) -> Result<()> {
+    let facts = read_protected_file_facts(&job.input)
         .map_err(|error| decrypt_failure("reading the download's format", error))?;
-    if file_matches_decrypt_kind(&facts, kind) {
+    log::info!(
+        "remote_source audible stage=protected_file_facts job_id={} title_ref={} lane={:?} major_brand={:?} compatible_brands={:?} drm_boxes={:?}",
+        job.job_id,
+        job.title_ref,
+        job.kind,
+        facts.major_brand,
+        facts.compatible_brands,
+        facts.drm_boxes
+    );
+    if file_matches_decrypt_kind(&facts, job.kind) {
         return Ok(());
     }
     log::warn!(
-        "remote_source audible stage=decrypt_lane_mismatch lane={kind:?} major_brand={:?} adrm_present={}",
-        facts.major_brand,
-        facts.adrm_present
+        "remote_source audible stage=decrypt_lane_mismatch job_id={} title_ref={} lane={:?}",
+        job.job_id,
+        job.title_ref,
+        job.kind
     );
     Err(AppError::General(format!(
-        "Audible decrypt refused the download: its format does not match the {kind:?} license."
+        "Audible decrypt refused the download: its format does not match the {:?} license.",
+        job.kind
     )))
 }
 

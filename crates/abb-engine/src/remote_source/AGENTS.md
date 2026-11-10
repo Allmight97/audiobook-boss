@@ -113,7 +113,11 @@ and records the outcome on the job. From then on the session decides when the
 download goes (`crate::session`, `staged.rs`) and calls `purge_session`, which
 drops the lifecycle registry's record of the job. The snapshot's job stays
 until a disconnect or the next job replaces it. Cancel does nothing to a job
-that already finished, so it cannot remove files the session holds.
+that already finished, so it cannot remove files the session holds. Cancel or
+failure of a running job ends its task and purges the job's staging folder on a tracked
+task with the same bounded retry as the encrypted-source purge
+(`purge_with_retries`), because an aborted decrypt only signals its blocking
+worker to stop and the worker may still touch the folder.
 Materialized handoff files stay usable after provider logout. A Disconnect
 refuses unfinished acquisition/handoff; its scope is on
 `RemoteUiIntent::Disconnect`. Job changes update
@@ -243,10 +247,13 @@ stays unsupported until ABB has its own CDM, MPD/PSSH, and content-key design.
 An AAX or AAXC license reply with no usable decryption material fails as
 `ProtectedUnsupported` before any audio is downloaded; the key is the only thing
 that decides, not the reply's shape. An Audible AAX or AAXC file is materialized
-only when its output decodes as audio with FFmpeg's built-in decoder. A wrong
-key fails as `MaterializationFailed`, and the message names the decrypt. For
-AAXC, demuxer success is not that proof. Decrypt honors the download's edit
-list: packets it hides are dropped, and a partly hidden last packet keeps its
+only when its output decodes as audio with FFmpeg's built-in decoder. The
+decrypt proves that, and reads the chapters back, on the partial before the
+rename to the final path. A wrong key fails as `MaterializationFailed`, and the
+message names the decrypt. For AAXC, demuxer success is not that proof. FFmpeg
+keeps plain copies of the key material it is given (option strings and the
+`mov.c` context) that ABB cannot wipe. Accepted: the keys are per title.
+Decrypt honors the download's edit list: packets it hides are dropped, and a partly hidden last packet keeps its
 trim. Why: the edit list is Audible's statement of the book's length, and its
 chapters end there. A Keep-original-audio merge of several decrypted titles
 is therefore refused by the preserve join's trim rule.

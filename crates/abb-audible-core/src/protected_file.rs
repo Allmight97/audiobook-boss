@@ -1,5 +1,5 @@
-/// One top-level MP4 box: its four-character type, where its payload starts,
-/// and its total size (`None` when it runs to the end of the file).
+/// One MP4 box: its four-character type, where its payload starts, and its
+/// total size (`None` when it runs to the end of its parent).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Mp4BoxHeader {
     pub kind: [u8; 4],
@@ -33,21 +33,32 @@ pub fn mp4_box_header(bytes: &[u8]) -> Option<Mp4BoxHeader> {
     })
 }
 
-/// What an Audible download declares about its protection. None of it is
-/// secret: it decides whether FFmpeg's MP4 demuxer applies AAXC keys (only for
-/// major brand `aaxc`) or AAX activation bytes (when an `adrm` box exists).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProtectedFileFacts {
-    pub major_brand: String,
-    pub compatible_brands: Vec<String>,
+/// The DRM boxes found in a download's sample descriptions. FFmpeg's MP4
+/// demuxer needs `adrm` to apply AAX activation bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DrmBoxes {
     pub adrm_present: bool,
     pub aavd_entry_present: bool,
 }
 
-/// `ftyp` and `moov` are the payloads of those top-level boxes. `adrm` and
-/// `aavd` are found by their box type names inside `moov`, which holds only
-/// metadata.
-pub fn protected_file_facts(ftyp: &[u8], moov: &[u8]) -> ProtectedFileFacts {
+/// What an Audible download declares about its protection. None of it is
+/// secret: it decides whether FFmpeg's MP4 demuxer applies AAXC keys (only for
+/// major brand `aaxc`) or AAX activation bytes (when an `adrm` box exists).
+/// `drm_boxes` is `None` when the sample descriptions could not be read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProtectedFileFacts {
+    pub major_brand: String,
+    pub compatible_brands: Vec<String>,
+    pub drm_boxes: Option<DrmBoxes>,
+}
+
+/// `ftyp` is the payload of the top-level `ftyp` box. `sample_descriptions`
+/// holds the payload of each `moov/trak/mdia/minf/stbl/stsd` box; `adrm` and
+/// `aavd` are found by their box type names inside them.
+pub fn protected_file_facts(
+    ftyp: &[u8],
+    sample_descriptions: Option<&[Vec<u8>]>,
+) -> ProtectedFileFacts {
     ProtectedFileFacts {
         major_brand: ftyp.get(0..4).map(brand_text).unwrap_or_default(),
         compatible_brands: ftyp
@@ -58,8 +69,14 @@ pub fn protected_file_facts(ftyp: &[u8], moov: &[u8]) -> ProtectedFileFacts {
             .iter()
             .map(|brand| brand_text(brand))
             .collect(),
-        adrm_present: contains_box_kind(moov, b"adrm"),
-        aavd_entry_present: contains_box_kind(moov, b"aavd"),
+        drm_boxes: sample_descriptions.map(|payloads| DrmBoxes {
+            adrm_present: payloads
+                .iter()
+                .any(|payload| contains_box_kind(payload, b"adrm")),
+            aavd_entry_present: payloads
+                .iter()
+                .any(|payload| contains_box_kind(payload, b"aavd")),
+        }),
     }
 }
 

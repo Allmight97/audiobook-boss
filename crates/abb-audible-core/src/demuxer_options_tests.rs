@@ -1,28 +1,28 @@
 use super::*;
-use secrecy::ExposeSecret;
+use crate::protected_file::DrmBoxes;
+use secrecy::SecretBox;
 
-const KEY: &str = "000102030405060708090a0b0c0d0e0f";
-const IV: &str = "f0e0d0c0b0a090807060504030201000";
-
-fn aax(activation: &str) -> AudibleDecryptionMaterial {
+fn aax(activation: [u8; 4]) -> AudibleDecryptionMaterial {
     AudibleDecryptionMaterial::Aax {
-        activation_bytes_hex: SecretString::from(activation),
+        activation_bytes: SecretBox::new(Box::new(activation)),
     }
 }
 
-fn aaxc(key: &str, iv: &str) -> AudibleDecryptionMaterial {
+fn aaxc(key: [u8; 16], iv: [u8; 16]) -> AudibleDecryptionMaterial {
     AudibleDecryptionMaterial::Aaxc {
-        key_hex: SecretString::from(key),
-        iv_hex: SecretString::from(iv),
+        key: SecretBox::new(Box::new(key)),
+        iv: SecretBox::new(Box::new(iv)),
     }
 }
 
-fn facts(major_brand: &str, adrm_present: bool) -> ProtectedFileFacts {
+fn facts(major_brand: &str, adrm_present: Option<bool>) -> ProtectedFileFacts {
     ProtectedFileFacts {
         major_brand: major_brand.to_string(),
         compatible_brands: Vec::new(),
-        adrm_present,
-        aavd_entry_present: true,
+        drm_boxes: adrm_present.map(|adrm_present| DrmBoxes {
+            adrm_present,
+            aavd_entry_present: true,
+        }),
     }
 }
 
@@ -35,64 +35,42 @@ fn pairs(options: &[DemuxerOption]) -> Vec<(&'static str, &str)> {
 
 #[test]
 fn aax_activation_bytes_become_the_activation_bytes_option() {
-    let options = demuxer_options(&aax("1CEB00da")).expect("valid activation bytes");
+    let options = demuxer_options(&aax([0x1c, 0xeb, 0x00, 0xda]));
 
-    assert_eq!(pairs(&options), [("activation_bytes", "1CEB00da")]);
+    assert_eq!(pairs(&options), [("activation_bytes", "1ceb00da")]);
 }
 
 #[test]
 fn aaxc_key_and_iv_become_the_audible_key_and_iv_options() {
-    let options = demuxer_options(&aaxc(KEY, IV)).expect("valid key and iv");
-
-    assert_eq!(pairs(&options), [("audible_key", KEY), ("audible_iv", IV)]);
-}
-
-#[test]
-fn a_malformed_value_is_refused_by_name_and_the_message_never_holds_it() {
-    let short_key = &KEY[..30];
-    let non_hex_iv = format!("zz{}", &IV[2..]);
-    let non_hex_iv = non_hex_iv.as_str();
-    let cases = [
-        (
-            aax("1ceb00"),
-            DemuxerOptionsError::ActivationBytes,
-            "1ceb00",
-        ),
-        (
-            aax("1ceb00dg"),
-            DemuxerOptionsError::ActivationBytes,
-            "1ceb00dg",
-        ),
-        (
-            aax("1ceb00da00"),
-            DemuxerOptionsError::ActivationBytes,
-            "1ceb00da00",
-        ),
-        (aaxc(short_key, IV), DemuxerOptionsError::Key, short_key),
-        (aaxc(KEY, non_hex_iv), DemuxerOptionsError::Iv, non_hex_iv),
-        (aaxc("", IV), DemuxerOptionsError::Key, IV),
+    let key = [
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+        0x0f,
     ];
-    for (material, expected, value) in cases {
-        let error = demuxer_options(&material).err().expect("malformed value");
+    let iv = [0xf0; 16];
 
-        assert_eq!(error, expected);
-        assert!(!error.to_string().contains(value), "{error}");
-        assert!(!error.to_string().contains(KEY), "{error}");
-    }
+    let options = demuxer_options(&aaxc(key, iv));
+
+    assert_eq!(
+        pairs(&options),
+        [
+            ("audible_key", "000102030405060708090a0b0c0d0e0f"),
+            ("audible_iv", "f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0"),
+        ]
+    );
 }
 
 #[test]
 fn an_aaxc_download_matches_only_the_aaxc_lane() {
     assert!(file_matches_decrypt_kind(
-        &facts("aaxc", false),
+        &facts("aaxc", Some(false)),
         DecryptKind::Aaxc
     ));
     assert!(!file_matches_decrypt_kind(
-        &facts("aax ", true),
+        &facts("aax ", Some(true)),
         DecryptKind::Aaxc
     ));
     assert!(!file_matches_decrypt_kind(
-        &facts("M4B ", false),
+        &facts("M4B ", Some(false)),
         DecryptKind::Aaxc
     ));
 }
@@ -100,11 +78,23 @@ fn an_aaxc_download_matches_only_the_aaxc_lane() {
 #[test]
 fn an_aax_download_matches_the_aax_lane_only_with_an_adrm_box() {
     assert!(file_matches_decrypt_kind(
-        &facts("aax ", true),
+        &facts("aax ", Some(true)),
         DecryptKind::Aax
     ));
     assert!(!file_matches_decrypt_kind(
-        &facts("aaxc", false),
+        &facts("aaxc", Some(false)),
         DecryptKind::Aax
+    ));
+}
+
+#[test]
+fn an_aax_download_with_unreadable_sample_descriptions_does_not_match() {
+    assert!(!file_matches_decrypt_kind(
+        &facts("aax ", None),
+        DecryptKind::Aax
+    ));
+    assert!(file_matches_decrypt_kind(
+        &facts("aaxc", None),
+        DecryptKind::Aaxc
     ));
 }

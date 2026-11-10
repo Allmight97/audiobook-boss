@@ -5,18 +5,24 @@ fn mp4_box(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
     [&size.to_be_bytes()[..], kind, payload].concat()
 }
 
+fn stsd(entry: &[u8]) -> Vec<u8> {
+    [&[0_u8; 4][..], &1_u32.to_be_bytes(), entry].concat()
+}
+
 #[test]
 fn an_aaxc_download_reports_its_brand_and_encrypted_entry_without_adrm() {
     let ftyp = [&b"aaxc"[..], &[0, 0, 0, 1], b"M4A ", b"mp42"].concat();
-    let moov = mp4_box(b"trak", &mp4_box(b"aavd", &[0; 28]));
+    let descriptions = [stsd(&mp4_box(b"aavd", &[0; 28]))];
 
     assert_eq!(
-        protected_file_facts(&ftyp, &moov),
+        protected_file_facts(&ftyp, Some(&descriptions)),
         ProtectedFileFacts {
             major_brand: "aaxc".to_string(),
             compatible_brands: vec!["M4A ".to_string(), "mp42".to_string()],
-            adrm_present: false,
-            aavd_entry_present: true,
+            drm_boxes: Some(DrmBoxes {
+                adrm_present: false,
+                aavd_entry_present: true,
+            }),
         }
     );
 }
@@ -24,24 +30,59 @@ fn an_aaxc_download_reports_its_brand_and_encrypted_entry_without_adrm() {
 #[test]
 fn an_aax_download_reports_its_adrm_box() {
     let ftyp = [&b"aax "[..], &[0; 4]].concat();
-    let moov = mp4_box(b"trak", &mp4_box(b"aavd", &mp4_box(b"adrm", &[0; 56])));
+    let entry = mp4_box(
+        b"aavd",
+        &[&[0; 28][..], &mp4_box(b"adrm", &[0; 56])].concat(),
+    );
+    let descriptions = [stsd(&entry)];
 
-    let facts = protected_file_facts(&ftyp, &moov);
+    let facts = protected_file_facts(&ftyp, Some(&descriptions));
 
     assert_eq!(facts.major_brand, "aax ");
-    assert!(facts.adrm_present && facts.aavd_entry_present);
+    assert_eq!(
+        facts.drm_boxes,
+        Some(DrmBoxes {
+            adrm_present: true,
+            aavd_entry_present: true,
+        })
+    );
+}
+
+#[test]
+fn a_protection_box_in_any_track_counts() {
+    let descriptions = [
+        stsd(&mp4_box(b"jpeg", &[0; 28])),
+        stsd(&mp4_box(b"aavd", &[0; 28])),
+    ];
+
+    let facts = protected_file_facts(b"aaxc", Some(&descriptions));
+
+    assert_eq!(
+        facts.drm_boxes.map(|boxes| boxes.aavd_entry_present),
+        Some(true)
+    );
 }
 
 #[test]
 fn an_unprotected_file_and_unprintable_brand_bytes_are_reported_plainly() {
-    let facts = protected_file_facts(
-        &[0x00, b'M', b'4', 0xff],
-        &mp4_box(b"trak", &mp4_box(b"mp4a", &[])),
-    );
+    let descriptions = [stsd(&mp4_box(b"mp4a", &[0; 28]))];
+
+    let facts = protected_file_facts(&[0x00, b'M', b'4', 0xff], Some(&descriptions));
 
     assert_eq!(facts.major_brand, "?M4?");
     assert!(facts.compatible_brands.is_empty());
-    assert!(!facts.adrm_present && !facts.aavd_entry_present);
+    assert_eq!(
+        facts.drm_boxes,
+        Some(DrmBoxes {
+            adrm_present: false,
+            aavd_entry_present: false,
+        })
+    );
+}
+
+#[test]
+fn unreadable_sample_descriptions_leave_the_protection_boxes_unknown() {
+    assert_eq!(protected_file_facts(b"aaxc", None).drm_boxes, None);
 }
 
 #[test]

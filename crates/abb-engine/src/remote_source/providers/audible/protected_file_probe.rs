@@ -3,51 +3,95 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
 use abb_audible_core::{
-    mp4_box_header, protected_file_facts, title_ref, DecryptKind, Mp4BoxHeader, ProtectedFileFacts,
+    mp4_box_header, protected_file_facts, Mp4BoxHeader, ProtectedFileFacts,
     MP4_BOX_HEADER_PROBE_LEN,
 };
 
-const MAX_METADATA_BOX_BYTES: u64 = 64 * 1024 * 1024;
+const SMALL_BOX_READ_LIMIT: u64 = 64 * 1024;
+const SAMPLE_DESCRIPTION_PATH: [[u8; 4]; 5] = [*b"trak", *b"mdia", *b"minf", *b"stbl", *b"stsd"];
 
-/// Reads the top-level `ftyp` and `moov` payloads of a downloaded file.
+#[derive(Clone, Copy)]
+struct BoxSpan {
+    kind: [u8; 4],
+    payload_start: u64,
+    end: u64,
+}
+
+/// Reads the brands in the top-level `ftyp` box. Walks the box headers down to
+/// each track's sample description, seeking past every other payload, and reads
+/// only those small boxes. The walk is best effort: when it fails, the facts
+/// say the protection boxes are unknown and the AAXC lane, which needs only the
+/// brand, is unaffected.
 pub(super) fn read_protected_file_facts(path: &Path) -> std::io::Result<ProtectedFileFacts> {
     let mut file = File::open(path)?;
     let file_len = file.metadata()?.len();
-    let (mut ftyp, mut moov) = (None, None);
-    let mut offset = 0;
-    while offset < file_len && (ftyp.is_none() || moov.is_none()) {
-        let header = box_header_at(&mut file, offset)?;
-        let size = header.size.unwrap_or(file_len - offset);
-        if size > file_len - offset {
+    let top_level = child_boxes(&mut file, 0, file_len, &[*b"ftyp", *b"moov"])?;
+    let ftyp = match top_level.iter().find(|span| span.kind == *b"ftyp") {
+        Some(span) => read_small_box(&mut file, *span)?,
+        None => Vec::new(),
+    };
+    let sample_descriptions = top_level
+        .iter()
+        .find(|span| span.kind == *b"moov")
+        .map(|moov| read_sample_descriptions(&mut file, *moov))
+        .transpose()
+        .unwrap_or_else(|error| {
+            log::warn!("remote_source audible stage=protected_file_sample_descriptions_unreadable: {error}");
+            None
+        });
+    Ok(protected_file_facts(&ftyp, sample_descriptions.as_deref()))
+}
+
+fn read_sample_descriptions(file: &mut File, moov: BoxSpan) -> std::io::Result<Vec<Vec<u8>>> {
+    let mut level = vec![moov];
+    for kind in SAMPLE_DESCRIPTION_PATH {
+        let mut next = Vec::new();
+        for parent in level {
+            next.extend(
+                child_boxes(file, parent.payload_start, parent.end, &[])?
+                    .into_iter()
+                    .filter(|child| child.kind == kind),
+            );
+        }
+        level = next;
+    }
+    level
+        .into_iter()
+        .map(|stsd| read_small_box(file, stsd))
+        .collect()
+}
+
+fn child_boxes(
+    file: &mut File,
+    start: u64,
+    end: u64,
+    stop_once_found: &[[u8; 4]],
+) -> std::io::Result<Vec<BoxSpan>> {
+    let mut children: Vec<BoxSpan> = Vec::new();
+    let mut offset = start;
+    let found_all = |children: &[BoxSpan]| {
+        !stop_once_found.is_empty()
+            && stop_once_found
+                .iter()
+                .all(|kind| children.iter().any(|child| child.kind == *kind))
+    };
+    while offset < end && !found_all(&children) {
+        let header = box_header_at(file, offset)?;
+        let size = header.size.unwrap_or(end - offset);
+        if size > end - offset {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                format!("MP4 box at byte {offset} runs past the end of the file"),
+                format!("MP4 box at byte {offset} runs past the end of its parent"),
             ));
         }
-        let payload_len = size - header.header_len;
-        match &header.kind {
-            b"ftyp" => {
-                ftyp = Some(read_payload(
-                    &mut file,
-                    offset + header.header_len,
-                    payload_len,
-                )?)
-            }
-            b"moov" => {
-                moov = Some(read_payload(
-                    &mut file,
-                    offset + header.header_len,
-                    payload_len,
-                )?)
-            }
-            _ => {}
-        }
+        children.push(BoxSpan {
+            kind: header.kind,
+            payload_start: offset + header.header_len,
+            end: offset + size,
+        });
         offset += size;
     }
-    Ok(protected_file_facts(
-        ftyp.as_deref().unwrap_or_default(),
-        moov.as_deref().unwrap_or_default(),
-    ))
+    Ok(children)
 }
 
 fn box_header_at(file: &mut File, offset: u64) -> std::io::Result<Mp4BoxHeader> {
@@ -62,55 +106,12 @@ fn box_header_at(file: &mut File, offset: u64) -> std::io::Result<Mp4BoxHeader> 
     })
 }
 
-fn read_payload(file: &mut File, start: u64, len: u64) -> std::io::Result<Vec<u8>> {
-    if len > MAX_METADATA_BOX_BYTES {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("metadata box of {len} bytes is over the probe limit"),
-        ));
-    }
-    file.seek(SeekFrom::Start(start))?;
-    let mut payload = Vec::with_capacity(usize::try_from(len).unwrap_or_default());
-    file.take(len).read_to_end(&mut payload)?;
+fn read_small_box(file: &mut File, span: BoxSpan) -> std::io::Result<Vec<u8>> {
+    file.seek(SeekFrom::Start(span.payload_start))?;
+    let mut payload = Vec::new();
+    file.take((span.end - span.payload_start).min(SMALL_BOX_READ_LIMIT))
+        .read_to_end(&mut payload)?;
     Ok(payload)
-}
-
-/// Logs what the download declares about its protection, next to the lane the
-/// license chose. Diagnostic only: a file it cannot read is logged and the
-/// download continues.
-pub(super) async fn log_protected_file_facts(
-    path: &Path,
-    job_id: &str,
-    title_id: &str,
-    lane: DecryptKind,
-) {
-    let probed = path.to_path_buf();
-    #[expect(clippy::disallowed_methods, reason = "awaited on the next line")]
-    let facts = tokio::task::spawn_blocking(move || read_protected_file_facts(&probed)).await;
-    match facts {
-        Ok(Ok(facts)) => log::info!(
-            "remote_source audible stage=protected_file_facts job_id={} title_ref={} lane={:?} major_brand={:?} compatible_brands={:?} adrm_present={} aavd_entry_present={}",
-            job_id,
-            title_ref(title_id),
-            lane,
-            facts.major_brand,
-            facts.compatible_brands,
-            facts.adrm_present,
-            facts.aavd_entry_present
-        ),
-        Ok(Err(error)) => log::warn!(
-            "remote_source audible stage=protected_file_facts_unreadable job_id={} title_ref={} lane={:?}: {error}",
-            job_id,
-            title_ref(title_id),
-            lane
-        ),
-        Err(error) => log::warn!(
-            "remote_source audible stage=protected_file_facts_unreadable job_id={} title_ref={} lane={:?}: probe task failed: {error}",
-            job_id,
-            title_ref(title_id),
-            lane
-        ),
-    }
 }
 
 #[cfg(test)]

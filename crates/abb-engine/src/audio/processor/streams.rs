@@ -644,9 +644,7 @@ pub(crate) fn assess_preservation(
     container_name: &str,
     codec_id: ff::codec::Id,
 ) -> AudioPreservation {
-    let mp4_container = container_name
-        .split(',')
-        .any(|name| matches!(name, "mov" | "mp4" | "m4a" | "3gp" | "3g2" | "mj2"));
+    let mp4_container = crate::audio::is_mp4_family_format(container_name);
     let supported_container_codec = (matches!(extension, "m4a" | "m4b")
         && mp4_container
         && matches!(codec_id, ff::codec::Id::AAC | ff::codec::Id::OPUS))

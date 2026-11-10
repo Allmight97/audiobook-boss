@@ -276,9 +276,15 @@ fn decrypt_lane_follows_voucher_key_shape_not_content_url_extension() {
 
     assert_eq!(material.kind(), DecryptKind::Aaxc);
     match material {
-        AudibleDecryptionMaterial::Aaxc { key_hex, iv_hex } => {
-            assert_eq!(key_hex.expose_secret(), "0102030405060708090a0b0c0d0e0f10");
-            assert_eq!(iv_hex.expose_secret(), "100f0e0d0c0b0a090807060504030201");
+        AudibleDecryptionMaterial::Aaxc { key, iv } => {
+            assert_eq!(
+                key.expose_secret(),
+                &std::array::from_fn(|index| index as u8 + 1)
+            );
+            assert_eq!(
+                iv.expose_secret(),
+                &std::array::from_fn(|index| 16 - index as u8)
+            );
         }
         AudibleDecryptionMaterial::Aax { .. } => panic!("unexpected aax material"),
     }

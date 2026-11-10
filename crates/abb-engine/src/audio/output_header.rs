@@ -2,20 +2,19 @@ use ffmpeg_next as ff;
 
 use crate::errors::{AppError, Result};
 
-/// FFmpeg's MP4-family muxers, which all take `movie_timescale`.
-const MOVIE_TIMESCALE_MUXERS: [&str; 3] = ["mp4", "ipod", "mov"];
-
 /// Writes an output header. For MP4 it pins the movie timescale to the audio
 /// sample rate, which keeps edit lists sample-exact. Left unset, FFmpeg derives
 /// it from every stream's time base (audio at 1/44100 plus a cover at 1/90000
 /// gives 4,410,000), and the chapter track then truncates any chapter longer
-/// than about 487 seconds. An option the muxer does not take is an error.
+/// than about 487 seconds. The chapter track counts each chapter's duration in
+/// 32 bits of movie ticks, so a longer chapter takes a divisor of the sample
+/// rate. An option the muxer does not take is an error.
 pub(crate) fn write_output_header(
     octx: &mut ff::format::context::Output,
     mut options: ff::Dictionary,
 ) -> Result<()> {
-    if MOVIE_TIMESCALE_MUXERS.contains(&octx.format().name()) {
-        options.set("movie_timescale", &audio_sample_rate(octx)?.to_string());
+    if super::is_mp4_family_format(octx.format().name()) {
+        options.set("movie_timescale", &movie_timescale(octx)?.to_string());
     }
     let unused = octx.write_header_with(options)?;
     let names: Vec<&str> = unused.iter().map(|(name, _)| name).collect();
@@ -27,6 +26,26 @@ pub(crate) fn write_output_header(
             names.join(", ")
         )))
     }
+}
+
+fn movie_timescale(octx: &ff::format::context::Output) -> Result<i32> {
+    let rate = audio_sample_rate(octx)?;
+    Ok((1..=rate)
+        .filter(|divisor| rate % divisor == 0)
+        .map(|divisor| rate / divisor)
+        .find(|timescale| every_chapter_fits(octx, *timescale))
+        .unwrap_or(1))
+}
+
+fn every_chapter_fits(octx: &ff::format::context::Output, timescale: i32) -> bool {
+    octx.chapters().all(|chapter| {
+        let time_base = chapter.time_base();
+        let ticks = (i128::from(chapter.end()) - i128::from(chapter.start()))
+            * i128::from(time_base.numerator())
+            * i128::from(timescale)
+            / i128::from(time_base.denominator().max(1));
+        ticks <= i128::from(i32::MAX)
+    })
 }
 
 fn audio_sample_rate(octx: &ff::format::context::Output) -> Result<i32> {

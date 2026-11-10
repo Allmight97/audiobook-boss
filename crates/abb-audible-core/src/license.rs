@@ -8,7 +8,7 @@ use base64::{
     Engine as _,
 };
 use cbc::cipher::{block_padding::NoPadding, BlockModeDecrypt, KeyIvInit};
-use secrecy::SecretString;
+use secrecy::SecretBox;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
@@ -17,14 +17,19 @@ use crate::reply_keys::{asin, license_response};
 
 type Aes128CbcDec = cbc::Decryptor<Aes128>;
 
+/// Fixed-size secrets that zeroize on drop. The enum has no `Debug`.
 pub enum AudibleDecryptionMaterial {
     Aax {
-        activation_bytes_hex: SecretString,
+        activation_bytes: SecretBox<[u8; 4]>,
     },
     Aaxc {
-        key_hex: SecretString,
-        iv_hex: SecretString,
+        key: SecretBox<[u8; 16]>,
+        iv: SecretBox<[u8; 16]>,
     },
+}
+
+fn secret<const N: usize>(bytes: [u8; N]) -> SecretBox<[u8; N]> {
+    SecretBox::new(Box::new(bytes))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,7 +109,7 @@ pub fn audible_decryption_material_from_license(
             find_activation_bytes(license).map(|activation_bytes| {
                 located(
                     AudibleDecryptionMaterial::Aax {
-                        activation_bytes_hex: SecretString::from(hex_encode(&activation_bytes)),
+                        activation_bytes: secret(activation_bytes),
                     },
                     MaterialSource::ActivationBytesScan,
                 )
@@ -114,8 +119,8 @@ pub fn audible_decryption_material_from_license(
             find_key_iv_pair(license).map(|(key, iv)| {
                 located(
                     AudibleDecryptionMaterial::Aaxc {
-                        key_hex: SecretString::from(hex_encode(&key)),
-                        iv_hex: SecretString::from(hex_encode(&iv)),
+                        key: secret(key),
+                        iv: secret(iv),
                     },
                     MaterialSource::KeyIvPairScan,
                 )
@@ -177,18 +182,13 @@ fn audible_decryption_material_from_key_material(
 ) -> Option<AudibleDecryptionMaterial> {
     let material = key_material?;
     match (material.key.as_slice(), material.iv.as_deref()) {
-        (activation_bytes, None) if activation_bytes.len() == 4 => {
-            Some(AudibleDecryptionMaterial::Aax {
-                activation_bytes_hex: SecretString::from(hex_encode(activation_bytes)),
-            })
-        }
-        (key, Some(iv)) if key.len() == 16 && iv.len() == 16 => {
-            Some(AudibleDecryptionMaterial::Aaxc {
-                key_hex: SecretString::from(hex_encode(key)),
-                iv_hex: SecretString::from(hex_encode(iv)),
-            })
-        }
-        _ => None,
+        (activation_bytes, None) => Some(AudibleDecryptionMaterial::Aax {
+            activation_bytes: secret(activation_bytes.try_into().ok()?),
+        }),
+        (key, Some(iv)) => Some(AudibleDecryptionMaterial::Aaxc {
+            key: secret(key.try_into().ok()?),
+            iv: secret(iv.try_into().ok()?),
+        }),
     }
 }
 
@@ -222,9 +222,9 @@ fn find_voucher_key_material(value: &Value) -> Option<VoucherKeyMaterial> {
     })
 }
 
-fn find_activation_bytes(value: &Value) -> Option<Vec<u8>> {
+fn find_activation_bytes(value: &Value) -> Option<[u8; 4]> {
     find_in_tree(value, &mut |map, _| {
-        find_bytes_for_keys_in_object(
+        let bytes = find_bytes_for_keys_in_object(
             map,
             &[
                 "activation_bytes",
@@ -236,15 +236,16 @@ fn find_activation_bytes(value: &Value) -> Option<Vec<u8>> {
                 "Key",
             ],
             &[4],
-        )
+        )?;
+        bytes.try_into().ok()
     })
 }
 
-fn find_key_iv_pair(value: &Value) -> Option<(Vec<u8>, Vec<u8>)> {
+fn find_key_iv_pair(value: &Value) -> Option<([u8; 16], [u8; 16])> {
     find_in_tree(value, &mut |map, _| {
         let key = find_bytes_for_keys_in_object(map, &["key", "Key", "keyHex", "key_hex"], &[16])?;
         let iv = find_bytes_for_keys_in_object(map, &["iv", "Iv", "ivHex", "iv_hex"], &[16])?;
-        Some((key, iv))
+        Some((key.try_into().ok()?, iv.try_into().ok()?))
     })
 }
 
@@ -326,13 +327,6 @@ fn decode_hex(hex: &str) -> Option<Vec<u8>> {
         .step_by(2)
         .map(|index| u8::from_str_radix(&hex[index..index + 2], 16).ok())
         .collect()
-}
-
-fn hex_encode(bytes: &[u8]) -> String {
-    bytes
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>()
 }
 
 #[cfg(test)]
