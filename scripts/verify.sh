@@ -13,7 +13,7 @@ usage() {
 	cat <<'USAGE'
 Usage: bash scripts/verify.sh [lane ...] | --changed <base> | --describe
 
-Lanes: frontend, core, engine, media, host, apple, decrypt, tooling, supply-chain
+Lanes: frontend, core, engine, media, host, apple, tooling, supply-chain
 No argument runs every lane this OS supports (apple is skipped on Linux).
 supply-chain runs when named or selected by changed dependency/policy files.
 --changed runs only affected lanes without a current passing input receipt.
@@ -39,7 +39,6 @@ lane_table=(
 	"media rust linux,darwin bun,$(join_words "${native_tools[@]}")"
 	"host rust linux,darwin bun,node,$(join_words "${native_tools[@]}")"
 	"apple rust darwin bun,$(join_words "${native_tools[@]}")"
-	"decrypt rust linux,darwin bun,$(join_words "${native_tools[@]}")"
 	"tooling tooling linux bun,node,zizmor,actionlint,shellcheck"
 	"supply-chain supply-chain linux bun,$(join_words "${rust_tools[@]}"),cargo-audit,cargo-deny"
 )
@@ -155,7 +154,7 @@ lane_engine() {
 	require_rust
 	cargo fmt --all -- --check
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- \
-		--skip test_cases::integration_media --skip integration_decrypt_tests
+		--skip test_cases::integration_media
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --bin abb-dev
 	cargo test --locked -p faac-sys
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --doc
@@ -176,12 +175,6 @@ lane_host() {
 	cargo test --locked -p audiobook-boss --features bundled-ffmpeg
 	bash scripts/check-generated-bindings.sh
 	cargo clippy --locked -p audiobook-boss --features bundled-ffmpeg,binding-export --all-targets -- -D warnings
-}
-
-lane_decrypt() {
-	require_rust
-	cargo fmt --all -- --check
-	engine_lib_tests_matching integration_decrypt_tests
 }
 
 lane_apple() {

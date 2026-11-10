@@ -95,3 +95,16 @@ fn a_flag_or_id_a_command_does_not_use_is_refused() {
         assert!(error.contains(reason), "{args:?}: {error}");
     }
 }
+
+#[test]
+fn a_pasted_line_is_an_address_unless_it_is_empty_or_only_a_ctrl_d() {
+    assert_eq!(
+        pasted_address("  https://example.test/landing?code=1\r\n"),
+        Some("https://example.test/landing?code=1")
+    );
+    assert_eq!(pasted_address("\n"), None);
+    assert_eq!(pasted_address("   \n"), None);
+    assert_eq!(pasted_address("\u{4}"), None);
+    assert_eq!(pasted_address("\u{4}\n"), None);
+    assert_eq!(pasted_address(" \u{4} \n"), None);
+}

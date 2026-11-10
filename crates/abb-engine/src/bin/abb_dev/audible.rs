@@ -1,9 +1,10 @@
 use std::collections::HashSet;
-use std::io::{BufRead, IsTerminal};
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::watch;
 
 use abb_engine::remote_source::{
@@ -204,20 +205,24 @@ async fn sign_in(engine: &Engine) -> Result<(), AbbDevStatus> {
     };
     eprintln!("Open this address in a browser and sign in to Audible.");
     eprintln!("Then paste the address the browser lands on, and press Return.");
+    eprintln!("Press Ctrl-C to stop.");
     println!("{}", authorization.authorization_url);
-    let _long_lines = LongTerminalLines::allow();
-    let mut lines = std::io::stdin().lock().lines();
-    while let Some(line) = lines
-        .next()
-        .transpose()
-        .map_err(|error| error.to_string())?
-    {
-        let handoff = line.trim().to_string();
-        if handoff.is_empty() {
-            continue;
-        }
+    let long_lines = LongTerminalLines::allow();
+    let mut interrupt = signal(SignalKind::interrupt())
+        .map_err(|error| format!("could not listen for Ctrl-C: {error}"))?;
+    loop {
+        let line = tokio::select! {
+            read = read_pasted_line_in_background() => {
+                read.map_err(|error| error.to_string())?
+                    .map_err(|error| error.to_string())?
+            }
+            _ = interrupt.recv() => stop_after_interrupt(engine, long_lines).await,
+        };
+        let Some(address) = line.as_deref().and_then(pasted_address) else {
+            break;
+        };
         let intent = RemoteUiIntent::CompleteAuth {
-            response_url_handoff_path: Some(handoff),
+            response_url_handoff_path: Some(address.to_string()),
         };
         let reply = applied(remote(engine, intent).await);
         match (connected_account(engine), reply) {
@@ -230,36 +235,81 @@ async fn sign_in(engine: &Engine) -> Result<(), AbbDevStatus> {
             }
             (Err(reason), reply) => {
                 let message = reply.err().unwrap_or(reason);
-                eprintln!("Sign-in was not completed: {message}\nPaste the address again, or end the input to stop.");
+                eprintln!("Sign-in was not completed: {message}\nPaste the address again, or press Ctrl-C to stop.");
             }
         }
     }
     Err("no address was given, so the sign-in did not finish".into())
 }
 
+fn pasted_address(line: &str) -> Option<&str> {
+    let address = line.trim_matches(|c: char| c.is_whitespace() || c == '\u{4}');
+    (!address.is_empty()).then_some(address)
+}
+
+#[expect(
+    clippy::disallowed_methods,
+    reason = "joined by sign_in, which ends the process when interrupted"
+)]
+fn read_pasted_line_in_background() -> tokio::task::JoinHandle<std::io::Result<Option<String>>> {
+    tokio::task::spawn_blocking(read_pasted_line)
+}
+
+fn read_pasted_line() -> std::io::Result<Option<String>> {
+    let mut line = String::new();
+    let read = std::io::stdin().read_line(&mut line)?;
+    Ok((read > 0).then_some(line))
+}
+
+/// The blocked read of standard input would keep the runtime from shutting
+/// down, so the process leaves here after restoring the terminal.
+async fn stop_after_interrupt(engine: &Engine, long_lines: Option<LongTerminalLines>) -> ! {
+    drop(long_lines);
+    shut_down(engine).await;
+    eprintln!("abb-dev: sign-in stopped");
+    std::process::exit(130)
+}
+
 /// The landing address runs past the 1024-byte line limit of a terminal in
 /// canonical mode, which drops the rest of the line and the Return with it.
-/// Turning canonical mode off for the read lifts that limit.
-struct LongTerminalLines;
+/// Turning canonical mode off for the read lifts that limit. The earlier
+/// settings come back exactly when the guard drops.
+struct LongTerminalLines {
+    saved: String,
+}
 
 impl LongTerminalLines {
     fn allow() -> Option<Self> {
-        let stdin = std::io::stdin();
-        (stdin.is_terminal() && stty("-icanon")).then_some(Self)
+        if !std::io::stdin().is_terminal() {
+            return None;
+        }
+        let saved = stty_output("-g")?;
+        stty(&["-icanon"]).then_some(Self { saved })
     }
 }
 
 impl Drop for LongTerminalLines {
     fn drop(&mut self) {
-        if !stty("icanon") {
+        if !stty(&[self.saved.as_str()]) {
             eprintln!("Could not restore the terminal; run `stty sane`.");
         }
     }
 }
 
-fn stty(setting: &str) -> bool {
-    std::process::Command::new("stty")
+fn stty_output(setting: &str) -> Option<String> {
+    let output = std::process::Command::new("stty")
         .arg(setting)
+        .stdin(std::process::Stdio::inherit())
+        .output()
+        .ok()?;
+    let text = String::from_utf8(output.stdout).ok()?;
+    let text = text.trim();
+    (output.status.success() && !text.is_empty()).then(|| text.to_string())
+}
+
+fn stty(settings: &[&str]) -> bool {
+    std::process::Command::new("stty")
+        .args(settings)
         .stdin(std::process::Stdio::inherit())
         .status()
         .is_ok_and(|status| status.success())

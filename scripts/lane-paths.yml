@@ -57,9 +57,6 @@ host:
   - src/lib/generated/**
   - scripts/check-generated-bindings.sh
   - package.json
-decrypt:
-  - *shared
-  - crates/**
 supply-chain:
   - Cargo.lock
   - Cargo.toml
@@ -84,7 +81,6 @@ tooling:
   - scripts/rust-complexity-allowlist.txt
   - src-tauri/**
   - scripts/**/*.ts
-  - tools/**
   - vite.config.ts
   - vitest.config.ts
   - .github/workflows/**

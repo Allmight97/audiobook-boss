@@ -38,8 +38,8 @@ recorded tool versions still invalidate it.
   Fixtures are synthesized at test time. `media` also runs the verify-abb
   feature scripts through `scripts/abb-dev.sh`.
 - Apple AAC (`apple`, macOS only).
-- Audible decrypt (`decrypt`). Fixtures are synthesized at test time.
-  A wrong AAXC key is not the negative case.
+- Audible decrypt: `engine` runs `integration_decrypt_tests`. Fixtures are
+  synthesized at test time. A wrong AAXC key is not the negative case.
 - Host or IPC types (`host`). Then the `*.contract.test.ts` Vitest files under
   `src/` that name the changed surface. Boundary rules: `src-tauri/AGENTS.md`
   and `src/lib/tauri/AGENTS.md`.
@@ -212,7 +212,7 @@ A change to CI or validation speed quotes before and after numbers from
   `eval "$(scripts/setup.sh --print-env)"`. Cloud setup steps do not pass
   their environment to agent shells, so run that eval in a shell before
   calling `bun` or `uvx` directly; `verify.sh` runs it itself.
-- Engine, media, host, decrypt, and apple proof build the engine with
+- Engine, media, host, and apple proof build the engine with
   bundled FFmpeg on every host, as do `bun run bindings:generate` and
   `bun run app:dev:log`. The first build compiles the revision in
   `vendor/ffmpeg-sys-next-*/ffmpeg-revision` into `target/abb-ffmpeg-cache`.

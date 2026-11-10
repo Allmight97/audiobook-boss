@@ -25,8 +25,8 @@ Rules:
 - Inputs are synthesized with the FFmpeg 9 CLI. Never point abb-dev at the
   owner's library or production state; every call gets its own `--state-dir`,
   except `crash`, which reuses one on purpose to relaunch after `kill -9`.
-- Audible decrypt is proved by `bash scripts/verify.sh decrypt` (synthetic
-  AAX/AAXC fixtures through the published helper), not by this skill.
+- Audible decrypt is proved by `bash scripts/verify.sh engine` (synthetic
+  AAX/AAXC fixtures through the bundled FFmpeg), not by this skill.
 - Remote Audible download is blocked: it needs a real account, and this skill
   never reads stored credentials. Report it as blocked.
 - `corpus` is opt-in and not in `run.sh`'s default list: set

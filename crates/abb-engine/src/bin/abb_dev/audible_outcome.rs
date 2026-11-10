@@ -7,11 +7,6 @@ use abb_engine::remote_source::{
 };
 use serde::Serialize;
 
-const NON_BLOCKING: [RemoteAcquisitionFailureKind; 2] = [
-    RemoteAcquisitionFailureKind::ProtectedSourcePurgeFailed,
-    RemoteAcquisitionFailureKind::SupplementalPdfUnavailable,
-];
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) enum OutcomeStatus {
@@ -98,9 +93,7 @@ pub(super) fn title_outcome(
         outcome.warnings = own.into_iter().map(warning).collect();
         return outcome;
     }
-    let blocking = own
-        .iter()
-        .find(|diagnostic| !NON_BLOCKING.contains(&diagnostic.kind));
+    let blocking = own.iter().find(|diagnostic| diagnostic.kind.blocks_title());
     let (kind, message) = match (blocking, &job.handoff) {
         (Some(diagnostic), _) => (Some(diagnostic.kind.clone()), diagnostic.message.clone()),
         (None, Some(AcquisitionHandoff::Removed { reason })) => (None, refusal_message(reason)),

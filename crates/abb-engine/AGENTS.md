@@ -44,7 +44,9 @@ app, a test, and the `abb-dev` tool drive the same code
   identity and state folder; keep it away from the app's settings and
   credentials.
   `abb-dev audible` (`src/bin/abb_dev/audible.rs`) reaches Audible only through
-  `SessionIntent::Remote` and the session snapshot, as any host does.
+  `SessionIntent::Remote` and the session snapshot, as any host does. A real
+  Audible download uses as few titles as the question needs, newest first is
+  fine: each one spends the owner's account and time.
 
 ## Owner Routes
 

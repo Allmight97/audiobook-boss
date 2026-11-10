@@ -276,7 +276,7 @@ describe('file-size ratchet selection', () => {
 		];
 		expect(fromChecker).toEqual(expect.arrayContaining(['vite.config.ts']));
 		for (const file of files) {
-			const selected = requiredLanes(map, lanes, [file]);
+			const selected = requiredLanes(map, lanes, [file], () => true);
 			expect(selected, file).toContain('tooling');
 			expect(planJobs(selected, table).tooling, file).toBe(true);
 		}
