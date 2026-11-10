@@ -39,7 +39,7 @@ recorded tool versions still invalidate it.
   feature scripts through `scripts/abb-dev.sh`.
 - Apple AAC (`apple`, macOS only).
 - Audible decrypt: `engine` runs `integration_decrypt_tests`. Fixtures are
-  synthesized at test time. A wrong AAXC key is not the negative case.
+  synthesized at test time.
 - Host or IPC types (`host`). Then the `*.contract.test.ts` Vitest files under
   `src/` that name the changed surface. Boundary rules: `src-tauri/AGENTS.md`
   and `src/lib/tauri/AGENTS.md`.

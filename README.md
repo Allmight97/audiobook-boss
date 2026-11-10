@@ -25,7 +25,7 @@ bash scripts/setup.sh
 bun run app:dev:log
 ```
 
-Requires: macOS (Apple Silicon) or x86_64 Ubuntu 22.04 or newer (OpenSSL, WebKitGTK 4.1), Bun 1.4 or newer, and Rust (rustup). macOS also needs Homebrew. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback).
+Requires: macOS (Apple Silicon) or x86_64 Ubuntu 22.04 or newer (OpenSSL, WebKitGTK 4.1), and Rust (rustup). macOS also needs Homebrew. Setup installs the Bun version `bun.lock` names. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback).
 
 **AAC runtime contract**: output encoder and input decoder are separate. Auto
 selects Native NMR; Apple AAC and bundled FAAC are explicit choices.

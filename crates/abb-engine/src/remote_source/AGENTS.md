@@ -220,7 +220,7 @@ selection change.
   changes nothing. A Save refuses Reset (`reset_lease`), so no Save finishes
   after it. Old Test/Search results cannot replace newer requests or changed
   lanes. API keys stay private, and `RemoteUiIntent`'s `Debug` prints no payload;
-snapshots report only configured/entered facts.
+  snapshots report only configured/entered facts.
   The HTTP client initializes on first use, so a session that never uses Indexer
   pays no network setup cost.
 - Acquisition admission and disconnect share the remote UI guard. A late library
