@@ -33,6 +33,7 @@ async fn job_and_staging_after_license_body(
             include_pdf: false,
             job_id: "job-1",
             job_dir: root.path(),
+            tasks: &crate::engine_tasks::EngineTasks::default(),
             license_decrypt_context: None,
             progress_context: TitleProgressContext {
                 title_id: "B000000001",

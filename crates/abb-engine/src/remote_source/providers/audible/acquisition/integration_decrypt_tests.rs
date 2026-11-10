@@ -210,6 +210,7 @@ async fn run_protected_materialization(
         Some(title_name),
         material,
         ctx,
+        &crate::engine_tasks::EngineTasks::default(),
         &mut |_| {},
         is_cancelled,
     )
@@ -330,6 +331,7 @@ async fn wrong_aax_activation_bytes_fail_and_leave_no_output() {
 
 #[tokio::test]
 async fn wrong_aaxc_key_is_rejected_by_the_decodes_as_audio_gate() {
+    crate::test_cases::log_capture::install();
     let books = books();
     let (diagnostic, _root, run) = *materialize_protected(
         &books.aaxc,
@@ -358,6 +360,27 @@ async fn wrong_aaxc_key_is_rejected_by_the_decodes_as_audio_gate() {
     );
     assert!(!run.output.exists(), "no committed m4b");
     assert!(!run.partial.exists(), "no partial");
+    assert!(
+        crate::test_cases::log_capture::records()
+            .iter()
+            .any(|line| {
+                line.contains("stage=decrypt_output_rejected") && line.contains("Decoder '")
+            }),
+        "the rejection log names the decoder's error"
+    );
+    let partial_name = run
+        .partial
+        .file_name()
+        .expect("the partial has a file name")
+        .to_string_lossy()
+        .into_owned();
+    assert!(
+        crate::test_cases::log_capture::records()
+            .iter()
+            .filter(|line| line.contains("stage=decrypt_output_rejected"))
+            .all(|line| !line.contains(&partial_name)),
+        "the rejection log withholds the title's file name"
+    );
 }
 
 #[tokio::test]

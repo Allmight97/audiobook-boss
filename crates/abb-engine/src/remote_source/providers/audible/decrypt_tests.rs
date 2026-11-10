@@ -109,3 +109,73 @@ fn dropping_the_guard_tells_the_copy_to_stop() {
 
     assert!(control.stop_requested());
 }
+
+#[cfg(unix)]
+struct ReleasePipe<'a>(&'a Path);
+
+#[cfg(unix)]
+impl Drop for ReleasePipe<'_> {
+    fn drop(&mut self) {
+        let opened = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(self.0);
+        assert!(opened.is_ok(), "release the worker blocked on the pipe");
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn shutdown_waits_for_a_decrypt_worker_after_its_caller_is_aborted() {
+    let dir = tempfile::TempDir::new().expect("temp dir");
+    let input = dir.path().join("source.aaxc");
+    let made = std::process::Command::new("mkfifo")
+        .arg(&input)
+        .status()
+        .expect("run mkfifo");
+    assert!(
+        made.success(),
+        "a pipe blocks the worker's open until the test releases it"
+    );
+    let release = ReleasePipe(&input);
+    let output = dir.path().join("book.m4b");
+    let tasks = EngineTasks::default();
+    let caller = tasks.spawn({
+        let (tasks, input, output) = (tasks.clone(), input.clone(), output.clone());
+        async move {
+            let material = AudibleDecryptionMaterial::Aaxc {
+                key: secrecy::SecretBox::new(Box::new([0; 16])),
+                iv: secrecy::SecretBox::new(Box::new([0; 16])),
+            };
+            decrypt_download(
+                DecryptRequest {
+                    input: &input,
+                    output: &output,
+                    material: &material,
+                    job_id: "job",
+                    title_id: "B0TEST",
+                    tasks: &tasks,
+                },
+                &mut |_| {},
+                &|| false,
+            )
+            .await
+        }
+    });
+    tokio::task::yield_now().await;
+
+    caller.abort();
+    assert!(caller.await.expect_err("aborted").is_cancelled());
+    tasks.close();
+
+    assert!(
+        tokio::time::timeout(Duration::from_millis(200), tasks.wait())
+            .await
+            .is_err(),
+        "the worker still runs, so shutdown must still wait"
+    );
+    drop(release);
+    tokio::time::timeout(Duration::from_secs(10), tasks.wait())
+        .await
+        .expect("shutdown returns once the worker has");
+}

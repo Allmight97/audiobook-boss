@@ -93,8 +93,8 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
   encoder quality.
 - `write_output_header` is the only header writer (`check-known-mistakes.ts`).
   It pins an MP4's movie timescale to the audio sample rate, or a divisor of
-  it for a chapter over about 13.5 hours, and rejects options the muxer does
-  not take. Why: FFmpeg's own choice drops chapters longer than about 8
+  it for a chapter, or a gap between chapter starts, over about 13.5 hours,
+  and rejects options the muxer does not take. Why: FFmpeg's own choice drops chapters longer than about 8
   minutes when a cover is present; the mechanism is in its rustdoc.
 
 ## Import Discovery

@@ -94,8 +94,11 @@ Traps:
 - Each git worktree holds its own `target/`. Remove finished worktrees.
 - Cargo never prunes `target/`, so `verify.sh` and `app:dev:log` run
   `scripts/clean.ts --auto`: over its budget, `target/debug` goes, and the FFmpeg
-  cache stays. `bun run clean` and `bun run clean --all` clear more by hand;
-  `scripts/clean.ts` lists what each removes.
+  cache stays. Nothing goes while any process has a file, its executable, or
+  its working directory under the folder (a test binary holds no Cargo lock),
+  or when that check cannot run; each says so. `bun run clean` and
+  `bun run clean --all` clear more by hand; `scripts/clean.ts` lists what each
+  removes.
 
 A change to CI or validation speed quotes before and after numbers from
 `bun run ci:timing` in its PR body, so every comparison uses one recipe.

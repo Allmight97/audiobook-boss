@@ -67,6 +67,7 @@ pub(super) fn audible_acquire() -> AcquireTitles {
                 &plan,
                 &job_id,
                 &job_dir,
+                &runtime.inner.tasks,
                 |progress| {
                     lifecycle.update_job_progress(&job_id, progress);
                 },

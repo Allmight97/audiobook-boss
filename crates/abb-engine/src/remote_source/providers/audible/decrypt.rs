@@ -13,6 +13,7 @@ use secrecy::ExposeSecret;
 use tokio::task::JoinHandle;
 
 use super::protected_file_probe::read_protected_file_facts;
+use crate::engine_tasks::EngineTasks;
 use crate::errors::{AppError, Result};
 use crate::remote_source::cancellation::{ensure_not_cancelled, remote_acquisition_cancelled};
 use crate::remote_source::scoped_output::{remove_logging_failure, StagedTempFile};
@@ -25,6 +26,7 @@ pub(super) struct DecryptRequest<'a> {
     pub(super) material: &'a AudibleDecryptionMaterial,
     pub(super) job_id: &'a str,
     pub(super) title_id: &'a str,
+    pub(super) tasks: &'a EngineTasks,
 }
 
 #[derive(Clone, Default)]
@@ -93,11 +95,7 @@ pub(super) async fn decrypt_download(
         options: demuxer_options(request.material),
         control: control.clone(),
     };
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by await_copy, or stopped by StopOnDrop if the caller is aborted"
-    )]
-    let worker = tokio::task::spawn_blocking(move || copy_decrypted(job));
+    let worker = request.tasks.spawn_blocking(move || copy_decrypted(job));
     await_copy(worker, &control, progress, is_cancelled).await?;
     staged.rename_and_commit(is_cancelled).await?;
     Ok(request.output.to_path_buf())
@@ -153,14 +151,22 @@ fn copy_decrypted(job: CopyJob) -> Result<()> {
     confirm_decodes_as_audio(&job)
 }
 
-fn confirm_decodes_as_audio(job: &CopyJob) -> Result<()> {
-    if crate::audio::probe_builtin_audio_decoder(&job.partial).is_ok() {
-        return Ok(());
+fn without_file_name(message: &str, path: &Path) -> String {
+    match path.file_name().and_then(|name| name.to_str()) {
+        Some(name) if !name.is_empty() => message.replace(name, "<partial>"),
+        _ => message.to_string(),
     }
+}
+
+fn confirm_decodes_as_audio(job: &CopyJob) -> Result<()> {
+    let Err(rejection) = crate::audio::probe_builtin_audio_decoder(&job.partial) else {
+        return Ok(());
+    };
     log::warn!(
-        "remote_source audible stage=decrypt_output_rejected job_id={} title_ref={}",
+        "remote_source audible stage=decrypt_output_rejected job_id={} title_ref={} error={}",
         job.job_id,
-        job.title_ref
+        job.title_ref,
+        without_file_name(&rejection.to_string(), &job.partial)
     );
     remove_logging_failure(&job.partial);
     Err(AppError::General(

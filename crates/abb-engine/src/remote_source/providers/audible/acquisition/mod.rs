@@ -13,6 +13,7 @@ use super::license::{
 };
 use super::license_plan::{LicensePlan, LicenseReply};
 use super::materialization::materialize_protected_download;
+use crate::engine_tasks::EngineTasks;
 use crate::errors::Result;
 use crate::remote_source::scoped_output::ProvisionalCommittedFile;
 use crate::remote_source::staging;
@@ -45,6 +46,7 @@ struct TitleAcquisitionRequest<'a> {
     include_pdf: bool,
     job_id: &'a str,
     job_dir: &'a Path,
+    tasks: &'a EngineTasks,
     license_decrypt_context: Option<&'a AudibleLicenseDecryptContext>,
     progress_context: TitleProgressContext<'a>,
 }
@@ -71,6 +73,7 @@ pub(super) async fn acquire(
     plan: &AcquisitionPlan,
     job_id: &str,
     job_dir: &Path,
+    tasks: &EngineTasks,
     mut progress: impl FnMut(AcquisitionProgress),
     is_cancelled: impl Fn() -> bool,
 ) -> Result<AcquisitionOutcome> {
@@ -87,6 +90,7 @@ pub(super) async fn acquire(
             include_pdf: selection.include_supplemental_pdf,
             job_id,
             job_dir,
+            tasks,
             license_decrypt_context: license_decrypt_context.as_ref(),
             progress_context: TitleProgressContext {
                 title_id: &selection.title_id,
@@ -149,6 +153,7 @@ async fn acquire_one(
         include_pdf,
         job_id,
         job_dir,
+        tasks,
         license_decrypt_context,
         progress_context,
     } = request;
@@ -217,6 +222,7 @@ async fn acquire_one(
         title_name,
         material,
         ctx,
+        tasks,
         progress,
         is_cancelled,
     )
@@ -245,6 +251,7 @@ async fn importable_source(
     title_name: Option<&str>,
     material: Option<&AudibleDecryptionMaterial>,
     ctx: TitleAcquisitionCtx<'_>,
+    tasks: &EngineTasks,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> AudibleAcquisitionResult<(std::path::PathBuf, Option<RemoteSourceDiagnostic>)> {
@@ -256,6 +263,7 @@ async fn importable_source(
         title_name,
         material,
         ctx,
+        tasks,
         progress,
         is_cancelled,
     )

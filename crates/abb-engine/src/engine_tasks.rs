@@ -74,6 +74,14 @@ impl EngineTasks {
         self.tracker.spawn(work)
     }
 
+    pub(crate) fn spawn_blocking<F, R>(&self, work: F) -> tokio::task::JoinHandle<R>
+    where
+        F: FnOnce() -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        self.tracker.spawn_blocking(work)
+    }
+
     pub(crate) async fn wait(&self) {
         self.tracker.wait().await;
     }

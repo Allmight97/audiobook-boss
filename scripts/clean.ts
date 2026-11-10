@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, readlinkSync, realpathSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
 const USAGE = `Usage: bun run clean [--all]
@@ -8,8 +8,9 @@ const USAGE = `Usage: bun run clean [--all]
   (no flag)  Remove build output and machine-written logs. Keeps the FFmpeg cache.
   --all      Also remove the FFmpeg cache and node_modules.
              bash scripts/setup.sh restores them.
-  --auto     Remove target/debug when it is over budget and keep the newest
-             verification runs. verify.sh and app:dev:log run this.
+  --auto     Remove target/debug when it is over budget and no running process
+             uses it, and keep the newest verification runs. verify.sh and
+             app:dev:log run this.
 
 Other folders under .logs/ and verification receipts always stay.`;
 
@@ -27,14 +28,59 @@ function entriesOf(directory: string) {
 	return existsSync(directory) ? readdirSync(directory, { withFileTypes: true }) : [];
 }
 
-function cargoIsBuilding(root: string): boolean {
-	return entriesOf(path.join(root, 'target')).some((entry) => {
-		const lock = path.join(root, 'target', entry.name, '.cargo-lock');
-		if (!existsSync(lock)) return false;
-		const result = spawnSync('lsof', ['-t', lock], { encoding: 'utf8' });
-		if (result.error) throw result.error;
-		return result.stdout.trim() !== '';
+type OpenPaths = () => string[];
+
+function linkTarget(link: string): string | undefined {
+	try {
+		return readlinkSync(link);
+	} catch {
+		return undefined;
+	}
+}
+
+function namesIn(directory: string): string[] {
+	try {
+		return readdirSync(directory);
+	} catch {
+		return [];
+	}
+}
+
+export function linuxOpenPaths(procRoot = '/proc'): string[] {
+	if (!existsSync(procRoot)) throw new Error(`${procRoot} is not readable`);
+	return namesIn(procRoot)
+		.filter((name) => /^\d+$/.test(name))
+		.flatMap((name) => {
+			const proc = path.join(procRoot, name);
+			const descriptors = namesIn(path.join(proc, 'fd')).map((fd) => path.join(proc, 'fd', fd));
+			return [path.join(proc, 'exe'), path.join(proc, 'cwd'), ...descriptors];
+		})
+		.map(linkTarget)
+		.filter((target) => target !== undefined);
+}
+
+function lsofOpenPaths(): string[] {
+	const result = spawnSync('lsof', ['-w', '-n', '-P', '-Fn'], {
+		encoding: 'utf8',
+		maxBuffer: 1024 * 1024 * 1024,
 	});
+	if (result.error)
+		throw new Error(`lsof could not list running processes: ${result.error.message}`);
+	if (result.status !== 0)
+		throw new Error(`lsof could not list running processes: exit ${result.status}`);
+	return result.stdout
+		.split('\n')
+		.filter((line) => line.startsWith('n/'))
+		.map((line) => line.slice(1));
+}
+
+export const systemOpenPaths: OpenPaths = () =>
+	existsSync('/proc/self/exe') ? linuxOpenPaths() : lsofOpenPaths();
+
+function busyPath(directory: string, openPaths: OpenPaths): string | undefined {
+	if (!existsSync(directory)) return undefined;
+	const prefix = path.join(realpathSync(directory), path.sep);
+	return openPaths().find((open) => open.startsWith(prefix));
 }
 
 function runsOldestFirst(root: string): { verification: string[]; verifyAbb: string[] } {
@@ -60,9 +106,14 @@ function removeLogs(root: string): void {
 	for (const run of [...verification, ...verifyAbb]) remove(root, run);
 }
 
-export function clean(root: string, { all }: { all: boolean }): void {
-	if (cargoIsBuilding(root))
-		throw new Error('Cargo is building in this checkout. Nothing removed.');
+export function clean(
+	root: string,
+	{ all }: { all: boolean },
+	openPaths: OpenPaths = systemOpenPaths,
+): void {
+	const busy = busyPath(path.join(root, 'target'), openPaths);
+	if (busy !== undefined)
+		throw new Error(`A running process uses ${busy} in this checkout. Nothing removed.`);
 	for (const entry of entriesOf(path.join(root, 'target'))) {
 		if (!FFMPEG_DIRS.has(entry.name)) remove(root, path.join('target', entry.name));
 	}
@@ -81,7 +132,11 @@ function sizeKb(directory: string): number {
 	return size;
 }
 
-export function autoClean(root: string, budgetKb: number = DEBUG_BUDGET_KB): string[] {
+export function autoClean(
+	root: string,
+	budgetKb: number = DEBUG_BUDGET_KB,
+	openPaths: OpenPaths = systemOpenPaths,
+): string[] {
 	const { verification, verifyAbb } = runsOldestFirst(root);
 	const removed = [verification, verifyAbb].flatMap((runs) => runs.slice(0, -KEPT_RUNS));
 	for (const run of removed) remove(root, run);
@@ -92,8 +147,19 @@ export function autoClean(root: string, budgetKb: number = DEBUG_BUDGET_KB): str
 	const size = sizeKb(debug);
 	if (size <= budgetKb) return notes;
 	const gigabytes = Math.round(size / (1024 * 1024));
-	if (cargoIsBuilding(root)) {
-		return [...notes, `target/debug is ${gigabytes} GB, but Cargo is building, so it stays.`];
+	const stays = `target/debug is ${gigabytes} GB, but it stays`;
+	let busy: string | undefined;
+	try {
+		busy = busyPath(debug, openPaths);
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : String(error);
+		return [...notes, `${stays}: could not check for running processes (${reason}).`];
+	}
+	if (busy !== undefined) {
+		return [
+			...notes,
+			`${stays}: a running process uses ${path.relative(realpathSync(root), busy)}.`,
+		];
 	}
 	remove(root, 'target/debug');
 	return [...notes, `Removed target/debug (${gigabytes} GB). The next build recompiles Rust.`];

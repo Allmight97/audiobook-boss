@@ -170,10 +170,11 @@ impl AudibleProvider {
         plan: &crate::remote_source::AcquisitionPlan,
         job_id: &str,
         job_dir: &std::path::Path,
+        tasks: &crate::engine_tasks::EngineTasks,
         progress: impl FnMut(abb_remote_source_core::AcquisitionProgress),
         is_cancelled: impl Fn() -> bool,
     ) -> Result<crate::remote_source::AcquisitionOutcome> {
-        acquire(auth, plan, job_id, job_dir, progress, is_cancelled).await
+        acquire(auth, plan, job_id, job_dir, tasks, progress, is_cancelled).await
     }
 }
 

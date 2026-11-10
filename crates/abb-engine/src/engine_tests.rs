@@ -108,3 +108,16 @@ async fn opening_an_unsupported_file_says_no_supported_files() {
         crate::session::InputNotice::NoSupportedFiles { .. }
     ));
 }
+
+#[tokio::test]
+async fn starting_the_engine_keeps_ffmpeg_from_logging_at_info() {
+    ffmpeg_next::util::log::set_level(ffmpeg_next::util::log::Level::Info);
+    let root = tempfile::TempDir::new().expect("engine root");
+
+    let _engine = Engine::start(config(root.path())).expect("start headless engine");
+
+    assert_eq!(
+        ffmpeg_next::util::log::get_level(),
+        Ok(ffmpeg_next::util::log::Level::Warning)
+    );
+}

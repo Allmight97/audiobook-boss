@@ -23,6 +23,11 @@ const BEYOND_THE_SAMPLE_RATE_MS: Chapters = &[
     (FOURTEEN_HOURS_MS, FOURTEEN_HOURS_MS + 1_000, "Epilogue"),
 ];
 
+const BEYOND_THE_SAMPLE_RATE_GAP_MS: Chapters = &[
+    (0, 1_000, "Prologue"),
+    (FOURTEEN_HOURS_MS, FOURTEEN_HOURS_MS + 1_000, "Epilogue"),
+];
+
 struct Inputs {
     audio: PathBuf,
     cover: Vec<u8>,
@@ -159,6 +164,19 @@ fn a_chapter_longer_than_the_sample_rate_allows_keeps_its_start_and_title() {
     assert_eq!(
         chapter_starts_and_titles(&output),
         expected_starts_and_titles(BEYOND_THE_SAMPLE_RATE_MS)
+    );
+}
+
+#[test]
+fn a_gap_between_chapter_starts_longer_than_the_sample_rate_allows_keeps_every_start() {
+    let inputs = inputs();
+    let output = inputs._dir.path().join("book.m4b");
+
+    write_book_with_cover(&inputs, &output, BEYOND_THE_SAMPLE_RATE_GAP_MS);
+
+    assert_eq!(
+        chapter_starts_and_titles(&output),
+        expected_starts_and_titles(BEYOND_THE_SAMPLE_RATE_GAP_MS)
     );
 }
 

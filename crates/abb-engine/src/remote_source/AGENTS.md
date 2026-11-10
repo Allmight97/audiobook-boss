@@ -252,7 +252,8 @@ decrypt proves that, and reads the chapters back, on the partial before the
 rename to the final path. A wrong key fails as `MaterializationFailed`, and the
 message names the decrypt. For AAXC, demuxer success is not that proof. FFmpeg
 keeps plain copies of the key material it is given (option strings and the
-`mov.c` context) that ABB cannot wipe. Accepted: the keys are per title.
+`mov.c` context) that ABB cannot wipe. Accepted: an AAXC key opens one
+title, and AAX activation bytes stay in FFmpeg's process memory only.
 Decrypt honors the download's edit list: packets it hides are dropped, and a partly hidden last packet keeps its
 trim. Why: the edit list is Audible's statement of the book's length, and its
 chapters end there. A Keep-original-audio merge of several decrypted titles

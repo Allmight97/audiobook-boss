@@ -1,9 +1,11 @@
 import {
+	chmodSync,
 	closeSync,
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	openSync,
+	realpathSync,
 	rmSync,
 	symlinkSync,
 	writeFileSync,
@@ -12,7 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, expect, it } from 'vitest';
 
-import { autoClean, clean, KEPT_RUNS } from './clean';
+import { autoClean, clean, KEPT_RUNS, linuxOpenPaths, systemOpenPaths } from './clean';
 
 const roots: string[] = [];
 
@@ -94,16 +96,56 @@ it('--all also removes what setup restores, and still keeps notes and sources', 
 	for (const kept of ALWAYS_KEPT) expect(has(root, kept), kept).toBe(true);
 });
 
-it('refuses to clean while Cargo holds a build lock', () => {
+it('refuses to clean while a process holds a file open under target/', () => {
 	const root = checkout(['target/debug/.cargo-lock', 'target/debug/deps/app']);
 	const held = openSync(path.join(root, 'target/debug/.cargo-lock'), 'r');
 	try {
-		expect(() => clean(root, { all: false })).toThrow('Cargo is building');
+		expect(() => clean(root, { all: false })).toThrow('A running process uses');
 		expect(has(root, 'target/debug/deps/app')).toBe(true);
 	} finally {
 		closeSync(held);
 	}
 });
+
+it('lists a file this process holds open', () => {
+	const root = checkout(['target/debug/.cargo-lock']);
+	const lock = path.join(realpathSync(root), 'target/debug/.cargo-lock');
+	const held = openSync(lock, 'r');
+	try {
+		expect(systemOpenPaths()).toContain(lock);
+	} finally {
+		closeSync(held);
+	}
+});
+
+it('reads a Linux process table in which some processes cannot be read', () => {
+	const proc = mkdtempSync(path.join(os.tmpdir(), 'abb-proc-'));
+	roots.push(proc);
+	mkdirSync(path.join(proc, '100/fd'), { recursive: true });
+	symlinkSync('/work/app', path.join(proc, '100/exe'));
+	symlinkSync('/work/target/debug', path.join(proc, '100/cwd'));
+	symlinkSync('/work/target/debug/.cargo-lock', path.join(proc, '100/fd/3'));
+	mkdirSync(path.join(proc, '200/fd'), { recursive: true });
+	chmodSync(path.join(proc, '200/fd'), 0o000);
+	mkdirSync(path.join(proc, '300'));
+	mkdirSync(path.join(proc, 'self-test'));
+
+	try {
+		expect(linuxOpenPaths(proc).toSorted()).toEqual([
+			'/work/app',
+			'/work/target/debug',
+			'/work/target/debug/.cargo-lock',
+		]);
+	} finally {
+		chmodSync(path.join(proc, '200/fd'), 0o755);
+	}
+});
+
+it('cannot list processes when the process table is missing', () => {
+	expect(() => linuxOpenPaths(path.join(os.tmpdir(), 'abb-no-such-proc'))).toThrow('not readable');
+});
+
+const runningFrom = (root: string, file: string) => () => [path.join(realpathSync(root), file)];
 
 it('keeps target/debug under budget, and removes only it once over budget', () => {
 	const root = checkout([
@@ -121,15 +163,64 @@ it('keeps target/debug under budget, and removes only it once over budget', () =
 	expect(has(root, '.logs/untangle/decision-log.md')).toBe(true);
 });
 
-it('says so and keeps target/debug when over budget while Cargo builds', () => {
+it('says so and keeps target/debug when over budget while a process uses it', () => {
 	const root = checkout(['target/debug/.cargo-lock', 'target/debug/deps/app']);
 	const held = openSync(path.join(root, 'target/debug/.cargo-lock'), 'r');
 	try {
-		expect(autoClean(root, 0).join()).toContain('Cargo is building');
+		expect(autoClean(root, 0).join()).toContain('a running process uses target/debug/.cargo-lock');
 		expect(has(root, 'target/debug/deps/app')).toBe(true);
 	} finally {
 		closeSync(held);
 	}
+});
+
+it('keeps target/debug while a test binary runs from it, though no Cargo lock is held', () => {
+	const root = checkout(['target/debug/deps/app']);
+
+	const notes = autoClean(root, 0, runningFrom(root, 'target/debug/deps/app'));
+
+	expect(notes.join()).toContain('a running process uses target/debug/deps/app');
+	expect(has(root, 'target/debug/deps/app')).toBe(true);
+});
+
+it('keeps target/debug while a process has it as its working directory', () => {
+	const root = checkout(['target/debug/deps/app']);
+	const insideDebug = () => [realpathSync(path.join(root, 'target/debug/deps'))];
+
+	autoClean(root, 0, insideDebug);
+
+	expect(has(root, 'target/debug/deps/app')).toBe(true);
+});
+
+it('removes target/debug when a process uses only a sibling whose name starts the same', () => {
+	const root = checkout(['target/debug/deps/app', 'target/debug-docs/index.html']);
+
+	autoClean(root, 0, runningFrom(root, 'target/debug-docs/index.html'));
+
+	expect(has(root, 'target/debug')).toBe(false);
+});
+
+it('says why and keeps target/debug when it cannot check for running processes', () => {
+	const root = checkout(['target/debug/deps/app']);
+	const unavailable = () => {
+		throw new Error('lsof could not list running processes: spawn lsof ENOENT');
+	};
+
+	const notes = autoClean(root, 0, unavailable);
+
+	expect(notes.join()).toContain('could not check for running processes');
+	expect(notes.join()).toContain('spawn lsof ENOENT');
+	expect(has(root, 'target/debug/deps/app')).toBe(true);
+});
+
+it('refuses to clean when it cannot check for running processes', () => {
+	const root = checkout(['target/debug/deps/app']);
+	const unavailable = () => {
+		throw new Error('lsof could not list running processes: spawn lsof ENOENT');
+	};
+
+	expect(() => clean(root, { all: false }, unavailable)).toThrow('spawn lsof ENOENT');
+	expect(has(root, 'target/debug/deps/app')).toBe(true);
 });
 
 it('keeps only the newest runs of each kind, and the receipts', () => {

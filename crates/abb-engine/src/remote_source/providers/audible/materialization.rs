@@ -7,6 +7,7 @@ use super::acquisition::{
     staged_materialized_path, title_progress, with_title_progress, TitleAcquisitionCtx,
 };
 use super::decrypt::{decrypt_download, DecryptRequest};
+use crate::engine_tasks::EngineTasks;
 use crate::errors::{AppError, Result};
 use crate::remote_source::scoped_output::{
     purge_with_retries, remove_if_present, remove_logging_failure, PURGE_RETRY_DELAYS,
@@ -23,6 +24,7 @@ pub(super) async fn materialize_protected_download(
     title_name: Option<&str>,
     material: &AudibleDecryptionMaterial,
     ctx: TitleAcquisitionCtx<'_>,
+    tasks: &EngineTasks,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<MaterializedProtectedSource> {
@@ -53,6 +55,7 @@ pub(super) async fn materialize_protected_download(
             material,
             job_id,
             title_id,
+            tasks,
         },
         &mut decrypt_progress,
         is_cancelled,
