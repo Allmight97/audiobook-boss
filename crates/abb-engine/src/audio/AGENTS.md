@@ -34,8 +34,8 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
   decoder, `decoder.rs` puts both backends behind one interface, and
   `faad_decoder.rs` adapts FAAD3.
 - `probe_builtin_audio_decoder` is that probe with FFmpeg's built-in decoder
-  only. Audible materialization uses it so a wrong AAXC key fails on every
-  host; import may still try `aac_at`.
+  only. Audible's decrypt runs it on the partial before committing, so a
+  wrong AAXC key fails on every host; import may still try `aac_at`.
 
 ## Encoder Routes
 
@@ -91,6 +91,11 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
   channels, duration, and a channel-level check such as RMS/peak parity. Notes
   on Native AAC artifacts separate structural correctness from subjective
   encoder quality.
+- `write_output_header` is the only header writer (`check-known-mistakes.ts`).
+  It pins an MP4's movie timescale to the audio sample rate, or a divisor of
+  it for a chapter over about 13.5 hours, and rejects options the muxer does
+  not take. Why: FFmpeg's own choice drops chapters longer than about 8
+  minutes when a cover is present; the mechanism is in its rustdoc.
 
 ## Import Discovery
 
@@ -134,10 +139,12 @@ automatic rate), independent of saved user preferences. Explicit Encode applies
 the settings.
 
 `format.rs` is the one table of output formats: extension, muxer, codec
-family, and allowed encoders. Read a format fact there; never list it again. A
-format "keeps" a source when the source's codec family equals the format's
-(`formats_that_keep`). Whether the source can be copied is a separate fact
-(`assess_preservation`, `can_preserve`) that `formats_that_keep` does not read.
+family, and allowed encoders, and it holds `is_mp4_family_format`, the one test
+for an FFmpeg format name in the MP4 family. Read a format fact there; never
+list it again. A format "keeps" a source when the source's codec family equals
+the format's (`formats_that_keep`). Whether the source can be copied is a
+separate fact (`assess_preservation`, `can_preserve`) that `formats_that_keep`
+does not read.
 
 Session title plans (`session/plans.rs`) and processing preflight share this
 resolver. Only encoding plans resolve encoder availability, channels, and input

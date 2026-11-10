@@ -77,7 +77,7 @@ describe('plan --explain', () => {
 		).toBe('src/app/entry.tsx\n  frontend  src/**\n  tooling  src/**');
 		expect(
 			explainPath(yaml, laneNames, 'crates/abb-engine/src/lib.rs').map((choice) => choice.lane),
-		).toEqual(['core', 'engine', 'media', 'host', 'decrypt', 'tooling']);
+		).toEqual(['core', 'engine', 'media', 'host', 'tooling']);
 		expect(explainPath(yaml, laneNames, 'docs/DECISIONS.md')).toEqual([
 			{ lane: 'tooling', pattern: 'docs/**' },
 		]);
@@ -157,11 +157,29 @@ describe('locked builds', () => {
 
 describe('requiredLanes', () => {
 	it('rejects an unmapped file instead of reporting that no proof is needed', () => {
-		expect(() => requiredLanes(map, lanes, ['future/worker.rs'])).toThrow(/future\/worker.rs/);
+		expect(() => requiredLanes(map, lanes, ['future/worker.rs'], () => true)).toThrow(
+			/future\/worker.rs/,
+		);
+	});
+
+	it('does not report a deleted file as unmapped but still selects lanes for it', () => {
+		const exists = (file: string) =>
+			file !== 'gone/old.rs' && file !== 'crates/abb-engine/src/b.rs';
+		expect(requiredLanes(map, lanes, ['gone/old.rs'], exists)).toEqual([]);
+		expect(() => requiredLanes(map, lanes, ['gone/old.rs', 'future/worker.rs'], exists)).toThrow(
+			/future\/worker.rs/,
+		);
+		expect(requiredLanes(map, lanes, ['crates/abb-engine/src/b.rs'], exists)).toEqual([
+			'core',
+			'engine',
+		]);
 	});
 
 	it('names every lane a changed file needs when nothing passed', () => {
-		expect(requiredLanes(map, lanes, ['crates/abb-engine/src/a.rs'])).toEqual(['core', 'engine']);
+		expect(requiredLanes(map, lanes, ['crates/abb-engine/src/a.rs'], () => true)).toEqual([
+			'core',
+			'engine',
+		]);
 	});
 });
 
@@ -183,7 +201,7 @@ describe('platform job planning', () => {
 	});
 	it('plans Rust jobs only on the runner labels the workflow policy pins', () => {
 		const pinned = Object.values(PINNED_RUNNERS);
-		const all = ['frontend', 'core', 'engine', 'media', 'host', 'apple', 'decrypt', 'tooling'];
+		const all = ['frontend', 'core', 'engine', 'media', 'host', 'apple', 'tooling'];
 		for (const job of planJobs(all, described).rust) expect(pinned).toContain(job.os);
 	});
 });
@@ -209,7 +227,7 @@ describe('proof receipts', () => {
 
 describe('validation boundaries', () => {
 	it('does not accept a shared anchor as an executable lane', () => {
-		expect(() => requiredLanes(map, lanes, ['Cargo.toml'])).toThrow(/Cargo.toml/);
+		expect(() => requiredLanes(map, lanes, ['Cargo.toml'], () => true)).toThrow(/Cargo.toml/);
 	});
 	it('rejects unknown lane names and unexplained exemptions', () => {
 		expect(() => laneMap('typo:\n - src/**\n', lanes)).toThrow(/Unknown lane/);

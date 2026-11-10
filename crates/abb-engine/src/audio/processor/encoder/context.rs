@@ -198,7 +198,7 @@ pub(crate) fn setup_encoder(
         log::debug!("Copied {count} accepted chapters");
     }
 
-    octx.write_header()
+    crate::audio::write_output_header(&mut octx, ff::Dictionary::new())
         .map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
     if let Backend::Faac(encoder) = &enc_ctx {
         let tool = std::ffi::CString::new(encoder.encoding_tool()).expect("static tool name");

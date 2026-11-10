@@ -50,14 +50,19 @@ interface Receipt extends Inputs {
 	observedAfter?: Inputs;
 }
 
-export function requiredLanes(map: LaneMap, lanes: string[], files: string[]): string[] {
+export function requiredLanes(
+	map: LaneMap,
+	lanes: string[],
+	files: string[],
+	exists: (file: string) => boolean,
+): string[] {
 	const known = picomatch(
 		[...lanes.flatMap((lane) => map[lane] ?? []), ...(map['no-lane'] ?? [])].flat(
 			Number.POSITIVE_INFINITY,
 		),
 		{ dot: true },
 	);
-	const unmapped = files.filter((file) => !known(file));
+	const unmapped = files.filter((file) => exists(file) && !known(file));
 	if (unmapped.length > 0) throw new Error(`Unmapped verification paths: ${unmapped.join(', ')}`);
 	return lanes.filter((lane) => {
 		const matches = picomatch(map[lane] ?? [], { dot: true });
@@ -251,6 +256,10 @@ function config(root: string): Config {
 	};
 }
 
+function existsIn(root: string): (file: string) => boolean {
+	return (file) => existsSync(path.join(root, file));
+}
+
 function repositoryFiles(root: string): string[] {
 	return [
 		...new Set(
@@ -298,16 +307,6 @@ export const TOOL_PROBES: Record<string, ToolProbe> = {
 	ffmpeg: { version: () => version(process.env.ABB_FFMPEG ?? 'ffmpeg', ['-version']) },
 	ffprobe: { version: () => version(process.env.ABB_FFPROBE ?? 'ffprobe', ['-version']) },
 	sdk: { platform: 'darwin', version: () => version('xcrun', ['--show-sdk-version']) },
-	dotnet: commandProbe('dotnet', ['--version']),
-	helper: {
-		version: (root, known) => {
-			const host = /^host: (.+)$/m.exec(known.rustc ?? '')?.[1];
-			const helper = path.join(root, 'src-tauri/binaries', `abb-aaxclean-helper-${host}`);
-			return host && existsSync(helper)
-				? createHash('sha256').update(readFileSync(helper)).digest('hex')
-				: 'unavailable';
-		},
-	},
 	'cargo-audit': commandProbe('cargo', ['audit', '--version']),
 	'cargo-deny': commandProbe('cargo', ['deny', '--version']),
 	lizard: commandProbe('bash', ['scripts/check-rust-complexity.sh', '--version']),
@@ -426,7 +425,7 @@ function receiptPath(root: string, lane: string): string {
 }
 
 function remaining(root: string, plan: Config, files: string[]): string[] {
-	const selected = requiredLanes(plan.map, plan.lanes, files);
+	const selected = requiredLanes(plan.map, plan.lanes, files, existsIn(root));
 	if (
 		process.platform === 'darwin' &&
 		selected.some((lane) => nativeLaneNames(plan.table).includes(lane))
@@ -482,12 +481,12 @@ function record(
 }
 
 function emitPlan(root: string, { map, lanes, table }: Config, base?: string): void {
-	requiredLanes(map, lanes, repositoryFiles(root));
+	requiredLanes(map, lanes, repositoryFiles(root), existsIn(root));
 	const selected =
 		base === '--advisories'
 			? ['supply-chain']
 			: base
-				? requiredLanes(map, lanes, changedFiles(root, base))
+				? requiredLanes(map, lanes, changedFiles(root, base), existsIn(root))
 				: lanes;
 	const jobs = planJobs(selected, table);
 	const output = {

@@ -61,6 +61,21 @@ describe('check-known-mistakes', () => {
 		expect(found('scripts/setup.sh', 'printf \'%s\\n\' "$dir" >>"$GITHUB_PATH"')).toEqual([]);
 	});
 
+	it('sends every output header through its owner', () => {
+		expect(
+			found('crates/abb-engine/src/metadata/remux.rs', '    octx.write_header_with(options)'),
+		).toHaveLength(1);
+		expect(
+			found('crates/abb-engine/src/audio/processor/merge.rs', 'output.write_header()?;'),
+		).toHaveLength(1);
+		expect(
+			found('crates/abb-engine/src/audio/output_header.rs', 'octx.write_header_with(options)?;'),
+		).toEqual([]);
+		expect(
+			found('crates/abb-engine/src/metadata/remux.rs', 'write_output_header(octx, options)'),
+		).toEqual([]);
+	});
+
 	it('keeps engine owners inside their boundaries', () => {
 		expect(
 			found('crates/abb-engine/src/metadata/save.rs', 'use crate::audio::AudioFile;'),

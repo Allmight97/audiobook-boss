@@ -5,7 +5,6 @@ import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import {
-	addAaxcleanHelperConfigArg,
 	assertSupportedMacOsHost,
 	buildTauriApp,
 	ensureFeatureArg,
@@ -18,7 +17,6 @@ import {
 	verifyMacOsBundle,
 	verifyDmgBundle,
 } from './build-app';
-import { resolveAaxcleanHelperPaths } from './publish-aaxclean-helper';
 
 const tempRoots: string[] = [];
 
@@ -32,17 +30,6 @@ function createRepoFixture(): { applicationsDir: string; repoRoot: string } {
 	writeFileSync(
 		path.join(repoRoot, 'src-tauri/tauri.conf.json'),
 		JSON.stringify({ productName: 'AudioBook Boss' }),
-	);
-	mkdirSync(path.join(repoRoot, 'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper'), {
-		recursive: true,
-	});
-	writeFileSync(
-		path.join(repoRoot, 'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/Program.cs'),
-		'// helper source fixture',
-	);
-	writeFileSync(
-		path.join(repoRoot, 'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/AbbAaxcleanHelper.csproj'),
-		'<Project />',
 	);
 	mkdirSync(path.join(repoRoot, 'target/release/bundle/macos'), { recursive: true });
 	mkdirSync(applicationsDir, { recursive: true });
@@ -68,12 +55,6 @@ describe('resolveMacOsBundlePaths', () => {
 			path.join(
 				repoRoot,
 				'target/release/bundle/macos/AudioBook Boss.app/Contents/MacOS/audiobook-boss',
-			),
-		);
-		expect(paths.helperExecutablePath).toBe(
-			path.join(
-				repoRoot,
-				'target/release/bundle/macos/AudioBook Boss.app/Contents/MacOS/abb-aaxclean-helper',
 			),
 		);
 		expect(paths.applicationsAppPath).toBe(path.join(applicationsDir, 'AudioBook Boss.app'));
@@ -108,7 +89,6 @@ describe('verifyMacOsBundle', () => {
 		const macOsDir = path.dirname(paths.executablePath);
 		mkdirSync(macOsDir, { recursive: true });
 		writeFileSync(paths.executablePath, 'app');
-		writeFileSync(paths.helperExecutablePath, 'helper');
 
 		const toolCalls: Array<{ args: string[]; command: string }> = [];
 		const commandRunner = ((command: string, args: string[]) => {
@@ -133,15 +113,13 @@ describe('verifyMacOsBundle', () => {
 		expect(() => verifyMacOsBundle(paths, unsignedRunner)).toThrow('codesign failed with status 1');
 	});
 
-	it('accepts exactly the app and helper and inspects both executables', () => {
+	it('accepts exactly the app executable and inspects it', () => {
 		const { commandRunner, paths, toolCalls } = createPackagedAppFixture();
 
 		expect(() => verifyMacOsBundle(paths, commandRunner)).not.toThrow();
 		expect(toolCalls).toEqual([
 			{ command: 'lipo', args: ['-archs', paths.executablePath] },
-			{ command: 'lipo', args: ['-archs', paths.helperExecutablePath] },
 			{ command: 'otool', args: ['-L', paths.executablePath] },
-			{ command: 'otool', args: ['-L', paths.helperExecutablePath] },
 			{ command: 'codesign', args: ['--verify', '--deep', '--strict', paths.canonicalAppPath] },
 		]);
 	});
@@ -316,36 +294,9 @@ describe('ensureFeatureArg', () => {
 	});
 });
 
-describe('addAaxcleanHelperConfigArg', () => {
-	it('injects the AAXClean helper sidecar as a Tauri CLI config overlay', () => {
-		const args = addAaxcleanHelperConfigArg(['--bundles', 'app']);
-		const configIndex = args.indexOf('--config');
-
-		expect(args.slice(0, configIndex)).toEqual(['--bundles', 'app']);
-		expect(JSON.parse(args[configIndex + 1] ?? '{}')).toEqual({
-			bundle: {
-				externalBin: ['binaries/abb-aaxclean-helper'],
-			},
-		});
-	});
-
-	it('inserts the sidecar config before arguments after the boundary', () => {
-		const args = addAaxcleanHelperConfigArg(['--bundles', 'app', '--', '--runner-only']);
-		const boundaryIndex = args.indexOf('--');
-		const configIndex = args.indexOf('--config');
-
-		expect(configIndex).toBeGreaterThan(-1);
-		expect(configIndex).toBeLessThan(boundaryIndex);
-		expect(args.slice(boundaryIndex)).toEqual(['--', '--runner-only']);
-	});
-});
-
 describe('buildTauriApp', () => {
 	it('forces noninteractive Finder-free DMG packaging when requested', () => {
 		const { repoRoot } = createRepoFixture();
-		const sidecarDir = path.join(repoRoot, 'src-tauri/binaries');
-		mkdirSync(sidecarDir, { recursive: true });
-		writeFileSync(resolveAaxcleanHelperPaths(repoRoot).sidecarPath, 'existing helper');
 		const calls: Array<{
 			args: string[];
 			command: string;
@@ -357,13 +308,7 @@ describe('buildTauriApp', () => {
 			args: string[],
 			options?: { env?: NodeJS.ProcessEnv; stdio?: unknown },
 		) => {
-			if (args[0] === '--version') return { status: 0, stdout: '10.0.401\n' };
 			calls.push({ command, args, env: options?.env, stdio: options?.stdio });
-			if (args[0] === 'publish') {
-				const outputDir = args[args.indexOf('-o') + 1];
-				mkdirSync(outputDir, { recursive: true });
-				writeFileSync(path.join(outputDir, 'abb-aaxclean-helper'), 'helper');
-			}
 			return { status: 0 };
 		}) as typeof spawnSync;
 
@@ -372,9 +317,9 @@ describe('buildTauriApp', () => {
 			nonInteractiveDmg: true,
 		});
 
-		expect(calls).toHaveLength(2);
-		expect(calls[1]?.command).toBe('bun');
-		expect(calls[1]?.args.slice(0, 8)).toEqual([
+		expect(calls).toHaveLength(1);
+		expect(calls[0]?.command).toBe('bun');
+		expect(calls[0]?.args).toEqual([
 			'run',
 			'tauri',
 			'build',
@@ -382,34 +327,20 @@ describe('buildTauriApp', () => {
 			'dmg',
 			'--features',
 			'bundled-ffmpeg',
-			'--config',
 		]);
-		expect(JSON.parse(calls[1]?.args[8] ?? '{}')).toEqual({
-			bundle: { externalBin: ['binaries/abb-aaxclean-helper'] },
-		});
-		expect(calls[1]?.stdio).toBe('inherit');
-		expect(calls[1]?.env?.CI).toBe('true');
+		expect(calls[0]?.stdio).toBe('inherit');
+		expect(calls[0]?.env?.CI).toBe('true');
 	});
 
 	it('leaves CI value untouched for non-DMG app builds', () => {
 		const { repoRoot } = createRepoFixture();
-		const sidecarDir = path.join(repoRoot, 'src-tauri/binaries');
-		mkdirSync(sidecarDir, { recursive: true });
-		writeFileSync(resolveAaxcleanHelperPaths(repoRoot).sidecarPath, Buffer.alloc(1_000_001, 1));
 		const calls: Array<{ env?: NodeJS.ProcessEnv }> = [];
 		const commandRunner = ((
-			command: string,
-			args: string[],
+			_command: string,
+			_args: string[],
 			options?: { env?: NodeJS.ProcessEnv },
 		) => {
-			if (args[0] === '--version') return { status: 0, stdout: '10.0.401\n' };
 			calls.push({ env: options?.env });
-			if (args[0] === 'publish') {
-				const outputDir = args[args.indexOf('-o') + 1];
-				mkdirSync(outputDir, { recursive: true });
-				writeFileSync(path.join(outputDir, 'abb-aaxclean-helper'), 'helper');
-			}
-			void command;
 			return { status: 0 };
 		}) as typeof spawnSync;
 
@@ -418,10 +349,9 @@ describe('buildTauriApp', () => {
 			nonInteractiveDmg: false,
 		});
 
-		expect(calls).toHaveLength(2);
-		expect(calls[0]?.env).toBeUndefined();
-		expect(calls[1]?.env?.CI).toBe(process.env.CI);
-		expect(calls[1]?.env).toBe(process.env);
+		expect(calls).toHaveLength(1);
+		expect(calls[0]?.env?.CI).toBe(process.env.CI);
+		expect(calls[0]?.env).toBe(process.env);
 	});
 });
 

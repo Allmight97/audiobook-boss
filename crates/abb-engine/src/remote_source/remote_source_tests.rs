@@ -85,7 +85,6 @@ fn build_runtime(
             vault: vault.unwrap_or_else(|| Box::<MemoryVault>::default()),
             lifecycle: RemoteAcquisitionLifecycle::new(
                 RemoteSourceStaging::new(root.path().to_path_buf()),
-                AaxcleanMaterializer::new_for_helper(Some(PathBuf::from("abb-aaxclean-helper"))),
                 host,
                 ui,
                 acquire.unwrap_or_else(session_lifecycle::audible_acquire),
@@ -213,8 +212,8 @@ async fn a_download_counts_as_running_until_its_job_ends() {
     assert!(runtime.running_acquisitions().is_empty());
 }
 
-#[test]
-fn cancelled_job_keeps_terminal_state_when_background_result_arrives() {
+#[tokio::test]
+async fn cancelled_job_keeps_terminal_state_when_background_result_arrives() {
     let root = TempDir::new().expect("temp root");
     let runtime = test_runtime(&root);
     let job_id = "remote-job-1";
@@ -236,6 +235,8 @@ fn cancelled_job_keeps_terminal_state_when_background_result_arrives() {
     runtime
         .cancel_acquisition(job_id)
         .expect("cancel acquisition");
+    runtime.inner.tasks.close();
+    runtime.inner.tasks.wait().await;
     runtime.inner.lifecycle.update_job_progress(
         job_id,
         acquisition_progress(AcquisitionStage::Download, Some(0.5), Some(5), Some(10)),

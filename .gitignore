@@ -40,7 +40,6 @@ Icon
 *.ntvs*
 *.njsproj
 *.sln
-!/tools/abb-aaxclean-helper/abb-aaxclean-helper.sln
 *.sw?
 docs/model_tests/*
 
@@ -53,12 +52,6 @@ __pycache__/
 
 /target/
 /src-tauri/target/
-
-/src-tauri/binaries/abb-aaxclean-helper-*
-
-/tools/abb-aaxclean-helper/.publish/
-/tools/abb-aaxclean-helper/**/bin/
-/tools/abb-aaxclean-helper/**/obj/
 
 /coverage/
 

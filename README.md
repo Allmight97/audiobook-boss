@@ -8,7 +8,7 @@ Convert, tag, and organize your audiobook library with metadata that works every
 
 - **Batch convert** MP3/M4A/M4B/AAC/WAV/FLAC/MKA to optimized M4B audiobooks
 - **Title stacks** — Group ordered source files into one tagged audiobook with chapters, alongside independent titles.
-- **Audible acquire** — sign in, browse the library, and materialize AAX/AAXC titles through the bundled helper
+- **Audible acquire** — sign in, browse the library, and decrypt AAX/AAXC titles with the bundled FFmpeg
 - **Audio choices** — Default to AAC/M4B, keep original audio when the selected output supports it, or choose Opus in M4A/MKA. Edit one title or a selected group; set defaults for future imports in Settings. Tags, artwork, chapters, and library folders still update when audio passes through. Opus direct playback and chapter navigation depend on the library and player.
 - **Smart metadata** — series, narrator, cover art with Audiobookshelf/Apple Books dual-write compatibility
 - **Parallel processing** with real-time progress and per-job cancellation
@@ -21,12 +21,11 @@ Convert, tag, and organize your audiobook library with metadata that works every
 # Installs everything except rustup and Homebrew.
 bash scripts/setup.sh
 
-# First run publishes the AAXClean sidecar, then starts Tauri with bundled
-# FFmpeg and reusable logs.
+# Starts Tauri with bundled FFmpeg and reusable logs.
 bun run app:dev:log
 ```
 
-Requires: macOS (Apple Silicon) or x86_64 Ubuntu 22.04 or newer (OpenSSL, WebKitGTK 4.1), Bun 1.4 or newer, Rust (rustup), and a .NET 10 SDK for the sidecar. macOS also needs Homebrew. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback).
+Requires: macOS (Apple Silicon) or x86_64 Ubuntu 22.04 or newer (OpenSSL, WebKitGTK 4.1), and Rust (rustup). macOS also needs Homebrew. Setup installs the Bun version `bun.lock` names. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback).
 
 **AAC runtime contract**: output encoder and input decoder are separate. Auto
 selects Native NMR; Apple AAC and bundled FAAC are explicit choices.
@@ -82,8 +81,7 @@ hook, and never edits shell profiles. Lanes and owner mapping: root
 `bash scripts/setup.sh` into the Codex environment settings field once; that
 setting is not in the repo.
 
-Linux is a tested target. The AAXClean helper also builds for `linux-arm64`;
-that build is not proven on real hardware.
+Linux is a tested target.
 A saved Audible sign-in and indexer key go to the desktop secret service when
 one is running, so they survive a reboot. With no secret service, they last
 until the next restart, and the account view says sign-in will not be
@@ -122,6 +120,9 @@ package a DMG that may run on an unknown recipient Mac.
   its own state and never touches the app's settings.
 - Audit dependencies: `bun run audit`.
 
-## Claude on GitHub
+## Docs
 
-Tokens, workflows, and review toggles: [docs/claude-on-github.md](docs/claude-on-github.md).
+- Why the PR, CI, and review policies are what they are: [docs/DECISIONS.md](docs/DECISIONS.md)
+- Claude on GitHub (tokens, workflows, review triggers): [docs/claude-on-github.md](docs/claude-on-github.md)
+- Release history: [CHANGELOG.md](CHANGELOG.md)
+- Architecture: the crate tiers in [crates/AGENTS.md](crates/AGENTS.md); agent rules start at [AGENTS.md](AGENTS.md)

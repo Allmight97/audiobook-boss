@@ -29,10 +29,7 @@ impl Container {
     /// `name` is FFmpeg's `format().name()`: a muxer name, or a demuxer's
     /// comma-separated aliases (`mov,mp4,m4a,3gp,3g2,mj2`, `matroska,webm`).
     pub(crate) fn from_format_name(name: &str) -> Self {
-        if name
-            .split(',')
-            .any(|alias| matches!(alias, "mov" | "mp4" | "m4a" | "3gp" | "3g2" | "mj2"))
-        {
+        if crate::audio::is_mp4_family_format(name) {
             return Container::Mp4;
         }
         match name.split(',').next().unwrap_or(name) {

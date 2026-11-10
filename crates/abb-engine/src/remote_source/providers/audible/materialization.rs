@@ -6,11 +6,11 @@ use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage};
 use super::acquisition::{
     staged_materialized_path, title_progress, with_title_progress, TitleAcquisitionCtx,
 };
+use super::decrypt::{decrypt_download, DecryptRequest};
 use crate::errors::{AppError, Result};
-use crate::remote_source::materializer::{
-    AaxcleanLane, AaxcleanMaterializer, AaxcleanSecret, MaterializationRequest,
+use crate::remote_source::scoped_output::{
+    purge_with_retries, remove_if_present, remove_logging_failure, PURGE_RETRY_DELAYS,
 };
-use crate::remote_source::scoped_output::{remove_if_present, remove_logging_failure};
 use crate::remote_source::types::{RemoteAcquisitionFailureKind, RemoteSourceDiagnostic};
 
 pub(super) struct MaterializedProtectedSource {
@@ -19,7 +19,6 @@ pub(super) struct MaterializedProtectedSource {
 }
 
 pub(super) async fn materialize_protected_download(
-    materializer: &AaxcleanMaterializer,
     downloaded_path: &Path,
     title_name: Option<&str>,
     material: &AudibleDecryptionMaterial,
@@ -30,11 +29,11 @@ pub(super) async fn materialize_protected_download(
     let TitleAcquisitionCtx {
         job_id,
         title_id,
-        item_id,
         item_dir,
         progress_context,
+        ..
     } = ctx;
-    let (helper_lane, secret) = helper_material_from_audible_material(material);
+    let kind = material.kind();
     progress(title_progress(
         progress_context,
         AcquisitionStage::Decryption,
@@ -44,29 +43,21 @@ pub(super) async fn materialize_protected_download(
     ));
     let output_path = staged_materialized_path(item_dir, title_name, title_id);
 
-    let mut materializer_progress = |progress_event: AcquisitionProgress| {
+    let mut decrypt_progress = |progress_event: AcquisitionProgress| {
         progress(with_title_progress(progress_event, progress_context));
     };
-    let result = materializer
-        .materialize(
-            MaterializationRequest {
-                job_id: job_id.to_string(),
-                operation_id: item_id.to_string(),
-                lane: helper_lane,
-                input_path: downloaded_path.to_path_buf(),
-                output_path: output_path.clone(),
-                secret,
-            },
-            &mut materializer_progress,
-            is_cancelled,
-        )
-        .await;
-    // AAXC exit 0 does not prove the key. Reject output the built-in decoder cannot read.
-    let result = match result {
-        Ok(path) => confirm_decrypted_output(path, job_id, title_id).await,
-        Err(error) => Err(error),
-    };
-
+    let result = decrypt_download(
+        DecryptRequest {
+            input: downloaded_path,
+            output: &output_path,
+            material,
+            job_id,
+            title_id,
+        },
+        &mut decrypt_progress,
+        is_cancelled,
+    )
+    .await;
     match result {
         Ok(path) => Ok(finalize_materialized_source(
             path,
@@ -74,8 +65,8 @@ pub(super) async fn materialize_protected_download(
             job_id,
             title_id,
             remove_if_present,
-            std::thread::sleep,
-        )),
+        )
+        .await),
         Err(error) => {
             remove_logging_failure(downloaded_path);
             if matches!(error, AppError::Cancellation(_)) {
@@ -85,60 +76,21 @@ pub(super) async fn materialize_protected_download(
                 "remote_source audible stage=materialization_failed job_id={} title_ref={} lane={:?}",
                 job_id,
                 title_ref(title_id),
-                helper_lane
+                kind
             );
             Err(error)
         }
     }
 }
 
-async fn confirm_decrypted_output(path: PathBuf, job_id: &str, title_id: &str) -> Result<PathBuf> {
-    let probed = path.clone();
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "joined by confirm_decrypted_output"
-    )]
-    let decoded =
-        tokio::task::spawn_blocking(move || crate::audio::probe_builtin_audio_decoder(&probed))
-            .await
-            .map_err(|error| {
-                AppError::General(format!("AAXClean decrypt check task failed: {error}"))
-            })?;
-    if let Err(_decode_error) = decoded {
-        log::warn!(
-            "remote_source audible stage=decrypt_output_rejected job_id={} title_ref={}",
-            job_id,
-            title_ref(title_id)
-        );
-        remove_logging_failure(&path);
-        return Err(undecodable_decrypt_output());
-    }
-    Ok(path)
-}
-
-fn undecodable_decrypt_output() -> AppError {
-    AppError::General(
-        "AAXClean decrypt did not produce decodable audio. Provider-private details were withheld from UI and logs."
-            .to_string(),
-    )
-}
-
-/// Purge delays between retry attempts; transient locks (AV scans, indexing)
-/// usually clear within this window.
-const PURGE_RETRY_DELAYS: [std::time::Duration; 2] = [
-    std::time::Duration::from_millis(100),
-    std::time::Duration::from_millis(400),
-];
-
-fn finalize_materialized_source(
+async fn finalize_materialized_source(
     materialized: PathBuf,
     downloaded_path: &Path,
     job_id: &str,
     title_id: &str,
     remove: impl Fn(&Path) -> std::io::Result<()>,
-    sleep: impl Fn(std::time::Duration),
 ) -> MaterializedProtectedSource {
-    let mut last_error = match remove(downloaded_path) {
+    let last_error = match purge_with_retries(|| remove(downloaded_path)).await {
         Ok(()) => {
             return MaterializedProtectedSource {
                 path: materialized,
@@ -147,18 +99,6 @@ fn finalize_materialized_source(
         }
         Err(error) => error,
     };
-    for delay in PURGE_RETRY_DELAYS {
-        sleep(delay);
-        match remove(downloaded_path) {
-            Ok(()) => {
-                return MaterializedProtectedSource {
-                    path: materialized,
-                    purge_diagnostic: None,
-                }
-            }
-            Err(error) => last_error = error,
-        }
-    }
 
     log::warn!(
         "remote_source audible stage=materialization_staged_cleanup_failed job_id={} title_ref={} attempts={} error={last_error}",
@@ -176,28 +116,6 @@ fn finalize_materialized_source(
                       clean it up automatically the next time it starts."
                 .to_string(),
         }),
-    }
-}
-
-pub(super) fn helper_material_from_audible_material(
-    material: &AudibleDecryptionMaterial,
-) -> (AaxcleanLane, AaxcleanSecret) {
-    match material {
-        AudibleDecryptionMaterial::Aax {
-            activation_bytes_hex,
-        } => (
-            AaxcleanLane::Aax,
-            AaxcleanSecret::Aax {
-                activation_bytes_hex: activation_bytes_hex.clone(),
-            },
-        ),
-        AudibleDecryptionMaterial::Aaxc { key_hex, iv_hex } => (
-            AaxcleanLane::Aaxc,
-            AaxcleanSecret::Aaxc {
-                key_hex: key_hex.clone(),
-                iv_hex: iv_hex.clone(),
-            },
-        ),
     }
 }
 

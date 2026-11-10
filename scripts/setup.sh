@@ -6,7 +6,7 @@ set -euo pipefail
 # Cursor wrapper already points .cursor-original-hooks-path at those hooks.
 #   bash scripts/setup.sh                 # frontend, rust, and supply-chain
 #   bash scripts/setup.sh frontend        # locked Bun, Node, frozen install, actionlint, shellcheck, uv, zizmor
-#   bash scripts/setup.sh rust            # bundled FFmpeg build deps and source, pinned FFmpeg readback CLI, .NET SDK, helper, uv, cargo fetch
+#   bash scripts/setup.sh rust            # bundled FFmpeg build deps and source, pinned FFmpeg readback CLI, uv, cargo fetch
 #   bash scripts/setup.sh supply-chain    # pinned cargo-audit and cargo-deny
 #   bash scripts/setup.sh --check [mode]  # install nothing; exit nonzero if something is missing
 #                                         # (no mode checks frontend and rust, not supply-chain)
@@ -14,17 +14,14 @@ set -euo pipefail
 #
 # rust installs nasm and static libopus for the engine's bundled FFmpeg
 # (cargo compiles the vendored revision on first use and caches it in target/),
-# Tauri's GTK/WebKit packages on Linux, the pinned .NET SDK and a real AAXClean
-# helper for this host, and the pinned FFmpeg command-line build for media-lane fixture readback.
+# Tauri's GTK/WebKit packages on Linux, and the pinned FFmpeg command-line build
+# for media-lane fixture readback.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tools_bin="${ABB_TOOLS_BIN:-$HOME/.local/share/audiobook-boss/bin}"
 export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
-export DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
-export DOTNET_CLI_TELEMETRY_OPTOUT=1
-export DOTNET_NOLOGO=1
 cargo_bin="${CARGO_HOME:-$HOME/.cargo}/bin"
-export PATH="${BUN_INSTALL}/bin:${tools_bin}:${DOTNET_ROOT}:${HOME}/.cargo/bin:${cargo_bin}:${PATH}"
+export PATH="${BUN_INSTALL}/bin:${tools_bin}:${HOME}/.cargo/bin:${cargo_bin}:${PATH}"
 
 check_only=0
 print_env_only=0
@@ -154,20 +151,6 @@ pinned_rust_channel() {
 		exit 1
 	fi
 	printf '%s\n' "${channel}"
-}
-
-pinned_dotnet_sdk() {
-	local file="${repo_root}/tools/abb-aaxclean-helper/global.json" version
-	if [[ ! -f "${file}" ]]; then
-		printf 'error: missing %s\n' "${file}" >&2
-		exit 1
-	fi
-	version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${file}" | head -n1)"
-	if [[ ! "${version}" =~ ^10\.[0-9]+\.[0-9]+$ ]]; then
-		printf 'error: %s must pin .NET 10.x.x, got %s\n' "${file}" "${version}" >&2
-		exit 1
-	fi
-	printf '%s\n' "${version}"
 }
 
 node_major() {
@@ -387,7 +370,7 @@ missing_apt_packages() {
 }
 
 check_rust() {
-	local ffprobe_path ffmpeg_path sidecar required_sdk sidecar_bytes required_rust rustc_ver
+	local ffprobe_path ffmpeg_path required_rust rustc_ver
 	required_rust="$(pinned_rust_channel)"
 	if have rustc && have cargo; then
 		rustc_ver="$(
@@ -445,27 +428,6 @@ check_rust() {
 			need "Linux packages ${missing_packages[*]} (run as root or with sudo: bash scripts/setup.sh rust)"
 		fi
 	fi
-	required_sdk="$(pinned_dotnet_sdk)"
-	if [[ -x "${DOTNET_ROOT}/dotnet" ]] && "${DOTNET_ROOT}/dotnet" --list-sdks 2>/dev/null | grep -q "^${required_sdk}"; then
-		ok ".NET SDK ${required_sdk}"
-	elif have dotnet && dotnet --list-sdks 2>/dev/null | grep -q "^${required_sdk}"; then
-		ok ".NET SDK ${required_sdk}"
-	else
-		need ".NET SDK ${required_sdk} (run: bash scripts/setup.sh rust)"
-	fi
-	if have rustc; then
-		sidecar="${repo_root}/src-tauri/binaries/abb-aaxclean-helper-$(rustc -vV | awk '/^host:/ { print $2 }')"
-		if [[ -x "${sidecar}" ]]; then
-			sidecar_bytes="$(wc -c <"${sidecar}" | tr -d ' ')"
-			if [[ "${sidecar_bytes}" -gt 1000000 ]]; then
-				ok "AAXClean helper (${sidecar_bytes} bytes)"
-			else
-				need "AAXClean helper (found ${sidecar_bytes}-byte stub; run: bash scripts/setup.sh rust)"
-			fi
-		else
-			need "AAXClean helper (run: bash scripts/setup.sh rust)"
-		fi
-	fi
 }
 
 print_env() {
@@ -481,9 +443,6 @@ print_env() {
 		printf 'export ABB_FFPROBE=%q\n' "${ffprobe}"
 	fi
 	printf 'export BUN_INSTALL=%q\n' "${BUN_INSTALL}"
-	printf 'export DOTNET_ROOT=%q\n' "${DOTNET_ROOT}"
-	printf 'export DOTNET_CLI_TELEMETRY_OPTOUT=1\n'
-	printf 'export DOTNET_NOLOGO=1\n'
 	printf 'export PATH=%q\n' "${PATH}"
 }
 
@@ -492,7 +451,7 @@ print_path_line() {
 	printf '\nAdd to PATH (this script never edits shell profiles):\n'
 	printf '  eval "$(scripts/setup.sh --print-env)"\n'
 	if [[ -n "${GITHUB_PATH:-}" ]]; then
-		printf '%s\n' "${BUN_INSTALL}/bin" "${tools_bin}" "${DOTNET_ROOT}" >>"${GITHUB_PATH}"
+		printf '%s\n' "${BUN_INSTALL}/bin" "${tools_bin}" >>"${GITHUB_PATH}"
 		if [[ -x "${rustup_bin}/rustup" || -x "${rustup_bin}/rustc" ]]; then
 			printf '%s\n' "${rustup_bin}" >>"${GITHUB_PATH}"
 		fi
@@ -887,35 +846,6 @@ ensure_cargo_deny() {
 		"${sha256}"
 }
 
-ensure_dotnet() {
-	local required tmp
-	required="$(pinned_dotnet_sdk)"
-	if [[ -x "${DOTNET_ROOT}/dotnet" ]] && "${DOTNET_ROOT}/dotnet" --list-sdks 2>/dev/null | grep -q "^${required}"; then
-		log "Using .NET SDK ${required}"
-		return
-	fi
-	tmp="$(mktemp -d)"
-	log "Installing .NET SDK ${required} into ${DOTNET_ROOT}"
-	local curl_opts=(-fsSL --connect-timeout 20 --max-time 600 --retry 3 --retry-all-errors)
-	curl "${curl_opts[@]}" -o "${tmp}/dotnet-install.sh" https://dot.net/v1/dotnet-install.sh
-	bash "${tmp}/dotnet-install.sh" --version "${required}" --install-dir "${DOTNET_ROOT}"
-	rm -rf "${tmp}"
-	hash -r 2>/dev/null || true
-	if ! "${DOTNET_ROOT}/dotnet" --list-sdks 2>/dev/null | grep -q "^${required}"; then
-		printf 'error: .NET SDK %s is not installed in %s\n' "${required}" "${DOTNET_ROOT}" >&2
-		exit 1
-	fi
-}
-
-ensure_aaxclean_helper() {
-	ensure_bun
-	ensure_dotnet
-	log "Publishing AAXClean helper for this host"
-	(cd "${repo_root}" && bun run aaxclean-helper:publish)
-	log "Restoring the AAXClean helper test packages"
-	(cd "${repo_root}/tools/abb-aaxclean-helper" && dotnet restore tests/AbbAaxcleanHelper.Tests/AbbAaxcleanHelper.Tests.csproj --nologo)
-}
-
 # The bundled FFmpeg build clones its pinned commit from this mirror when it
 # exists (vendor/ffmpeg-sys-next-*/build.rs, source_remote), so verify works
 # offline after setup.
@@ -979,7 +909,7 @@ fi
 if want_rust; then
 	install_rust_packages
 	ensure_readback_cli
-	ensure_aaxclean_helper
+	ensure_bun
 	ensure_uv
 	# So verify.sh core still works if the network drops after setup (Codex cloud).
 	log "Prefetching lizard for the complexity check"

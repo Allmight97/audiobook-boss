@@ -217,3 +217,21 @@ fn the_developer_tool_rejects_an_out_of_range_cancel_title() {
     );
     assert!(stderr.contains("there is no title 2"), "{stderr}");
 }
+
+#[test]
+fn the_developer_tool_lists_the_audible_commands_and_refuses_a_bad_audible_command_line() {
+    let host = env!("CARGO_BIN_EXE_abb-dev");
+    let help = Command::new(host).arg("--help").output().expect("run help");
+    let help = String::from_utf8_lossy(&help.stdout);
+    for command in ["audible", "sign-in", "library", "acquire"] {
+        assert!(help.contains(command), "help must name {command}");
+    }
+
+    let refused = Command::new(host)
+        .args(["audible", "acquire", "--state-dir", "unused"])
+        .output()
+        .expect("run audible without a title");
+    assert_eq!(refused.status.code(), Some(2));
+    let error = String::from_utf8_lossy(&refused.stderr);
+    assert!(error.contains("at least one title id"), "{error}");
+}

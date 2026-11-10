@@ -38,8 +38,8 @@ recorded tool versions still invalidate it.
   Fixtures are synthesized at test time. `media` also runs the verify-abb
   feature scripts through `scripts/abb-dev.sh`.
 - Apple AAC (`apple`, macOS only).
-- Audible decrypt helper (`decrypt`). Fixtures are synthesized at test time.
-  A wrong AAXC key is not the negative case.
+- Audible decrypt: `engine` runs `integration_decrypt_tests`. Fixtures are
+  synthesized at test time.
 - Host or IPC types (`host`). Then the `*.contract.test.ts` Vitest files under
   `src/` that name the changed surface. Boundary rules: `src-tauri/AGENTS.md`
   and `src/lib/tauri/AGENTS.md`.
@@ -92,6 +92,10 @@ Traps:
   (`let_underscore_must_use`, `unused_result_ok`). A benign site takes
   `#[expect(..., reason = "...")]`; any other failure is logged or returned.
 - Each git worktree holds its own `target/`. Remove finished worktrees.
+- Cargo never prunes `target/`, so `verify.sh` and `app:dev:log` run
+  `scripts/clean.ts --auto`: over its budget, `target/debug` goes, and the FFmpeg
+  cache stays. `bun run clean` and `bun run clean --all` clear more by hand;
+  `scripts/clean.ts` lists what each removes.
 
 A change to CI or validation speed quotes before and after numbers from
 `bun run ci:timing` in its PR body, so every comparison uses one recipe.
@@ -111,10 +115,8 @@ A change to CI or validation speed quotes before and after numbers from
   `ABB_DEV_RUST_LOG` sets the log level; `ABB_DEV_USE_EXISTING_RUST_LOG=1`
   keeps `RUST_LOG`.
 - `bash scripts/abb-dev.sh --help` drives an engine session without a
-  window (header of `scripts/abb-dev.sh`).
-- Release artifacts: use `.agents/skills/release`. Public DMG builds publish the
-  AAXClean helper from current source; local app builds may reuse a fresh
-  helper sidecar whose source, SDK, target, and executable digests still match.
+  window, Audible included (header of `scripts/abb-dev.sh`).
+- Release artifacts: use `.agents/skills/release`.
 
 ## Script rules
 
@@ -205,12 +207,12 @@ A change to CI or validation speed quotes before and after numbers from
   The Claude Code cloud SessionStart hook runs `setup.sh frontend`. Cursor
   cloud runs `setup.sh` from `.cursor/environment.json`. Codex cloud uses the
   same command in its environment settings, not the repo.
-  PATH and toolchain env (`BUN_INSTALL`, `DOTNET_*`, `PATH`, and the readback
+  PATH and toolchain env (`BUN_INSTALL`, `PATH`, and the readback
   `ABB_FFMPEG` / `ABB_FFPROBE` when setup can see them) have one owner:
   `eval "$(scripts/setup.sh --print-env)"`. Cloud setup steps do not pass
   their environment to agent shells, so run that eval in a shell before
-  calling `bun`, `dotnet`, or `uvx` directly; `verify.sh` runs it itself.
-- Engine, media, host, decrypt, and apple proof build the engine with
+  calling `bun` or `uvx` directly; `verify.sh` runs it itself.
+- Engine, media, host, and apple proof build the engine with
   bundled FFmpeg on every host, as do `bun run bindings:generate` and
   `bun run app:dev:log`. The first build compiles the revision in
   `vendor/ffmpeg-sys-next-*/ffmpeg-revision` into `target/abb-ffmpeg-cache`.

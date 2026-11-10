@@ -2,10 +2,8 @@ use super::*;
 use std::cell::RefCell;
 use tempfile::TempDir;
 
-fn no_sleep(_: std::time::Duration) {}
-
-#[test]
-fn purge_failure_retries_then_surfaces_nonblocking_diagnostic() {
+#[tokio::test(start_paused = true)]
+async fn purge_failure_retries_then_surfaces_nonblocking_diagnostic() {
     let materialized = PathBuf::from("/library/Book.m4b");
     let downloaded = PathBuf::from("/staging/Book.aaxc");
     let attempts = RefCell::new(0usize);
@@ -23,8 +21,8 @@ fn purge_failure_retries_then_surfaces_nonblocking_diagnostic() {
                 "purge denied",
             ))
         },
-        no_sleep,
-    );
+    )
+    .await;
 
     assert_eq!(outcome.path, materialized);
     assert_eq!(attempts.into_inner(), 1 + PURGE_RETRY_DELAYS.len());
@@ -43,8 +41,8 @@ fn purge_failure_retries_then_surfaces_nonblocking_diagnostic() {
     );
 }
 
-#[test]
-fn purge_recovering_on_retry_emits_no_diagnostic() {
+#[tokio::test(start_paused = true)]
+async fn purge_recovering_on_retry_emits_no_diagnostic() {
     let materialized = PathBuf::from("/library/Book.m4b");
     let downloaded = PathBuf::from("/staging/Book.aaxc");
     let attempts = RefCell::new(0usize);
@@ -65,8 +63,8 @@ fn purge_recovering_on_retry_emits_no_diagnostic() {
                 Ok(())
             }
         },
-        no_sleep,
-    );
+    )
+    .await;
 
     assert_eq!(outcome.path, materialized);
     assert_eq!(attempts.into_inner(), 2, "stops at first successful purge");
@@ -76,8 +74,8 @@ fn purge_recovering_on_retry_emits_no_diagnostic() {
     );
 }
 
-#[test]
-fn finalize_removes_encrypted_source_when_purge_succeeds() {
+#[tokio::test(start_paused = true)]
+async fn finalize_removes_encrypted_source_when_purge_succeeds() {
     let root = TempDir::new().expect("temp root");
     let downloaded = root.path().join("Book.aaxc");
     std::fs::write(&downloaded, b"encrypted").expect("write source");
@@ -89,8 +87,8 @@ fn finalize_removes_encrypted_source_when_purge_succeeds() {
         "job-1",
         "B0TITLE",
         remove_if_present,
-        no_sleep,
-    );
+    )
+    .await;
 
     assert_eq!(outcome.path, materialized);
     assert!(outcome.purge_diagnostic.is_none());

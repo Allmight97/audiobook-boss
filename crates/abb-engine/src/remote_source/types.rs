@@ -213,6 +213,25 @@ pub enum RemoteAcquisitionFailureKind {
     Cancelled,
 }
 
+impl RemoteAcquisitionFailureKind {
+    pub fn blocks_title(&self) -> bool {
+        match self {
+            Self::ProtectedSourcePurgeFailed | Self::SupplementalPdfUnavailable => false,
+            Self::AuthRequired
+            | Self::ProviderPrivateProtocolFailed
+            | Self::LicenseDenied
+            | Self::ProtectedUnsupported
+            | Self::DownloadFailed
+            | Self::MaterializationFailed
+            | Self::ValidationFailed
+            | Self::SupplementalPdfFailed
+            | Self::ReleaseSearchFailed
+            | Self::ReleaseGrabFailed
+            | Self::Cancelled => true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteSourceDiagnostic {
@@ -332,3 +351,7 @@ pub enum HandoffRefusal {
     /// The files were already listed, or a reset dropped the import.
     NothingAdded,
 }
+
+#[cfg(test)]
+#[path = "types_tests.rs"]
+mod tests;

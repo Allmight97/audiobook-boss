@@ -7,6 +7,7 @@ use serde_json::{json, Value};
 
 pub(super) mod acquisition;
 mod audio_download;
+mod decrypt;
 mod diagnostics;
 mod http;
 mod library;
@@ -14,6 +15,7 @@ mod license;
 mod license_plan;
 mod license_reply_log;
 mod materialization;
+mod protected_file_probe;
 mod registration;
 mod supplemental_pdf;
 
@@ -165,23 +167,13 @@ impl AudibleProvider {
 
     pub(in crate::remote_source) async fn acquire(
         auth: Auth,
-        materializer: &crate::remote_source::materializer::AaxcleanMaterializer,
         plan: &crate::remote_source::AcquisitionPlan,
         job_id: &str,
         job_dir: &std::path::Path,
         progress: impl FnMut(abb_remote_source_core::AcquisitionProgress),
         is_cancelled: impl Fn() -> bool,
     ) -> Result<crate::remote_source::AcquisitionOutcome> {
-        acquire(
-            auth,
-            materializer,
-            plan,
-            job_id,
-            job_dir,
-            progress,
-            is_cancelled,
-        )
-        .await
+        acquire(auth, plan, job_id, job_dir, progress, is_cancelled).await
     }
 }
 

@@ -98,3 +98,13 @@ fn only_aac_and_opus_streams_belong_to_a_codec_family() {
         assert_eq!(CodecFamily::of_codec_id(other), None);
     }
 }
+
+#[test]
+fn the_mp4_family_covers_muxer_names_and_demuxer_aliases() {
+    for name in ["mp4", "ipod", "mov", "mov,mp4,m4a,3gp,3g2,mj2"] {
+        assert!(is_mp4_family_format(name), "{name}");
+    }
+    for name in ["matroska", "matroska,webm", "mp3", "adts", "ogg", ""] {
+        assert!(!is_mp4_family_format(name), "{name}");
+    }
+}

@@ -8,9 +8,10 @@ use std::time::{Duration, Instant};
 use abb_remote_source_core::AcquisitionProgress as CoreAcquisitionProgress;
 use tokio::task::AbortHandle;
 
+use crate::engine_tasks::EngineTasks;
 use crate::errors::{AppError, Result};
 use crate::host::{EngineEvent, Host};
-use crate::remote_source::materializer::AaxcleanMaterializer;
+use crate::remote_source::scoped_output::purge_with_retries;
 use crate::remote_source::staging::RemoteSourceStaging;
 use crate::remote_source::types;
 
@@ -63,7 +64,6 @@ pub(super) fn audible_acquire() -> AcquireTitles {
             };
             super::providers::audible::AudibleProvider::acquire(
                 auth,
-                &lifecycle.materializer,
                 &plan,
                 &job_id,
                 &job_dir,
@@ -77,9 +77,21 @@ pub(super) fn audible_acquire() -> AcquireTitles {
     })
 }
 
+/// Removes a cancelled or failed job's staging folder. An aborted acquisition
+/// only signals its blocking worker to stop, so the worker may still touch
+/// its partial while the first attempt runs.
+async fn purge_cancelled_session(staging: &RemoteSourceStaging, job_id: &str) {
+    if let Err(error) = purge_with_retries(|| staging.purge_session(job_id)).await {
+        log::warn!(
+            "remote_source acquisition job_id={} cancelled_session_cleanup_failed={}",
+            job_id,
+            error
+        );
+    }
+}
+
 pub(super) struct RemoteAcquisitionLifecycle {
     pub(super) staging: RemoteSourceStaging,
-    materializer: AaxcleanMaterializer,
     pub(super) jobs: Mutex<HashMap<String, Registered>>,
     acquisition_tasks: Mutex<HashMap<String, AbortHandle>>,
     host: Host,
@@ -91,14 +103,12 @@ pub(super) struct RemoteAcquisitionLifecycle {
 impl RemoteAcquisitionLifecycle {
     pub(super) fn new(
         staging: RemoteSourceStaging,
-        materializer: AaxcleanMaterializer,
         host: Host,
         ui: std::sync::Arc<Mutex<super::ui::UiState>>,
         acquire: AcquireTitles,
     ) -> Self {
         Self {
             staging,
-            materializer,
             jobs: Mutex::new(HashMap::new()),
             acquisition_tasks: Mutex::new(HashMap::new()),
             host,
@@ -253,7 +263,7 @@ impl RemoteAcquisitionLifecycle {
 
         match result {
             Ok(_) if self.job_is_cancelled(&job_id) => {
-                self.finish_cancelled(&job_id);
+                self.finish_cancelled(&job_id).await;
                 log::info!(
                     "remote_source acquisition job_id={} status=cancelled_preserved",
                     job_id
@@ -264,21 +274,21 @@ impl RemoteAcquisitionLifecycle {
                 self.hand_off(&runtime, &job_id).await;
             }
             Err(AppError::Cancellation(_)) => {
-                self.finish_cancelled(&job_id);
+                self.finish_cancelled(&job_id).await;
                 log::info!(
                     "remote_source acquisition job_id={} status=cancelled",
                     job_id
                 );
             }
             Err(_error) if self.job_is_cancelled(&job_id) => {
-                self.finish_cancelled(&job_id);
+                self.finish_cancelled(&job_id).await;
                 log::info!(
                     "remote_source acquisition job_id={} status=cancelled provider_error_suppressed=true",
                     job_id
                 );
             }
             Err(error) => {
-                self.cleanup_cancelled_job_session(&job_id);
+                purge_cancelled_session(&self.staging, &job_id).await;
                 self.apply_outcome(
                     &job_id,
                     AcquisitionOutcome::failed(
@@ -340,8 +350,8 @@ impl RemoteAcquisitionLifecycle {
         self.change_job(job_id, |job| job.finish(outcome));
     }
 
-    fn finish_cancelled(&self, job_id: &str) {
-        self.cleanup_cancelled_job_session(job_id);
+    async fn finish_cancelled(&self, job_id: &str) {
+        purge_cancelled_session(&self.staging, job_id).await;
         self.change_job(job_id, Registered::cancel);
     }
 
@@ -372,7 +382,6 @@ impl RemoteAcquisitionLifecycle {
     }
 
     fn abort_acquisition_task(&self, job_id: &str) {
-        self.materializer.abort_job(job_id);
         if let Ok(mut tasks) = self.acquisition_tasks.lock() {
             if let Some(handle) = tasks.remove(job_id) {
                 handle.abort();
@@ -399,7 +408,6 @@ impl RemoteAcquisitionLifecycle {
     }
 
     pub(super) fn abort_all_acquisition_tasks(&self) {
-        self.materializer.abort_all();
         if let Ok(mut tasks) = self.acquisition_tasks.lock() {
             for (job_id, handle) in tasks.drain() {
                 handle.abort();
@@ -411,17 +419,11 @@ impl RemoteAcquisitionLifecycle {
         }
     }
 
-    pub(super) fn cleanup_cancelled_job_session(&self, job_id: &str) {
-        if let Err(error) = self.staging.purge_session(job_id) {
-            log::warn!(
-                "remote_source acquisition job_id={} cancelled_session_cleanup_failed={}",
-                job_id,
-                error
-            );
-        }
-    }
-
-    fn cancel_acquisition(&self, job_id: &str) -> Result<types::AcquisitionSnapshot> {
+    fn cancel_acquisition(
+        &self,
+        tasks: &EngineTasks,
+        job_id: &str,
+    ) -> Result<types::AcquisitionSnapshot> {
         let mut jobs = self
             .jobs
             .lock()
@@ -435,7 +437,8 @@ impl RemoteAcquisitionLifecycle {
         let cancelled = job.snapshot();
         drop(jobs);
         self.abort_acquisition_task(job_id);
-        self.cleanup_cancelled_job_session(job_id);
+        let (staging, job_id_owned) = (self.staging.clone(), job_id.to_string());
+        tasks.spawn(async move { purge_cancelled_session(&staging, &job_id_owned).await });
         self.publish(job_id);
         Ok(cancelled)
     }
@@ -455,7 +458,9 @@ impl RemoteAcquisitionLifecycle {
 
 impl RemoteSourceRuntime {
     pub(crate) fn cancel_acquisition(&self, job_id: &str) -> Result<super::AcquisitionSnapshot> {
-        self.inner.lifecycle.cancel_acquisition(job_id)
+        self.inner
+            .lifecycle
+            .cancel_acquisition(&self.inner.tasks, job_id)
     }
 
     pub(crate) fn purge_session(&self, job_id: &str) -> Result<()> {

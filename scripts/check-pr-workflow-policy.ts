@@ -33,7 +33,7 @@ const REQUIRED_TYPES = [
 	'ready_for_review',
 	'converted_to_draft',
 ];
-const REVIEW_TYPES = ['opened', 'reopened', 'ready_for_review'];
+const REVIEW_TYPES = ['opened', 'ready_for_review', 'labeled'];
 const AGENT_REVIEW_ACTION = /^anthropics\/claude-code-action@/;
 const PR_TRIGGERS = ['pull_request', 'pull_request_target'];
 const DRAFT_GUARD = /github\.event\.pull_request\.draft\s*!=\s*true/;
@@ -174,7 +174,7 @@ function reviewTriggerFindings(file: string, text: string, name: string, raw: un
 			file,
 			text,
 			`${name}:`,
-			`an agent review runs only when a PR opens ready, reopens, or leaves draft, never per push. Fix: set ${name} types to [${REVIEW_TYPES.join(', ')}].`,
+			`an agent review runs only when a PR opens ready, leaves draft, or gets the review label, never per push. Fix: set ${name} types to [${REVIEW_TYPES.join(', ')}].`,
 		),
 	];
 }

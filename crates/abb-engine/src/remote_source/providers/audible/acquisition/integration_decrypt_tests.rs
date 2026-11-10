@@ -1,42 +1,44 @@
-//! Real AAX/AAXC decrypt through the published helper.
+//! Real AAX/AAXC decrypt through the bundled FFmpeg.
 //!
 //! Fixtures are synthesized at test time from a lavfi sine book. Compare the
-//! helper output against that generated source (packets, duration, tags,
-//! chapters), never against fixed hashes. A wrong AAX activation fails inside
-//! the helper. A wrong AAXC key can still exit 0; materialization must reject
-//! that output.
+//! decrypt output against that generated source (packets, duration, tags,
+//! chapters, cover), never against fixed hashes. A wrong AAX activation fails
+//! at open. A wrong AAXC key opens and copies noise; materialization must
+//! reject that output.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
 use aes::Aes128;
-use cbc::cipher::{block_padding::NoPadding, BlockModeDecrypt, BlockModeEncrypt, KeyIvInit};
-use secrecy::SecretString;
+use cbc::cipher::{block_padding::NoPadding, BlockModeEncrypt, KeyIvInit};
+use secrecy::SecretBox;
 use sha1::{Digest, Sha1};
 use tempfile::TempDir;
 
+use super::super::decrypt::{stream_copy, CopyControl};
 use super::{
-    materialize_protected_download, staged_materialized_path, AaxcleanMaterializer,
-    AudibleAcquisitionError, TitleAcquisitionCtx, TitleProgressContext,
+    materialize_protected_download, staged_materialized_path, AudibleAcquisitionError,
+    TitleAcquisitionCtx, TitleProgressContext,
 };
 use crate::errors::AppError;
-use crate::remote_source::materializer::{AaxcleanLane, AaxcleanSecret, MaterializationRequest};
 use crate::remote_source::{RemoteAcquisitionFailureKind, RemoteSourceDiagnostic};
 use crate::test_cases::media_fixtures::{audio_packet_bytes, ffmpeg, ffprobe, ffprobe_tag_ci};
+use abb_audible_core::{AudibleDecryptionMaterial, DrmBoxes};
 
+const EDIT_LIST_SECONDS: &str = "12.3";
+const EDIT_LIST_PLAYED_SAMPLES: usize = 542_430;
 const AAXC_KEY_HEX: &str = "000102030405060708090a0b0c0d0e0f";
 const AAXC_IV_HEX: &str = "f0e0d0c0b0a090807060504030201000";
 const AAX_ACTIVATION_HEX: &str = "1ceb00da";
 const AAX_WRONG_ACTIVATION_HEX: &str = "deadbeef";
+const WRONG_AAXC_KEY_HEX: &str = "ffffffffffffffffffffffffffffffff";
 /// Public constant from FFmpeg libavformat/mov.c (`audible_fixed_key` default).
 const AUDIBLE_FIXED_KEY: [u8; 16] = [
     0x77, 0x21, 0x4d, 0x4b, 0x19, 0x6a, 0x87, 0xcd, 0x52, 0x00, 0x45, 0xfd, 0x20, 0xa5, 0x1d, 0x67,
 ];
 
 type Aes128CbcEnc = cbc::Encryptor<Aes128>;
-type Aes128CbcDec = cbc::Decryptor<Aes128>;
 
 struct DecryptBooks {
     _dir: TempDir,
@@ -47,29 +49,42 @@ struct DecryptBooks {
 
 fn books() -> &'static DecryptBooks {
     static BOOKS: OnceLock<DecryptBooks> = OnceLock::new();
-    BOOKS.get_or_init(|| {
-        let dir = TempDir::new().expect("decrypt fixture dir");
-        let source = dir.path().join("source.m4b");
-        write_source_book(&source);
-        let plain = std::fs::read(&source).expect("read source book");
-        let aaxc = dir.path().join("synthetic.aaxc");
-        std::fs::write(&aaxc, encrypt_aaxc(&plain)).expect("write aaxc");
-        let aax = dir.path().join("synthetic.aax");
-        std::fs::write(&aax, encrypt_aax(&plain)).expect("write aax");
-        DecryptBooks {
-            source,
-            aax,
-            aaxc,
-            _dir: dir,
-        }
-    })
+    BOOKS.get_or_init(|| build_books("12", false))
 }
 
-fn write_source_book(path: &Path) {
+fn edit_list_books() -> &'static DecryptBooks {
+    static BOOKS: OnceLock<DecryptBooks> = OnceLock::new();
+    BOOKS.get_or_init(|| build_books(EDIT_LIST_SECONDS, true))
+}
+
+fn build_books(seconds: &str, keep_edit_list: bool) -> DecryptBooks {
+    let dir = TempDir::new().expect("decrypt fixture dir");
+    let source = dir.path().join("source.m4b");
+    write_source_book(&source, seconds, keep_edit_list);
+    let plain = std::fs::read(&source).expect("read source book");
+    let aaxc = dir.path().join("synthetic.aaxc");
+    std::fs::write(&aaxc, encrypt_aaxc(&plain)).expect("write aaxc");
+    let aax = dir.path().join("synthetic.aax");
+    std::fs::write(&aax, encrypt_aax(&plain)).expect("write aax");
+    DecryptBooks {
+        source,
+        aax,
+        aaxc,
+        _dir: dir,
+    }
+}
+
+fn write_source_book(path: &Path, seconds: &str, keep_edit_list: bool) {
     let dir = path.parent().expect("source parent");
     let meta = dir.join("meta.txt");
     let audio = dir.join("audio.m4a");
     let cover = dir.join("cover.jpg");
+    let sine = format!("sine=frequency=440:sample_rate=44100:duration={seconds}");
+    let editlist_args: &[&str] = if keep_edit_list {
+        &[]
+    } else {
+        &["-use_editlist", "0"]
+    };
     std::fs::write(
         &meta,
         ";FFMETADATA1\n\
@@ -84,33 +99,35 @@ fn write_source_book(path: &Path) {
     )
     .expect("write ffmetadata");
 
-    ffmpeg([
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-y",
-        "-f",
-        "lavfi",
-        "-i",
-        "sine=frequency=440:sample_rate=44100:duration=12",
-        "-i",
-        meta.to_str().expect("meta path"),
-        "-map",
-        "0:a",
-        "-map_metadata",
-        "1",
-        "-map_chapters",
-        "1",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "64k",
-        "-ac",
-        "2",
-        "-use_editlist",
-        "0",
-        audio.to_str().expect("audio path"),
-    ]);
+    ffmpeg(
+        [
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            &sine,
+            "-i",
+            meta.to_str().expect("meta path"),
+            "-map",
+            "0:a",
+            "-map_metadata",
+            "1",
+            "-map_chapters",
+            "1",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "64k",
+            "-ac",
+            "2",
+        ]
+        .into_iter()
+        .chain(editlist_args.iter().copied())
+        .chain([audio.to_str().expect("audio path")]),
+    );
     ffmpeg([
         "-hide_banner",
         "-loglevel",
@@ -124,33 +141,33 @@ fn write_source_book(path: &Path) {
         "1",
         cover.to_str().expect("cover path"),
     ]);
-    ffmpeg([
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-y",
-        "-i",
-        audio.to_str().expect("audio path"),
-        "-i",
-        cover.to_str().expect("cover path"),
-        "-map",
-        "0:a",
-        "-map",
-        "1:v",
-        "-map_metadata",
-        "0",
-        "-map_chapters",
-        "0",
-        "-c",
-        "copy",
-        "-disposition:v",
-        "attached_pic",
-        "-use_editlist",
-        "0",
-        "-f",
-        "ipod",
-        path.to_str().expect("source path"),
-    ]);
+    ffmpeg(
+        [
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            audio.to_str().expect("audio path"),
+            "-i",
+            cover.to_str().expect("cover path"),
+            "-map",
+            "0:a",
+            "-map",
+            "1:v",
+            "-map_metadata",
+            "0",
+            "-map_chapters",
+            "0",
+            "-c",
+            "copy",
+            "-disposition:v",
+            "attached_pic",
+        ]
+        .into_iter()
+        .chain(editlist_args.iter().copied())
+        .chain(["-f", "ipod", path.to_str().expect("source path")]),
+    );
 }
 
 fn encrypt_aaxc(src: &[u8]) -> Vec<u8> {
@@ -436,101 +453,6 @@ fn aes128_cbc_encrypt(key: &[u8], iv: &[u8], data: &[u8]) -> Vec<u8> {
         .to_vec()
 }
 
-fn aes128_cbc_decrypt(key: &[u8], iv: &[u8], data: &[u8]) -> Vec<u8> {
-    assert_eq!(data.len() % 16, 0);
-    let mut buf = data.to_vec();
-    Aes128CbcDec::new_from_slices(key, iv)
-        .expect("aes key/iv")
-        .decrypt_padded::<NoPadding>(&mut buf)
-        .expect("decrypt")
-        .to_vec()
-}
-
-/// AAXClean rejects a decrypted frame whose first 12 bits are all ones
-/// (`AacValidateFilter`). Frames shorter than 16 bytes are checked as stored.
-enum AaxcFrameCheck {
-    Encrypted([u8; 16]),
-    Clear(Vec<u8>),
-}
-
-fn aaxc_frame_checks(aaxc: &[u8]) -> Vec<AaxcFrameCheck> {
-    let top = boxes(aaxc, 0, aaxc.len());
-    let moov = *find_type(&top, b"moov");
-    let trak = audio_trak(aaxc, moov);
-    let chain = find_path(
-        aaxc,
-        trak.pos + trak.hdr,
-        trak.pos + trak.size,
-        &[*b"mdia", *b"minf", *b"stbl"],
-    )
-    .expect("mdia/minf/stbl");
-    let (ranges, _) = sample_ranges(aaxc, chain[2]);
-    let mut seen = HashSet::new();
-    let mut frames = Vec::new();
-    for (off, size) in ranges {
-        if size >= 16 {
-            let mut block = [0u8; 16];
-            block.copy_from_slice(&aaxc[off..off + 16]);
-            if seen.insert(block) {
-                frames.push(AaxcFrameCheck::Encrypted(block));
-            }
-        } else {
-            frames.push(AaxcFrameCheck::Clear(aaxc[off..off + size].to_vec()));
-        }
-    }
-    frames
-}
-
-fn aaxclean_rejects_sync_word(frame: &[u8]) -> bool {
-    frame.len() < 2 || (u16::from_be_bytes([frame[0], frame[1]]) & 0xfff0) == 0xfff0
-}
-
-fn aaxclean_frame_check_accepts(frames: &[AaxcFrameCheck], key: &[u8; 16], iv: &[u8; 16]) -> bool {
-    frames.iter().all(|frame| match frame {
-        AaxcFrameCheck::Clear(raw) => !aaxclean_rejects_sync_word(raw),
-        AaxcFrameCheck::Encrypted(block) => {
-            let plain = aes128_cbc_decrypt(key, iv, block);
-            !aaxclean_rejects_sync_word(&plain)
-        }
-    })
-}
-
-fn increment_key(key: &mut [u8; 16]) {
-    for byte in key.iter_mut().rev() {
-        *byte = byte.wrapping_add(1);
-        if *byte != 0 {
-            return;
-        }
-    }
-}
-
-/// A key other than the fixture key for which no decrypted frame starts with
-/// 12 one-bits, so AAXClean's frame check lets the helper exit 0.
-fn wrong_aaxc_key_hex(aaxc: &[u8]) -> String {
-    let frames = aaxc_frame_checks(aaxc);
-    assert!(!frames.is_empty(), "synthetic AAXC has audio frames");
-    let iv = hex_16(AAXC_IV_HEX);
-    let right = hex_16(AAXC_KEY_HEX);
-    let mut key = [0xff_u8; 16];
-    for _ in 0..4096 {
-        if key != right && aaxclean_frame_check_accepts(&frames, &key, &iv) {
-            return hex_encode(&key);
-        }
-        increment_key(&mut key);
-    }
-    panic!("no wrong AAXC key passed AAXClean's frame check for this fixture");
-}
-
-fn hex_encode(bytes: &[u8]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let mut encoded = String::with_capacity(bytes.len() * 2);
-    for &byte in bytes {
-        encoded.push(DIGITS[(byte >> 4) as usize] as char);
-        encoded.push(DIGITS[(byte & 0x0f) as usize] as char);
-    }
-    encoded
-}
-
 fn sha1(data: &[u8]) -> [u8; 20] {
     Sha1::digest(data).into()
 }
@@ -564,11 +486,34 @@ fn ffprobe_json(path: &Path, extra: &[&str]) -> serde_json::Value {
     serde_json::from_slice(&output).expect("ffprobe json")
 }
 
+fn cover_bytes(path: &Path) -> Vec<u8> {
+    let mut input = ffmpeg_next::format::input(path).expect("open book");
+    let index = input
+        .streams()
+        .find(|stream| {
+            stream
+                .disposition()
+                .contains(ffmpeg_next::format::stream::Disposition::ATTACHED_PIC)
+        })
+        .expect("cover stream")
+        .index();
+    input
+        .packets()
+        .find(|(stream, _)| stream.index() == index)
+        .and_then(|(_, packet)| packet.data().map(<[u8]>::to_vec))
+        .expect("cover packet")
+}
+
 fn assert_matches_source(output: &Path, source: &Path) {
     assert_eq!(
         audio_packet_bytes(output),
         audio_packet_bytes(source),
         "audio packets must match the generated source"
+    );
+    assert_eq!(
+        cover_bytes(output),
+        cover_bytes(source),
+        "cover picture must match the generated source"
     );
 
     let out_format = ffprobe_json(output, &["-show_format", "-show_chapters"]);
@@ -627,144 +572,147 @@ fn assert_matches_source(output: &Path, source: &Path) {
     }
 }
 
-async fn helper_accepts(
-    lane: AaxcleanLane,
-    input: PathBuf,
-    secret: AaxcleanSecret,
-) -> Result<(), AppError> {
-    let root = TempDir::new().expect("materialize root");
-    let output = root.path().join("book.m4b");
-    let materializer = AaxcleanMaterializer::new_for_helper(None);
-    materializer
-        .materialize(
-            MaterializationRequest {
-                job_id: "decrypt-job".into(),
-                operation_id: "decrypt-op".into(),
-                lane,
-                input_path: input,
-                output_path: output,
-                secret,
-            },
-            |_| {},
-            || false,
-        )
-        .await
-        .map(|_| ())
+fn played_samples(path: &Path) -> usize {
+    let pcm = ffmpeg([
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        path.to_str().expect("utf8 path"),
+        "-map",
+        "0:a",
+        "-f",
+        "s16le",
+        "-",
+    ]);
+    pcm.len() / 4
 }
 
-fn aaxc_secret() -> AaxcleanSecret {
-    aaxc_secret_with(AAXC_KEY_HEX)
-}
-
-fn aaxc_secret_with(key_hex: &str) -> AaxcleanSecret {
-    AaxcleanSecret::Aaxc {
-        key_hex: SecretString::from(key_hex),
-        iv_hex: SecretString::from(AAXC_IV_HEX),
+fn aax_material(activation_bytes_hex: &str) -> AudibleDecryptionMaterial {
+    AudibleDecryptionMaterial::Aax {
+        activation_bytes: SecretBox::new(Box::new(
+            hex_bytes(activation_bytes_hex)
+                .try_into()
+                .expect("4-byte hex"),
+        )),
     }
 }
 
-async fn materialize_protected(
-    source: &Path,
-    download_name: &str,
-    secret: AaxcleanSecret,
-) -> Result<
-    (TempDir, ProtectedMaterializationRun),
-    Box<(RemoteSourceDiagnostic, TempDir, ProtectedMaterializationRun)>,
-> {
-    let root = TempDir::new().expect("protected download root");
-    let input = root.path().join(download_name);
-    std::fs::copy(source, &input).expect("copy protected download");
-    match run_protected_materialization(&input, root.path(), &secret).await {
-        Ok(run) => Ok((root, run)),
-        Err((diagnostic, run)) => Err(Box::new((diagnostic, root, run))),
-    }
-}
-
-fn aax_secret(activation: &str) -> AaxcleanSecret {
-    AaxcleanSecret::Aax {
-        activation_bytes_hex: SecretString::from(activation),
+fn aaxc_material(key_hex: &str) -> AudibleDecryptionMaterial {
+    AudibleDecryptionMaterial::Aaxc {
+        key: SecretBox::new(Box::new(hex_16(key_hex))),
+        iv: SecretBox::new(Box::new(hex_16(AAXC_IV_HEX))),
     }
 }
 
 #[derive(Debug)]
 struct ProtectedMaterializationRun {
-    pub output: std::path::PathBuf,
-    pub partial: std::path::PathBuf,
+    pub output: PathBuf,
+    pub partial: PathBuf,
 }
+
+type MaterializationFailure = Box<(RemoteSourceDiagnostic, TempDir, ProtectedMaterializationRun)>;
+
+async fn materialize_protected(
+    source: &Path,
+    download_name: &str,
+    material: AudibleDecryptionMaterial,
+) -> Result<(TempDir, ProtectedMaterializationRun), MaterializationFailure> {
+    let root = TempDir::new().expect("protected download root");
+    let input = root.path().join(download_name);
+    std::fs::copy(source, &input).expect("copy protected download");
+    match run_protected_materialization(&input, root.path(), &material, &|| false).await {
+        (Ok(()), run) => Ok((root, run)),
+        (Err(error), run) => Err(Box::new((
+            AudibleAcquisitionError::materialization(error)
+                .into_diagnostic(Some(TITLE_ID.to_string())),
+            root,
+            run,
+        ))),
+    }
+}
+
+const TITLE_ID: &str = "B0DECRYPT";
 
 async fn run_protected_materialization(
     downloaded_path: &Path,
     item_dir: &Path,
-    secret: &AaxcleanSecret,
-) -> std::result::Result<
-    ProtectedMaterializationRun,
-    (RemoteSourceDiagnostic, ProtectedMaterializationRun),
-> {
-    let title_id = "B0DECRYPT";
+    material: &AudibleDecryptionMaterial,
+    is_cancelled: &impl Fn() -> bool,
+) -> (Result<(), AppError>, ProtectedMaterializationRun) {
     let title_name = "Synthetic Book";
-    let output = staged_materialized_path(item_dir, Some(title_name), title_id);
-    let partial = crate::remote_source::scoped_output::partial_sibling(&output);
+    let output = staged_materialized_path(item_dir, Some(title_name), TITLE_ID);
     let run = ProtectedMaterializationRun {
+        partial: crate::remote_source::scoped_output::partial_sibling(&output),
         output: output.clone(),
-        partial,
     };
     let ctx = TitleAcquisitionCtx {
         job_id: "decrypt-job",
-        title_id,
-        item_id: "decrypt-op",
+        title_id: TITLE_ID,
         item_dir,
         progress_context: TitleProgressContext {
-            title_id,
+            title_id: TITLE_ID,
             item_index: 1,
             total_items: 1,
         },
     };
-    let materializer = AaxcleanMaterializer::new_for_helper(None);
-    let material = material_for_secret(secret);
-    match materialize_protected_download(
-        &materializer,
+    let result = materialize_protected_download(
         downloaded_path,
         Some(title_name),
-        &material,
+        material,
         ctx,
         &mut |_| {},
-        &|| false,
+        is_cancelled,
     )
     .await
-    {
-        Ok(source) => {
-            assert_eq!(source.path, output, "materialized path");
-            Ok(run)
-        }
-        Err(error) => Err((
-            AudibleAcquisitionError::materialization(error)
-                .into_diagnostic(Some(title_id.to_string())),
-            run,
-        )),
-    }
+    .map(|source| assert_eq!(source.path, output, "materialized path"));
+    (result, run)
 }
 
-fn material_for_secret(secret: &AaxcleanSecret) -> abb_audible_core::AudibleDecryptionMaterial {
-    match secret {
-        AaxcleanSecret::Aax {
-            activation_bytes_hex,
-        } => abb_audible_core::AudibleDecryptionMaterial::Aax {
-            activation_bytes_hex: activation_bytes_hex.clone(),
-        },
-        AaxcleanSecret::Aaxc { key_hex, iv_hex } => {
-            abb_audible_core::AudibleDecryptionMaterial::Aaxc {
-                key_hex: key_hex.clone(),
-                iv_hex: iv_hex.clone(),
-            }
-        }
+fn assert_message_holds_no_secret(message: &str, secrets: &[&str]) {
+    let message = message.to_ascii_lowercase();
+    for secret in secrets {
+        assert!(!message.contains(secret), "message must not hold a secret");
     }
+    assert!(!message.contains('/'), "message must not include a path");
+}
+
+#[test]
+fn the_probe_reads_each_lane_brand_and_drm_box_from_the_encrypted_books() {
+    let books = books();
+    let read =
+        crate::remote_source::providers::audible::protected_file_probe::read_protected_file_facts;
+
+    let aax = read(&books.aax).expect("aax facts");
+    let aaxc = read(&books.aaxc).expect("aaxc facts");
+
+    assert_eq!(
+        (aax.major_brand.as_str(), aax.drm_boxes),
+        (
+            "aax ",
+            Some(DrmBoxes {
+                adrm_present: true,
+                aavd_entry_present: true
+            })
+        )
+    );
+    assert_eq!(
+        (aaxc.major_brand.as_str(), aaxc.drm_boxes),
+        (
+            "aaxc",
+            Some(DrmBoxes {
+                adrm_present: false,
+                aavd_entry_present: true
+            })
+        )
+    );
 }
 
 #[tokio::test]
 async fn aax_decrypts_to_the_generated_source() {
     let books = books();
     let (_root, run) =
-        materialize_protected(&books.aax, "source.aax", aax_secret(AAX_ACTIVATION_HEX))
+        materialize_protected(&books.aax, "source.aax", aax_material(AAX_ACTIVATION_HEX))
             .await
             .unwrap_or_else(|failure| panic!("aax decrypt failed: {}", failure.0.message));
     assert_matches_source(&run.output, &books.source);
@@ -773,10 +721,35 @@ async fn aax_decrypts_to_the_generated_source() {
 #[tokio::test]
 async fn aaxc_decrypts_to_the_generated_source() {
     let books = books();
-    let (_root, run) = materialize_protected(&books.aaxc, "source.aaxc", aaxc_secret())
-        .await
-        .unwrap_or_else(|failure| panic!("aaxc decrypt failed: {}", failure.0.message));
+    let (_root, run) =
+        materialize_protected(&books.aaxc, "source.aaxc", aaxc_material(AAXC_KEY_HEX))
+            .await
+            .unwrap_or_else(|failure| panic!("aaxc decrypt failed: {}", failure.0.message));
     assert_matches_source(&run.output, &books.source);
+}
+
+#[tokio::test]
+async fn decrypt_plays_exactly_the_samples_the_source_edit_list_plays() {
+    let books = edit_list_books();
+    assert_eq!(
+        played_samples(&books.source),
+        EDIT_LIST_PLAYED_SAMPLES,
+        "the source must play its length, not its whole frames"
+    );
+    let lanes = [
+        (&books.aax, "source.aax", aax_material(AAX_ACTIVATION_HEX)),
+        (&books.aaxc, "source.aaxc", aaxc_material(AAXC_KEY_HEX)),
+    ];
+    for (book, name, material) in lanes {
+        let (_root, run) = materialize_protected(book, name, material)
+            .await
+            .unwrap_or_else(|failure| panic!("decrypt failed: {}", failure.0.message));
+        assert_eq!(
+            played_samples(&run.output),
+            EDIT_LIST_PLAYED_SAMPLES,
+            "{name}: decrypt must keep the source's played length"
+        );
+    }
 }
 
 #[tokio::test]
@@ -785,7 +758,7 @@ async fn wrong_aax_activation_bytes_fail_and_leave_no_output() {
     let (diagnostic, _root, run) = *materialize_protected(
         &books.aax,
         "source.aax",
-        aax_secret(AAX_WRONG_ACTIVATION_HEX),
+        aax_material(AAX_WRONG_ACTIVATION_HEX),
     )
     .await
     .expect_err("wrong activation bytes must fail");
@@ -794,39 +767,28 @@ async fn wrong_aax_activation_bytes_fail_and_leave_no_output() {
         RemoteAcquisitionFailureKind::MaterializationFailed
     );
     assert!(
-        diagnostic.message.contains("conversion_failed"),
-        "wrong activation bytes must fail as conversion_failed, not a missing/stub helper: {}",
+        diagnostic.message.contains("opening the download"),
+        "wrong activation bytes must be refused when the file opens: {}",
         diagnostic.message
+    );
+    assert_message_holds_no_secret(
+        &diagnostic.message,
+        &[AAX_WRONG_ACTIVATION_HEX, AAX_ACTIVATION_HEX],
     );
     assert!(!run.output.exists(), "no committed output");
     assert!(!run.partial.exists(), "no partial output");
 }
 
 #[tokio::test]
-async fn wrong_aaxc_key_fails_at_materialization_when_helper_accepts_it() {
+async fn wrong_aaxc_key_is_rejected_by_the_decodes_as_audio_gate() {
     let books = books();
-    let aaxc = std::fs::read(&books.aaxc).expect("read aaxc fixture");
-    let key = wrong_aaxc_key_hex(&aaxc);
-    assert_ne!(
-        key, AAXC_KEY_HEX,
-        "the searched key must not be the real key"
-    );
-
-    // The helper still exits 0: AAXClean's frame check does not know this key is wrong.
-    helper_accepts(
-        AaxcleanLane::Aaxc,
-        books.aaxc.clone(),
-        aaxc_secret_with(&key),
+    let (diagnostic, _root, run) = *materialize_protected(
+        &books.aaxc,
+        "source.aaxc",
+        aaxc_material(WRONG_AAXC_KEY_HEX),
     )
     .await
-    .expect("helper must exit 0 for a wrong key its frame check accepts");
-
-    let (diagnostic, _root, run) =
-        *materialize_protected(&books.aaxc, "source.aaxc", aaxc_secret_with(&key))
-            .await
-            .expect_err(
-                "wrong AAXC key must fail at materialization, not return Ok for later validation",
-            );
+    .expect_err("wrong AAXC key must fail at materialization, not return Ok for later validation");
     assert_eq!(
         diagnostic.kind,
         RemoteAcquisitionFailureKind::MaterializationFailed
@@ -841,56 +803,195 @@ async fn wrong_aaxc_key_fails_at_materialization_when_helper_accepts_it() {
         "message must say the decrypt output is not audio: {}",
         diagnostic.message
     );
-    assert!(
-        !diagnostic.message.to_ascii_lowercase().contains(&key),
-        "message must not include the key: {}",
-        diagnostic.message
-    );
-    assert!(
-        !diagnostic
-            .message
-            .to_ascii_lowercase()
-            .contains(AAXC_IV_HEX),
-        "message must not include the iv: {}",
-        diagnostic.message
-    );
-    assert!(
-        !diagnostic.message.contains('/'),
-        "message must not include a path: {}",
-        diagnostic.message
+    assert_message_holds_no_secret(
+        &diagnostic.message,
+        &[WRONG_AAXC_KEY_HEX, AAXC_KEY_HEX, AAXC_IV_HEX],
     );
     assert!(!run.output.exists(), "no committed m4b");
     assert!(!run.partial.exists(), "no partial");
 }
 
 #[tokio::test]
-async fn cancel_kills_the_helper_and_leaves_no_output() {
+async fn a_download_that_does_not_match_the_license_lane_is_refused() {
+    let books = books();
+    let cases = [
+        (&books.aax, "source.aax", aaxc_material(AAXC_KEY_HEX)),
+        (&books.aaxc, "source.aaxc", aax_material(AAX_ACTIVATION_HEX)),
+        (&books.source, "source.aaxc", aaxc_material(AAXC_KEY_HEX)),
+    ];
+    for (book, name, material) in cases {
+        let (diagnostic, _root, run) = *materialize_protected(book, name, material)
+            .await
+            .expect_err("a lane mismatch must fail");
+        assert_eq!(
+            diagnostic.kind,
+            RemoteAcquisitionFailureKind::MaterializationFailed
+        );
+        assert!(
+            diagnostic.message.contains("does not match"),
+            "message must say the lane does not match: {}",
+            diagnostic.message
+        );
+        assert_message_holds_no_secret(
+            &diagnostic.message,
+            &[AAXC_KEY_HEX, AAXC_IV_HEX, AAX_ACTIVATION_HEX],
+        );
+        assert!(!run.output.exists(), "no committed output");
+        assert!(!run.partial.exists(), "no partial output");
+    }
+}
+
+#[tokio::test]
+async fn cancel_leaves_no_output_and_no_partial() {
     let books = books();
     let root = TempDir::new().expect("cancel root");
-    let output = root.path().join("book.m4b");
-    let partial = root.path().join("book.m4b.partial");
-    let materializer = AaxcleanMaterializer::new_for_helper(None);
-    let saw_progress = AtomicBool::new(false);
-    let result = materializer
-        .materialize(
-            MaterializationRequest {
-                job_id: "decrypt-cancel".into(),
-                operation_id: "decrypt-cancel-op".into(),
-                lane: AaxcleanLane::Aaxc,
-                input_path: books.aaxc.clone(),
-                output_path: output.clone(),
-                secret: aaxc_secret(),
-            },
-            |_| {
-                saw_progress.store(true, Ordering::SeqCst);
-            },
-            || saw_progress.load(Ordering::SeqCst),
-        )
-        .await;
+    let input = root.path().join("source.aaxc");
+    std::fs::copy(&books.aaxc, &input).expect("copy protected download");
+    let polls = std::cell::Cell::new(0_u32);
+    let cancel_after_start = || {
+        polls.set(polls.get() + 1);
+        polls.get() > 1
+    };
+
+    let (result, run) = run_protected_materialization(
+        &input,
+        root.path(),
+        &aaxc_material(AAXC_KEY_HEX),
+        &cancel_after_start,
+    )
+    .await;
+
     assert!(
         matches!(result, Err(AppError::Cancellation(_))),
         "cancel should stop decrypt, got {result:?}"
     );
-    assert!(!output.exists(), "no committed output");
-    assert!(!partial.exists(), "no partial output");
+    assert!(!run.output.exists(), "no committed output");
+    assert!(!run.partial.exists(), "no partial output");
+}
+
+#[test]
+fn the_stream_copy_stops_at_the_next_packet_when_told_to() {
+    let books = books();
+    let dir = TempDir::new().expect("stop dir");
+    let output = dir.path().join("out.m4b");
+    let control = CopyControl::default();
+    control.request_stop();
+
+    let result = stream_copy(&books.source, &output, &[], &control);
+
+    assert!(
+        matches!(result, Err(AppError::Cancellation(_))),
+        "{result:?}"
+    );
+    assert_eq!(control.fraction(), 0.0, "no packet was copied");
+    assert!(!output.exists(), "the stopped copy removes its own partial");
+}
+
+const LEAK_CHILD_ENV: &str = "ABB_DECRYPT_LEAK_CHILD";
+
+struct StderrLogger;
+
+impl log::Log for StderrLogger {
+    fn enabled(&self, _: &log::Metadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &log::Record) {
+        eprintln!("{} {}", record.level(), record.args());
+    }
+
+    fn flush(&self) {}
+}
+
+static STDERR_LOGGER: StderrLogger = StderrLogger;
+
+fn leak_child_test_name() -> String {
+    let module = module_path!();
+    let module = module.split_once("::").map_or(module, |(_, rest)| rest);
+    format!("{module}::decrypt_cases_run_for_the_leak_check")
+}
+
+/// The child half of `decrypting_never_prints_a_secret_or_the_file_checksum`.
+/// It does nothing unless that test started it, so the parent can read all
+/// the output of this process, FFmpeg's and every `log` level included.
+#[tokio::test]
+async fn decrypt_cases_run_for_the_leak_check() {
+    if std::env::var_os(LEAK_CHILD_ENV).is_none() {
+        return;
+    }
+    crate::audio::limit_ffmpeg_logging();
+    log::set_logger(&STDERR_LOGGER).expect("install the leak check logger");
+    log::set_max_level(log::LevelFilter::Trace);
+    let books = books();
+    let junk = TempDir::new().expect("junk dir");
+    let not_mp4 = junk.path().join("not-mp4.bin");
+    std::fs::write(&not_mp4, vec![0x5a_u8; 4096]).expect("write junk");
+    let lanes = [
+        (
+            &books.aax,
+            aax_material(AAX_ACTIVATION_HEX),
+            aax_material(AAX_WRONG_ACTIVATION_HEX),
+        ),
+        (
+            &books.aaxc,
+            aaxc_material(AAXC_KEY_HEX),
+            aaxc_material(WRONG_AAXC_KEY_HEX),
+        ),
+    ];
+    for (book, right, wrong) in lanes {
+        let accepted = |outcome: Result<_, MaterializationFailure>| outcome.is_ok();
+        assert!(accepted(
+            materialize_protected(book, "book.enc", right).await
+        ));
+        assert!(!accepted(
+            materialize_protected(book, "book.enc", wrong).await
+        ));
+    }
+    for material in [
+        aax_material(AAX_ACTIVATION_HEX),
+        aaxc_material(AAXC_KEY_HEX),
+    ] {
+        let outcome = materialize_protected(&not_mp4, "book.enc", material).await;
+        assert!(outcome.is_err());
+    }
+}
+
+#[test]
+fn decrypting_never_prints_a_secret_or_the_file_checksum() {
+    let output = std::process::Command::new(std::env::current_exe().expect("test binary"))
+        .args([
+            "--exact",
+            &leak_child_test_name(),
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env(LEAK_CHILD_ENV, "1")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("run the decrypt child");
+    let stdout = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_ascii_lowercase();
+
+    assert!(
+        output.status.success() && stdout.contains("1 passed"),
+        "the child ran its decrypt cases: {stdout} {stderr}"
+    );
+    assert!(
+        stderr.contains("stage=protected_file_facts"),
+        "the child's log records reach stderr: {stderr}"
+    );
+    let printed = format!("{stdout}{stderr}");
+    for secret in [
+        AAXC_KEY_HEX,
+        AAXC_IV_HEX,
+        WRONG_AAXC_KEY_HEX,
+        AAX_ACTIVATION_HEX,
+        AAX_WRONG_ACTIVATION_HEX,
+        "file checksum",
+    ] {
+        assert!(
+            !printed.contains(&secret.to_ascii_lowercase()),
+            "the child printed a secret or the AAX file checksum"
+        );
+    }
 }

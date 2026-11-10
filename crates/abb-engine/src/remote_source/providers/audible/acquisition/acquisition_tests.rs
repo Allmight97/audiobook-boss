@@ -28,7 +28,6 @@ async fn job_and_staging_after_license_body(
     let outcome = acquire_one(
         &api,
         &signing_auth("us"),
-        &AaxcleanMaterializer::new_for_helper(None),
         TitleAcquisitionRequest {
             title_id: "B000000001",
             include_pdf: false,
@@ -246,9 +245,7 @@ fn an_encrypted_download_is_refused_because_it_does_not_decode_as_audio() {
 }
 
 #[test]
-fn helper_lane_follows_voucher_key_shape_not_content_url_extension() {
-    use crate::remote_source::materializer::{AaxcleanLane, AaxcleanSecret};
-    use crate::remote_source::providers::audible::materialization::helper_material_from_audible_material;
+fn decrypt_lane_follows_voucher_key_shape_not_content_url_extension() {
     use abb_audible_core::audible_decryption_material_from_license;
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 
@@ -277,15 +274,19 @@ fn helper_lane_follows_voucher_key_shape_not_content_url_extension() {
     .expect("aaxc-shaped material")
     .material;
 
-    let (helper_lane, secret) = helper_material_from_audible_material(&material);
-
-    assert_eq!(helper_lane, AaxcleanLane::Aaxc);
-    match secret {
-        AaxcleanSecret::Aaxc { key_hex, iv_hex } => {
-            assert_eq!(key_hex.expose_secret(), "0102030405060708090a0b0c0d0e0f10");
-            assert_eq!(iv_hex.expose_secret(), "100f0e0d0c0b0a090807060504030201");
+    assert_eq!(material.kind(), DecryptKind::Aaxc);
+    match material {
+        AudibleDecryptionMaterial::Aaxc { key, iv } => {
+            assert_eq!(
+                key.expose_secret(),
+                &std::array::from_fn(|index| index as u8 + 1)
+            );
+            assert_eq!(
+                iv.expose_secret(),
+                &std::array::from_fn(|index| 16 - index as u8)
+            );
         }
-        AaxcleanSecret::Aax { .. } => panic!("unexpected aax helper secret"),
+        AudibleDecryptionMaterial::Aax { .. } => panic!("unexpected aax material"),
     }
 }
 
@@ -330,7 +331,6 @@ impl FinalizeFixture {
                 ctx: TitleAcquisitionCtx {
                     job_id: "job-1",
                     title_id: "B000000001",
-                    item_id: "item-1",
                     item_dir: self.root.path(),
                     progress_context: TitleProgressContext {
                         title_id: "B000000001",

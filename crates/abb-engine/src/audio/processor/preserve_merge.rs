@@ -152,7 +152,7 @@ fn remux(files: &[AudioFile], destination: &Path, context: &ProcessingContext) -
     let mut stream = output.add_stream(ff::encoder::find(expected.codec))?;
     stream.set_parameters(parameters);
     stream.set_time_base(expected.time_base);
-    output.write_header()?;
+    crate::audio::write_output_header(&mut output, ff::Dictionary::new())?;
     let time_base = output.stream(0).expect("created stream").time_base();
     let mut offset = 0_i64;
     let mut durations = Vec::with_capacity(files.len());

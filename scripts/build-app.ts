@@ -2,8 +2,6 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
-import { aaxcleanHelperBaseName, publishAaxcleanHelper } from './publish-aaxclean-helper';
-
 interface PackageJson {
 	name: string;
 }
@@ -17,7 +15,6 @@ interface BundlePaths {
 	bundleDir: string;
 	canonicalAppPath: string;
 	executablePath: string;
-	helperExecutablePath: string;
 	applicationsAppPath: string;
 	dmgDir: string;
 }
@@ -28,8 +25,6 @@ interface BuildTauriAppOptions {
 	commandRunner?: typeof spawnSync;
 	nonInteractiveDmg?: boolean;
 }
-
-const aaxcleanHelperExternalBin = `binaries/${aaxcleanHelperBaseName}`;
 
 function readJson<T>(filePath: string): T {
 	return JSON.parse(readFileSync(filePath, 'utf8')) as T;
@@ -118,7 +113,6 @@ export function resolveMacOsBundlePaths(
 		bundleDir,
 		canonicalAppPath,
 		executablePath: path.join(canonicalAppPath, 'Contents', 'MacOS', packageJson.name),
-		helperExecutablePath: path.join(canonicalAppPath, 'Contents', 'MacOS', aaxcleanHelperBaseName),
 		applicationsAppPath: path.join(applicationsDir, `${tauriConfig.productName}.app`),
 		dmgDir: path.join(repoRoot, 'target/release/bundle/dmg'),
 	};
@@ -167,15 +161,7 @@ export function buildTauriApp(
 	buildArgs: string[],
 	options: BuildTauriAppOptions = {},
 ): void {
-	const requestedBundles = resolveRequestedBundles(buildArgs);
-	publishAaxcleanHelper(repoRoot, {
-		commandRunner: options.commandRunner,
-		force: requestedBundles.has('dmg'),
-	});
-
-	const tauriArgs = addAaxcleanHelperConfigArg(
-		ensureFeatureArg(buildArgs, '--features', 'bundled-ffmpeg'),
-	);
+	const tauriArgs = ensureFeatureArg(buildArgs, '--features', 'bundled-ffmpeg');
 	const env = options.nonInteractiveDmg
 		? {
 				...process.env,
@@ -205,20 +191,6 @@ export function buildTauriApp(
 	}
 }
 
-export function addAaxcleanHelperConfigArg(args: string[]): string[] {
-	const [tauriArgs, trailingArgs] = splitArgsAtBoundary(args);
-	return [
-		...tauriArgs,
-		'--config',
-		JSON.stringify({
-			bundle: {
-				externalBin: [aaxcleanHelperExternalBin],
-			},
-		}),
-		...trailingArgs,
-	];
-}
-
 export function verifyMacOsBundle(
 	paths: BundlePaths,
 	commandRunner: typeof spawnSync = spawnSync,
@@ -231,17 +203,9 @@ export function verifyMacOsBundle(
 		throw new Error(`Expected app executable at ${paths.executablePath}`);
 	}
 
-	if (!existsSync(paths.helperExecutablePath)) {
-		throw new Error(`Expected AAXClean helper executable at ${paths.helperExecutablePath}`);
-	}
-
 	const macOsDir = path.dirname(paths.executablePath);
-	const expectedExecutables = new Set([
-		path.basename(paths.executablePath),
-		path.basename(paths.helperExecutablePath),
-	]);
 	const unexpectedExecutables = readdirSync(macOsDir).filter(
-		(entry) => !expectedExecutables.has(entry),
+		(entry) => entry !== path.basename(paths.executablePath),
 	);
 	if (unexpectedExecutables.length > 0) {
 		throw new Error(
@@ -253,9 +217,7 @@ export function verifyMacOsBundle(
 	}
 
 	verifyMacOsExecutableArchitecture(paths.executablePath, commandRunner);
-	verifyMacOsExecutableArchitecture(paths.helperExecutablePath, commandRunner);
 	verifyMacOsExecutableLinks(paths.executablePath, commandRunner);
-	verifyMacOsExecutableLinks(paths.helperExecutablePath, commandRunner);
 	runCheckedCommand(commandRunner, 'codesign', [
 		'--verify',
 		'--deep',

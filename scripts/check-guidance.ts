@@ -16,7 +16,7 @@ export interface GuidanceContext {
 }
 
 const GUIDANCE_FILE =
-	/(^|\/)(AGENTS|CLAUDE|REVIEW)\.md$|^README\.md$|^\.agents\/.*\.md$|^docs\/.*\.md$|^tools\/.*\/README\.md$|^vendor\/[^/]+\/ABB-PROVENANCE\.md$/;
+	/(^|\/)(AGENTS|CLAUDE|REVIEW)\.md$|^README\.md$|^\.agents\/.*\.md$|^docs\/.*\.md$|^vendor\/[^/]+\/ABB-PROVENANCE\.md$/;
 const SKILL_FILE = /^\.agents\/skills\/[^/]+\/SKILL\.md$/;
 const COMMAND_COPY = /\bcargo (test|clippy|fmt|run|build|check|audit|deny)\b|--features\b/;
 const BUN_RUN = /^bun run ([\w:.-]+)/;

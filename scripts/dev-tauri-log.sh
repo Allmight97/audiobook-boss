@@ -294,7 +294,6 @@ is_repo_dev_process() {
 		"$command" == *"bun run tauri dev"* ||
 		"$command" == *"bun scripts/tauri.ts dev"* ||
 		"$command" == *"node_modules/.bin/tauri dev"* ||
-		"$command" == *"aaxclean-helper:publish && bun run dev"* ||
 		"$command" == *"bun run dev"* ||
 		"$command" == *"node_modules/.bin/vite"* ||
 		"$command" == *" vite"* ]]
@@ -440,6 +439,7 @@ ln -sfn "runs/$run_id/tauri-dev.log" "$latest_log_file"
 ln -sfn "runs/$run_id/tauri-dev-summary.md" "$latest_summary_file"
 ln -sfn "runs/$run_id/encoding.log" "$latest_encoding_log"
 prune_run_history
+bun "$repo_root/scripts/clean.ts" --auto
 
 cat > "$encoding_log" <<EOF
 # ABB encoding log
