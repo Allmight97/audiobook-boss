@@ -339,3 +339,7 @@ mod integration_decrypt_tests;
 #[cfg(test)]
 #[path = "title_failure_tests.rs"]
 mod title_failure_tests;
+
+#[cfg(test)]
+#[path = "layer_identity_tests.rs"]
+mod layer_identity_tests;
