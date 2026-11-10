@@ -81,6 +81,16 @@ const CAPTURE_WITH_SILENCE = /\$\((?:[^()]|\([^()]*\))*(2>\s*\/dev\/null|\|\|\s*
 
 const RULES: Rule[] = [
 	{
+		appliesTo: (file) =>
+			OWNED_RUST(file) &&
+			!RUST_TEST_FILE(file) &&
+			file !== 'crates/abb-engine/src/audio/output_header.rs',
+		comment: /^\s*\/\//,
+		findIn: (line) => CODE_ONLY(line).match(/\.write_header(?:_with)?\(/)?.[0] ?? null,
+		message:
+			'writes an output header outside its owner, which pins the MP4 movie timescale so long chapters survive. Fix: call `crate::audio::write_output_header` (crates/abb-engine/src/audio/AGENTS.md).',
+	},
+	{
 		appliesTo: PURE_CORE,
 		comment: /^\s*\/\//,
 		findIn: (line) => CODE_ONLY(line).match(/\b(?:std::(?:fs|net|process)|tokio)::/)?.[0] ?? null,

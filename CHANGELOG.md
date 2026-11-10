@@ -8,6 +8,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 - A title you switch from Opus back to M4B keeps its AAC bitrate. It used to take the Opus
   bitrate instead.
+- Preserve on an M4B with a cover keeps new chapters longer than about 8 minutes. The export used
+  to fail because those chapters were lost.
 - A title that already finished no longer reads "Cancelling" in the status panel after you
   cancel a whole preview.
 - A bitrate the engine refuses for several selected titles leaves the field on "Mixed". It used

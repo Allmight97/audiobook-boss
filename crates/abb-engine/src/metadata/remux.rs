@@ -488,9 +488,7 @@ fn write_container_header(
     {
         options.set("write_xing", "0");
     }
-    octx.write_header_with(options)
-        .map(|_| ())
-        .map_err(AppError::Ffmpeg)
+    crate::audio::write_output_header(octx, options)
 }
 
 fn log_cover_selection(

@@ -91,6 +91,13 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
   channels, duration, and a channel-level check such as RMS/peak parity. Notes
   on Native AAC artifacts separate structural correctness from subjective
   encoder quality.
+- Every output header goes through `write_output_header`. It pins an MP4's
+  movie timescale to the audio sample rate and rejects an option the muxer
+  does not take. Why: FFmpeg otherwise derives the timescale from all streams
+  (audio 1/44100 plus a cover at 1/90000 gives 4,410,000), and the chapter
+  track then drops every chapter longer than about 487 seconds. The sample
+  rate keeps edit lists sample-exact; a chapter still caps at 2^31 ticks
+  (13.5 hours at 44.1 kHz), so every MP4 writer reads its chapters back.
 
 ## Import Discovery
 

@@ -179,13 +179,16 @@ fn write_copy(
     let mut octx = ff::format::output_as(partial, crate::audio::Muxer::Mp4.ffmpeg_name())
         .map_err(|error| decrypt_failure("creating the output", error))?;
     let mapping = copy_streams(&ictx, &mut octx)?;
-    copy_chapters(&ictx, &mut octx);
+    copy_chapters(&ictx, &mut octx)?;
     octx.set_metadata(ictx.metadata().to_owned());
-    octx.write_header()
+    crate::audio::write_output_header(&mut octx, ff::Dictionary::new())
         .map_err(|error| decrypt_failure("writing the output header", error))?;
     copy_packets(&mut ictx, &mut octx, &mapping, control)?;
     octx.write_trailer()
-        .map_err(|error| decrypt_failure("finishing the output", error))
+        .map_err(|error| decrypt_failure("finishing the output", error))?;
+    drop(octx);
+    crate::metadata::verify_chapters(partial, &crate::metadata::read_chapters(&ictx))
+        .map_err(|error| decrypt_failure("checking the chapters", error))
 }
 
 fn refuse_lane_mismatch(input: &Path, kind: DecryptKind) -> Result<()> {
@@ -245,22 +248,22 @@ fn copy_streams(
     Ok(mapping)
 }
 
-fn copy_chapters(ictx: &ff::format::context::Input, octx: &mut ff::format::context::Output) {
+fn copy_chapters(
+    ictx: &ff::format::context::Input,
+    octx: &mut ff::format::context::Output,
+) -> Result<()> {
     for chapter in ictx.chapters() {
         let title = chapter.metadata().get("title").unwrap_or("").to_string();
-        if let Err(error) = octx.add_chapter(
+        octx.add_chapter(
             chapter.id(),
             chapter.time_base(),
             chapter.start(),
             chapter.end(),
             title,
-        ) {
-            log::warn!(
-                "remote_source audible stage=decrypt_chapter_skipped id={}: {error}",
-                chapter.id()
-            );
-        }
+        )
+        .map_err(|error| decrypt_failure(&format!("copying chapter {}", chapter.id()), error))?;
     }
+    Ok(())
 }
 
 fn copy_packets(
