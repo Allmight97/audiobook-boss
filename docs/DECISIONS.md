@@ -10,11 +10,16 @@ itself: ready work only, cancelled when a newer revision replaces it, and
 thin enough that a draft does not spend a runner. The workflow
 `.github/workflows/ci.yml` and `scripts/check-pr-workflow-policy.ts` own
 those rules.
-An agent review runs once when a pull request opens ready, reopens, or leaves
-draft (`.github/workflows/claude-review.yml`), never per push; the policy
-check rejects any agent-review workflow with other triggers. In a draft, a
-review runs only when someone asks for one with an @claude comment
-(`claude.yml`). A review that posts nothing fails its job.
+An agent review runs once, when a pull request opens ready or leaves draft
+(`.github/workflows/claude-review.yml`), never per push; the policy check
+rejects any agent-review workflow with other triggers. A pull request that
+changes fewer than 300 lines gets no automatic review. Why: every agent opens
+pull requests as the owner, and about half of them (22 of 49 from 2026-10-07
+to 2026-11-10) were CI, guidance, or tidiness changes under that size. A later
+review runs when the pull request leaves draft again or someone adds the
+`claude-review` label, which requests a review at any size; in a draft, an
+@claude comment does (`claude.yml`). A review that posts nothing fails its
+job.
 
 Only main's own runs can save the caches every pull request restores: GitHub
 gives a pull request's runs read-only access to main's cache scope, and a

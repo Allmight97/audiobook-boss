@@ -2,18 +2,45 @@ name: claude review
 
 on:
   pull_request:
-    types: [opened, ready_for_review, reopened]
+    types: [opened, ready_for_review, labeled]
 
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name || 'auto' }}
   cancel-in-progress: true
 
 jobs:
+  size:
+    name: Review size gate
+    if: >-
+      github.event.pull_request.draft != true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.sender.type == 'User' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'claude-review')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions: {}
+    outputs:
+      review: ${{ steps.size.outputs.review }}
+    steps:
+      - id: size
+        env:
+          ACTION: ${{ github.event.action }}
+          ADDITIONS: ${{ github.event.pull_request.additions }}
+          DELETIONS: ${{ github.event.pull_request.deletions }}
+        run: |
+          if [ "${ACTION}" = labeled ] || [ $((ADDITIONS + DELETIONS)) -ge 300 ]; then
+            echo "review=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "review=false" >> "$GITHUB_OUTPUT"
+            echo "Skipped: $((ADDITIONS + DELETIONS)) changed lines is under 300; add the claude-review label to review it."
+          fi
+
   review:
     name: Claude review
-    if: github.event.pull_request.draft != true && github.actor != 'dependabot[bot]'
+    needs: size
+    if: github.event.pull_request.draft != true && needs.size.outputs.review == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -47,7 +74,7 @@ jobs:
             Post findings as inline comments and finish with one summary comment.
           # Pinned so reviews never fall back to the action's older default model.
           claude_args: |
-            --model claude-opus-5-5 --effort high
+            --model claude-fable-5-2 --effort high
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
       # Text from the review is wrapped in stop-commands so it cannot issue workflow commands.
       - name: Fail when the review posted nothing

@@ -172,6 +172,10 @@ another CI run.
   and deliver the work this way.
 - Roadmaps are the owner's call, announced case by case. Link an issue when
   one exists; one is not required.
+- After a batch of review fixes on a ready PR of 300 or more changed lines,
+  mark it draft before pushing them and ready again after: that starts one
+  more agent review. Why: the review runs when a PR leaves draft, never per
+  push (`docs/DECISIONS.md`).
 - Local proof is the primary proof. CI is the last check, and the main proof
   for a cloud Linux agent. Why the CI policy is what it is:
   `docs/DECISIONS.md`. `gate` is the check `main` requires.

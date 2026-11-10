@@ -238,7 +238,7 @@ describe('check-pr-workflow-policy', () => {
 		}
 	});
 
-	it('runs an agent review only when a pull request opens ready, reopens, or leaves draft', () => {
+	it('runs an agent review only when a pull request opens ready, leaves draft, or gets the review label', () => {
 		const review = (types: string) => `
 on:
   pull_request:
@@ -254,10 +254,15 @@ jobs:
     steps:
       - uses: anthropics/claude-code-action@cab360f6565aa35a51d6ce9e43f1f4287c0a32ea
 `;
-		expect(messages('review.yml', review('opened, ready_for_review, reopened'))).toEqual([]);
+		expect(messages('review.yml', review('opened, ready_for_review, labeled'))).toEqual([]);
+		const rejected =
+			/agent review runs only when a PR opens ready, leaves draft, or gets the review label/;
 		expect(
-			messages('review.yml', review('opened, ready_for_review, reopened, synchronize')).join('\n'),
-		).toMatch(/agent review runs only when a PR opens ready, reopens, or leaves draft/);
+			messages('review.yml', review('opened, ready_for_review, labeled, synchronize')).join('\n'),
+		).toMatch(rejected);
+		expect(messages('review.yml', review('opened, ready_for_review, reopened')).join('\n')).toMatch(
+			rejected,
+		);
 	});
 
 	it('accepts the workflows in this checkout', () => {
