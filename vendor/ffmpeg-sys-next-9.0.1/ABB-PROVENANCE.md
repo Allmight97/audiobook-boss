@@ -38,9 +38,10 @@ What ABB relies on in that source:
    FFmpeg 9. Then run `bash scripts/setup.sh rust` to fetch the source and
    that CLI.
 2. Build the engine with its `bundled-ffmpeg` feature
-   (`bash scripts/verify.sh engine`). A new upstream enum value fails the build
-   in `../ffmpeg-next-9.0.0`; map it there and list it in that crate's
-   provenance. The chapter patch must still apply.
+   (`bash scripts/verify.sh engine`). `crates/abb-ffmpeg` is the only code
+   that uses these bindings: an FFmpeg function or field it calls that
+   upstream renamed or removed fails its build there. The chapter patch must
+   still apply.
 3. Recheck each item in the list above against the upstream diff, and update
    the FAAD3 trim table if `api-skip-samples` changed.
 4. Encode one fixed fixture with Native AAC at the old and the new pin, decode

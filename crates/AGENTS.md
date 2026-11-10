@@ -12,8 +12,8 @@
 `bun run check:rust-tiers` (core lane) enforces the last column;
 `scripts/check-known-mistakes.ts` rejects I/O in a core's source.
 
-Only `abb-ffmpeg` names `ffmpeg_sys_next`; the same check rejects it in any
-other crate's source.
+Only `abb-ffmpeg` depends on `ffmpeg-sys-next` or names it; the same check
+rejects that, and the `ffmpeg-next` wrapper, in every other crate.
 
 ## Ownership
 

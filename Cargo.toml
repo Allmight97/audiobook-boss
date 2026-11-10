@@ -33,7 +33,6 @@ let_underscore_must_use = "warn"
 unused_result_ok = "warn"
 
 [patch.crates-io]
-ffmpeg-next = { path = "vendor/ffmpeg-next-9.0.0" }
 ffmpeg-sys-next = { path = "vendor/ffmpeg-sys-next-9.0.1" }
 
 [profile.dev]
