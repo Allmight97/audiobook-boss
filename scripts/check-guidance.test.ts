@@ -24,7 +24,6 @@ describe('check-guidance', () => {
 		expect(isGuidanceFile('README.md')).toBe(true);
 		expect(isGuidanceFile('CHANGELOG.md')).toBe(false);
 		expect(isGuidanceFile('vendor/ffmpeg-sys-next-9.0.1/README.md')).toBe(false);
-		expect(isGuidanceFile('tools/abb-aaxclean-helper/README.md')).toBe(true);
 		expect(isGuidanceFile('vendor/opus/ABB-PROVENANCE.md')).toBe(true);
 	});
 

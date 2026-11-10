@@ -40,9 +40,6 @@ const WHOLE_CHECKOUT = [
 	'dist/index.html',
 	'node_modules/.vite/cache',
 	'node_modules/solid-js/index.js',
-	'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/bin/helper',
-	'src-tauri/binaries/.gitkeep',
-	'src-tauri/binaries/helper-aarch64',
 	'.logs/final-verify.log',
 	'.logs/runs/one/tauri-dev.log',
 	'.logs/verification/run-1/engine.log',
@@ -55,7 +52,6 @@ const WHOLE_CHECKOUT = [
 const ALWAYS_KEPT = [
 	'.logs/verification/receipts/engine.json',
 	'.logs/untangle/decision-log.md',
-	'src-tauri/binaries/.gitkeep',
 	'src/main.ts',
 ];
 
@@ -70,7 +66,6 @@ it('removes build output and machine logs but keeps the FFmpeg cache, tools, and
 		'target/release',
 		'dist',
 		'node_modules/.vite',
-		'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/bin',
 		'.logs/final-verify.log',
 		'.logs/runs',
 		'.logs/verification/run-1',
@@ -83,7 +78,6 @@ it('removes build output and machine logs but keeps the FFmpeg cache, tools, and
 		'target/abb-ffmpeg-cache/tree/dist/lib.a',
 		'target/abb-ffmpeg-source/commit.git/HEAD',
 		'node_modules/solid-js/index.js',
-		'src-tauri/binaries/helper-aarch64',
 	]) {
 		expect(has(root, kept), kept).toBe(true);
 	}
@@ -94,7 +88,7 @@ it('--all also removes what setup restores, and still keeps notes and sources', 
 
 	clean(root, { all: true });
 
-	for (const removed of ['target', 'node_modules', 'src-tauri/binaries/helper-aarch64']) {
+	for (const removed of ['target', 'node_modules']) {
 		expect(has(root, removed), removed).toBe(false);
 	}
 	for (const kept of ALWAYS_KEPT) expect(has(root, kept), kept).toBe(true);

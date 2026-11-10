@@ -10,7 +10,6 @@ use tokio::task::AbortHandle;
 
 use crate::errors::{AppError, Result};
 use crate::host::{EngineEvent, Host};
-use crate::remote_source::materializer::AaxcleanMaterializer;
 use crate::remote_source::staging::RemoteSourceStaging;
 use crate::remote_source::types;
 
@@ -63,7 +62,6 @@ pub(super) fn audible_acquire() -> AcquireTitles {
             };
             super::providers::audible::AudibleProvider::acquire(
                 auth,
-                &lifecycle.materializer,
                 &plan,
                 &job_id,
                 &job_dir,
@@ -79,7 +77,6 @@ pub(super) fn audible_acquire() -> AcquireTitles {
 
 pub(super) struct RemoteAcquisitionLifecycle {
     pub(super) staging: RemoteSourceStaging,
-    materializer: AaxcleanMaterializer,
     pub(super) jobs: Mutex<HashMap<String, Registered>>,
     acquisition_tasks: Mutex<HashMap<String, AbortHandle>>,
     host: Host,
@@ -91,14 +88,12 @@ pub(super) struct RemoteAcquisitionLifecycle {
 impl RemoteAcquisitionLifecycle {
     pub(super) fn new(
         staging: RemoteSourceStaging,
-        materializer: AaxcleanMaterializer,
         host: Host,
         ui: std::sync::Arc<Mutex<super::ui::UiState>>,
         acquire: AcquireTitles,
     ) -> Self {
         Self {
             staging,
-            materializer,
             jobs: Mutex::new(HashMap::new()),
             acquisition_tasks: Mutex::new(HashMap::new()),
             host,
@@ -372,7 +367,6 @@ impl RemoteAcquisitionLifecycle {
     }
 
     fn abort_acquisition_task(&self, job_id: &str) {
-        self.materializer.abort_job(job_id);
         if let Ok(mut tasks) = self.acquisition_tasks.lock() {
             if let Some(handle) = tasks.remove(job_id) {
                 handle.abort();
@@ -399,7 +393,6 @@ impl RemoteAcquisitionLifecycle {
     }
 
     pub(super) fn abort_all_acquisition_tasks(&self) {
-        self.materializer.abort_all();
         if let Ok(mut tasks) = self.acquisition_tasks.lock() {
             for (job_id, handle) in tasks.drain() {
                 handle.abort();

@@ -59,8 +59,6 @@ host:
   - package.json
 decrypt:
   - *shared
-  - tools/abb-aaxclean-helper/**
-  - scripts/publish-aaxclean-helper.ts
   - crates/**
 supply-chain:
   - Cargo.lock

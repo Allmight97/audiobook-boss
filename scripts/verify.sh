@@ -39,7 +39,7 @@ lane_table=(
 	"media rust linux,darwin bun,$(join_words "${native_tools[@]}")"
 	"host rust linux,darwin bun,node,$(join_words "${native_tools[@]}")"
 	"apple rust darwin bun,$(join_words "${native_tools[@]}")"
-	"decrypt rust linux,darwin bun,$(join_words "${native_tools[@]}"),dotnet,helper"
+	"decrypt rust linux,darwin bun,$(join_words "${native_tools[@]}")"
 	"tooling tooling linux bun,node,zizmor,actionlint,shellcheck"
 	"supply-chain supply-chain linux bun,$(join_words "${rust_tools[@]}"),cargo-audit,cargo-deny"
 )
@@ -181,8 +181,6 @@ lane_host() {
 lane_decrypt() {
 	require_rust
 	cargo fmt --all -- --check
-	(cd tools/abb-aaxclean-helper && dotnet test tests/AbbAaxcleanHelper.Tests/AbbAaxcleanHelper.Tests.csproj \
-		--configuration Release --nologo)
 	engine_lib_tests_matching integration_decrypt_tests
 }
 

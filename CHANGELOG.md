@@ -73,6 +73,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   first, as in "44.1 → 48 kHz".
 - The Indexer's busy message reads the same wherever it appears. It used to list search, grab and
   save in two different orders.
+- Audible titles end where Audible's download says the book ends, a fraction of a second earlier
+  than before on some titles. Keep original audio can no longer merge several Audible titles into
+  one file; encode them instead.
+- Audible decryption no longer needs .NET. ABB decrypts AAX and AAXC downloads itself with the
+  bundled FFmpeg, and setup, CI, and the app bundle no longer include a helper program.
 
 ## [1.18.1] - 2026-11-07
 

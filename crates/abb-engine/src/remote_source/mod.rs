@@ -6,14 +6,6 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 mod cancellation;
 mod job_state;
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the .NET helper stays until a comparison of both decrypters runs, then goes"
-    )
-)]
-mod materializer;
 mod providers;
 mod scoped_output;
 mod session_lifecycle;
@@ -30,7 +22,6 @@ pub(crate) use ui::{RemoteUiResult, RemoteUiRun};
 mod vault;
 
 pub(crate) use job_state::AcquisitionOutcome;
-use materializer::AaxcleanMaterializer;
 use providers::audible::{AudibleProvider, PendingAudibleAuth};
 use providers::indexer::{IndexerProvider, ReqwestProwlarrAdapter};
 #[cfg(test)]
@@ -103,7 +94,6 @@ impl RemoteSourceRuntime {
                 )),
                 lifecycle: RemoteAcquisitionLifecycle::new(
                     RemoteSourceStaging::new(config.cache_dir),
-                    AaxcleanMaterializer::new_for_helper(None),
                     config.host,
                     ui,
                     session_lifecycle::audible_acquire(),

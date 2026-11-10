@@ -85,7 +85,6 @@ fn build_runtime(
             vault: vault.unwrap_or_else(|| Box::<MemoryVault>::default()),
             lifecycle: RemoteAcquisitionLifecycle::new(
                 RemoteSourceStaging::new(root.path().to_path_buf()),
-                AaxcleanMaterializer::new_for_helper(Some(PathBuf::from("abb-aaxclean-helper"))),
                 host,
                 ui,
                 acquire.unwrap_or_else(session_lifecycle::audible_acquire),

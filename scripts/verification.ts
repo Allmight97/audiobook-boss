@@ -298,16 +298,6 @@ export const TOOL_PROBES: Record<string, ToolProbe> = {
 	ffmpeg: { version: () => version(process.env.ABB_FFMPEG ?? 'ffmpeg', ['-version']) },
 	ffprobe: { version: () => version(process.env.ABB_FFPROBE ?? 'ffprobe', ['-version']) },
 	sdk: { platform: 'darwin', version: () => version('xcrun', ['--show-sdk-version']) },
-	dotnet: commandProbe('dotnet', ['--version']),
-	helper: {
-		version: (root, known) => {
-			const host = /^host: (.+)$/m.exec(known.rustc ?? '')?.[1];
-			const helper = path.join(root, 'src-tauri/binaries', `abb-aaxclean-helper-${host}`);
-			return host && existsSync(helper)
-				? createHash('sha256').update(readFileSync(helper)).digest('hex')
-				: 'unavailable';
-		},
-	},
 	'cargo-audit': commandProbe('cargo', ['audit', '--version']),
 	'cargo-deny': commandProbe('cargo', ['deny', '--version']),
 	lizard: commandProbe('bash', ['scripts/check-rust-complexity.sh', '--version']),

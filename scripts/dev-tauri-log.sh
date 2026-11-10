@@ -294,7 +294,6 @@ is_repo_dev_process() {
 		"$command" == *"bun run tauri dev"* ||
 		"$command" == *"bun scripts/tauri.ts dev"* ||
 		"$command" == *"node_modules/.bin/tauri dev"* ||
-		"$command" == *"aaxclean-helper:publish && bun run dev"* ||
 		"$command" == *"bun run dev"* ||
 		"$command" == *"node_modules/.bin/vite"* ||
 		"$command" == *" vite"* ]]

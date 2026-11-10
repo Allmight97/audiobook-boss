@@ -6,7 +6,7 @@ const USAGE = `Usage: bun run clean [--all]
        bun scripts/clean.ts --auto
 
   (no flag)  Remove build output and machine-written logs. Keeps the FFmpeg cache.
-  --all      Also remove the FFmpeg cache, node_modules, and the helper sidecar.
+  --all      Also remove the FFmpeg cache and node_modules.
              bash scripts/setup.sh restores them.
   --auto     Remove target/debug when it is over budget and keep the newest
              verification runs. verify.sh and app:dev:log run this.
@@ -14,15 +14,7 @@ const USAGE = `Usage: bun run clean [--all]
 Other folders under .logs/ and verification receipts always stay.`;
 
 const FFMPEG_DIRS = new Set(['abb-ffmpeg-cache', 'abb-ffmpeg-source']);
-const BUILD_OUTPUT = [
-	'dist',
-	'node_modules/.vite',
-	'tools/abb-aaxclean-helper/.publish',
-	'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/bin',
-	'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/obj',
-	'tools/abb-aaxclean-helper/tests/AbbAaxcleanHelper.Tests/bin',
-	'tools/abb-aaxclean-helper/tests/AbbAaxcleanHelper.Tests/obj',
-];
+const BUILD_OUTPUT = ['dist', 'node_modules/.vite'];
 
 const DEBUG_BUDGET_KB = 25 * 1024 * 1024;
 export const KEPT_RUNS = 5;
@@ -79,9 +71,6 @@ export function clean(root: string, { all }: { all: boolean }): void {
 	if (!all) return;
 	remove(root, 'target');
 	remove(root, 'node_modules');
-	for (const entry of entriesOf(path.join(root, 'src-tauri/binaries'))) {
-		if (entry.name !== '.gitkeep') remove(root, path.join('src-tauri/binaries', entry.name));
-	}
 }
 
 function sizeKb(directory: string): number {

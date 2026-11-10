@@ -14,7 +14,6 @@ use super::license::{
 use super::license_plan::{LicensePlan, LicenseReply};
 use super::materialization::materialize_protected_download;
 use crate::errors::Result;
-use crate::remote_source::materializer::AaxcleanMaterializer;
 use crate::remote_source::scoped_output::ProvisionalCommittedFile;
 use crate::remote_source::staging;
 use crate::remote_source::{
@@ -69,7 +68,6 @@ pub(in crate::remote_source::providers::audible) struct TitleAcquisitionCtx<'a> 
 
 pub(super) async fn acquire(
     auth: Auth,
-    materializer: &AaxcleanMaterializer,
     plan: &AcquisitionPlan,
     job_id: &str,
     job_dir: &Path,
@@ -96,15 +94,7 @@ pub(super) async fn acquire(
                 total_items,
             },
         };
-        let title = acquire_one(
-            &api,
-            &auth,
-            materializer,
-            request,
-            &mut progress,
-            &is_cancelled,
-        )
-        .await;
+        let title = acquire_one(&api, &auth, request, &mut progress, &is_cancelled).await;
         record_title_outcome(&mut outcome, job_id, &selection.title_id, title)?;
     }
     Ok(outcome)
@@ -149,7 +139,6 @@ pub(in crate::remote_source::providers::audible) use crate::remote_source::cance
 async fn acquire_one(
     api: &AudibleApi,
     auth: &Auth,
-    materializer: &AaxcleanMaterializer,
     request: TitleAcquisitionRequest<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
@@ -224,7 +213,6 @@ async fn acquire_one(
         None,
     ));
     let (materialized_path, purge_diagnostic) = importable_source(
-        materializer,
         downloaded_path,
         title_name,
         material,
@@ -253,7 +241,6 @@ async fn acquire_one(
 }
 
 async fn importable_source(
-    materializer: &AaxcleanMaterializer,
     downloaded_path: std::path::PathBuf,
     title_name: Option<&str>,
     material: Option<&AudibleDecryptionMaterial>,
@@ -265,7 +252,6 @@ async fn importable_source(
         return Ok((downloaded_path, None));
     };
     let materialized = materialize_protected_download(
-        materializer,
         &downloaded_path,
         title_name,
         material,

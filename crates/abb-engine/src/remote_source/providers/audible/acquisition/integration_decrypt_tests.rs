@@ -18,8 +18,8 @@ use tempfile::TempDir;
 
 use super::super::decrypt::{stream_copy, CopyControl};
 use super::{
-    materialize_protected_download, staged_materialized_path, AaxcleanMaterializer,
-    AudibleAcquisitionError, TitleAcquisitionCtx, TitleProgressContext,
+    materialize_protected_download, staged_materialized_path, AudibleAcquisitionError,
+    TitleAcquisitionCtx, TitleProgressContext,
 };
 use crate::errors::AppError;
 use crate::remote_source::{RemoteAcquisitionFailureKind, RemoteSourceDiagnostic};
@@ -620,7 +620,6 @@ async fn run_protected_materialization(
         },
     };
     let result = materialize_protected_download(
-        &AaxcleanMaterializer::new_for_helper(None),
         downloaded_path,
         Some(title_name),
         material,

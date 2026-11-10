@@ -19,7 +19,6 @@
 		"preview": "vite preview",
 		"tauri": "bun scripts/tauri.ts",
 		"app:dev:log": "bash scripts/dev-tauri-log.sh",
-		"aaxclean-helper:publish": "bun scripts/publish-aaxclean-helper.ts",
 		"app:build": "bun scripts/build-app.ts --bundles app",
 		"app:build:dmg": "bun scripts/build-app.ts --bundles app,dmg",
 		"app:build:all": "bun scripts/build-app.ts --bundles all",

@@ -274,12 +274,7 @@ describe('file-size ratchet selection', () => {
 			'src/lib/tauri/client.ts',
 			...fromChecker,
 		];
-		expect(fromChecker).toEqual(
-			expect.arrayContaining([
-				'tools/abb-aaxclean-helper/src/AbbAaxcleanHelper/Program.cs',
-				'vite.config.ts',
-			]),
-		);
+		expect(fromChecker).toEqual(expect.arrayContaining(['vite.config.ts']));
 		for (const file of files) {
 			const selected = requiredLanes(map, lanes, [file]);
 			expect(selected, file).toContain('tooling');

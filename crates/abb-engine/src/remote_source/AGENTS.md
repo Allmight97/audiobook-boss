@@ -245,4 +245,8 @@ An AAX or AAXC license reply with no usable decryption material fails as
 that decides, not the reply's shape. An Audible AAX or AAXC file is materialized
 only when its output decodes as audio with FFmpeg's built-in decoder. A wrong
 key fails as `MaterializationFailed`, and the message names the decrypt. For
-AAXC, demuxer success is not that proof.
+AAXC, demuxer success is not that proof. Decrypt honors the download's edit
+list: packets it hides are dropped, and a partly hidden last packet keeps its
+trim. Why: the edit list is Audible's statement of the book's length, and its
+chapters end there. A Keep-original-audio merge of several decrypted titles
+is therefore refused by the preserve join's trim rule.

@@ -38,7 +38,7 @@ recorded tool versions still invalidate it.
   Fixtures are synthesized at test time. `media` also runs the verify-abb
   feature scripts through `scripts/abb-dev.sh`.
 - Apple AAC (`apple`, macOS only).
-- Audible decrypt helper (`decrypt`). Fixtures are synthesized at test time.
+- Audible decrypt (`decrypt`). Fixtures are synthesized at test time.
   A wrong AAXC key is not the negative case.
 - Host or IPC types (`host`). Then the `*.contract.test.ts` Vitest files under
   `src/` that name the changed surface. Boundary rules: `src-tauri/AGENTS.md`
@@ -116,9 +116,7 @@ A change to CI or validation speed quotes before and after numbers from
   keeps `RUST_LOG`.
 - `bash scripts/abb-dev.sh --help` drives an engine session without a
   window, Audible included (header of `scripts/abb-dev.sh`).
-- Release artifacts: use `.agents/skills/release`. Public DMG builds publish the
-  AAXClean helper from current source; local app builds may reuse a fresh
-  helper sidecar whose source, SDK, target, and executable digests still match.
+- Release artifacts: use `.agents/skills/release`.
 
 ## Script rules
 
@@ -209,11 +207,11 @@ A change to CI or validation speed quotes before and after numbers from
   The Claude Code cloud SessionStart hook runs `setup.sh frontend`. Cursor
   cloud runs `setup.sh` from `.cursor/environment.json`. Codex cloud uses the
   same command in its environment settings, not the repo.
-  PATH and toolchain env (`BUN_INSTALL`, `DOTNET_*`, `PATH`, and the readback
+  PATH and toolchain env (`BUN_INSTALL`, `PATH`, and the readback
   `ABB_FFMPEG` / `ABB_FFPROBE` when setup can see them) have one owner:
   `eval "$(scripts/setup.sh --print-env)"`. Cloud setup steps do not pass
   their environment to agent shells, so run that eval in a shell before
-  calling `bun`, `dotnet`, or `uvx` directly; `verify.sh` runs it itself.
+  calling `bun` or `uvx` directly; `verify.sh` runs it itself.
 - Engine, media, host, decrypt, and apple proof build the engine with
   bundled FFmpeg on every host, as do `bun run bindings:generate` and
   `bun run app:dev:log`. The first build compiles the revision in

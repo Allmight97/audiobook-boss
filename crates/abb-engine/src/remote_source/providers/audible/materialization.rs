@@ -9,7 +9,6 @@ use super::acquisition::{
 use super::decrypt::{decrypt_download, DecryptRequest};
 use super::protected_file_probe::log_protected_file_facts;
 use crate::errors::{AppError, Result};
-use crate::remote_source::materializer::AaxcleanMaterializer;
 use crate::remote_source::scoped_output::{remove_if_present, remove_logging_failure};
 use crate::remote_source::types::{RemoteAcquisitionFailureKind, RemoteSourceDiagnostic};
 
@@ -19,7 +18,6 @@ pub(super) struct MaterializedProtectedSource {
 }
 
 pub(super) async fn materialize_protected_download(
-    _materializer: &AaxcleanMaterializer,
     downloaded_path: &Path,
     title_name: Option<&str>,
     material: &AudibleDecryptionMaterial,

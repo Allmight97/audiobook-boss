@@ -28,7 +28,6 @@ async fn job_and_staging_after_license_body(
     let outcome = acquire_one(
         &api,
         &signing_auth("us"),
-        &AaxcleanMaterializer::new_for_helper(None),
         TitleAcquisitionRequest {
             title_id: "B000000001",
             include_pdf: false,

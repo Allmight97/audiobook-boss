@@ -167,23 +167,13 @@ impl AudibleProvider {
 
     pub(in crate::remote_source) async fn acquire(
         auth: Auth,
-        materializer: &crate::remote_source::materializer::AaxcleanMaterializer,
         plan: &crate::remote_source::AcquisitionPlan,
         job_id: &str,
         job_dir: &std::path::Path,
         progress: impl FnMut(abb_remote_source_core::AcquisitionProgress),
         is_cancelled: impl Fn() -> bool,
     ) -> Result<crate::remote_source::AcquisitionOutcome> {
-        acquire(
-            auth,
-            materializer,
-            plan,
-            job_id,
-            job_dir,
-            progress,
-            is_cancelled,
-        )
-        .await
+        acquire(auth, plan, job_id, job_dir, progress, is_cancelled).await
     }
 }
 
