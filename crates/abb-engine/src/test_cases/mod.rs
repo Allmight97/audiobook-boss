@@ -1,3 +1,5 @@
+#[path = "encrypted_audible_books.rs"]
+pub(crate) mod encrypted_audible_books;
 #[path = "id3_frames.rs"]
 pub(crate) mod id3_frames;
 #[path = "integration_audible_handoff_tests.rs"]
