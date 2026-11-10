@@ -60,6 +60,63 @@ impl Input {
         unsafe { context::stream_facts(self.0.as_ptr()) }
     }
 
+    /// The index of the audio stream FFmpeg ranks best.
+    pub fn best_audio_stream(&self) -> Option<usize> {
+        // SAFETY: `self` owns a live context; the call only reads it.
+        let index = unsafe {
+            sys::av_find_best_stream(
+                self.0.as_ptr(),
+                sys::AVMediaType::AVMEDIA_TYPE_AUDIO,
+                -1,
+                -1,
+                ptr::null_mut(),
+                0,
+            )
+        };
+        usize::try_from(index).ok()
+    }
+
+    /// The codec setup bytes of a stream, such as an AAC
+    /// AudioSpecificConfig, or `None` when it has none.
+    pub fn stream_extradata(&self, index: usize) -> Option<Vec<u8>> {
+        // SAFETY: `self` owns a live context; a stream's `codecpar` holds
+        // `extradata_size` readable bytes at `extradata`.
+        unsafe {
+            let stream = context::stream(self.0.as_ptr(), index, Step::ReadStreamInfo).ok()?;
+            let parameters = (*stream).codecpar;
+            let size = usize::try_from((*parameters).extradata_size).ok()?;
+            if (*parameters).extradata.is_null() || size == 0 {
+                return None;
+            }
+            Some(std::slice::from_raw_parts((*parameters).extradata, size).to_vec())
+        }
+    }
+
+    /// The demuxer's name; one demuxer can list several, as in
+    /// `mov,mp4,m4a,3gp,3g2,mj2`.
+    pub fn format_name(&self) -> String {
+        // SAFETY: an open input always has an input format with a name.
+        unsafe { crate::text::Text::copied_from((*(*self.0.as_ptr()).iformat).name) }.display()
+    }
+
+    /// Bits per second of the whole file, or 0 when unknown.
+    pub fn bit_rate(&self) -> i64 {
+        // SAFETY: `self` owns a live context.
+        unsafe { (*self.0.as_ptr()).bit_rate }
+    }
+
+    /// Whether FFmpeg only estimated the duration from the bit rate.
+    pub fn duration_is_estimated(&self) -> bool {
+        // SAFETY: `self` owns a live context; the method is read as the C
+        // int it is.
+        let method = unsafe {
+            std::ptr::addr_of!((*self.0.as_ptr()).duration_estimation_method)
+                .cast::<std::ffi::c_int>()
+                .read()
+        };
+        method == sys::AVDurationEstimationMethod::AVFMT_DURATION_FROM_BITRATE as std::ffi::c_int
+    }
+
     pub fn chapters(&self) -> Vec<Chapter> {
         // SAFETY: `self` owns a live context.
         unsafe { context::chapters(self.0.as_ptr()) }
@@ -86,6 +143,19 @@ impl Input {
             Ok(_) => Ok(true),
             Err(error) if error.is_end_of_file() => Ok(false),
             Err(error) => Err(error),
+        }
+    }
+
+    /// Reads the next packet for a scan that tolerates damage: a packet
+    /// FFmpeg reports as invalid data is skipped, and any other read error
+    /// ends the scan like the end of the file. Returns `false` at that end.
+    pub fn read_packet_skipping_invalid(&mut self, packet: &mut Packet) -> bool {
+        loop {
+            match self.read_packet(packet) {
+                Ok(more) => return more,
+                Err(error) if error.is_invalid_data() => {}
+                Err(_) => return false,
+            }
         }
     }
 

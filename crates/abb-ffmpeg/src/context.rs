@@ -3,6 +3,7 @@ use std::slice;
 
 use ffmpeg_sys_next as sys;
 
+use crate::codec::CodecId;
 use crate::error::{Error, Result, Step};
 use crate::text::{Tags, Text};
 
@@ -42,6 +43,7 @@ impl Rational {
 pub enum Medium {
     Audio,
     Video,
+    Attachment,
     Other,
 }
 
@@ -66,7 +68,15 @@ pub struct StreamFacts {
     pub medium: Medium,
     pub time_base: Rational,
     pub disposition: Disposition,
+    pub codec: CodecId,
+    /// One of `profile`'s numbers.
+    pub profile: i32,
     pub sample_rate: i32,
+    pub channels: u16,
+    /// Bits per second as the container states it, or 0 when it does not.
+    pub bit_rate: i64,
+    /// The stream's length in its time base, or `None` when unknown.
+    pub duration: Option<i64>,
     pub tags: Tags,
 }
 
@@ -117,6 +127,7 @@ fn medium(kind: sys::AVMediaType) -> Medium {
     match kind {
         sys::AVMediaType::AVMEDIA_TYPE_AUDIO => Medium::Audio,
         sys::AVMediaType::AVMEDIA_TYPE_VIDEO => Medium::Video,
+        sys::AVMediaType::AVMEDIA_TYPE_ATTACHMENT => Medium::Attachment,
         _ => Medium::Other,
     }
 }
@@ -137,7 +148,13 @@ pub(crate) unsafe fn stream_facts(ctx: *const sys::AVFormatContext) -> Vec<Strea
                     medium: medium((*parameters).codec_type),
                     time_base: Rational::from_sys((*stream).time_base),
                     disposition: Disposition((*stream).disposition),
+                    codec: CodecId::read(std::ptr::addr_of!((*parameters).codec_id)),
+                    profile: (*parameters).profile,
                     sample_rate: (*parameters).sample_rate,
+                    channels: u16::try_from((*parameters).ch_layout.nb_channels).unwrap_or(0),
+                    bit_rate: (*parameters).bit_rate,
+                    duration: Some((*stream).duration)
+                        .filter(|duration| *duration != sys::AV_NOPTS_VALUE),
                     tags: Tags::read((*stream).metadata),
                 }
             })

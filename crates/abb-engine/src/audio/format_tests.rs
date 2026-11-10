@@ -71,7 +71,6 @@ fn every_encoder_type_has_one_codec_family() {
             .collect();
         assert!(!families.is_empty(), "{encoder:?} belongs to no format");
         assert!(families.iter().all(|family| *family == families[0]));
-        assert_eq!(codec_family_of(encoder), families[0]);
     }
 }
 
@@ -90,9 +89,9 @@ fn only_the_opus_formats_have_a_fixed_encoder() {
 
 #[test]
 fn only_aac_and_opus_streams_belong_to_a_codec_family() {
-    use ffmpeg_next::codec::Id;
-    for family in [CodecFamily::Aac, CodecFamily::Opus] {
-        assert_eq!(CodecFamily::of_codec_id(family.codec_id()), Some(family));
+    use abb_ffmpeg::CodecId as Id;
+    for (id, family) in [(Id::AAC, CodecFamily::Aac), (Id::OPUS, CodecFamily::Opus)] {
+        assert_eq!(CodecFamily::of_codec_id(id), Some(family));
     }
     for other in [Id::MP3, Id::FLAC, Id::PCM_S16LE, Id::VORBIS] {
         assert_eq!(CodecFamily::of_codec_id(other), None);

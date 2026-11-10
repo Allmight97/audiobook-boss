@@ -219,11 +219,40 @@ pub(crate) fn layer_chapter_specs(chapters: &[abb_ffmpeg::Chapter]) -> Vec<Chapt
     chapters
         .iter()
         .map(|chapter| ChapterSpec {
-            title: chapter.title().map(abb_ffmpeg::Text::to_string_lossy),
+            title: chapter.title().map(abb_ffmpeg::Text::display),
             start_ms: abb_ffmpeg::Rational::rescale(chapter.start, chapter.time_base, milliseconds),
             end_ms: abb_ffmpeg::Rational::rescale(chapter.end, chapter.time_base, milliseconds),
         })
         .collect()
+}
+
+/// Adds the accepted chapters to an output before its header, in
+/// milliseconds, and returns how many it added.
+pub(crate) fn add_chapters(
+    output: &mut abb_ffmpeg::Output,
+    chapters: &[ChapterSpec],
+) -> Result<usize> {
+    use crate::errors::AppError;
+
+    let step = abb_ffmpeg::Step::AddChapter;
+    for (idx, chapter) in chapters.iter().enumerate() {
+        let title = chapter.title.clone().unwrap_or_default();
+        let added = (|| {
+            let mut tags = abb_ffmpeg::Tags::default();
+            tags.push("title", &title, step)?;
+            output.add_chapter(&abb_ffmpeg::Chapter {
+                id: idx as i64,
+                time_base: abb_ffmpeg::Rational::new(1, 1000),
+                start: chapter.start_ms,
+                end: chapter.end_ms,
+                tags,
+            })
+        })();
+        added.map_err(|e: abb_ffmpeg::Error| {
+            AppError::General(format!("Failed to add chapter {idx} ({title}): {e}"))
+        })?;
+    }
+    Ok(chapters.len())
 }
 
 pub fn add_chapters_to_output(

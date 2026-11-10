@@ -7,8 +7,8 @@
 //! trimming rules mirrored here.
 
 use crate::errors::{sanitize_path_for_display, AppError, Result};
+use abb_ffmpeg::{AudioFrame, ChannelLayout, Packet, Progress, SampleFormat};
 use faac_sys as faad;
-use ffmpeg_next as ff;
 use std::collections::VecDeque;
 use std::ffi::CStr;
 use std::path::Path;
@@ -100,13 +100,13 @@ impl Trimmer {
 pub(super) struct FaadDecoder {
     handle: Handle,
     format: FaadFormat,
-    layout: ff::ChannelLayout,
+    layout: ChannelLayout,
     output: Vec<u8>,
     delay_left: usize,
     shifted: VecDeque<f32>,
     pending: VecDeque<PacketTrim>,
     trimmer: Trimmer,
-    ready: VecDeque<ff::frame::Audio>,
+    ready: VecDeque<Vec<f32>>,
     eof: bool,
 }
 
@@ -219,22 +219,15 @@ fn decode_unit(handle: &Handle, data: &[u8], output: &mut [u8]) -> Result<Decode
     })
 }
 
-fn speaker_layout(format: &FaadFormat) -> Result<ff::ChannelLayout> {
-    // SAFETY: a zeroed AVChannelLayout is the unset layout that
-    // av_channel_layout_from_mask fills; a mask layout owns no allocation.
-    let (status, layout) = unsafe {
-        let mut layout = std::mem::zeroed::<ff::sys::AVChannelLayout>();
-        let status =
-            ff::sys::av_channel_layout_from_mask(&mut layout, u64::from(format.channel_mask));
-        (status, layout)
-    };
-    if format.channel_mask == 0 || status < 0 || layout.nb_channels as u32 != format.channels {
-        return Err(AppError::General(format!(
-            "FAAD3 reports no speaker layout for this {}-channel stream (mask {:#x}). Choose Auto decoding for this file.",
-            format.channels, format.channel_mask
-        )));
-    }
-    Ok(ff::ChannelLayout(layout))
+fn speaker_layout(format: &FaadFormat) -> Result<ChannelLayout> {
+    ChannelLayout::from_mask(u64::from(format.channel_mask))
+        .filter(|layout| u32::from(layout.channels()) == format.channels)
+        .ok_or_else(|| {
+            AppError::General(format!(
+                "FAAD3 reports no speaker layout for this {}-channel stream (mask {:#x}). Choose Auto decoding for this file.",
+                format.channels, format.channel_mask
+            ))
+        })
 }
 
 fn format_from(info: &faad::faad_stream_info) -> FaadFormat {
@@ -253,17 +246,23 @@ fn format_from(info: &faad::faad_stream_info) -> FaadFormat {
 fn discover_format(path: &Path, stream_index: usize, asc: Option<&[u8]>) -> Result<FaadFormat> {
     let handle = open_handle(asc)?;
     let mut output = vec![0u8; stream_info(&handle)?.max_output_bytes as usize];
-    let mut input = ff::format::input(path)
-        .map_err(|error| AppError::General(format!("FAAD3 cannot reopen input: {error}")))?;
-    let audio = input
-        .packets()
-        .filter(|(stream, _)| stream.index() == stream_index)
-        .take(FORMAT_DISCOVERY_PACKET_LIMIT);
-    for (_, packet) in audio {
-        let Some(data) = packet.data() else {
+    let reopen = |error| AppError::General(format!("FAAD3 cannot reopen input: {error}"));
+    let mut input = abb_ffmpeg::Input::open(path, &abb_ffmpeg::SecretOptions::default())
+        .map_err(reopen)?
+        .input;
+    let mut packet = Packet::new().map_err(reopen)?;
+    let mut audio_packets = 0;
+    while audio_packets < FORMAT_DISCOVERY_PACKET_LIMIT
+        && input.read_packet_skipping_invalid(&mut packet)
+    {
+        if packet.stream_index() != stream_index {
             continue;
-        };
-        if decode_unit(&handle, data, &mut output)?.written > 0 {
+        }
+        audio_packets += 1;
+        if packet.data().is_empty() {
+            continue;
+        }
+        if decode_unit(&handle, packet.data(), &mut output)?.written > 0 {
             return Ok(format_from(&stream_info(&handle)?));
         }
     }
@@ -273,23 +272,13 @@ fn discover_format(path: &Path, stream_index: usize, asc: Option<&[u8]>) -> Resu
     )))
 }
 
-pub(super) fn packet_trim(packet: &ff::Packet) -> (u32, u32, bool) {
+pub(super) fn packet_trim(packet: &Packet) -> (u32, u32, bool) {
     let (skip, padding) = packet
-        .side_data()
-        .find(|side| side.kind() == ff::codec::packet::side_data::Type::SkipSamples)
-        .and_then(|side| {
-            let data = side.data();
-            (data.len() >= 10).then(|| {
-                (
-                    u32::from_le_bytes([data[0], data[1], data[2], data[3]]),
-                    u32::from_le_bytes([data[4], data[5], data[6], data[7]]),
-                )
-            })
-        })
-        .unwrap_or((0, 0));
-    // SAFETY: read the flags field of a live packet; ffmpeg-next's Flags drops DISCARD.
-    let flags = unsafe { (*ff::packet::Ref::as_ptr(packet)).flags };
-    (skip, padding, flags & ff::sys::AV_PKT_FLAG_DISCARD != 0)
+        .skip_samples()
+        .ok()
+        .flatten()
+        .map_or((0, 0), |skip| (skip.start, skip.end));
+    (skip, padding, packet.is_discard())
 }
 
 impl FaadDecoder {
@@ -315,7 +304,7 @@ impl FaadDecoder {
         self.format
     }
 
-    pub(super) fn channel_layout(&self) -> ff::ChannelLayout {
+    pub(super) fn channel_layout(&self) -> ChannelLayout {
         self.layout
     }
 
@@ -323,11 +312,11 @@ impl FaadDecoder {
         self.trimmer.counts
     }
 
-    pub(super) fn send_packet(&mut self, packet: &ff::Packet) -> Result<()> {
-        let Some(data) = packet.data() else {
+    pub(super) fn send_packet(&mut self, packet: &Packet) -> Result<()> {
+        if packet.data().is_empty() {
             return Ok(());
-        };
-        let unit = decode_unit(&self.handle, data, &mut self.output)?;
+        }
+        let unit = decode_unit(&self.handle, packet.data(), &mut self.output)?;
         self.count_flags(unit.flags)?;
         let channels = self.format.channels as usize;
         let frames = unit.written / (SAMPLE_BYTES * channels);
@@ -374,17 +363,15 @@ impl FaadDecoder {
 
     pub(super) fn receive_frame(
         &mut self,
-        frame: &mut ff::frame::Audio,
-    ) -> std::result::Result<(), ff::Error> {
+        frame: &mut AudioFrame,
+    ) -> std::result::Result<Progress, abb_ffmpeg::Error> {
         match self.ready.pop_front() {
-            Some(next) => {
-                *frame = next;
-                Ok(())
+            Some(samples) => {
+                *frame = self.frame(&samples)?;
+                Ok(Progress::Ready)
             }
-            None if self.eof => Err(ff::Error::Eof),
-            None => Err(ff::Error::Other {
-                errno: ff::error::EAGAIN,
-            }),
+            None if self.eof => Ok(Progress::Finished),
+            None => Ok(Progress::NeedsInput),
         }
     }
 
@@ -405,20 +392,16 @@ impl FaadDecoder {
             if let Some((start, end)) = kept.map(|(s, e)| (s, e.min(taken))).filter(|(s, e)| s < e)
             {
                 self.ready
-                    .push_back(self.frame(&samples[start * channels..end * channels]));
+                    .push_back(samples[start * channels..end * channels].to_vec());
             }
         }
     }
 
-    fn frame(&self, samples: &[f32]) -> ff::frame::Audio {
+    fn frame(&self, samples: &[f32]) -> std::result::Result<AudioFrame, abb_ffmpeg::Error> {
         let frames = samples.len() / self.format.channels as usize;
-        let mut frame = ff::frame::Audio::new(
-            ff::format::Sample::F32(ff::format::sample::Type::Packed),
-            frames,
-            self.layout,
-        );
-        frame.set_rate(self.format.rate);
-        let bytes = &mut frame.data_mut(0)[..samples.len() * SAMPLE_BYTES];
+        let mut frame =
+            AudioFrame::allocate(SampleFormat::F32, self.layout, self.format.rate, frames)?;
+        let bytes = frame.packed_bytes_mut()?;
         for (chunk, sample) in bytes
             .as_chunks_mut::<SAMPLE_BYTES>()
             .0
@@ -427,7 +410,7 @@ impl FaadDecoder {
         {
             chunk.copy_from_slice(&sample.to_ne_bytes());
         }
-        frame
+        Ok(frame)
     }
 }
 

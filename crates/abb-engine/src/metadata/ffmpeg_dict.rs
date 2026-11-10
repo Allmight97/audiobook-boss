@@ -1,7 +1,7 @@
 use super::container::Container;
 use super::field_schema::{ALBUM_SORT_KEYS, MP4_ALBUM_SORT_KEY};
 use super::{AudiobookMetadata, MetadataWritePlan};
-use crate::metadata::metadata_sinks::{ffmpeg_dict_for_ops, ExistingKeyRemoval};
+use crate::metadata::metadata_sinks::{ffmpeg_dict_for_ops, tag_pairs_for_ops, ExistingKeyRemoval};
 use abb_metadata_core::PatchOp;
 
 use ffmpeg_next as ff;
@@ -37,10 +37,11 @@ pub(crate) fn merge_metadata_with_plan<'a>(
     merged
 }
 
-pub fn set_container_metadata(
-    octx: &mut ff::format::context::Output,
+/// Sets the container tags an encode writes for `metadata`.
+pub(crate) fn set_container_metadata(
+    output: &mut abb_ffmpeg::Output,
     metadata: &AudiobookMetadata,
-) {
+) -> crate::errors::Result<()> {
     let plan = MetadataWritePlan::from_metadata(metadata);
     let album_sort = if matches!(plan.album_sort, Some(PatchOp::Set(_))) {
         "set"
@@ -48,13 +49,18 @@ pub fn set_container_metadata(
         "preserve"
     };
     super::plan_log::log_field_decisions(&plan, album_sort, "ffmpeg_encode", "current_encoder");
-    let mut dict = ffmpeg_dict_for_ops(&plan.ops);
+    let mut pairs = tag_pairs_for_ops(&plan.ops);
     if let Some(PatchOp::Set(value)) = &plan.album_sort {
-        dict.set(MP4_ALBUM_SORT_KEY, value);
+        pairs.push((MP4_ALBUM_SORT_KEY, value.clone()));
     }
-    octx.set_metadata(dict);
-
-    log::debug!("Container metadata set via ffmpeg-next");
+    let step = abb_ffmpeg::Step::SetTags;
+    let mut tags = abb_ffmpeg::Tags::default();
+    for (key, value) in pairs {
+        tags.push(key, &value, step)?;
+    }
+    output.set_tags(&tags)?;
+    log::debug!("Container metadata set");
+    Ok(())
 }
 
 #[cfg(test)]

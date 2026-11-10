@@ -1,6 +1,6 @@
+use abb_ffmpeg::{AudioFrame, ChannelLayout, SampleFormat};
+
 use crate::errors::{AppError, Result};
-use ffmpeg_next as ff;
-use log;
 
 enum SampleStorage {
     F32Planar(Vec<Vec<f32>>),
@@ -8,30 +8,21 @@ enum SampleStorage {
 }
 
 pub(super) fn allocated_audio_frame(
-    format: ff::format::Sample,
-    channel_layout: ff::channel_layout::ChannelLayout,
+    format: SampleFormat,
+    channel_layout: ChannelLayout,
     sample_rate: u32,
     samples: usize,
-) -> ff::frame::Audio {
-    let mut frame = ff::frame::Audio::empty();
-    frame.set_format(format);
-    frame.set_channel_layout(channel_layout);
-    frame.set_rate(sample_rate);
-    frame.set_samples(samples);
-    // SAFETY: Format, layout, rate, and sample count are set above, and `alloc` is called once on an empty
-    // frame, so the buffer has no earlier allocation to leak or alias.
-    unsafe {
-        frame.alloc(format, samples, channel_layout);
-    }
-    frame
+) -> Result<AudioFrame> {
+    AudioFrame::allocate(format, channel_layout, sample_rate, samples)
+        .map_err(|error| AppError::General(format!("Cannot allocate an audio frame: {error}")))
 }
 
 pub struct SampleAccumulator {
     channels: usize,
     frame_size: usize,
     sample_rate: u32,
-    channel_layout: ff::channel_layout::ChannelLayout,
-    format: ff::format::Sample,
+    channel_layout: ChannelLayout,
+    format: SampleFormat,
     storage: SampleStorage,
     bytes_per_sample: usize,
     consumed_samples: usize,
@@ -40,8 +31,8 @@ pub struct SampleAccumulator {
 #[derive(Clone, Copy)]
 struct DrainConfig {
     frame_size: usize,
-    format: ff::format::Sample,
-    channel_layout: ff::channel_layout::ChannelLayout,
+    format: SampleFormat,
+    channel_layout: ChannelLayout,
     sample_rate: u32,
     channels: usize,
 }
@@ -51,8 +42,8 @@ impl SampleAccumulator {
         channels: usize,
         frame_size: usize,
         sample_rate: u32,
-        channel_layout: ff::channel_layout::ChannelLayout,
-        format: ff::format::Sample,
+        channel_layout: ChannelLayout,
+        format: SampleFormat,
     ) -> Result<Self> {
         if frame_size == 0 {
             return Err(AppError::General(
@@ -62,7 +53,7 @@ impl SampleAccumulator {
         }
 
         let (bytes_per_sample, is_planar, storage) = match format {
-            ff::format::Sample::F32(ff::format::sample::Type::Planar) => {
+            SampleFormat::F32_PLANAR => {
                 let storage = SampleStorage::F32Planar(
                     (0..channels)
                         .map(|_| Vec::with_capacity(frame_size * 2))
@@ -70,8 +61,7 @@ impl SampleAccumulator {
                 );
                 (4, true, storage)
             }
-            ff::format::Sample::I16(ff::format::sample::Type::Packed)
-            | ff::format::Sample::F32(ff::format::sample::Type::Packed) => {
+            SampleFormat::S16 | SampleFormat::F32 => {
                 let bytes = format.bytes();
                 let storage =
                     SampleStorage::Packed(Vec::with_capacity(frame_size * channels * bytes * 2));
@@ -106,15 +96,11 @@ impl SampleAccumulator {
         })
     }
     /// Buffers the first `samples` of `frame` and returns every full encoder frame.
-    pub fn push_frame(
-        &mut self,
-        frame: &ff::frame::Audio,
-        samples: usize,
-    ) -> Vec<ff::frame::Audio> {
+    pub fn push_frame(&mut self, frame: &AudioFrame, samples: usize) -> Result<Vec<AudioFrame>> {
         let mut ready = Vec::new();
         let in_samples = frame.samples().min(samples);
         if in_samples == 0 {
-            return ready;
+            return Ok(ready);
         }
 
         {
@@ -132,7 +118,7 @@ impl SampleAccumulator {
                             continue;
                         }
 
-                        let plane = frame.plane::<f32>(ch);
+                        let plane = frame.plane_f32(ch).map_err(frame_shape)?;
                         let copy_len = plane.len().min(in_samples);
                         if copy_len < in_samples {
                             log::warn!(
@@ -147,7 +133,7 @@ impl SampleAccumulator {
                     }
                 }
                 SampleStorage::Packed(buffer) => {
-                    let plane = frame.data(0);
+                    let plane = frame.packed_bytes().map_err(frame_shape)?;
                     let expected = in_samples * self.channels * self.bytes_per_sample;
                     let copied = plane.len().min(expected);
                     buffer.extend_from_slice(&plane[..copied]);
@@ -159,14 +145,14 @@ impl SampleAccumulator {
         }
 
         while self.has_full_frame() {
-            if let Some(f) = self.drain_one(false) {
+            if let Some(f) = self.drain_one(false)? {
                 ready.push(f);
             } else {
                 break;
             }
         }
 
-        ready
+        Ok(ready)
     }
 
     fn has_full_frame(&self) -> bool {
@@ -188,11 +174,11 @@ impl SampleAccumulator {
     }
 
     /// Return the real final samples; the encoder owns codec padding.
-    pub fn flush_tail(&mut self) -> Option<ff::frame::Audio> {
+    pub fn flush_tail(&mut self) -> Result<Option<AudioFrame>> {
         self.drain_one(true)
     }
 
-    fn drain_one(&mut self, allow_short: bool) -> Option<ff::frame::Audio> {
+    fn drain_one(&mut self, allow_short: bool) -> Result<Option<AudioFrame>> {
         let config = DrainConfig {
             frame_size: self.frame_size,
             format: self.format,
@@ -204,17 +190,17 @@ impl SampleAccumulator {
 
         let frame = match &self.storage {
             SampleStorage::F32Planar(buffers) => {
-                Self::drain_one_f32_planar(buffers, consumed_samples, allow_short, config)
+                Self::drain_one_f32_planar(buffers, consumed_samples, allow_short, config)?
             }
             SampleStorage::Packed(buffer) => {
-                Self::drain_one_packed(buffer, consumed_samples, allow_short, config)
+                Self::drain_one_packed(buffer, consumed_samples, allow_short, config)?
             }
         };
 
         if frame.is_some() {
             self.compact_if_needed();
         }
-        frame
+        Ok(frame)
     }
 
     fn drain_one_f32_planar(
@@ -222,13 +208,13 @@ impl SampleAccumulator {
         consumed_samples: &mut usize,
         allow_short: bool,
         config: DrainConfig,
-    ) -> Option<ff::frame::Audio> {
+    ) -> Result<Option<AudioFrame>> {
         let available = buffers[0].len().saturating_sub(*consumed_samples);
         if available == 0 {
-            return None;
+            return Ok(None);
         }
         if !allow_short && available < config.frame_size {
-            return None;
+            return Ok(None);
         }
         let take = available.min(config.frame_size);
 
@@ -237,7 +223,7 @@ impl SampleAccumulator {
             config.channel_layout,
             config.sample_rate,
             take,
-        );
+        )?;
 
         for (ch, buffer) in buffers.iter().enumerate() {
             if ch >= frame.planes() {
@@ -249,7 +235,7 @@ impl SampleAccumulator {
                 continue;
             }
 
-            let dst = frame.plane_mut::<f32>(ch);
+            let dst = frame.plane_f32_mut(ch).map_err(frame_shape)?;
             let start = *consumed_samples;
             let src = &buffer[start..start + take];
 
@@ -260,7 +246,7 @@ impl SampleAccumulator {
             report.log(&format!("channel_index={ch}"), take);
         }
         *consumed_samples += take;
-        Some(frame)
+        Ok(Some(frame))
     }
 
     fn drain_one_packed(
@@ -268,15 +254,15 @@ impl SampleAccumulator {
         consumed_samples: &mut usize,
         allow_short: bool,
         config: DrainConfig,
-    ) -> Option<ff::frame::Audio> {
+    ) -> Result<Option<AudioFrame>> {
         let bytes_per_frame = config.channels * config.format.bytes();
         let samples_available = buffer.len() / bytes_per_frame;
         let available = samples_available.saturating_sub(*consumed_samples);
         if available == 0 {
-            return None;
+            return Ok(None);
         }
         if !allow_short && available < config.frame_size {
-            return None;
+            return Ok(None);
         }
         let take = available.min(config.frame_size);
         let take_total = take * bytes_per_frame;
@@ -287,12 +273,12 @@ impl SampleAccumulator {
             config.channel_layout,
             config.sample_rate,
             take,
-        );
+        )?;
 
         // Packed samples share plane zero; byte copies preserve alignment and precision.
-        let dst = &mut frame.data_mut(0)[..take_total];
+        let dst = &mut frame.packed_bytes_mut().map_err(frame_shape)?[..take_total];
         dst.copy_from_slice(&buffer[start..start + take_total]);
-        if config.format == ff::format::Sample::F32(ff::format::sample::Type::Packed) {
+        if config.format == SampleFormat::F32 {
             let mut report = SanitizeReport::default();
             for bytes in dst.as_chunks_mut::<4>().0 {
                 let value = f32::from_ne_bytes(*bytes);
@@ -302,7 +288,7 @@ impl SampleAccumulator {
         }
 
         *consumed_samples += take;
-        Some(frame)
+        Ok(Some(frame))
     }
 
     fn compact_if_needed(&mut self) {
@@ -335,6 +321,10 @@ impl SampleAccumulator {
         }
         self.consumed_samples = 0;
     }
+}
+
+fn frame_shape(error: abb_ffmpeg::Error) -> AppError {
+    AppError::General(format!("Audio frame does not match its format: {error}"))
 }
 
 /// Clamped peaks up to +1 dBFS are routine for lossy decodes and resampling

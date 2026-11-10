@@ -275,7 +275,7 @@ fn is_copied(stream: &abb_ffmpeg::StreamFacts) -> bool {
         abb_ffmpeg::Medium::Video => stream
             .disposition
             .contains(abb_ffmpeg::Disposition::ATTACHED_PIC),
-        abb_ffmpeg::Medium::Other => false,
+        abb_ffmpeg::Medium::Attachment | abb_ffmpeg::Medium::Other => false,
     }
 }
 

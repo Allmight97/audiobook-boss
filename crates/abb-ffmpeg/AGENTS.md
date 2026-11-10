@@ -15,7 +15,12 @@ The only ABB code that calls the FFmpeg C API. The engine uses it with no
   value: `Output::write_header` consumes the `Output` and returns the `Muxer`
   that writes packets.
 - Text from a file is bytes, not always UTF-8 (`Text`). Copy it as bytes;
-  convert it only for display.
+  convert it only for display, with `Text::display`: valid UTF-8 as UTF-8,
+  anything else as Latin-1. `Tags::get` ignores ASCII case in the key, as
+  FFmpeg's own lookup does.
+- A codec, sample format, or profile is kept as FFmpeg's number (`CodecId`,
+  `SampleFormat`, `profile`), so a value this build does not name is still a
+  value.
 - Error text never holds a path or an option value. `SecretOptions` has no
   `Debug`, and input options FFmpeg did not take come back as names only.
 - Every `unsafe` block has a `// SAFETY:` note; `lib.rs` denies

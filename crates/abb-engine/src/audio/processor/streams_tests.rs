@@ -3,39 +3,65 @@ use super::{
     build_aac_decoder_candidates_for_object_type, build_decoder_candidates_from_parameters,
     detect_aac_decoder_availability, faad_decodes, format_decoder_selection_failure,
     friendly_codec_label_from_id, parse_aac_audio_object_type, AacDecoder, AacDecoderAvailability,
-    DecoderCandidate,
+    AudioStreamParams, DecoderCandidate,
 };
-use ffmpeg_next as ff;
 use std::path::Path;
+
+use abb_ffmpeg::{profile, AudioFrame, AudioShape, ChannelLayout, CodecId, Rational, SampleFormat};
+
+fn stream_params(codec: CodecId, profile: i32, extradata: Option<Vec<u8>>) -> AudioStreamParams {
+    AudioStreamParams {
+        index: 0,
+        codec,
+        profile,
+        sample_rate: 44_100,
+        bit_rate: 0,
+        time_base: Rational::new(1, 44_100),
+        duration: None,
+        extradata,
+    }
+}
+
+const FIVE_POINT_ONE_SIDE: u64 = 0x60f;
 
 #[test]
 fn coherent_downmix_keeps_float_samples_within_full_scale() {
-    ff::init().expect("initialize FFmpeg");
-    let format = ff::format::Sample::F32(ff::format::sample::Type::Planar);
+    let format = SampleFormat::F32_PLANAR;
+    let shape = |layout| AudioShape {
+        format,
+        layout,
+        rate: 44_100,
+    };
+    let surround = ChannelLayout::from_mask(FIVE_POINT_ONE_SIDE).expect("5.1 layout");
     for (input_layout, output_layout) in [
-        (ff::ChannelLayout::STEREO, ff::ChannelLayout::MONO),
-        (ff::ChannelLayout::_5POINT1, ff::ChannelLayout::STEREO),
+        (ChannelLayout::default_for(2), ChannelLayout::default_for(1)),
+        (surround, ChannelLayout::default_for(2)),
     ] {
-        let mut input = ff::frame::Audio::new(format, 1_024, input_layout);
-        input.set_rate(44_100);
-        for channel in 0..input_layout.channels() as usize {
-            for (index, sample) in input.plane_mut::<f32>(channel).iter_mut().enumerate() {
+        let mut input = AudioFrame::allocate(format, input_layout, 44_100, 1_024).expect("input");
+        for channel in 0..usize::from(input_layout.channels()) {
+            let plane = input.plane_f32_mut(channel).expect("input plane");
+            for (index, sample) in plane.iter_mut().enumerate() {
                 *sample = 0.9 * (std::f32::consts::TAU * index as f32 / 100.0).sin();
             }
         }
-        let mut resampler =
-            super::create_resampler(format, input_layout, 44_100, format, output_layout, 44_100)
-                .expect("create normalized downmix");
-        let mut output = ff::frame::Audio::empty();
+        let mut resampler = abb_ffmpeg::Resampler::new(
+            shape(input_layout),
+            shape(output_layout),
+            &super::resampler_options().expect("options"),
+        )
+        .expect("create normalized downmix");
+        let mut output =
+            AudioFrame::allocate(format, output_layout, 44_100, input.samples()).expect("output");
         resampler
-            .run(&input, &mut output)
+            .convert(&input, &mut output)
             .expect("downmix coherent signal");
         assert_eq!(output.samples(), input.samples());
-        for channel in 0..output_layout.channels() as usize {
+        for channel in 0..usize::from(output_layout.channels()) {
             for (actual, expected) in output
-                .plane::<f32>(channel)
+                .plane_f32(channel)
+                .expect("output plane")
                 .iter()
-                .zip(input.plane::<f32>(0))
+                .zip(input.plane_f32(0).expect("first input plane"))
             {
                 assert!(
                     (actual - expected).abs() < 0.000_01,
@@ -81,12 +107,7 @@ fn aac_candidates_try_default_then_each_available_named_decoder() {
 
 #[test]
 fn non_aac_inputs_keep_default_decoder_only() {
-    let mut params = ff::codec::Parameters::new();
-    // SAFETY: `params` owns a freshly allocated `AVCodecParameters`, so the pointer is non-null and valid
-    // for this write.
-    unsafe {
-        (*params.as_mut_ptr()).codec_id = ffmpeg_next::ffi::AVCodecID::AV_CODEC_ID_MP3;
-    }
+    let params = stream_params(CodecId::MP3, profile::UNKNOWN, None);
     for preference in [AacDecoder::Auto, AacDecoder::Faad] {
         let candidates = build_decoder_candidates_from_parameters(&params, preference);
         assert_eq!(candidates, vec![DecoderCandidate::Default]);
@@ -105,12 +126,7 @@ fn faad_takes_lc_he_and_he_v2_and_leaves_other_profiles_to_auto() {
 
 #[test]
 fn forced_faad_is_the_only_aac_candidate() {
-    let mut params = ff::codec::Parameters::new();
-    // SAFETY: `params` owns a freshly allocated `AVCodecParameters`, so the pointer is non-null and valid
-    // for this write.
-    unsafe {
-        (*params.as_mut_ptr()).codec_id = ffmpeg_next::ffi::AVCodecID::AV_CODEC_ID_AAC;
-    }
+    let params = stream_params(CodecId::AAC, profile::UNKNOWN, None);
     let candidates = build_decoder_candidates_from_parameters(&params, AacDecoder::Faad);
 
     assert_eq!(candidates, vec![DecoderCandidate::Faad]);
@@ -118,13 +134,7 @@ fn forced_faad_is_the_only_aac_candidate() {
 
 #[test]
 fn an_adts_main_profile_without_extradata_keeps_auto() {
-    let mut params = ff::codec::Parameters::new();
-    // SAFETY: `params` owns a freshly allocated `AVCodecParameters`, so the pointer is non-null and valid
-    // for these writes.
-    unsafe {
-        (*params.as_mut_ptr()).codec_id = ffmpeg_next::ffi::AVCodecID::AV_CODEC_ID_AAC;
-        (*params.as_mut_ptr()).profile = ff::sys::AV_PROFILE_AAC_MAIN;
-    }
+    let params = stream_params(CodecId::AAC, profile::AAC_MAIN, None);
     let candidates = build_decoder_candidates_from_parameters(&params, AacDecoder::Faad);
 
     assert!(
@@ -135,18 +145,7 @@ fn an_adts_main_profile_without_extradata_keeps_auto() {
 
 #[test]
 fn non_aac_extradata_is_not_read_as_an_aac_object_type() {
-    let mut params = ff::codec::Parameters::new();
-    // SAFETY: `params` owns a fresh `AVCodecParameters`; the extradata buffer
-    // comes from av_mallocz with the required padding, and `params` frees it.
-    unsafe {
-        let raw = params.as_mut_ptr();
-        (*raw).codec_id = ffmpeg_next::ffi::AVCodecID::AV_CODEC_ID_EAC3;
-        let padding = ffmpeg_next::ffi::AV_INPUT_BUFFER_PADDING_SIZE as usize;
-        let data = ffmpeg_next::ffi::av_mallocz(2 + padding).cast::<u8>();
-        *data = 0x28;
-        (*raw).extradata = data;
-        (*raw).extradata_size = 2;
-    }
+    let params = stream_params(CodecId::FLAC, profile::UNKNOWN, Some(vec![0x28, 0x00]));
 
     assert_eq!(aac_object_type_from_parameters(&params), None);
 }
@@ -203,11 +202,11 @@ fn maps_aac_audio_object_types_to_friendly_labels() {
 #[test]
 fn non_aac_codec_labels_use_friendly_names() {
     assert_eq!(
-        friendly_codec_label_from_id(ffmpeg_next::codec::Id::MP3),
+        friendly_codec_label_from_id(CodecId::MP3),
         Some("MP3".to_string())
     );
     assert_eq!(
-        friendly_codec_label_from_id(ffmpeg_next::codec::Id::FLAC),
+        friendly_codec_label_from_id(CodecId::FLAC),
         Some("FLAC".to_string())
     );
 }

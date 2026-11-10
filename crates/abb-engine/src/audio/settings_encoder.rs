@@ -252,39 +252,21 @@ fn validate_encoder_mode_combo(encoder_type: EncoderType, mode: BitrateMode) -> 
 /// Probe the required NMR controls on the named encoder's private options.
 /// Opening each requested configuration still performs authoritative readback.
 fn is_native_nmr_available() -> bool {
-    use ffmpeg_next as ff;
-    let Some(codec) = ff::encoder::find_by_name("aac") else {
-        return false;
-    };
-    let mut ctx = ff::codec::context::Context::new_with_codec(codec);
-    // SAFETY: ctx owns its private options; C literals are NUL-terminated.
-    unsafe {
-        if ctx.as_mut_ptr().is_null() {
-            return false;
-        }
-        ff::ffi::av_opt_set(
-            ctx.as_mut_ptr().cast(),
-            c"aac_coder".as_ptr(),
-            c"nmr".as_ptr(),
-            ff::ffi::AV_OPT_SEARCH_CHILDREN,
-        ) >= 0
-            && ff::ffi::av_opt_set_int(
-                ctx.as_mut_ptr().cast(),
-                c"aac_nmr_speed".as_ptr(),
-                i64::from(NATIVE_SPEED_MAX),
-                ff::ffi::AV_OPT_SEARCH_CHILDREN,
-            ) >= 0
-    }
+    let mut options = abb_ffmpeg::Tags::default();
+    let step = abb_ffmpeg::Step::OpenEncoder;
+    options.push("aac_coder", "nmr", step).is_ok()
+        && options
+            .push("aac_nmr_speed", &NATIVE_SPEED_MAX.to_string(), step)
+            .is_ok()
+        && abb_ffmpeg::encoder_takes_options("aac", &options)
 }
 
 pub(super) fn linked_encoder_available(encoder: EncoderType) -> bool {
     match encoder {
         EncoderType::NativeAac => is_native_nmr_available(),
-        EncoderType::AacAt => {
-            cfg!(target_os = "macos") && ffmpeg_next::encoder::find_by_name("aac_at").is_some()
-        }
+        EncoderType::AacAt => cfg!(target_os = "macos") && abb_ffmpeg::has_encoder("aac_at"),
         EncoderType::Faac => true,
-        EncoderType::Opus => ffmpeg_next::encoder::find_by_name("libopus").is_some(),
+        EncoderType::Opus => abb_ffmpeg::has_encoder("libopus"),
         EncoderType::Auto => false,
     }
 }

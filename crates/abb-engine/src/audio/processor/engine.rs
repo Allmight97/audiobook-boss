@@ -1,7 +1,4 @@
 use std::path::Path;
-use std::sync::Once;
-
-use ffmpeg_next as ff;
 
 use super::run_diagnostics::{
     append_run_record, encoding_log_enabled, write_common_run_fields, write_run_header,
@@ -52,17 +49,22 @@ pub(crate) fn process_input_file(
     }
 
     log::info!("Setting up decoder and resampler for: {}", input_label);
-    let (mut ictx, mut decoder, mut resampler, stream_index, decode_window) =
-        crate::audio::processor::streams::setup_decoder_and_resampler(
-            input_path,
-            encoder,
-            ctx.context.aac_decoder,
-        )?;
+    let crate::audio::processor::streams::DecodingInput {
+        input: mut ictx,
+        mut decoder,
+        mut resampler,
+        stream_index,
+        decode_window,
+    } = crate::audio::processor::streams::setup_decoder_and_resampler(
+        input_path,
+        encoder,
+        ctx.context.aac_decoder,
+    )?;
     if let Some(input_facts) = input_facts {
         input_facts.push(format!(
-            "file={} codec={:?} decoder={} rate={} channels={}",
+            "file={} codec={} decoder={} rate={} channels={}",
             sanitize_path_for_display(input_path),
-            decoder.id(),
+            decoder.id().name().to_uppercase(),
             decoder.name(),
             decoder.rate(),
             decoder.channels()
@@ -125,21 +127,12 @@ fn execute_pipeline(
     passthrough: Option<&crate::metadata::PassthroughMetadata>,
     mut diagnostics: Option<&mut EncodingRunDiagnostics>,
 ) -> Result<()> {
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
-        #[expect(
-            clippy::let_underscore_must_use,
-            reason = "ffmpeg initialization is idempotent; the first ffmpeg call reports a failure"
-        )]
-        let _ = ff::init();
-    });
-
     let mut enc_ctx = crate::audio::processor::encoder::setup_encoder(plan, metadata, passthrough)?;
 
     if let Some(diagnostics) = diagnostics.as_deref_mut() {
         diagnostics.opened_encoder = Some(enc_ctx.name().to_owned());
         diagnostics.opened_rate = Some(enc_ctx.rate());
-        diagnostics.opened_channels = u32::try_from(enc_ctx.channel_layout().channels()).ok();
+        diagnostics.opened_channels = Some(u32::from(enc_ctx.channel_layout().channels()));
     }
 
     let emitter = context.new_emitter();

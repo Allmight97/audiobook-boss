@@ -121,8 +121,8 @@ pub fn apply_field_ops(sink: &mut Mp4ametaSink<'_>, ops: &[FieldOp]) {
 /// The dictionary entries a write sets: each Set op's keys in op order, then
 /// the audiobook media type. A Clear writes nothing; the merge drops the
 /// cleared keys from the existing tags.
-pub fn ffmpeg_dict_for_ops(ops: &[FieldOp]) -> ff::Dictionary<'static> {
-    let mut dict = ff::Dictionary::new();
+pub(crate) fn tag_pairs_for_ops(ops: &[FieldOp]) -> Vec<(&'static str, String)> {
+    let mut pairs = Vec::new();
     for op in ops {
         match op {
             FieldOp::Text {
@@ -130,25 +130,33 @@ pub fn ffmpeg_dict_for_ops(ops: &[FieldOp]) -> ff::Dictionary<'static> {
                 op: PatchOp::Set(value),
             } => {
                 for key in text_keys(*field).write {
-                    dict.set(key, value);
+                    pairs.push((*key, value.clone()));
                 }
                 if *field == TextField::Date {
                     if let Some(year) = publication_year_from_date(Some(value)) {
-                        dict.set("year", &year.to_string());
+                        pairs.push(("year", year.to_string()));
                     }
                 }
             }
             FieldOp::Position {
                 field,
                 op: PatchOp::Set((number, total)),
-            } => dict.set(
+            } => pairs.push((
                 position_keys(*field).write,
-                &format_position_field(*number, *total),
-            ),
+                format_position_field(*number, *total),
+            )),
             FieldOp::Text { .. } | FieldOp::Position { .. } => {}
         }
     }
-    dict.set("media_type", "2");
+    pairs.push(("media_type", "2".to_string()));
+    pairs
+}
+
+pub fn ffmpeg_dict_for_ops(ops: &[FieldOp]) -> ff::Dictionary<'static> {
+    let mut dict = ff::Dictionary::new();
+    for (key, value) in tag_pairs_for_ops(ops) {
+        dict.set(key, &value);
+    }
     dict
 }
 

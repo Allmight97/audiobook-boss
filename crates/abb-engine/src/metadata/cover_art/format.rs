@@ -15,6 +15,20 @@ impl CoverFormat {
         }
     }
 
+    pub(crate) fn codec(self) -> abb_ffmpeg::CodecId {
+        match self {
+            CoverFormat::Jpeg => abb_ffmpeg::CodecId::MJPEG,
+            CoverFormat::Png => abb_ffmpeg::CodecId::PNG,
+        }
+    }
+
+    pub(crate) fn picture_kind(self) -> abb_ffmpeg::PictureKind {
+        match self {
+            CoverFormat::Jpeg => abb_ffmpeg::PictureKind::Jpeg,
+            CoverFormat::Png => abb_ffmpeg::PictureKind::Png,
+        }
+    }
+
     pub(crate) fn pixel_format(self) -> ff::format::Pixel {
         match self {
             CoverFormat::Jpeg => ff::format::Pixel::YUVJ420P,

@@ -67,13 +67,11 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
 
 ## Hard Invariants
 
-- For planar audio, use typed plane access such as `frame.plane::<T>(ch)` and
-  `frame.plane_mut::<T>(ch)`, or an explicit FFmpeg `extended_data`-aware
-  helper. `data(ch)` and `data_mut(ch)` are not channel-presence or sample-copy
-  truth for planar audio.
-- Byte `linesize` is not per-channel audio truth for planar frames. A zero byte
-  linesize on channel index `> 0` needs typed-plane or raw-plane confirmation
-  before it counts as a missing channel.
+- Read and write samples through `abb_ffmpeg::AudioFrame`: `plane_f32` and
+  `plane_f32_mut` for planar float, `packed_bytes` and `packed_bytes_mut` for
+  packed formats. Each refuses a plane the frame's format lacks, and the layer
+  offers no raw plane or `linesize` access. Why: a planar frame's first plane
+  and its byte `linesize` say nothing about the other channels.
 - Silence padding serves a deliberate short-frame/tail policy or a verified
   missing-plane condition, with regression coverage.
 - Sample sanitization repairs NaN/Inf or clamps out-of-range floats before
@@ -91,8 +89,10 @@ and output validation. `processor/AGENTS.md` owns execution-stage rules.
   channels, duration, and a channel-level check such as RMS/peak parity. Notes
   on Native AAC artifacts separate structural correctness from subjective
   encoder quality.
-- `write_output_header` is the only header writer (`check-known-mistakes.ts`).
-  It pins an MP4's movie timescale to the audio sample rate, or a divisor of
+- `output_header.rs` holds the only header writers
+  (`check-known-mistakes.ts`): `write_layer_output_header` for an
+  `abb_ffmpeg::Output`, and `write_output_header` for the remux and preserve
+  code still on `ffmpeg-next` (#621 C2). Each pins an MP4's movie timescale to the audio sample rate, or a divisor of
   it for a chapter, or a gap between chapter starts, over about 13.5 hours,
   and rejects options the muxer does not take. Why: FFmpeg's own choice drops chapters longer than about 8
   minutes when a cover is present; the mechanism is in its rustdoc.

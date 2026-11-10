@@ -1,5 +1,5 @@
 use super::{speaker_layout, FaadFormat, PacketTrim, Trimmer};
-use ffmpeg_next as ff;
+use abb_ffmpeg::ChannelLayout;
 
 fn trim(frames: usize, skip: u32, padding: u32, discard: bool) -> PacketTrim {
     PacketTrim {
@@ -73,10 +73,16 @@ fn format(channels: u32, channel_mask: u32) -> FaadFormat {
 fn speaker_mask_names_the_center_channel_not_lfe() {
     let layout = speaker_layout(&format(3, 0x7)).expect("FL FR FC");
     assert_eq!(layout.channels(), 3);
-    assert_eq!(layout.bits(), ff::sys::AV_CH_LAYOUT_SURROUND);
+    assert_eq!(
+        layout,
+        ChannelLayout::Native {
+            channels: 3,
+            mask: 0x7
+        }
+    );
     assert_ne!(
         layout,
-        ff::ChannelLayout::default(3),
+        ChannelLayout::default_for(3),
         "count-based 3 channels is 2.1"
     );
 }
@@ -130,16 +136,11 @@ fn packets_of_other_streams_do_not_use_up_format_discovery() {
         fixture.to_str().expect("utf8 path"),
     ]);
 
-    let input = ff::format::input(&fixture).expect("open fixture");
-    let audio = input
-        .streams()
-        .best(ff::media::Type::Audio)
-        .expect("audio stream");
-    // SAFETY: the parameters belong to `input`, which outlives this copy of the extradata.
-    let asc = unsafe {
-        let raw = &*audio.parameters().as_ptr();
-        std::slice::from_raw_parts(raw.extradata, raw.extradata_size as usize).to_vec()
-    };
-    let format = super::discover_format(&fixture, audio.index(), Some(&asc)).expect("discovers");
+    let input = abb_ffmpeg::Input::open(&fixture, &abb_ffmpeg::SecretOptions::default())
+        .expect("open fixture")
+        .input;
+    let audio = input.best_audio_stream().expect("audio stream");
+    let asc = input.stream_extradata(audio).expect("AudioSpecificConfig");
+    let format = super::discover_format(&fixture, audio, Some(&asc)).expect("discovers");
     assert_eq!((format.rate, format.channels), (44_100, 1));
 }
