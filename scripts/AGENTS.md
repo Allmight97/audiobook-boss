@@ -101,7 +101,7 @@ Traps:
   removes.
 
 A change to CI or validation speed quotes before and after numbers from
-`bun run ci:timing` in its PR body, so every comparison uses one recipe.
+`bun run ci:timing` in its commit message, so every comparison uses one recipe.
 
 ## Development tooling
 
