@@ -4,11 +4,33 @@ use std::ptr::{self, NonNull};
 
 use ffmpeg_sys_next as sys;
 
+use crate::codec::CodecId;
 use crate::context::{self, Chapter, Disposition, Rational, StreamFacts};
+use crate::encoder::AudioEncoder;
 use crate::error::{Error, Result, Step};
 use crate::input::{path_text, Input};
 use crate::packet::Packet;
 use crate::text::{Dictionary, Tags, Text};
+
+/// An AAC stream whose packets come from outside FFmpeg's encoders.
+pub struct AacStream<'a> {
+    pub high_efficiency: bool,
+    pub rate: u32,
+    pub channels: u16,
+    pub bit_rate: i64,
+    pub frame_samples: u32,
+    /// Samples the decoder drops before the first audible one.
+    pub priming_samples: u32,
+    /// The AudioSpecificConfig.
+    pub config: &'a [u8],
+}
+
+/// The image format of an attached picture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PictureKind {
+    Jpeg,
+    Png,
+}
 
 /// The output file the layer created. Until `keep`, dropping it closes the
 /// file, frees the context, and removes the file.
@@ -78,7 +100,7 @@ impl Output {
 
     pub fn muxer_name(&self) -> String {
         // SAFETY: an output context always has an output format with a name.
-        unsafe { Text::copied_from((*(*self.ctx()).oformat).name) }.to_string_lossy()
+        unsafe { Text::copied_from((*(*self.ctx()).oformat).name) }.display()
     }
 
     pub fn streams(&self) -> Vec<StreamFacts> {
@@ -96,6 +118,141 @@ impl Output {
     pub fn add_stream_copied_from(&mut self, input: &Input, input_index: usize) -> Result<usize> {
         // SAFETY: `input` owns a live context.
         let source = unsafe { context::stream(input.as_ptr(), input_index, Step::AddStream)? };
+        let stream = self.new_stream()?;
+        // SAFETY: both streams are live and own their `codecpar`.
+        let code = unsafe { sys::avcodec_parameters_copy((*stream).codecpar, (*source).codecpar) };
+        Error::check(Step::CopyStreamParameters, code)?;
+        Ok(self.last_stream_index())
+    }
+
+    /// Whether the muxer keeps codec setup data in its header, which an
+    /// encoder must then be opened for.
+    pub fn wants_global_header(&self) -> bool {
+        // SAFETY: an output context always has an output format.
+        let flags = unsafe { (*(*self.ctx()).oformat).flags };
+        flags & sys::AVFMT_GLOBALHEADER != 0
+    }
+
+    /// Adds an audio stream with the opened encoder's parameters and returns
+    /// its index.
+    pub fn add_stream_for_encoder(&mut self, encoder: &AudioEncoder) -> Result<usize> {
+        let stream = self.new_stream()?;
+        // SAFETY: the new stream owns its `codecpar`; the encoder is live.
+        let code =
+            unsafe { sys::avcodec_parameters_from_context((*stream).codecpar, encoder.as_ptr()) };
+        Error::check(Step::CopyStreamParameters, code)?;
+        Ok(self.last_stream_index())
+    }
+
+    /// Adds the stream of one attached picture, ticking once a second, and
+    /// returns its index.
+    pub fn add_attached_picture_stream(
+        &mut self,
+        kind: PictureKind,
+        width: u32,
+        height: u32,
+    ) -> Result<usize> {
+        let step = Step::AddStream;
+        let size = |value: u32| c_int::try_from(value).map_err(|_| Error::OutOfRange { step });
+        let (width, height) = (size(width)?, size(height)?);
+        let stream = self.new_stream()?;
+        // SAFETY: the new stream belongs to the live context `self` owns and
+        // owns its `codecpar`.
+        unsafe {
+            let parameters = (*stream).codecpar;
+            (*parameters).codec_type = sys::AVMediaType::AVMEDIA_TYPE_VIDEO;
+            (*parameters).codec_id = match kind {
+                PictureKind::Jpeg => sys::AVCodecID::AV_CODEC_ID_MJPEG,
+                PictureKind::Png => sys::AVCodecID::AV_CODEC_ID_PNG,
+            };
+            (*parameters).format = match kind {
+                PictureKind::Jpeg => sys::AVPixelFormat::AV_PIX_FMT_YUVJ420P,
+                PictureKind::Png => sys::AVPixelFormat::AV_PIX_FMT_RGBA,
+            } as c_int;
+            (*parameters).width = width;
+            (*parameters).height = height;
+            (*stream).time_base = sys::AVRational { num: 1, den: 1 };
+            (*stream).disposition |= sys::AV_DISPOSITION_ATTACHED_PIC;
+        }
+        Ok(self.last_stream_index())
+    }
+
+    /// Adds the audio stream `aac` describes and returns its index.
+    pub fn add_aac_stream(&mut self, aac: &AacStream<'_>) -> Result<usize> {
+        let step = Step::AddStream;
+        let number = |value: u32| c_int::try_from(value).map_err(|_| Error::OutOfRange { step });
+        let (rate, frame, priming) = (
+            number(aac.rate)?,
+            number(aac.frame_samples)?,
+            number(aac.priming_samples)?,
+        );
+        let stream = self.new_stream()?;
+        // SAFETY: the new stream belongs to the live context `self` owns and
+        // owns its `codecpar`, whose blank layout holds no allocation.
+        unsafe {
+            let parameters = (*stream).codecpar;
+            (*parameters).codec_type = sys::AVMediaType::AVMEDIA_TYPE_AUDIO;
+            (*parameters).codec_id = sys::AVCodecID::AV_CODEC_ID_AAC;
+            (*parameters).profile = if aac.high_efficiency {
+                sys::AV_PROFILE_AAC_HE
+            } else {
+                sys::AV_PROFILE_AAC_LOW
+            };
+            (*parameters).sample_rate = rate;
+            sys::av_channel_layout_default(&mut (*parameters).ch_layout, c_int::from(aac.channels));
+            (*parameters).bit_rate = aac.bit_rate;
+            (*parameters).frame_size = frame;
+            (*parameters).initial_padding = priming;
+            set_extradata(parameters, aac.config, step)?;
+        }
+        Ok(self.last_stream_index())
+    }
+
+    /// Adds a Matroska attachment holding `bytes` and returns its stream
+    /// index. The muxer writes it with the header.
+    pub fn add_attachment_stream(
+        &mut self,
+        codec: CodecId,
+        bytes: &[u8],
+        tags: &Tags,
+    ) -> Result<usize> {
+        let step = Step::AddStream;
+        let dictionary = tags.to_dictionary(Step::SetTags)?;
+        let stream = self.new_stream()?;
+        // SAFETY: the new stream belongs to the live context `self` owns and
+        // owns its `codecpar` and metadata slot.
+        unsafe {
+            let parameters = (*stream).codecpar;
+            (*parameters).codec_type = sys::AVMediaType::AVMEDIA_TYPE_ATTACHMENT;
+            codec.write(ptr::addr_of_mut!((*parameters).codec_id));
+            set_extradata(parameters, bytes, step)?;
+            replace_dictionary(&mut (*stream).metadata, dictionary);
+        }
+        Ok(self.last_stream_index())
+    }
+
+    /// Restates an audio stream's sample rate, frame size, and initial
+    /// padding on a clock of `rate` ticks a second.
+    pub fn restate_stream_sample_clock(&mut self, index: usize, rate: u32) -> Result<()> {
+        let step = Step::AddStream;
+        let rate = c_int::try_from(rate).map_err(|_| Error::OutOfRange { step })?;
+        let stream = self.stream(index)?;
+        // SAFETY: `stream` belongs to the live context `self` owns, and every
+        // stream FFmpeg creates has a `codecpar`.
+        unsafe {
+            let parameters = (*stream).codecpar;
+            let old = (*parameters).sample_rate;
+            if old <= 0 {
+                return Err(Error::OutOfRange { step });
+            }
+            (*parameters).initial_padding = (*parameters).initial_padding * rate / old;
+            (*parameters).frame_size = (*parameters).frame_size * rate / old;
+            (*parameters).sample_rate = rate;
+        }
+        Ok(())
+    }
+
+    fn new_stream(&mut self) -> Result<*mut sys::AVStream> {
         // SAFETY: `self` owns a live context; a new stream belongs to it.
         let stream = unsafe { sys::avformat_new_stream(self.ctx(), ptr::null()) };
         if stream.is_null() {
@@ -103,11 +260,12 @@ impl Output {
                 step: Step::AddStream,
             });
         }
-        // SAFETY: both streams are live and own their `codecpar`.
-        let code = unsafe { sys::avcodec_parameters_copy((*stream).codecpar, (*source).codecpar) };
-        Error::check(Step::CopyStreamParameters, code)?;
-        // SAFETY: `self` owns a live context with at least the new stream.
-        Ok(unsafe { (*self.ctx()).nb_streams } as usize - 1)
+        Ok(stream)
+    }
+
+    fn last_stream_index(&self) -> usize {
+        // SAFETY: `self` owns a live context with at least one stream.
+        unsafe { (*self.ctx()).nb_streams as usize - 1 }
     }
 
     pub fn set_stream_time_base(&mut self, index: usize, time_base: Rational) -> Result<()> {
@@ -218,6 +376,25 @@ impl Muxer {
         Ok(Rational::from_sys(unsafe { (*stream).time_base }))
     }
 
+    /// Sets one container tag. A muxer that writes its tags in the trailer,
+    /// as MP4 does, still takes it.
+    pub fn set_tag(&mut self, key: &str, value: &str) -> Result<()> {
+        let step = Step::SetTags;
+        let key = Text::new(key, step)?;
+        let value = Text::new(value, step)?;
+        // SAFETY: `self` owns a live context; FFmpeg copies both
+        // NUL-terminated strings into the context's dictionary.
+        let code = unsafe {
+            sys::av_dict_set(
+                &mut (*self.0.ctx.as_ptr()).metadata,
+                key.as_ptr(),
+                value.as_ptr(),
+                0,
+            )
+        };
+        Error::check(step, code).map(drop)
+    }
+
     /// Writes the packet in interleaved order; the packet is blank afterwards.
     pub fn write_interleaved(&mut self, packet: &mut Packet) -> Result<()> {
         if packet.lacks_payload_and_side_data() {
@@ -241,6 +418,32 @@ impl Muxer {
         self.0.kept = true;
         Ok(())
     }
+}
+
+/// Gives `parameters` an owned, padded copy of `bytes` as its extradata.
+///
+/// # Safety
+/// `parameters` is live and holds no extradata.
+unsafe fn set_extradata(
+    parameters: *mut sys::AVCodecParameters,
+    bytes: &[u8],
+    step: Step,
+) -> Result<()> {
+    let size = c_int::try_from(bytes.len()).map_err(|_| Error::OutOfRange { step })?;
+    // SAFETY: av_mallocz returns zeroed memory of the padded size or null;
+    // the copy fills exactly `bytes.len()` of it; the caller guarantees
+    // `parameters`, which frees the buffer with the stream.
+    unsafe {
+        let data =
+            sys::av_mallocz(bytes.len() + sys::AV_INPUT_BUFFER_PADDING_SIZE as usize).cast::<u8>();
+        if data.is_null() {
+            return Err(Error::OutOfMemory { step });
+        }
+        ptr::copy_nonoverlapping(bytes.as_ptr(), data, bytes.len());
+        (*parameters).extradata = data;
+        (*parameters).extradata_size = size;
+    }
+    Ok(())
 }
 
 /// # Safety

@@ -9,8 +9,7 @@
 //! which holds the delayed tail.
 
 use crate::errors::{AppError, Result};
-use ff::{packet::Mut, Rescale};
-use ffmpeg_next as ff;
+use abb_ffmpeg::{CodecId, Input, Packet, Rational, SkipSamples};
 
 pub(super) const ENCODING_TOOL: &str = "AudioBook Boss FAAC HE-AAC timing-2";
 pub(super) const CORE_PRIMING: i64 = 2080;
@@ -25,8 +24,13 @@ fn core_priming(tool: Option<&str>) -> Option<i64> {
     }
 }
 
-pub(super) fn is_abb_faac_he(input: &ff::format::context::Input) -> bool {
-    core_priming(input.metadata().get("encoder")).is_some()
+fn tag(input: &Input, key: &str) -> Option<String> {
+    input.tags().get(key).map(abb_ffmpeg::Text::display)
+}
+
+/// Whether a container `encoder` tag names ABB's FAAC HE-AAC output.
+pub(super) fn is_abb_faac_he(encoder_tag: Option<&str>) -> bool {
+    core_priming(encoder_tag).is_some()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -75,28 +79,26 @@ fn agrees_with_duration(samples: i64, coded: i64, duration: i64) -> bool {
 }
 
 struct AudioClock {
-    time_base: ff::Rational,
+    time_base: Rational,
     rate: i32,
     duration: i64,
 }
 
-fn audio_clock(input: &ff::format::context::Input) -> Result<AudioClock> {
+fn audio_clock(input: &Input) -> Result<AudioClock> {
     let stream = input
-        .streams()
-        .best(ff::media::Type::Audio)
+        .best_audio_stream()
+        .and_then(|index| input.streams().into_iter().nth(index))
         .ok_or_else(|| AppError::InvalidInput("HE-AAC file has no audio stream.".into()))?;
-    let parameters = stream.parameters();
-    // SAFETY: copy the sample rate while the stream's parameters are borrowed.
-    let rate = unsafe { (*parameters.as_ptr()).sample_rate };
-    if parameters.id() != ff::codec::Id::AAC || rate <= 0 {
+    let rate = stream.sample_rate;
+    if stream.codec != CodecId::AAC || rate <= 0 {
         return Err(AppError::InvalidInput(
             "HE-AAC file has no valid playable sample interval.".into(),
         ));
     }
     Ok(AudioClock {
-        time_base: stream.time_base(),
+        time_base: stream.time_base,
         rate,
-        duration: stream.duration(),
+        duration: stream.duration.unwrap_or(i64::MIN),
     })
 }
 
@@ -111,21 +113,20 @@ impl HeDecodeWindow {
     /// The window for ABB's FAAC HE files, or for an HE-AAC file (`he`) that
     /// declares iTunSMPB. Any other input keeps FFmpeg's own trimming.
     pub fn from_input(
-        input: &ff::format::context::Input,
+        input: &Input,
         he: bool,
         sbr_delay_owner: SbrDelayOwner,
     ) -> Result<Option<Self>> {
-        if let Some(priming) = core_priming(input.metadata().get("encoder")) {
+        if let Some(priming) = core_priming(tag(input, "encoder").as_deref()) {
             return Self::abb_faac(input, priming, sbr_delay_owner).map(Some);
         }
         if !he {
             return Ok(None);
         }
-        let metadata = input.metadata();
-        let Some(value) = metadata.get("iTunSMPB") else {
+        let Some(value) = tag(input, "iTunSMPB") else {
             return Ok(None);
         };
-        let Some(gapless) = itunes_gapless(value) else {
+        let Some(gapless) = itunes_gapless(&value) else {
             log::warn!("he_gapless status=ignored reason=unreadable_itunsmpb");
             return Ok(None);
         };
@@ -133,12 +134,13 @@ impl HeDecodeWindow {
     }
 
     fn itunes(
-        input: &ff::format::context::Input,
+        input: &Input,
         gapless: Gapless,
         sbr_delay_owner: SbrDelayOwner,
     ) -> Result<Option<Self>> {
         let clock = audio_clock(input)?;
-        let to_output = |ticks: i64| ticks.rescale(clock.time_base, ff::Rational(1, clock.rate));
+        let to_output =
+            |ticks: i64| Rational::rescale(ticks, clock.time_base, Rational::new(1, clock.rate));
         let (priming, samples) = (to_output(gapless.priming), to_output(gapless.samples));
         let coded = priming + samples + to_output(gapless.remainder);
         if clock.duration <= 0 || !agrees_with_duration(samples, coded, to_output(clock.duration)) {
@@ -154,20 +156,18 @@ impl HeDecodeWindow {
         Ok(Some(window))
     }
 
-    fn abb_faac(
-        input: &ff::format::context::Input,
-        priming: i64,
-        sbr_delay_owner: SbrDelayOwner,
-    ) -> Result<Self> {
+    fn abb_faac(input: &Input, priming: i64, sbr_delay_owner: SbrDelayOwner) -> Result<Self> {
         let clock = audio_clock(input)?;
         if clock.duration <= 0 {
             return Err(AppError::InvalidInput(
                 "HE-AAC file has no valid playable sample interval.".into(),
             ));
         }
-        let samples = clock
-            .duration
-            .rescale(clock.time_base, ff::Rational(1, clock.rate));
+        let samples = Rational::rescale(
+            clock.duration,
+            clock.time_base,
+            Rational::new(1, clock.rate),
+        );
         Self::new(priming, samples, clock.rate, sbr_delay_owner)
     }
 
@@ -191,13 +191,13 @@ impl HeDecodeWindow {
 
     /// Packet skip metadata lets the decoder own frame slicing before
     /// resampling. It replaces the skip metadata FFmpeg derived from iTunSMPB.
-    pub fn apply(self, packet: &mut ff::Packet, time_base: ff::Rational) -> Result<()> {
-        let samples = ff::Rational(1, self.rate as i32);
-        let start = packet
+    pub fn apply(self, packet: &mut Packet, time_base: Rational) -> Result<()> {
+        let samples = Rational::new(1, self.rate as i32);
+        let pts = packet
             .pts()
-            .ok_or_else(|| AppError::InvalidInput("HE-AAC packet has no timestamp.".into()))?
-            .rescale(time_base, samples);
-        let length = packet.duration().rescale(time_base, samples);
+            .ok_or_else(|| AppError::InvalidInput("HE-AAC packet has no timestamp.".into()))?;
+        let start = Rational::rescale(pts, time_base, samples);
+        let length = Rational::rescale(packet.duration(), time_base, samples);
         if start < 0 || length <= 0 || start > i64::MAX - length {
             return Err(AppError::InvalidInput(
                 "HE-AAC packet has an invalid access-unit interval.".into(),
@@ -205,29 +205,17 @@ impl HeDecodeWindow {
         }
         let leading = (self.start_sample - start).clamp(0, length) as u32;
         let trailing = (start + length - self.end_sample).clamp(0, length) as u32;
-        let has_skip = packet
-            .side_data()
-            .any(|side| side.kind() == ff::codec::packet::side_data::Type::SkipSamples);
+        let has_skip = !matches!(packet.skip_samples(), Ok(None));
         if leading == 0 && trailing == 0 && !has_skip {
             return Ok(());
         }
-        // SAFETY: packet owns the initialized ten-byte skip-sample payload.
-        // Counts are bounded by this AAC access unit's duration.
-        unsafe {
-            let data = ff::sys::av_packet_new_side_data(
-                packet.as_mut_ptr(),
-                ff::sys::AVPacketSideDataType::AV_PKT_DATA_SKIP_SAMPLES,
-                10,
-            );
-            if data.is_null() {
-                return Err(AppError::General(
-                    "Cannot allocate HE-AAC trim metadata.".into(),
-                ));
-            }
-            std::ptr::write_bytes(data, 0, 10);
-            std::ptr::copy_nonoverlapping(leading.to_le_bytes().as_ptr(), data, 4);
-            std::ptr::copy_nonoverlapping(trailing.to_le_bytes().as_ptr(), data.add(4), 4);
-        }
+        packet
+            .set_skip_samples(SkipSamples {
+                start: leading,
+                end: trailing,
+                ..SkipSamples::default()
+            })
+            .map_err(|_| AppError::General("Cannot allocate HE-AAC trim metadata.".into()))?;
         Ok(())
     }
 }

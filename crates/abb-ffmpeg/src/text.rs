@@ -16,12 +16,29 @@ impl Text {
             .map_err(|_| Error::NulInText { step })
     }
 
+    /// Text from bytes that need not be UTF-8.
+    pub fn from_bytes(value: &[u8], step: Step) -> Result<Self> {
+        CString::new(value)
+            .map(Self)
+            .map_err(|_| Error::NulInText { step })
+    }
+
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
     }
 
-    pub fn to_string_lossy(&self) -> String {
-        self.0.to_string_lossy().into_owned()
+    /// The text for display: its bytes as UTF-8 when they are valid UTF-8,
+    /// otherwise each byte as one Latin-1 character.
+    pub fn display(&self) -> String {
+        match self.0.to_str() {
+            Ok(text) => text.to_owned(),
+            Err(_) => self
+                .0
+                .as_bytes()
+                .iter()
+                .map(|&byte| char::from(byte))
+                .collect(),
+        }
     }
 
     pub(crate) fn as_ptr(&self) -> *const c_char {
@@ -41,10 +58,12 @@ impl Text {
 pub struct Tags(Vec<(Text, Text)>);
 
 impl Tags {
+    /// The first value whose key equals `key`, ignoring ASCII case as
+    /// FFmpeg's own lookup does.
     pub fn get(&self, key: &str) -> Option<&Text> {
         self.0
             .iter()
-            .find(|(name, _)| name.as_bytes() == key.as_bytes())
+            .find(|(name, _)| name.as_bytes().eq_ignore_ascii_case(key.as_bytes()))
             .map(|(_, value)| value)
     }
 
@@ -129,7 +148,7 @@ impl Dictionary {
         Tags::read(self.0)
             .0
             .into_iter()
-            .map(|(key, _)| key.to_string_lossy())
+            .map(|(key, _)| key.display())
             .collect()
     }
 

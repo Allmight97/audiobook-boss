@@ -1,7 +1,7 @@
 use crate::audio::buffer::allocated_audio_frame;
 use crate::audio::processor::preview_state::PreviewState;
 use crate::errors::Result;
-use ffmpeg_next as ff;
+use abb_ffmpeg::{AudioFrame, Input, Packet, Progress, Resampler};
 
 const PROGRESS_EMIT_INTERVAL_MS: u64 = 1000;
 
@@ -82,7 +82,7 @@ fn check_per_file_preview_stop(ctx: &mut FramePipelineCtx) -> PreviewAction {
 }
 
 fn process_and_encode_frame(
-    frame: &ff::frame::Audio,
+    frame: &AudioFrame,
     encoder: &mut super::encoder::EncoderSession,
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
@@ -92,7 +92,7 @@ fn process_and_encode_frame(
         None => frame.samples(),
     };
 
-    for mut full in accumulator.push_frame(frame, samples) {
+    for mut full in accumulator.push_frame(frame, samples)? {
         full.set_pts(Some(*ctx.running_pts));
         *ctx.running_pts += full.samples() as i64;
         encoder.submit(&full)?;
@@ -104,29 +104,15 @@ fn process_and_encode_frame(
 
 const RESAMPLER_FLUSH_CHUNK_SAMPLES: usize = 1024;
 
-fn allocate_resampler_output_frame(
-    resampler: &ff::software::resampling::Context,
-    samples: usize,
-) -> ff::frame::Audio {
-    let out_def = *resampler.output();
-    allocated_audio_frame(
-        out_def.format,
-        out_def.channel_layout,
-        out_def.rate,
-        samples,
-    )
+fn allocate_resampler_output_frame(resampler: &Resampler, samples: usize) -> Result<AudioFrame> {
+    let out_def = resampler.output();
+    allocated_audio_frame(out_def.format, out_def.layout, out_def.rate, samples)
 }
 
-fn resampler_output_frame_samples(
-    resampler: &ff::software::resampling::Context,
-    input_samples: usize,
-) -> usize {
-    let input_rate = u128::from(resampler.input().rate);
+fn resampler_output_frame_samples(resampler: &Resampler, input_samples: usize) -> usize {
+    let input_rate = u128::from(resampler.input_rate());
     let output_rate = u128::from(resampler.output().rate);
-    let delayed_input = resampler
-        .delay()
-        .map(|delay| delay.input.max(0) as u128)
-        .unwrap_or(0);
+    let delayed_input = resampler.delay_at(resampler.input_rate()).max(0) as u128;
     let input_samples = input_samples as u128;
     let total_input = delayed_input.saturating_add(input_samples);
     let numerator = total_input.saturating_mul(output_rate);
@@ -135,7 +121,7 @@ fn resampler_output_frame_samples(
 }
 
 fn flush_resampler_tail(
-    resampler: &mut ff::software::resampling::Context,
+    resampler: &mut Resampler,
     encoder: &mut super::encoder::EncoderSession,
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
@@ -145,8 +131,8 @@ fn flush_resampler_tail(
     let mut frame_count = 0usize;
     let mut sample_count = 0usize;
     loop {
-        let mut out = allocate_resampler_output_frame(resampler, RESAMPLER_FLUSH_CHUNK_SAMPLES);
-        let remaining = resampler
+        let mut out = allocate_resampler_output_frame(resampler, RESAMPLER_FLUSH_CHUNK_SAMPLES)?;
+        resampler
             .flush(&mut out)
             .map_err(|e| AppError::General(format!("Resampler flush failed: {e}")))?;
         if out.samples() == 0 {
@@ -155,7 +141,7 @@ fn flush_resampler_tail(
         frame_count += 1;
         sample_count += out.samples();
         process_and_encode_frame(&out, encoder, ctx, accumulator)?;
-        if remaining.is_none() {
+        if resampler.delay_at(1) == 0 {
             break;
         }
     }
@@ -174,7 +160,7 @@ pub(crate) fn flush_accumulator_tail(
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
 ) -> Result<()> {
-    if let Some(mut tail) = accumulator.flush_tail() {
+    if let Some(mut tail) = accumulator.flush_tail()? {
         tail.set_pts(Some(*ctx.running_pts));
         *ctx.running_pts += tail.samples() as i64;
         encoder.submit(&tail)?;
@@ -185,7 +171,7 @@ pub(crate) fn flush_accumulator_tail(
 fn process_decoded_frames(
     decoder: &mut super::decoder::AudioDecoder,
     encoder: &mut super::encoder::EncoderSession,
-    resampler: &mut ff::software::resampling::Context,
+    resampler: &mut Resampler,
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
 ) -> Result<PreviewAction> {
@@ -200,11 +186,12 @@ fn process_decoded_frames(
         if ctx.context.is_cancelled() {
             return Err(AppError::cancelled());
         }
-        let mut frame = ff::frame::Audio::empty();
+        let mut frame = AudioFrame::empty()
+            .map_err(|e| AppError::General(format!("Decoder receive failed: {e}")))?;
         match decoder.receive_frame(&mut frame) {
-            Ok(()) => {
+            Ok(Progress::Ready) => {
                 let decoder_matches_encoder = frame.format() == encoder_format
-                    && frame.channel_layout() == encoder_channel_layout
+                    && frame.layout() == Some(encoder_channel_layout)
                     && frame.rate() == encoder_sample_rate;
 
                 if decoder_matches_encoder {
@@ -225,10 +212,10 @@ fn process_decoded_frames(
                 let mut out = allocate_resampler_output_frame(
                     resampler,
                     resampler_output_frame_samples(resampler, frame.samples()),
-                );
+                )?;
 
                 resampler
-                    .run(&frame, &mut out)
+                    .convert(&frame, &mut out)
                     .map_err(|e| AppError::General(format!("Resample failed: {e}")))?;
 
                 if out.samples() == 0 {
@@ -241,10 +228,7 @@ fn process_decoded_frames(
                     break;
                 }
             }
-            Err(ff::Error::Other {
-                errno: ff::error::EAGAIN,
-            })
-            | Err(ff::Error::Eof) => break,
+            Ok(Progress::NeedsInput | Progress::Finished) => break,
             Err(e) => return Err(AppError::General(format!("Decoder receive failed: {e}"))),
         }
     }
@@ -252,10 +236,10 @@ fn process_decoded_frames(
 }
 
 pub(crate) fn process_input_packets(
-    ictx: &mut ff::format::context::Input,
+    ictx: &mut Input,
     decoder: &mut super::decoder::AudioDecoder,
     encoder: &mut super::encoder::EncoderSession,
-    resampler: &mut ff::software::resampling::Context,
+    resampler: &mut Resampler,
     decode_window: Option<super::he_timing::HeDecodeWindow>,
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
@@ -270,18 +254,10 @@ pub(crate) fn process_input_packets(
     }
     let mut packet_count = 0;
     let mut final_action = PreviewAction::Continue;
-    loop {
-        let mut packet = ff::Packet::empty();
-        match packet.read(ictx) {
-            Ok(()) => {}
-            Err(ff::Error::Eof) => break,
-            Err(error) => {
-                return Err(AppError::General(format!(
-                    "Input packet read failed: {error}"
-                )))
-            }
-        }
-        let stream_index = packet.stream();
+    let read_failure = |error| AppError::General(format!("Input packet read failed: {error}"));
+    let mut packet = Packet::new().map_err(read_failure)?;
+    while ictx.read_packet(&mut packet).map_err(read_failure)? {
+        let stream_index = packet.stream_index();
         if log::log_enabled!(log::Level::Debug) {
             log::debug!("Processing packet from stream {}", stream_index);
         }
@@ -337,7 +313,7 @@ pub(crate) fn process_input_packets(
 
 fn send_packet_to_decoder(
     decoder: &mut super::decoder::AudioDecoder,
-    packet: &ff::Packet,
+    packet: &Packet,
     packet_count: usize,
 ) -> Result<()> {
     use crate::errors::AppError;
@@ -363,7 +339,7 @@ fn send_packet_to_decoder(
 fn process_packet_frames(
     decoder: &mut super::decoder::AudioDecoder,
     encoder: &mut super::encoder::EncoderSession,
-    resampler: &mut ff::software::resampling::Context,
+    resampler: &mut Resampler,
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
     packet_count: usize,

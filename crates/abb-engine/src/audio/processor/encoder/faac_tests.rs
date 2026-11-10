@@ -1,4 +1,5 @@
 use super::*;
+use abb_ffmpeg::ChannelLayout;
 
 #[test]
 fn rejects_clamped_he_bitrate_but_allows_lc_and_auto() {
@@ -38,9 +39,7 @@ fn stereo_lc(bitrate_kbps: u16) -> EncoderSettings {
 fn stereo_bitrate_setting_is_the_whole_stream_rate() {
     let encoder = FaacEncoder::open(44_100, 2, &stereo_lc(128)).expect("open");
     assert_eq!(encoder.info.bit_rate, 128_000);
-    let parameters = encoder.parameters().expect("parameters");
-    // SAFETY: `parameters` owns the codec parameters read here.
-    assert_eq!(unsafe { (*parameters.as_ptr()).bit_rate }, 128_000);
+    assert_eq!(encoder.stream().bit_rate, 128_000);
 }
 
 #[test]
@@ -53,14 +52,20 @@ fn normalized_input_decodes_at_the_same_level() {
         |n: usize| (n as f32 * 2.0 * std::f32::consts::PI * 441.0 / rate as f32).sin() * 0.25;
     let mut packets = Vec::new();
     for index in 0..frames {
-        let mut frame = ff::frame::Audio::new(
-            ff::format::Sample::F32(ff::format::sample::Type::Planar),
+        let mut frame = AudioFrame::allocate(
+            SampleFormat::F32_PLANAR,
+            ChannelLayout::default_for(2),
+            rate,
             frame_samples,
-            ff::ChannelLayout::STEREO,
-        );
-        frame.set_rate(rate);
+        )
+        .expect("frame");
         for channel in 0..2 {
-            for (offset, sample) in frame.plane_mut::<f32>(channel).iter_mut().enumerate() {
+            for (offset, sample) in frame
+                .plane_f32_mut(channel)
+                .expect("plane")
+                .iter_mut()
+                .enumerate()
+            {
                 *sample = tone(index * frame_samples + offset);
             }
         }
@@ -101,7 +106,7 @@ fn normalized_input_decodes_at_the_same_level() {
         let mut output = vec![0f32; info.max_output_bytes as usize / 4];
         let mut decoded = Vec::new();
         for packet in &packets {
-            let data = packet.data().expect("packet data");
+            let data = packet.data();
             let (mut consumed, mut written) = (0, 0);
             assert_eq!(
                 faac::faad_decode_frame(

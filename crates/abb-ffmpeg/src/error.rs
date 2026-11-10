@@ -22,6 +22,15 @@ pub enum Step {
     WriteTrailer,
     CloseOutput,
     AllocatePacket,
+    AllocateFrame,
+    OpenDecoder,
+    Decode,
+    OpenEncoder,
+    Encode,
+    ReadEncoderOption,
+    CreateResampler,
+    Resample,
+    AddSideData,
 }
 
 impl Step {
@@ -41,6 +50,15 @@ impl Step {
             Self::WriteTrailer => "write the output trailer",
             Self::CloseOutput => "close the output file",
             Self::AllocatePacket => "allocate a packet",
+            Self::AllocateFrame => "allocate an audio frame",
+            Self::OpenDecoder => "open the decoder",
+            Self::Decode => "decode audio",
+            Self::OpenEncoder => "open the encoder",
+            Self::Encode => "encode audio",
+            Self::ReadEncoderOption => "read an encoder option",
+            Self::CreateResampler => "create the resampler",
+            Self::Resample => "resample audio",
+            Self::AddSideData => "add packet side data",
         }
     }
 }
@@ -48,12 +66,43 @@ impl Step {
 /// A layer failure. Its text never holds a path or an option value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
-    Ffmpeg { step: Step, code: c_int },
-    OutOfMemory { step: Step },
-    NulInText { step: Step },
-    MissingStream { step: Step, index: usize },
+    Ffmpeg {
+        step: Step,
+        code: c_int,
+    },
+    OutOfMemory {
+        step: Step,
+    },
+    NulInText {
+        step: Step,
+    },
+    MissingStream {
+        step: Step,
+        index: usize,
+    },
     EmptyPacket,
     ChapterEndsBeforeStart,
+    CodecNotFound {
+        step: Step,
+    },
+    NotAudio {
+        step: Step,
+    },
+    UnsupportedSampleFormat {
+        step: Step,
+    },
+    UnsupportedChannelOrder {
+        step: Step,
+    },
+    OutOfRange {
+        step: Step,
+    },
+    WrongFrameShape,
+    /// Option names only; values are never listed.
+    OptionsNotTaken {
+        step: Step,
+        names: Vec<String>,
+    },
 }
 
 impl Error {
@@ -63,6 +112,19 @@ impl Error {
         } else {
             Ok(code)
         }
+    }
+
+    /// The operating-system error number FFmpeg reported, or `None` for an
+    /// error of FFmpeg's own, such as invalid data.
+    pub fn os_error(&self) -> Option<c_int> {
+        match self {
+            Self::Ffmpeg { code, .. } if (-4095..0).contains(code) => Some(-code),
+            _ => None,
+        }
+    }
+
+    pub fn is_invalid_data(&self) -> bool {
+        matches!(self, Self::Ffmpeg { code, .. } if *code == sys::AVERROR_INVALIDDATA)
     }
 
     pub fn is_end_of_file(&self) -> bool {
@@ -108,6 +170,32 @@ impl fmt::Display for Error {
             }
             Self::EmptyPacket => f.write_str("refused to write a packet with no data"),
             Self::ChapterEndsBeforeStart => f.write_str("a chapter ends before it starts"),
+            Self::CodecNotFound { step } => {
+                write!(
+                    f,
+                    "cannot {}: this FFmpeg build lacks the codec",
+                    step.describe()
+                )
+            }
+            Self::NotAudio { step } => {
+                write!(f, "cannot {}: the stream is not audio", step.describe())
+            }
+            Self::UnsupportedSampleFormat { step } => {
+                write!(f, "cannot {}: unsupported sample format", step.describe())
+            }
+            Self::UnsupportedChannelOrder { step } => {
+                write!(f, "cannot {}: unsupported channel order", step.describe())
+            }
+            Self::OutOfRange { step } => {
+                write!(f, "cannot {}: a value is out of range", step.describe())
+            }
+            Self::WrongFrameShape => f.write_str("the audio frame lacks the requested plane"),
+            Self::OptionsNotTaken { step, names } => write!(
+                f,
+                "cannot {}: FFmpeg did not take the options {}",
+                step.describe(),
+                names.join(", ")
+            ),
         }
     }
 }

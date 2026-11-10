@@ -2,7 +2,7 @@ use super::decoder::AudioDecoder;
 use super::faad_decoder::FaadDecoder;
 use crate::audio::{AacDecoder, AudioPreservation, DecoderSelection};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use ffmpeg_next as ff;
+use abb_ffmpeg::{profile, AudioFrame, AudioShape, CodecId, Input, Packet, Progress, Rational};
 use std::path::Path;
 
 const AAC_DECODER_PROBE_PACKET_LIMIT: usize = 128;
@@ -49,12 +49,13 @@ struct AacDecoderAvailability {
 }
 
 pub(super) struct OpenedAudioInput {
-    pub(super) input: ff::format::context::Input,
+    pub(super) input: Input,
     pub(super) decoder: AudioDecoder,
     pub(super) stream_index: usize,
+    pub(super) time_base: Rational,
     pub(super) selected_decoder: DecoderSelection,
     codec_label: Option<String>,
-    codec_id: ff::codec::Id,
+    codec_id: CodecId,
     decode_window: Option<super::he_timing::HeDecodeWindow>,
 }
 
@@ -64,41 +65,67 @@ pub(crate) struct AudioDecoderInspection {
     pub bitrate: Option<u32>,
     pub selected_decoder: DecoderSelection,
     pub codec_label: Option<String>,
-    pub codec_id: ff::codec::Id,
+    pub codec_id: CodecId,
 }
 
-fn open_input_context(path: &Path) -> Result<ff::format::context::Input> {
-    ff::format::input(path).map_err(|e| {
-        AppError::General(format!(
-            "Failed to open input file '{}': {}",
-            sanitize_path_for_display(path),
-            e
-        ))
-    })
+/// What the container states about the audio stream FFmpeg ranks best.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct AudioStreamParams {
+    pub(super) index: usize,
+    pub(super) codec: CodecId,
+    /// One of `abb_ffmpeg::profile`'s numbers.
+    pub(super) profile: i32,
+    pub(super) sample_rate: i32,
+    pub(super) bit_rate: i64,
+    pub(super) time_base: Rational,
+    pub(super) duration: Option<i64>,
+    pub(super) extradata: Option<Vec<u8>>,
 }
 
-fn best_audio_stream<'a>(
-    ictx: &'a ff::format::context::Input,
-    path: &Path,
-) -> Result<ff::format::stream::Stream<'a>> {
-    ictx.streams().best(ff::media::Type::Audio).ok_or_else(|| {
-        AppError::InvalidInput(format!(
-            "No audio stream found in input file: {}",
-            sanitize_path_for_display(path)
-        ))
-    })
+fn open_input_context(path: &Path) -> Result<Input> {
+    open_input_with(path, &abb_ffmpeg::SecretOptions::default())
+}
+
+fn open_input_with(path: &Path, options: &abb_ffmpeg::SecretOptions) -> Result<Input> {
+    Input::open(path, options)
+        .map(|opened| opened.input)
+        .map_err(|e| {
+            AppError::General(format!(
+                "Failed to open input file '{}': {}",
+                sanitize_path_for_display(path),
+                e
+            ))
+        })
+}
+
+pub(super) fn best_audio_stream(input: &Input, path: &Path) -> Result<AudioStreamParams> {
+    input
+        .best_audio_stream()
+        .and_then(|index| {
+            let stream = input.streams().into_iter().nth(index)?;
+            Some(AudioStreamParams {
+                index,
+                codec: stream.codec,
+                profile: stream.profile,
+                sample_rate: stream.sample_rate,
+                bit_rate: stream.bit_rate,
+                time_base: stream.time_base,
+                duration: stream.duration,
+                extradata: input.stream_extradata(index),
+            })
+        })
+        .ok_or_else(|| {
+            AppError::InvalidInput(format!(
+                "No audio stream found in input file: {}",
+                sanitize_path_for_display(path)
+            ))
+        })
 }
 
 fn detect_aac_decoder_availability() -> AacDecoderAvailability {
-    #[expect(
-        clippy::let_underscore_must_use,
-        reason = "ffmpeg initialization is idempotent; the first ffmpeg call reports a failure"
-    )]
-    let _ = ff::init();
-
     AacDecoderAvailability {
-        default_aac: ff::codec::decoder::find(ff::codec::Id::AAC).is_some(),
-        aac_at: cfg!(target_os = "macos") && ff::codec::decoder::find_by_name("aac_at").is_some(),
+        default_aac: abb_ffmpeg::has_decoder(CodecId::AAC),
+        aac_at: cfg!(target_os = "macos") && abb_ffmpeg::has_decoder_named("aac_at"),
     }
 }
 
@@ -145,17 +172,17 @@ fn faad_decodes(audio_object_type: Option<u32>) -> bool {
     matches!(audio_object_type, None | Some(2 | 5 | 29))
 }
 
-fn uses_faad(params: &ff::codec::Parameters, decoder: AacDecoder) -> bool {
+fn uses_faad(params: &AudioStreamParams, decoder: AacDecoder) -> bool {
     decoder == AacDecoder::Faad
-        && params.id() == ff::codec::Id::AAC
+        && params.codec == CodecId::AAC
         && faad_decodes(aac_object_type_from_parameters(params))
 }
 
 fn build_decoder_candidates_from_parameters(
-    params: &ff::codec::Parameters,
+    params: &AudioStreamParams,
     decoder: AacDecoder,
 ) -> Vec<DecoderCandidate> {
-    if params.id() != ff::codec::Id::AAC {
+    if params.codec != CodecId::AAC {
         return vec![DecoderCandidate::Default];
     }
     if uses_faad(params, decoder) {
@@ -190,82 +217,47 @@ fn format_decoder_selection_failure(
 }
 
 fn open_audio_decoder_from_parameters(
-    params: ff::codec::Parameters,
+    input: &Input,
+    params: &AudioStreamParams,
     candidate: DecoderCandidate,
-    time_base: ff::Rational,
     path: &Path,
-    stream_index: usize,
 ) -> Result<AudioDecoder> {
     if candidate == DecoderCandidate::Faad {
-        let asc = read_codec_extradata(&params);
-        // SAFETY: copy the container bitrate while the parameters are borrowed.
-        let bit_rate = unsafe { (*params.as_ptr()).bit_rate }.max(0) as usize;
-        let decoder = FaadDecoder::open(path, stream_index, asc.as_deref())?;
-        return Ok(AudioDecoder::faad(decoder, time_base, bit_rate));
+        let bit_rate = params.bit_rate.max(0) as usize;
+        let decoder = FaadDecoder::open(path, params.index, params.extradata.as_deref())?;
+        return Ok(AudioDecoder::faad(decoder, params.time_base, bit_rate));
     }
     let named = match candidate {
         DecoderCandidate::Named(name) => Some(name),
         DecoderCandidate::Default | DecoderCandidate::Faad => None,
     };
-    open_ffmpeg_decoder(params, named, time_base, path).map(AudioDecoder::ffmpeg)
+    open_ffmpeg_decoder(input, params.index, named, path).map(AudioDecoder::ffmpeg)
 }
 
 fn open_ffmpeg_decoder(
-    params: ff::codec::Parameters,
+    input: &Input,
+    stream_index: usize,
     named: Option<&'static str>,
-    time_base: ff::Rational,
     path: &Path,
-) -> Result<ff::codec::decoder::Audio> {
-    let dec_ctx = ff::codec::context::Context::from_parameters(params).map_err(|e| {
-        AppError::General(format!(
-            "Failed to create decoder context from parameters for '{}': {}",
-            sanitize_path_for_display(path),
-            e
-        ))
-    })?;
-
-    let mut decoder = dec_ctx.decoder();
-    decoder.set_packet_time_base(time_base);
-    match named {
-        None => decoder.audio().map_err(|e| {
-            AppError::General(format!(
+) -> Result<abb_ffmpeg::AudioDecoder> {
+    abb_ffmpeg::AudioDecoder::open(input, stream_index, named).map_err(|e| {
+        AppError::General(match (named, &e) {
+            (Some(name), abb_ffmpeg::Error::CodecNotFound { .. }) => {
+                format!("Requested decoder '{name}' is not available")
+            }
+            (Some(name), _) => format!(
+                "Failed to open decoder '{}' for '{}': {}",
+                name,
+                sanitize_path_for_display(path),
+                e
+            ),
+            (None, _) => format!(
                 "Failed to open audio decoder for '{}': {}",
                 sanitize_path_for_display(path),
                 e
-            ))
-        }),
-        Some(name) => {
-            let codec = ff::codec::decoder::find_by_name(name).ok_or_else(|| {
-                AppError::General(format!("Requested decoder '{}' is not available", name))
-            })?;
-            decoder
-                .open_as(codec)
-                .and_then(|opened| opened.audio())
-                .map_err(|e| {
-                    AppError::General(format!(
-                        "Failed to open decoder '{}' for '{}': {}",
-                        name,
-                        sanitize_path_for_display(path),
-                        e
-                    ))
-                })
-        }
-    }
-}
-
-pub(super) fn read_codec_extradata(params: &ff::codec::Parameters) -> Option<Vec<u8>> {
-    // SAFETY: We only read the extradata slice for the lifetime of `params`
-    // and immediately copy it into an owned Vec.
-    unsafe {
-        let ptr = params.as_ptr();
-        let data = (*ptr).extradata;
-        let size = (*ptr).extradata_size;
-        if data.is_null() || size <= 0 {
-            return None;
-        }
-
-        Some(std::slice::from_raw_parts(data, size as usize).to_vec())
-    }
+            ),
+        })
+    })
 }
 
 fn read_bits(data: &[u8], bit_offset: usize, bit_count: usize) -> Option<u32> {
@@ -312,30 +304,28 @@ fn aac_audio_object_type_label(object_type: u32) -> Option<&'static str> {
     }
 }
 
-fn aac_profile_label(profile: ff::codec::Profile) -> Option<&'static str> {
-    use ff::codec::profile::{Profile, AAC};
-
+fn aac_profile_label(profile: i32) -> Option<&'static str> {
     match profile {
-        Profile::AAC(AAC::Main) => Some("AAC Main"),
-        Profile::AAC(AAC::Low) => Some("AAC-LC"),
-        Profile::AAC(AAC::HE) => Some("HE-AAC"),
-        Profile::AAC(AAC::HEv2) => Some("HE-AAC v2"),
-        Profile::AAC(AAC::LD) => Some("AAC-LD"),
-        Profile::AAC(AAC::ELD) => Some("AAC-ELD"),
+        profile::AAC_MAIN => Some("AAC Main"),
+        profile::AAC_LOW => Some("AAC-LC"),
+        profile::AAC_HE => Some("HE-AAC"),
+        profile::AAC_HE_V2 => Some("HE-AAC v2"),
+        profile::AAC_LD => Some("AAC-LD"),
+        profile::AAC_ELD => Some("AAC-ELD"),
         _ => None,
     }
 }
 
-fn friendly_codec_label_from_id(codec_id: ff::codec::Id) -> Option<String> {
+fn friendly_codec_label_from_id(codec_id: CodecId) -> Option<String> {
     let label = match codec_id {
-        ff::codec::Id::AAC => "AAC".to_string(),
-        ff::codec::Id::MP3 => "MP3".to_string(),
-        ff::codec::Id::FLAC => "FLAC".to_string(),
-        ff::codec::Id::PCM_S16LE => "PCM S16LE".to_string(),
-        ff::codec::Id::PCM_S24LE => "PCM S24LE".to_string(),
-        ff::codec::Id::PCM_S32LE => "PCM S32LE".to_string(),
-        ff::codec::Id::PCM_F32LE => "PCM F32LE".to_string(),
-        ff::codec::Id::PCM_F64LE => "PCM F64LE".to_string(),
+        CodecId::AAC => "AAC".to_string(),
+        CodecId::MP3 => "MP3".to_string(),
+        CodecId::FLAC => "FLAC".to_string(),
+        CodecId::PCM_S16LE => "PCM S16LE".to_string(),
+        CodecId::PCM_S24LE => "PCM S24LE".to_string(),
+        CodecId::PCM_S32LE => "PCM S32LE".to_string(),
+        CodecId::PCM_F32LE => "PCM F32LE".to_string(),
+        CodecId::PCM_F64LE => "PCM F64LE".to_string(),
         id => {
             let raw = id.name();
             if raw.is_empty() || raw == "unknown" {
@@ -348,48 +338,44 @@ fn friendly_codec_label_from_id(codec_id: ff::codec::Id) -> Option<String> {
     Some(label)
 }
 
-fn aac_object_type_from_parameters(params: &ff::codec::Parameters) -> Option<u32> {
-    if params.id() != ff::codec::Id::AAC {
+/// A backward-compatible HE ASC starts with the LC core's object type; the
+/// demuxer's probed profile also accounts for its SBR/PS extension.
+fn aac_object_type_from_parameters(params: &AudioStreamParams) -> Option<u32> {
+    if params.codec != CodecId::AAC {
         return None;
     }
-    // SAFETY: copy the probed profile while the codec parameters remain borrowed.
-    // A backward-compatible HE ASC starts with the LC core's object type; the
-    // demuxer's probed profile also accounts for its SBR/PS extension.
-    let profile = unsafe { (*params.as_ptr()).profile };
-    match profile {
-        ff::sys::AV_PROFILE_AAC_HE => Some(5),
-        ff::sys::AV_PROFILE_AAC_HE_V2 => Some(29),
-        _ => read_codec_extradata(params)
-            .and_then(|data| parse_aac_audio_object_type(&data))
-            .or_else(|| aac_object_type_from_profile(profile)),
+    match params.profile {
+        profile::AAC_HE => Some(5),
+        profile::AAC_HE_V2 => Some(29),
+        _ => params
+            .extradata
+            .as_deref()
+            .and_then(parse_aac_audio_object_type)
+            .or_else(|| aac_object_type_from_profile(params.profile)),
     }
 }
 
 fn aac_object_type_from_profile(profile: i32) -> Option<u32> {
-    use ff::sys::{
-        AV_PROFILE_AAC_ELD, AV_PROFILE_AAC_LD, AV_PROFILE_AAC_LOW, AV_PROFILE_AAC_LTP,
-        AV_PROFILE_AAC_MAIN, AV_PROFILE_AAC_SSR, AV_PROFILE_AAC_USAC,
-    };
     match profile {
-        AV_PROFILE_AAC_MAIN | AV_PROFILE_AAC_LOW | AV_PROFILE_AAC_SSR | AV_PROFILE_AAC_LTP
-        | AV_PROFILE_AAC_LD | AV_PROFILE_AAC_ELD | AV_PROFILE_AAC_USAC => {
-            u32::try_from(profile + 1).ok()
-        }
+        profile::AAC_MAIN
+        | profile::AAC_LOW
+        | profile::AAC_SSR
+        | profile::AAC_LTP
+        | profile::AAC_LD
+        | profile::AAC_ELD
+        | profile::AAC_USAC => u32::try_from(profile + 1).ok(),
         _ => None,
     }
 }
 
-fn aac_label_from_parameters(params: &ff::codec::Parameters) -> Option<&'static str> {
+fn aac_label_from_parameters(params: &AudioStreamParams) -> Option<&'static str> {
     aac_object_type_from_parameters(params).and_then(aac_audio_object_type_label)
 }
 
-fn derive_codec_label(
-    params: &ff::codec::Parameters,
-    profile: ff::codec::Profile,
-) -> Option<String> {
-    let codec_id = params.id();
+fn derive_codec_label(params: &AudioStreamParams, profile: i32) -> Option<String> {
+    let codec_id = params.codec;
 
-    if codec_id == ff::codec::Id::AAC {
+    if codec_id == CodecId::AAC {
         if let Some(label) = aac_label_from_parameters(params) {
             return Some(label.to_string());
         }
@@ -404,24 +390,40 @@ fn derive_codec_label(
     friendly_codec_label_from_id(codec_id)
 }
 
+fn layer_failure(error: abb_ffmpeg::Error) -> AppError {
+    AppError::General(error.to_string())
+}
+
+/// Counts the frames with samples the decoder holds ready. An
+/// operating-system error ends the count like a drained decoder does.
+fn count_ready_frames(
+    decoder: &mut AudioDecoder,
+    frame: &mut AudioFrame,
+) -> std::result::Result<usize, abb_ffmpeg::Error> {
+    let mut decoded = 0;
+    loop {
+        match decoder.receive_frame(frame) {
+            Ok(Progress::Ready) => decoded += usize::from(frame.samples() > 0),
+            Ok(Progress::NeedsInput | Progress::Finished) => return Ok(decoded),
+            Err(error) if error.os_error().is_some() => return Ok(decoded),
+            Err(error) => return Err(error),
+        }
+    }
+}
+
 fn probe_decoder_candidate(path: &Path, candidate: DecoderCandidate) -> Result<()> {
     let mut ictx = open_input_context(path)?;
-    let stream = best_audio_stream(&ictx, path)?;
-    let stream_index = stream.index();
-    let params = stream.parameters();
-    let mut decoder = open_audio_decoder_from_parameters(
-        params,
-        candidate,
-        stream.time_base(),
-        path,
-        stream_index,
-    )?;
+    let params = best_audio_stream(&ictx, path)?;
+    let stream_index = params.index;
+    let mut decoder = open_audio_decoder_from_parameters(&ictx, &params, candidate, path)?;
 
     let mut packets_seen = 0usize;
     let mut decoded_frames = 0usize;
     let mut hit_packet_limit = false;
-    for (si, packet) in ictx.packets() {
-        if si.index() != stream_index {
+    let mut packet = Packet::new().map_err(layer_failure)?;
+    let mut frame = AudioFrame::empty().map_err(layer_failure)?;
+    while ictx.read_packet_skipping_invalid(&mut packet) {
+        if packet.stream_index() != stream_index {
             continue;
         }
 
@@ -436,25 +438,14 @@ fn probe_decoder_candidate(path: &Path, candidate: DecoderCandidate) -> Result<(
             ))
         })?;
 
-        loop {
-            let mut frame = ff::frame::Audio::empty();
-            match decoder.receive_frame(&mut frame) {
-                Ok(()) => {
-                    if frame.samples() > 0 {
-                        decoded_frames += 1;
-                    }
-                }
-                Err(ff::Error::Other { .. }) | Err(ff::Error::Eof) => break,
-                Err(e) => {
-                    return Err(AppError::General(format!(
-                        "Decoder '{}' failed receiving frames for '{}': {}",
-                        candidate.stable_id(),
-                        sanitize_path_for_display(path),
-                        e
-                    )))
-                }
-            }
-        }
+        decoded_frames += count_ready_frames(&mut decoder, &mut frame).map_err(|e| {
+            AppError::General(format!(
+                "Decoder '{}' failed receiving frames for '{}': {}",
+                candidate.stable_id(),
+                sanitize_path_for_display(path),
+                e
+            ))
+        })?;
 
         if packets_seen >= AAC_DECODER_PROBE_PACKET_LIMIT {
             hit_packet_limit = true;
@@ -464,28 +455,17 @@ fn probe_decoder_candidate(path: &Path, candidate: DecoderCandidate) -> Result<(
 
     #[expect(
         clippy::let_underscore_must_use,
-        reason = "the drain loop below reports a decoder failure"
+        reason = "the drain below reports a decoder failure"
     )]
     let _ = decoder.send_eof();
-    loop {
-        let mut frame = ff::frame::Audio::empty();
-        match decoder.receive_frame(&mut frame) {
-            Ok(()) => {
-                if frame.samples() > 0 {
-                    decoded_frames += 1;
-                }
-            }
-            Err(ff::Error::Other { .. }) | Err(ff::Error::Eof) => break,
-            Err(e) => {
-                return Err(AppError::General(format!(
-                    "Decoder '{}' failed during drain for '{}': {}",
-                    candidate.stable_id(),
-                    sanitize_path_for_display(path),
-                    e
-                )))
-            }
-        }
-    }
+    decoded_frames += count_ready_frames(&mut decoder, &mut frame).map_err(|e| {
+        AppError::General(format!(
+            "Decoder '{}' failed during drain for '{}': {}",
+            candidate.stable_id(),
+            sanitize_path_for_display(path),
+            e
+        ))
+    })?;
 
     if decoded_frames >= AAC_DECODER_PROBE_MIN_FRAMES || (!hit_packet_limit && decoded_frames > 0) {
         Ok(())
@@ -505,13 +485,12 @@ fn probe_decoder_candidate(path: &Path, candidate: DecoderCandidate) -> Result<(
 /// Audible materialization uses this so a wrong AAXC key fails on every host.
 /// Import may still fall back to `aac_at`.
 pub(crate) fn probe_builtin_audio_decoder(path: &Path) -> Result<()> {
-    ff::init().map_err(AppError::Ffmpeg)?;
     probe_decoder_candidate(path, DecoderCandidate::Default)
 }
 
 fn select_decoder_candidate(
     path: &Path,
-    params: &ff::codec::Parameters,
+    params: &AudioStreamParams,
     decoder: AacDecoder,
 ) -> Result<DecoderCandidate> {
     let candidates = build_decoder_candidates_from_parameters(params, decoder);
@@ -544,7 +523,7 @@ fn select_decoder_candidate(
 
     let codec_label = aac_label_from_parameters(params)
         .map(str::to_owned)
-        .or_else(|| friendly_codec_label_from_id(params.id()));
+        .or_else(|| friendly_codec_label_from_id(params.codec));
     Err(AppError::General(format_decoder_selection_failure(
         path,
         codec_label.as_deref(),
@@ -559,10 +538,7 @@ pub(super) fn open_best_audio_decoder(
 ) -> Result<OpenedAudioInput> {
     log::debug!("Opening FFmpeg input context...");
     let inspect_ctx = open_input_context(path)?;
-    let params = {
-        let inspect_stream = best_audio_stream(&inspect_ctx, path)?;
-        inspect_stream.parameters()
-    };
+    let params = best_audio_stream(&inspect_ctx, path)?;
     let faad_forced = uses_faad(&params, aac_decoder);
     let sbr_delay_owner = if faad_forced {
         super::he_timing::SbrDelayOwner::Decoder
@@ -586,33 +562,28 @@ pub(super) fn open_best_audio_decoder(
     };
 
     let input = if decode_window.is_some() {
-        let mut options = ff::Dictionary::new();
-        options.set("ignore_editlist", "1");
-        ff::format::input_with_dictionary(path, options).map_err(|error| {
-            AppError::General(format!("Cannot open HE-AAC access units: {error}"))
-        })?
+        let he_access_units =
+            |error| AppError::General(format!("Cannot open HE-AAC access units: {error}"));
+        let mut options = abb_ffmpeg::SecretOptions::default();
+        options
+            .push("ignore_editlist", "1")
+            .map_err(he_access_units)?;
+        Input::open(path, &options).map_err(he_access_units)?.input
     } else {
         open_input_context(path)?
     };
-    let stream = best_audio_stream(&input, path)?;
-    let stream_index = stream.index();
-    let params = stream.parameters();
-    let decoder = open_audio_decoder_from_parameters(
-        params.clone(),
-        selected_candidate,
-        stream.time_base(),
-        path,
-        stream_index,
-    )?;
+    let params = best_audio_stream(&input, path)?;
+    let decoder = open_audio_decoder_from_parameters(&input, &params, selected_candidate, path)?;
     let codec_label = derive_codec_label(&params, decoder.profile());
 
     Ok(OpenedAudioInput {
         input,
         decoder,
-        stream_index,
+        stream_index: params.index,
+        time_base: params.time_base,
         selected_decoder: selected_candidate.selection(),
         codec_label,
-        codec_id: params.id(),
+        codec_id: params.codec,
         decode_window,
     })
 }
@@ -621,7 +592,6 @@ pub(crate) fn inspect_audio_decoder(
     path: &Path,
     aac_decoder: AacDecoder,
 ) -> Result<AudioDecoderInspection> {
-    ff::init().map_err(AppError::Ffmpeg)?;
     let opened = open_best_audio_decoder(path, aac_decoder)?;
     let sample_rate = opened.decoder.rate();
     let channels = opened.decoder.channels() as u32;
@@ -642,15 +612,15 @@ pub(crate) fn inspect_audio_decoder(
 pub(crate) fn assess_preservation(
     extension: &str,
     container_name: &str,
-    codec_id: ff::codec::Id,
+    codec_id: CodecId,
 ) -> AudioPreservation {
     let mp4_container = crate::audio::is_mp4_family_format(container_name);
     let supported_container_codec = (matches!(extension, "m4a" | "m4b")
         && mp4_container
-        && matches!(codec_id, ff::codec::Id::AAC | ff::codec::Id::OPUS))
+        && matches!(codec_id, CodecId::AAC | CodecId::OPUS))
         || (extension == "mka"
             && container_name.split(',').any(|name| name == "matroska")
-            && codec_id == ff::codec::Id::OPUS);
+            && codec_id == CodecId::OPUS);
     AudioPreservation {
         can_preserve: supported_container_codec,
         codec_family: crate::audio::CodecFamily::of_codec_id(codec_id),
@@ -661,17 +631,19 @@ pub(crate) fn assess_preservation(
 #[path = "streams_preservation_tests.rs"]
 mod preservation_tests;
 
+pub(crate) struct DecodingInput {
+    pub(crate) input: Input,
+    pub(crate) decoder: AudioDecoder,
+    pub(crate) resampler: abb_ffmpeg::Resampler,
+    pub(crate) stream_index: usize,
+    pub(crate) decode_window: Option<super::he_timing::HeDecodeWindow>,
+}
+
 pub(crate) fn setup_decoder_and_resampler(
     input_path: &Path,
     encoder: &super::encoder::EncoderSession,
     aac_decoder: AacDecoder,
-) -> Result<(
-    ff::format::context::Input,
-    AudioDecoder,
-    ff::software::resampling::Context,
-    usize,
-    Option<super::he_timing::HeDecodeWindow>,
-)> {
+) -> Result<DecodingInput> {
     log::info!(
         "🔧 Setting up decoder for input file: {}",
         sanitize_path_for_display(input_path)
@@ -686,13 +658,12 @@ pub(crate) fn setup_decoder_and_resampler(
     log::info!("✓ Input file exists and is accessible");
 
     let OpenedAudioInput {
-        input: ictx,
+        input,
         mut decoder,
         stream_index,
         selected_decoder,
-        codec_label: _codec_label,
-        codec_id: _codec_id,
         decode_window,
+        ..
     } = open_best_audio_decoder(input_path, aac_decoder)?;
     log::info!(
         "✓ Audio decoder opened successfully (selected_id={} selected_label={})",
@@ -702,67 +673,58 @@ pub(crate) fn setup_decoder_and_resampler(
 
     decoder.log_open_and_summary(sanitize_path_for_display(input_path));
     log::info!("Creating resampler...");
-    let in_layout = decoder.normalized_channel_layout();
-    let in_rate = decoder.rate();
-    let in_format = decoder.format();
-    log::info!(
-        "Input audio format: rate={}, channels={:?}, format={:?}",
-        in_rate,
-        in_layout,
-        in_format
-    );
-    log::info!(
-        "Output audio format: rate={}, channels={:?}, format={:?}",
-        encoder.rate(),
-        encoder.channel_layout(),
-        encoder.format()
-    );
-
-    let resampler = create_resampler(
-        in_format,
-        in_layout,
-        in_rate,
-        encoder.format(),
-        encoder.channel_layout(),
-        encoder.rate(),
-    )
-    .map_err(|e| {
+    let output = AudioShape {
+        format: encoder.format(),
+        layout: encoder.channel_layout(),
+        rate: encoder.rate(),
+    };
+    let resampler = create_resampler(&mut decoder, output).map_err(|e| {
         AppError::General(format!(
             "Failed to create resampler for '{}': {}",
             sanitize_path_for_display(input_path),
             e
         ))
     })?;
+    log::info!(
+        "Input audio format: rate={}, channels={:?}, format={:?}",
+        decoder.rate(),
+        decoder.channel_layout(),
+        decoder.format()
+    );
+    log::info!(
+        "Output audio format: rate={}, channels={:?}, format={:?}",
+        output.rate,
+        output.layout,
+        output.format
+    );
     log::info!("✓ Resampler created successfully");
 
     log::info!(
         "🎉 Decoder and resampler setup completed for: {}",
         sanitize_path_for_display(input_path)
     );
-    Ok((ictx, decoder, resampler, stream_index, decode_window))
+    Ok(DecodingInput {
+        input,
+        decoder,
+        resampler,
+        stream_index,
+        decode_window,
+    })
+}
+
+/// Float output otherwise skips swresample's integer-path normalization, so
+/// coherent channels can overflow and get clipped by the accumulator.
+fn resampler_options() -> std::result::Result<abb_ffmpeg::Tags, abb_ffmpeg::Error> {
+    let mut options = abb_ffmpeg::Tags::default();
+    options.push("rematrix_maxval", "1", abb_ffmpeg::Step::CreateResampler)?;
+    Ok(options)
 }
 
 fn create_resampler(
-    input_format: ff::format::Sample,
-    input_layout: ff::ChannelLayout,
-    input_rate: u32,
-    output_format: ff::format::Sample,
-    output_layout: ff::ChannelLayout,
-    output_rate: u32,
-) -> std::result::Result<ff::software::resampling::Context, ff::Error> {
-    let mut options = ff::Dictionary::new();
-    // Float output otherwise skips swresample's integer-path normalization,
-    // so coherent channels can overflow and get clipped by the accumulator.
-    options.set("rematrix_maxval", "1");
-    ff::software::resampling::Context::get_with(
-        input_format,
-        input_layout,
-        input_rate,
-        output_format,
-        output_layout,
-        output_rate,
-        options,
-    )
+    decoder: &mut AudioDecoder,
+    output: AudioShape,
+) -> std::result::Result<abb_ffmpeg::Resampler, abb_ffmpeg::Error> {
+    decoder.resampler_to(output, &resampler_options()?)
 }
 
 #[cfg(test)]

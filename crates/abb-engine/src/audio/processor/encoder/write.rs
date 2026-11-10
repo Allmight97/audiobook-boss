@@ -1,31 +1,24 @@
 use super::session::PacketStats;
 use crate::errors::{AppError, Result};
-use ff::packet::Mut;
-use ffmpeg_next as ff;
+use abb_ffmpeg::{
+    AudioEncoder, AudioFrame, CodecId, Muxer, Packet, Progress, Rational, SkipSamples,
+};
 
 #[cfg(debug_assertions)]
-fn debug_validate_frame_contract(
-    frame: &ff::frame::Audio,
-    encoder: &ff::codec::encoder::audio::Encoder,
-) {
+fn debug_validate_frame_contract(frame: &AudioFrame, encoder: &AudioEncoder) {
     debug_assert_eq!(
         frame.format(),
         encoder.format(),
         "Frame format must match encoder format"
     );
-    debug_assert_eq!(
-        frame.channel_layout(),
-        encoder.channel_layout(),
-        "Channel layout mismatch"
-    );
+    debug_assert_eq!(frame.layout(), encoder.layout(), "Channel layout mismatch");
     debug_assert_eq!(frame.rate(), encoder.rate(), "Sample rate mismatch");
 
-    let samples_i64 = frame.samples() as i64;
-    debug_assert!(samples_i64 > 0, "Frame must contain at least one sample");
-    let enc_frame_size_i64 = encoder.frame_size() as i64;
-    if enc_frame_size_i64 > 0 {
+    let samples = frame.samples();
+    debug_assert!(samples > 0, "Frame must contain at least one sample");
+    if encoder.frame_size() > 0 {
         debug_assert!(
-            samples_i64 <= enc_frame_size_i64,
+            samples <= encoder.frame_size(),
             "Frame samples exceed encoder.frame_size()"
         );
     }
@@ -37,11 +30,11 @@ fn debug_validate_frame_contract(
 }
 
 pub(super) fn encode_and_write_frame(
-    encoder: &mut ff::codec::encoder::audio::Encoder,
-    frame: &ff::frame::Audio,
-    output_context: &mut ff::format::context::Output,
+    encoder: &mut AudioEncoder,
+    frame: &AudioFrame,
+    output: &mut Muxer,
     output_stream_index: usize,
-    output_time_base: ff::Rational,
+    output_time_base: Rational,
     stats: &mut PacketStats,
 ) -> Result<()> {
     #[cfg(debug_assertions)]
@@ -57,7 +50,7 @@ pub(super) fn encode_and_write_frame(
         + frame.samples() as i64;
     write_encoded_packets(
         encoder,
-        output_context,
+        output,
         output_stream_index,
         output_time_base,
         audio_end_pts,
@@ -66,56 +59,50 @@ pub(super) fn encode_and_write_frame(
 }
 
 pub(super) fn flush_encoder(
-    encoder: &mut ff::codec::encoder::audio::Encoder,
-    output_context: &mut ff::format::context::Output,
+    encoder: &mut AudioEncoder,
+    output: &mut Muxer,
     output_stream_index: usize,
-    output_time_base: ff::Rational,
+    output_time_base: Rational,
     audio_end_pts: i64,
     stats: &mut PacketStats,
 ) -> Result<()> {
     encoder
-        .send_eof()
+        .send_end()
         .map_err(|e| AppError::General(format!("Encoder flush failed: {e}")))?;
     write_encoded_packets(
         encoder,
-        output_context,
+        output,
         output_stream_index,
         output_time_base,
         audio_end_pts,
         stats,
-    )?;
-
-    Ok(())
+    )
 }
 
 fn write_encoded_packets(
-    encoder: &mut ff::codec::encoder::audio::Encoder,
-    output_context: &mut ff::format::context::Output,
+    encoder: &mut AudioEncoder,
+    output: &mut Muxer,
     output_stream_index: usize,
-    output_time_base: ff::Rational,
+    output_time_base: Rational,
     audio_end_pts: i64,
     stats: &mut PacketStats,
 ) -> Result<()> {
-    let mut packet = ff::Packet::empty();
+    let receive_failure = |error| AppError::General(format!("Encoder receive failed: {error}"));
+    let mut packet = Packet::new().map_err(receive_failure)?;
     loop {
-        match encoder.receive_packet(&mut packet) {
-            Ok(()) => {}
-            Err(ff::Error::Eof)
-            | Err(ff::Error::Other {
-                errno: ff::error::EAGAIN,
-            }) => return Ok(()),
-            Err(error) => {
-                return Err(AppError::General(format!(
-                    "Encoder receive failed: {error}"
-                )))
-            }
+        match encoder
+            .receive_packet(&mut packet)
+            .map_err(receive_failure)?
+        {
+            Progress::Ready => {}
+            Progress::NeedsInput | Progress::Finished => return Ok(()),
         }
-        if encoder.id() == ff::codec::Id::OPUS && encoder.rate() != 48_000 {
+        if encoder.codec() == CodecId::OPUS && encoder.rate() != 48_000 {
             rescale_opus_skip_samples(&mut packet, encoder.rate())?;
         }
         write_packet(
-            packet,
-            output_context,
+            &mut packet,
+            output,
             output_stream_index,
             output_time_base,
             encoder.time_base(),
@@ -123,20 +110,23 @@ fn write_encoded_packets(
             false,
             stats,
         )?;
-        packet = ff::Packet::empty();
     }
 }
 
+/// Writes one encoded packet. With `retain_postroll` (HE-AAC from FAAC) a
+/// packet past the audio is kept and marked discard, and the packet that
+/// crosses the end keeps its full duration with its padding as skip
+/// metadata, so the HE decoder's postroll stays available.
 #[expect(
     clippy::too_many_arguments,
     reason = "Private mux handoff; callers outside encoder use EncoderSession"
 )]
 pub(super) fn write_packet(
-    mut packet: ff::Packet,
-    output_context: &mut ff::format::context::Output,
+    packet: &mut Packet,
+    output: &mut Muxer,
     output_stream_index: usize,
-    output_time_base: ff::Rational,
-    input_time_base: ff::Rational,
+    output_time_base: Rational,
+    input_time_base: Rational,
     audio_end_pts: i64,
     retain_postroll: bool,
     stats: &mut PacketStats,
@@ -148,32 +138,16 @@ pub(super) fn write_packet(
     let mut trailing_padding = 0;
     if retain_postroll {
         if pts >= audio_end_pts {
-            packet.set_flags(
-                packet.flags() | ff::packet::Flags::from_bits_retain(ff::sys::AV_PKT_FLAG_DISCARD),
-            );
+            packet.mark_discard();
             postroll = true;
         } else if pts + packet.duration() > audio_end_pts {
             let padding = pts + packet.duration() - audio_end_pts;
-            // SAFETY: packet owns the new 10-byte FFmpeg skip-samples payload.
-            // Preserve full access-unit duration so HE decoder postroll remains available.
-            unsafe {
-                let data = ff::sys::av_packet_new_side_data(
-                    packet.as_mut_ptr(),
-                    ff::sys::AVPacketSideDataType::AV_PKT_DATA_SKIP_SAMPLES,
-                    10,
-                );
-                if data.is_null() {
-                    return Err(AppError::General(
-                        "Cannot allocate AAC padding metadata.".into(),
-                    ));
-                }
-                std::ptr::write_bytes(data, 0, 10);
-                std::ptr::copy_nonoverlapping(
-                    (padding as u32).to_le_bytes().as_ptr(),
-                    data.add(4),
-                    4,
-                );
-            }
+            packet
+                .set_skip_samples(SkipSamples {
+                    end: padding as u32,
+                    ..SkipSamples::default()
+                })
+                .map_err(|_| AppError::General("Cannot allocate AAC padding metadata.".into()))?;
             trailing_padding = padding;
         }
     } else {
@@ -187,10 +161,10 @@ pub(super) fn write_packet(
         stats.written_end = Some(pts + packet.duration());
     }
     let bytes = packet.size() as u64;
-    packet.set_stream(output_stream_index);
+    packet.set_stream_index(output_stream_index);
     packet.rescale_ts(input_time_base, output_time_base);
-    packet
-        .write_interleaved(output_context)
+    output
+        .write_interleaved(packet)
         .map_err(|e| AppError::General(format!("Write packet failed: {e}")))?;
     stats.postroll_packets += u64::from(postroll);
     stats.trailing_padding += trailing_padding;
@@ -201,40 +175,21 @@ pub(super) fn write_packet(
     Ok(())
 }
 
-fn rescale_opus_skip_samples(packet: &mut ff::Packet, input_rate: u32) -> Result<()> {
-    let Some(mut skip) = packet
-        .side_data()
-        .find(|side| side.kind() == ff::packet::side_data::Type::SkipSamples)
-        .map(|side| side.data().to_vec())
+/// libopus counts trims at its input rate; Opus containers count decoded
+/// samples at 48 kHz.
+fn rescale_opus_skip_samples(packet: &mut Packet, input_rate: u32) -> Result<()> {
+    let Some(skip) = packet
+        .skip_samples()
+        .map_err(|_| AppError::General("Invalid Opus trim metadata.".into()))?
     else {
         return Ok(());
     };
-    if skip.len() != 10 {
-        return Err(AppError::General("Invalid Opus trim metadata.".into()));
-    }
-    for offset in [0, 4] {
-        let count = u32::from_le_bytes(
-            skip[offset..offset + 4]
-                .try_into()
-                .expect("checked skip payload"),
-        );
-        let scaled = (u64::from(count) * 48_000 / u64::from(input_rate)) as u32;
-        skip[offset..offset + 4].copy_from_slice(&scaled.to_le_bytes());
-    }
-    // SAFETY: the packet owns its replacement ten-byte side-data allocation.
-    // libopus counts trims at input rate; Opus containers count decoded samples at 48 kHz.
-    unsafe {
-        let data = ff::sys::av_packet_new_side_data(
-            packet.as_mut_ptr(),
-            ff::sys::AVPacketSideDataType::AV_PKT_DATA_SKIP_SAMPLES,
-            10,
-        );
-        if data.is_null() {
-            return Err(AppError::General(
-                "Cannot allocate Opus trim metadata.".into(),
-            ));
-        }
-        std::ptr::copy_nonoverlapping(skip.as_ptr(), data, skip.len());
-    }
-    Ok(())
+    let scaled = |count: u32| (u64::from(count) * 48_000 / u64::from(input_rate)) as u32;
+    packet
+        .set_skip_samples(SkipSamples {
+            start: scaled(skip.start),
+            end: scaled(skip.end),
+            ..skip
+        })
+        .map_err(|_| AppError::General("Cannot allocate Opus trim metadata.".into()))
 }

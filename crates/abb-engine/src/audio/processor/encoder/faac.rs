@@ -2,8 +2,8 @@
 
 use crate::audio::{BitrateMode, EncoderSettings, FaacProfile};
 use crate::errors::{AppError, Result};
+use abb_ffmpeg::{AacStream, AudioFrame, Packet, SampleFormat};
 use faac_sys as faac;
-use ffmpeg_next as ff;
 use std::{ffi::CStr, mem::size_of, ptr};
 
 use super::super::he_timing::CORE_PRIMING;
@@ -195,54 +195,37 @@ impl FaacEncoder {
         }
     }
 
-    pub fn parameters(&self) -> Result<ff::codec::Parameters> {
-        let mut parameters = ff::codec::Parameters::new();
-        // SAFETY: parameters exclusively owns the allocation. FFmpeg owns and frees
-        // its padded extradata copy; the encoder's borrowed ASC never escapes.
-        unsafe {
-            let p = &mut *parameters.as_mut_ptr();
-            p.codec_type = ff::sys::AVMediaType::AVMEDIA_TYPE_AUDIO;
-            p.codec_id = ff::sys::AVCodecID::AV_CODEC_ID_AAC;
-            p.profile = if self.is_he() {
-                ff::sys::AV_PROFILE_AAC_HE
-            } else {
-                ff::sys::AV_PROFILE_AAC_LOW
-            };
-            p.sample_rate = self.rate as i32;
-            ff::sys::av_channel_layout_default(&mut p.ch_layout, self.channels as i32);
-            p.bit_rate = i64::from(self.info.bit_rate);
-            p.frame_size = self.info.frame_samples as i32;
-            p.initial_padding = self.priming() as i32;
-            p.extradata = ff::sys::av_mallocz(
-                self.asc.len() + ff::sys::AV_INPUT_BUFFER_PADDING_SIZE as usize,
-            )
-            .cast();
-            if p.extradata.is_null() {
-                return Err(AppError::General(
-                    "Cannot allocate AAC stream configuration.".into(),
-                ));
-            }
-            ptr::copy_nonoverlapping(self.asc.as_ptr(), p.extradata, self.asc.len());
-            p.extradata_size = self.asc.len() as i32;
+    pub fn stream(&self) -> AacStream<'_> {
+        AacStream {
+            high_efficiency: self.is_he(),
+            rate: self.rate,
+            channels: self.channels as u16,
+            bit_rate: i64::from(self.info.bit_rate),
+            frame_samples: self.info.frame_samples,
+            priming_samples: self.priming() as u32,
+            config: &self.asc,
         }
-        Ok(parameters)
     }
 
-    pub fn encode(&mut self, frame: Option<&ff::frame::Audio>) -> Result<Option<ff::Packet>> {
+    pub fn encode(&mut self, frame: Option<&AudioFrame>) -> Result<Option<Packet>> {
+        let mismatch =
+            || AppError::General("FAAC input does not match its opened PCM configuration.".into());
         self.pcm.clear();
         if let Some(frame) = frame {
-            if frame.format() != ff::format::Sample::F32(ff::format::sample::Type::Planar)
+            if frame.format() != SampleFormat::F32_PLANAR
                 || frame.rate() != self.rate
                 || u32::from(frame.channels()) != self.channels
                 || frame.samples() > self.info.frame_samples as usize
             {
-                return Err(AppError::General(
-                    "FAAC input does not match its opened PCM configuration.".into(),
-                ));
+                return Err(mismatch());
             }
+            let planes = (0..self.channels as usize)
+                .map(|channel| frame.plane_f32(channel))
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(|_| mismatch())?;
             for sample in 0..frame.samples() {
-                for channel in 0..self.channels as usize {
-                    self.pcm.push(frame.plane::<f32>(channel)[sample]);
+                for plane in &planes {
+                    self.pcm.push(plane[sample]);
                 }
             }
         }
@@ -269,7 +252,8 @@ impl FaacEncoder {
         if written == 0 {
             return Ok(None);
         }
-        let mut packet = ff::Packet::copy(&self.output[..written as usize]);
+        let mut packet = Packet::copy_of(&self.output[..written as usize])
+            .map_err(|error| AppError::General(format!("Cannot hold a FAAC packet: {error}")))?;
         let pts = self.next_packet * i64::from(self.info.frame_samples) - self.priming();
         self.next_packet += 1;
         packet.set_pts(Some(pts));

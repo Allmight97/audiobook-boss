@@ -35,7 +35,7 @@ fn open_source(file: &AudioFile) -> Result<(ff::format::context::Input, usize, C
             "each source must contain exactly one audio stream",
         ));
     }
-    if super::he_timing::is_abb_faac_he(&input) {
+    if super::he_timing::is_abb_faac_he(input.metadata().get("encoder")) {
         return Err(incompatible(
             "a source has encoder priming that must be removed at a join",
         ));
@@ -54,7 +54,7 @@ fn open_source(file: &AudioFile) -> Result<(ff::format::context::Input, usize, C
     }
     let configuration = Configuration {
         codec: params.id(),
-        extradata: super::streams::read_codec_extradata(&params)
+        extradata: read_codec_extradata(&params)
             .ok_or_else(|| incompatible("AAC configuration is missing"))?,
         sample_rate: file.sample_rate,
         channels: file.channels,
@@ -231,6 +231,21 @@ pub(super) fn write_fresh_mux(
             .chain(cover_warning)
             .collect(),
     ))
+}
+
+fn read_codec_extradata(params: &ff::codec::Parameters) -> Option<Vec<u8>> {
+    // SAFETY: the extradata slice is read while `params` is borrowed and
+    // copied into an owned Vec at once.
+    unsafe {
+        let ptr = params.as_ptr();
+        let data = (*ptr).extradata;
+        let size = (*ptr).extradata_size;
+        if data.is_null() || size <= 0 {
+            return None;
+        }
+
+        Some(std::slice::from_raw_parts(data, size as usize).to_vec())
+    }
 }
 
 #[cfg(test)]

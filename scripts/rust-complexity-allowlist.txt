@@ -12,3 +12,4 @@ crates/abb-engine/src/remote_source/ui.rs:begin  # flat dispatch match: one arm 
 crates/abb-engine/src/session/audio_choice.rs:apply  # flat dispatch match: one arm per audio edit, each with its own refusal check
 crates/abb-engine/src/session/runtime.rs:begin_rest  # flat dispatch match: one arm per session intent
 crates/abb-output-artifact-core/src/lib.rs:render_custom_template  # format parser: walks the naming template's placeholders
+crates/abb-ffmpeg/src/error.rs:describe  # flat dispatch match: one phrase per layer step

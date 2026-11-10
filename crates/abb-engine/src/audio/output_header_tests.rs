@@ -5,7 +5,7 @@ use tempfile::TempDir;
 
 use super::*;
 use crate::audio::Muxer;
-use crate::metadata::{add_cover_art_stream_pre_header, write_cover_art_packet_post_header};
+use crate::metadata::{add_chapters, add_cover_stream, write_cover_packet, ChapterSpec};
 use crate::test_cases::media_fixtures::ffmpeg;
 
 type Chapters<'a> = &'a [(i64, i64, &'a str)];
@@ -76,59 +76,68 @@ fn inputs() -> Inputs {
 /// Writes an MP4 the way the decrypt copy does: the audio stream copied, a
 /// cover whose time base is the 1/90000 an Audible download carries, and the
 /// given chapters.
-fn write_book_with_cover(inputs: &Inputs, output: &Path, chapters: Chapters) {
-    ff::init().expect("ffmpeg");
-    let mut ictx = ff::format::input(&inputs.audio).expect("open audio");
-    let mut octx = ff::format::output_as(output, Muxer::Mp4.ffmpeg_name()).expect("output");
-    let in_audio = ictx.stream(0).expect("audio stream");
-    let in_time_base = in_audio.time_base();
-    let mut out_audio = octx
-        .add_stream(ff::encoder::find(ff::codec::Id::None))
+fn write_book_with_cover(inputs: &Inputs, output_path: &Path, chapters: Chapters) {
+    let mut input = abb_ffmpeg::Input::open(&inputs.audio, &abb_ffmpeg::SecretOptions::default())
+        .expect("open audio")
+        .input;
+    let mut output =
+        abb_ffmpeg::Output::create(output_path, Muxer::Mp4.ffmpeg_name()).expect("output");
+    let in_audio = input.streams().remove(0);
+    let out_audio = output
+        .add_stream_copied_from(&input, in_audio.index)
         .expect("audio out");
-    out_audio.set_parameters(in_audio.parameters());
-    out_audio.set_time_base(in_time_base);
-    // SAFETY: the stream belongs to `octx` and the header is not written yet.
-    unsafe { (*out_audio.parameters().as_mut_ptr()).codec_tag = 0 };
-    let (cover_index, cover_format) = add_cover_art_stream_pre_header(&mut octx, &inputs.cover)
+    output
+        .set_stream_time_base(out_audio, in_audio.time_base)
+        .expect("audio time base");
+    output
+        .set_stream_disposition_and_clear_codec_tag(out_audio, in_audio.disposition)
+        .expect("clear codec tag");
+    let cover = add_cover_stream(&mut output, &inputs.cover)
         .expect("cover stream")
         .expect("cover added");
-    octx.stream_mut(cover_index)
-        .expect("cover stream")
-        .set_time_base((1, 90_000));
-    for (id, (start, end, title)) in chapters.iter().enumerate() {
-        octx.add_chapter(id as i64, (1, 1000), *start, *end, title)
-            .expect("chapter");
-    }
+    output
+        .set_stream_time_base(cover.index, abb_ffmpeg::Rational::new(1, 90_000))
+        .expect("cover time base");
+    let specs: Vec<ChapterSpec> = chapters
+        .iter()
+        .map(|(start, end, title)| ChapterSpec {
+            title: Some((*title).to_string()),
+            start_ms: *start,
+            end_ms: *end,
+        })
+        .collect();
+    add_chapters(&mut output, &specs).expect("chapters");
 
-    write_output_header(&mut octx, ff::Dictionary::new()).expect("header");
+    let mut muxer = write_layer_output_header(output).expect("header");
 
-    write_cover_art_packet_post_header(&mut octx, cover_index, &inputs.cover, cover_format)
-        .expect("cover packet");
-    let out_time_base = octx.stream(0).expect("audio out").time_base();
-    for (stream, mut packet) in ictx.packets() {
-        if stream.index() != 0 {
+    write_cover_packet(&mut muxer, cover, &inputs.cover).expect("cover packet");
+    let out_time_base = muxer.stream_time_base(out_audio).expect("audio out");
+    let mut packet = abb_ffmpeg::Packet::new().expect("packet");
+    while input.read_packet(&mut packet).expect("read packet") {
+        if packet.stream_index() != in_audio.index {
             continue;
         }
-        packet.rescale_ts(in_time_base, out_time_base);
-        packet.set_stream(0);
-        packet.set_position(-1);
-        packet.write_interleaved(&mut octx).expect("audio packet");
+        packet.rescale_ts(in_audio.time_base, out_time_base);
+        packet.set_stream_index(out_audio);
+        muxer.write_interleaved(&mut packet).expect("audio packet");
     }
-    octx.write_trailer().expect("trailer");
+    muxer.finish().expect("trailer");
 }
 
 fn chapter_starts_and_titles(path: &Path) -> Vec<(i64, String)> {
-    let input = ff::format::input(path).expect("read back");
+    let input = abb_ffmpeg::Input::open(path, &abb_ffmpeg::SecretOptions::default())
+        .expect("read back")
+        .input;
     input
         .chapters()
+        .iter()
         .map(|chapter| {
-            let start_ms = chapter.start() * 1000 * i64::from(chapter.time_base().numerator())
-                / i64::from(chapter.time_base().denominator());
+            let start_ms = chapter.start * 1000 * i64::from(chapter.time_base.numerator)
+                / i64::from(chapter.time_base.denominator);
             let title = chapter
-                .metadata()
-                .get("title")
-                .unwrap_or_default()
-                .to_string();
+                .title()
+                .map(abb_ffmpeg::Text::display)
+                .unwrap_or_default();
             (start_ms, title)
         })
         .collect()

@@ -4,7 +4,6 @@ use crate::audio::settings_encoder::{BitrateMode, ChannelConfig, EncoderType};
 
 #[test]
 fn opened_nmr_honors_requested_speed_and_target() {
-    ff::init().expect("initialize FFmpeg");
     for (speed, bitrate_kbps) in [(0, 33), (4, 193)] {
         let mut settings = EncoderSettings {
             encoder_type: EncoderType::NativeAac,
@@ -18,11 +17,11 @@ fn opened_nmr_honors_requested_speed_and_target() {
             create_audio_encoder(&settings, 44100, 2, true).expect("open requested NMR encoder");
         validate_native_options(&encoder, &settings).expect("verify opened NMR settings");
         assert_eq!(
-            native_option(&encoder, c"aac_is").expect("read opened psychoacoustic option"),
+            native_option(&encoder, "aac_is").expect("read opened psychoacoustic option"),
             1
         );
         assert_eq!(
-            native_option(&encoder, c"aac_pns").expect("read opened psychoacoustic option"),
+            native_option(&encoder, "aac_pns").expect("read opened psychoacoustic option"),
             1
         );
         settings.native_aac_speed = (speed + 1) % 5;

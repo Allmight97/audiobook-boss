@@ -34,18 +34,11 @@ pub enum CodecFamily {
 }
 
 impl CodecFamily {
-    pub(crate) const fn of_codec_id(id: ffmpeg_next::codec::Id) -> Option<Self> {
+    pub(crate) fn of_codec_id(id: abb_ffmpeg::CodecId) -> Option<Self> {
         match id {
-            ffmpeg_next::codec::Id::AAC => Some(Self::Aac),
-            ffmpeg_next::codec::Id::OPUS => Some(Self::Opus),
+            abb_ffmpeg::CodecId::AAC => Some(Self::Aac),
+            abb_ffmpeg::CodecId::OPUS => Some(Self::Opus),
             _ => None,
-        }
-    }
-
-    pub(crate) const fn codec_id(self) -> ffmpeg_next::codec::Id {
-        match self {
-            Self::Aac => ffmpeg_next::codec::Id::AAC,
-            Self::Opus => ffmpeg_next::codec::Id::OPUS,
         }
     }
 }
@@ -111,14 +104,6 @@ impl AudiobookFormat {
 
 pub(crate) fn format_for_extension(extension: &str) -> Option<&'static FormatSpec> {
     FORMATS.into_iter().find(|spec| spec.extension == extension)
-}
-
-pub(crate) fn codec_family_of(encoder: EncoderType) -> CodecFamily {
-    FORMATS
-        .into_iter()
-        .find(|spec| spec.encoders.contains(&encoder))
-        .map(|spec| spec.codec_family)
-        .expect("every encoder type belongs to an output format")
 }
 
 #[cfg(test)]

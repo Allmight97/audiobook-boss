@@ -4,7 +4,10 @@
 
 use super::faad_decoder::FaadDecoder;
 use crate::errors::{AppError, Result};
-use ffmpeg_next as ff;
+use abb_ffmpeg::{
+    AudioFrame, AudioShape, ChannelLayout, CodecId, Packet, Progress, Rational, Resampler,
+    SampleFormat, Tags,
+};
 use std::time::{Duration, Instant};
 
 /// FAAC and FAAD library versions, for a host's build-identity log line.
@@ -17,7 +20,7 @@ pub(crate) fn codec_library_versions() -> String {
 }
 
 enum Backend {
-    Ffmpeg(ff::codec::decoder::Audio),
+    Ffmpeg(abb_ffmpeg::AudioDecoder),
     Faad(Box<FaadDecoder>),
 }
 
@@ -30,24 +33,24 @@ struct DecodeStats {
 
 pub(crate) struct AudioDecoder {
     backend: Backend,
-    time_base: ff::Rational,
+    time_base: Rational,
     bit_rate: usize,
     stats: DecodeStats,
     summary_label: Option<String>,
 }
 
 impl AudioDecoder {
-    pub(super) fn ffmpeg(decoder: ff::codec::decoder::Audio) -> Self {
+    pub(super) fn ffmpeg(decoder: abb_ffmpeg::AudioDecoder) -> Self {
         Self {
             time_base: decoder.packet_time_base(),
-            bit_rate: decoder.bit_rate(),
+            bit_rate: usize::try_from(decoder.bit_rate()).unwrap_or(0),
             backend: Backend::Ffmpeg(decoder),
             stats: DecodeStats::default(),
             summary_label: None,
         }
     }
 
-    pub(super) fn faad(decoder: FaadDecoder, time_base: ff::Rational, bit_rate: usize) -> Self {
+    pub(super) fn faad(decoder: FaadDecoder, time_base: Rational, bit_rate: usize) -> Self {
         Self {
             backend: Backend::Faad(Box::new(decoder)),
             time_base,
@@ -83,17 +86,15 @@ impl AudioDecoder {
     /// The decoder that produces PCM: FFmpeg's codec name (`aac`, `aac_at`, ...) or `faad3`.
     pub(crate) fn name(&self) -> String {
         match &self.backend {
-            Backend::Ffmpeg(decoder) => decoder
-                .codec()
-                .map_or_else(|| "unknown".into(), |codec| codec.name().to_string()),
+            Backend::Ffmpeg(decoder) => decoder.name().unwrap_or_else(|| "unknown".into()),
             Backend::Faad(_) => "faad3".into(),
         }
     }
 
-    pub(crate) fn id(&self) -> ff::codec::Id {
+    pub(crate) fn id(&self) -> CodecId {
         match &self.backend {
-            Backend::Ffmpeg(decoder) => decoder.id(),
-            Backend::Faad(_) => ff::codec::Id::AAC,
+            Backend::Ffmpeg(decoder) => decoder.codec(),
+            Backend::Faad(_) => CodecId::AAC,
         }
     }
 
@@ -111,17 +112,19 @@ impl AudioDecoder {
         }
     }
 
-    pub(crate) fn format(&self) -> ff::format::Sample {
+    pub(crate) fn format(&self) -> SampleFormat {
         match &self.backend {
             Backend::Ffmpeg(decoder) => decoder.format(),
-            Backend::Faad(_) => ff::format::Sample::F32(ff::format::sample::Type::Packed),
+            Backend::Faad(_) => SampleFormat::F32,
         }
     }
 
-    pub(crate) fn channel_layout(&self) -> ff::ChannelLayout {
+    /// `None` for a channel order that is neither a speaker mask nor a bare
+    /// channel count; the resampler still converts it.
+    pub(crate) fn channel_layout(&self) -> Option<ChannelLayout> {
         match &self.backend {
-            Backend::Ffmpeg(decoder) => decoder.channel_layout(),
-            Backend::Faad(decoder) => decoder.channel_layout(),
+            Backend::Ffmpeg(decoder) => decoder.layout(),
+            Backend::Faad(decoder) => Some(decoder.channel_layout()),
         }
     }
 
@@ -129,34 +132,54 @@ impl AudioDecoder {
     /// unspecified layout while their decoded frames carry the default layout
     /// for the channel count; swresample then rejects every frame with "Input
     /// changed". Normalize so the decoder, its frames, and the resampler agree.
-    pub(crate) fn normalized_channel_layout(&mut self) -> ff::ChannelLayout {
+    fn normalize_channel_layout(&mut self) {
         let Backend::Ffmpeg(decoder) = &mut self.backend else {
-            return self.channel_layout();
+            return;
         };
-        let mut layout = decoder.channel_layout();
-        if layout.is_empty() && decoder.channels() > 0 {
-            layout = ff::ChannelLayout::default(i32::from(decoder.channels()));
-            decoder.set_channel_layout(layout);
+        if decoder.layout().is_some_and(ChannelLayout::is_unspecified) && decoder.channels() > 0 {
+            decoder.set_layout(ChannelLayout::default_for(decoder.channels()));
             log::info!(
                 "Input declared no channel layout; defaulting for {} channel(s)",
                 decoder.channels()
             );
         }
-        layout
+    }
+
+    /// The converter from this decoder's frames to `output`, after
+    /// normalizing an undeclared input layout.
+    pub(crate) fn resampler_to(
+        &mut self,
+        output: AudioShape,
+        options: &Tags,
+    ) -> std::result::Result<Resampler, abb_ffmpeg::Error> {
+        self.normalize_channel_layout();
+        match &self.backend {
+            Backend::Ffmpeg(decoder) => Resampler::for_decoder(decoder, output, options),
+            Backend::Faad(decoder) => Resampler::new(
+                AudioShape {
+                    format: SampleFormat::F32,
+                    layout: decoder.channel_layout(),
+                    rate: decoder.format().rate,
+                },
+                output,
+                options,
+            ),
+        }
     }
 
     pub(crate) fn bit_rate(&self) -> usize {
         self.bit_rate
     }
 
-    pub(crate) fn profile(&self) -> ff::codec::Profile {
+    /// One of `abb_ffmpeg::profile`'s numbers.
+    pub(crate) fn profile(&self) -> i32 {
         match &self.backend {
             Backend::Ffmpeg(decoder) => decoder.profile(),
-            Backend::Faad(_) => ff::codec::Profile::Unknown,
+            Backend::Faad(_) => abb_ffmpeg::profile::UNKNOWN,
         }
     }
 
-    pub(crate) fn packet_time_base(&self) -> ff::Rational {
+    pub(crate) fn packet_time_base(&self) -> Rational {
         self.time_base
     }
 
@@ -164,7 +187,7 @@ impl AudioDecoder {
         matches!(self.backend, Backend::Ffmpeg(_))
     }
 
-    pub(crate) fn send_packet(&mut self, packet: &ff::Packet) -> Result<()> {
+    pub(crate) fn send_packet(&mut self, packet: &Packet) -> Result<()> {
         let started = Instant::now();
         self.stats.packets += 1;
         let result = match &mut self.backend {
@@ -180,7 +203,7 @@ impl AudioDecoder {
     pub(crate) fn send_eof(&mut self) -> Result<()> {
         match &mut self.backend {
             Backend::Ffmpeg(decoder) => decoder
-                .send_eof()
+                .send_end()
                 .map_err(|error| AppError::General(error.to_string())),
             Backend::Faad(decoder) => {
                 decoder.send_eof();
@@ -189,17 +212,18 @@ impl AudioDecoder {
         }
     }
 
+    /// Replaces the contents of `frame` with the next decoded frame.
     pub(crate) fn receive_frame(
         &mut self,
-        frame: &mut ff::frame::Audio,
-    ) -> std::result::Result<(), ff::Error> {
+        frame: &mut AudioFrame,
+    ) -> std::result::Result<Progress, abb_ffmpeg::Error> {
         let started = Instant::now();
         let result = match &mut self.backend {
             Backend::Ffmpeg(decoder) => decoder.receive_frame(frame),
             Backend::Faad(decoder) => decoder.receive_frame(frame),
         };
         self.stats.decode_time += started.elapsed();
-        if result.is_ok() {
+        if result == Ok(Progress::Ready) {
             self.stats.emitted_samples += frame.samples() as u64;
         }
         result
