@@ -35,28 +35,86 @@ pub(crate) fn write_output_header(
 const MOST_TICKS_BETWEEN_PACKETS: i128 = i32::MAX as i128 - 2;
 
 fn movie_timescale(octx: &ff::format::context::Output) -> Result<i32> {
-    let rate = audio_sample_rate(octx)?;
-    Ok((1..=rate)
-        .filter(|divisor| rate % divisor == 0)
-        .map(|divisor| rate / divisor)
-        .find(|timescale| every_chapter_fits(octx, *timescale))
-        .unwrap_or(1))
+    let spans: Vec<ChapterSpan> = octx
+        .chapters()
+        .map(|chapter| ChapterSpan {
+            start: chapter.start(),
+            end: chapter.end(),
+            time_base: (
+                chapter.time_base().numerator(),
+                chapter.time_base().denominator(),
+            ),
+        })
+        .collect();
+    Ok(movie_timescale_for(audio_sample_rate(octx)?, &spans))
 }
 
-fn every_chapter_fits(octx: &ff::format::context::Output, timescale: i32) -> bool {
+struct ChapterSpan {
+    start: i64,
+    end: i64,
+    time_base: (i32, i32),
+}
+
+fn movie_timescale_for(rate: i32, chapters: &[ChapterSpan]) -> i32 {
+    (1..=rate)
+        .filter(|divisor| rate % divisor == 0)
+        .map(|divisor| rate / divisor)
+        .find(|timescale| every_chapter_fits(chapters, *timescale))
+        .unwrap_or(1)
+}
+
+fn every_chapter_fits(chapters: &[ChapterSpan], timescale: i32) -> bool {
     let mut previous_start = 0;
-    octx.chapters().all(|chapter| {
-        let start = movie_ticks(chapter.start(), chapter.time_base(), timescale);
-        let end = movie_ticks(chapter.end(), chapter.time_base(), timescale);
+    chapters.iter().all(|chapter| {
+        let start = movie_ticks(chapter.start, chapter.time_base, timescale);
+        let end = movie_ticks(chapter.end, chapter.time_base, timescale);
         let gap = start - previous_start;
         previous_start = start;
         end - start < MOST_TICKS_BETWEEN_PACKETS && gap < MOST_TICKS_BETWEEN_PACKETS
     })
 }
 
-fn movie_ticks(value: i64, time_base: ff::Rational, timescale: i32) -> i128 {
-    i128::from(value) * i128::from(time_base.numerator()) * i128::from(timescale)
-        / i128::from(time_base.denominator().max(1))
+fn movie_ticks(value: i64, (numerator, denominator): (i32, i32), timescale: i32) -> i128 {
+    i128::from(value) * i128::from(numerator) * i128::from(timescale)
+        / i128::from(denominator.max(1))
+}
+
+/// `write_output_header` for an `abb_ffmpeg` output.
+pub(crate) fn write_layer_output_header(output: abb_ffmpeg::Output) -> Result<abb_ffmpeg::Muxer> {
+    let mut options = abb_ffmpeg::Tags::default();
+    if super::is_mp4_family_format(&output.muxer_name()) {
+        let rate = output
+            .streams()
+            .iter()
+            .filter(|stream| stream.medium == abb_ffmpeg::Medium::Audio)
+            .map(|stream| stream.sample_rate)
+            .find(|rate| *rate > 0)
+            .ok_or_else(|| AppError::General("an MP4 output has no audio sample rate".into()))?;
+        let spans: Vec<ChapterSpan> = output
+            .chapters()
+            .iter()
+            .map(|chapter| ChapterSpan {
+                start: chapter.start,
+                end: chapter.end,
+                time_base: (chapter.time_base.numerator, chapter.time_base.denominator),
+            })
+            .collect();
+        let timescale = movie_timescale_for(rate, &spans).to_string();
+        options
+            .push("movie_timescale", &timescale, abb_ffmpeg::Step::WriteHeader)
+            .map_err(|error| AppError::General(error.to_string()))?;
+    }
+    let (muxer, unused) = output
+        .write_header(&options)
+        .map_err(|error| AppError::General(error.to_string()))?;
+    if unused.is_empty() {
+        Ok(muxer)
+    } else {
+        Err(AppError::General(format!(
+            "FFmpeg did not take the output options {}",
+            unused.join(", ")
+        )))
+    }
 }
 
 fn audio_sample_rate(octx: &ff::format::context::Output) -> Result<i32> {

@@ -339,3 +339,7 @@ mod integration_decrypt_tests;
 #[cfg(test)]
 #[path = "title_failure_tests.rs"]
 mod title_failure_tests;
+
+#[cfg(test)]
+#[path = "decrypt_copy_failure_tests.rs"]
+mod decrypt_copy_failure_tests;

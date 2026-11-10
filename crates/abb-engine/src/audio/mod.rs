@@ -184,7 +184,7 @@ pub use imports::{
     supported_audio_import_extensions, supported_audio_import_formats_text,
     supported_audio_import_support_text, SkippedImportPath,
 };
-pub(crate) use output_header::write_output_header;
+pub(crate) use output_header::{write_layer_output_header, write_output_header};
 pub(crate) use path_validation::{validate_input_audio_path, validate_input_image_path};
 pub(crate) use processor::{
     codec_library_versions, execute_audio_engine, probe_builtin_audio_decoder,

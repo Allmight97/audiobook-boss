@@ -34,14 +34,17 @@ mod audible;
 mod audible_outcome;
 #[path = "abb_dev/during_export.rs"]
 mod during_export;
+#[path = "abb_dev/parity.rs"]
+mod parity;
 use during_export::DuringExport;
 
 const USAGE: &str = "\
 Usage: abb-dev <file-or-folder>... [options]
        abb-dev audible <sign-in|library|acquire> --state-dir <dir> [options]
+       abb-dev parity <record|check> <file>... --reference <json> [--bytes]
 
 Imports audio into an engine session and prints the session. The audible
-commands are listed after these options.
+and parity commands are listed after these options.
 
 Options:
   --set <field>=<value>   Edit a field on every imported title. Repeatable.
@@ -674,6 +677,7 @@ enum AbbDevStatus {
     Help,
     Usage(String),
     AudibleUsage(String),
+    ParityUsage(String),
     NothingImported,
     SaveFailed(String),
     PendingReview(String),
@@ -695,7 +699,7 @@ impl From<&str> for AbbDevStatus {
 fn exit_code(status: AbbDevStatus) -> ExitCode {
     match status {
         AbbDevStatus::Help => {
-            print!("{USAGE}\n{}", audible::USAGE);
+            print!("{USAGE}\n{}\n{}", audible::USAGE, parity::USAGE);
             ExitCode::SUCCESS
         }
         AbbDevStatus::Success => ExitCode::SUCCESS,
@@ -705,6 +709,10 @@ fn exit_code(status: AbbDevStatus) -> ExitCode {
         }
         AbbDevStatus::AudibleUsage(message) => {
             eprintln!("abb-dev: {message}\n\n{}", audible::USAGE);
+            ExitCode::from(2)
+        }
+        AbbDevStatus::ParityUsage(message) => {
+            eprintln!("abb-dev: {message}\n\n{}", parity::USAGE);
             ExitCode::from(2)
         }
         AbbDevStatus::NothingImported => {
@@ -757,6 +765,16 @@ async fn audible_command(args: Vec<String>) -> AbbDevStatus {
     }
 }
 
+fn parity_command(args: Vec<String>) -> AbbDevStatus {
+    match parity::parse(args.into_iter()) {
+        Err(message) => AbbDevStatus::ParityUsage(message),
+        Ok(options) => match parity::run(&options) {
+            Ok(()) => AbbDevStatus::Success,
+            Err(message) => AbbDevStatus::Failed(message),
+        },
+    }
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -764,6 +782,8 @@ async fn main() -> ExitCode {
         AbbDevStatus::Help
     } else if args.first().is_some_and(|arg| arg == "audible") {
         audible_command(args[1..].to_vec()).await
+    } else if args.first().is_some_and(|arg| arg == "parity") {
+        parity_command(args[1..].to_vec())
     } else {
         import_command(args).await
     };

@@ -1,0 +1,54 @@
+# Files that still call the ffmpeg-next wrapper or ffmpeg-sys-next directly.
+# scripts/check-rust-tiers.sh fails on any other file that names them, and on
+# a listed file that no longer does. Port a file to abb_ffmpeg, then delete
+# its line.
+crates/abb-engine/src/audio/buffer.rs
+crates/abb-engine/src/audio/buffer_tests.rs
+crates/abb-engine/src/audio/ffmpeg_log.rs
+crates/abb-engine/src/audio/file_list.rs
+crates/abb-engine/src/audio/format.rs
+crates/abb-engine/src/audio/format_tests.rs
+crates/abb-engine/src/audio/output_header.rs
+crates/abb-engine/src/audio/output_header_tests.rs
+crates/abb-engine/src/audio/processor/decoder.rs
+crates/abb-engine/src/audio/processor/encoder/context.rs
+crates/abb-engine/src/audio/processor/encoder/faac.rs
+crates/abb-engine/src/audio/processor/encoder/options/apple.rs
+crates/abb-engine/src/audio/processor/encoder/options/native.rs
+crates/abb-engine/src/audio/processor/encoder/session.rs
+crates/abb-engine/src/audio/processor/encoder/write.rs
+crates/abb-engine/src/audio/processor/engine.rs
+crates/abb-engine/src/audio/processor/faad_decoder.rs
+crates/abb-engine/src/audio/processor/faad_decoder_tests.rs
+crates/abb-engine/src/audio/processor/frame_pipeline.rs
+crates/abb-engine/src/audio/processor/he_timing.rs
+crates/abb-engine/src/audio/processor/measured_length.rs
+crates/abb-engine/src/audio/processor/preserve_merge.rs
+crates/abb-engine/src/audio/processor/run_diagnostics.rs
+crates/abb-engine/src/audio/processor/streams.rs
+crates/abb-engine/src/audio/processor/streams_preservation_tests.rs
+crates/abb-engine/src/audio/processor/streams_tests.rs
+crates/abb-engine/src/audio/settings_encoder.rs
+crates/abb-engine/src/diagnostics.rs
+crates/abb-engine/src/engine_tests.rs
+crates/abb-engine/src/errors.rs
+crates/abb-engine/src/metadata/container.rs
+crates/abb-engine/src/metadata/cover_art/embedding.rs
+crates/abb-engine/src/metadata/cover_art/format.rs
+crates/abb-engine/src/metadata/ffi.rs
+crates/abb-engine/src/metadata/ffmpeg_dict.rs
+crates/abb-engine/src/metadata/metadata_sinks.rs
+crates/abb-engine/src/metadata/mod.rs
+crates/abb-engine/src/metadata/passthrough.rs
+crates/abb-engine/src/metadata/reader.rs
+crates/abb-engine/src/metadata/remux.rs
+crates/abb-engine/src/remote_source/providers/audible/acquisition/integration_decrypt_tests.rs
+crates/abb-engine/src/test_cases/integration_estimated_length_tests.rs
+crates/abb-engine/src/test_cases/integration_library_readback_tests.rs
+crates/abb-engine/src/test_cases/integration_media_cover_type_tests.rs
+crates/abb-engine/src/test_cases/integration_media_merge_chapters_tests.rs
+crates/abb-engine/src/test_cases/integration_media_opus_tests.rs
+crates/abb-engine/src/test_cases/integration_media_route_parity_tests.rs
+crates/abb-engine/src/test_cases/integration_media_tag_save_tests.rs
+crates/abb-engine/src/test_cases/media_fixtures.rs
+crates/abb-engine/src/test_cases/tag_interop_dump.rs

@@ -20,6 +20,11 @@ abb_dev() {
 	bash "${repo_root}/scripts/abb-dev.sh" --state-dir "${state}" "$@"
 }
 
+# abb_parity <record|check> <file>... --reference <json> [--bytes]: compares output files.
+abb_parity() {
+	bash "${repo_root}/scripts/abb-dev.sh" parity "$@"
+}
+
 # format_tag <file> <tag>: one format tag, read back with ffprobe.
 format_tag() {
 	ffprobe -hide_banner -loglevel error -show_entries "format_tags=$2" -of default=nw=1:nk=1 "$1"

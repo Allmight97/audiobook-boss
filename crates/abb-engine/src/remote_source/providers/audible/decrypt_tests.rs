@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_packet_reports_how_far_through_the_book_it_is() {
-    let milliseconds = ff::Rational::new(1, 1000);
+    let milliseconds = abb_ffmpeg::Rational::new(1, 1000);
 
     assert_eq!(packet_fraction(Some(3_000), milliseconds, 12.0), Some(0.25));
     assert_eq!(packet_fraction(Some(60_000), milliseconds, 12.0), Some(1.0));
@@ -10,7 +10,7 @@ fn a_packet_reports_how_far_through_the_book_it_is() {
 
 #[test]
 fn an_unknown_time_or_length_reports_no_fraction() {
-    let milliseconds = ff::Rational::new(1, 1000);
+    let milliseconds = abb_ffmpeg::Rational::new(1, 1000);
 
     assert_eq!(packet_fraction(None, milliseconds, 12.0), None);
     assert_eq!(packet_fraction(Some(3_000), milliseconds, 0.0), None);
