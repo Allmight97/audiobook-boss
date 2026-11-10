@@ -341,5 +341,5 @@ mod integration_decrypt_tests;
 mod title_failure_tests;
 
 #[cfg(test)]
-#[path = "layer_identity_tests.rs"]
-mod layer_identity_tests;
+#[path = "decrypt_copy_failure_tests.rs"]
+mod decrypt_copy_failure_tests;

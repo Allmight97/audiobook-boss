@@ -60,8 +60,6 @@ pub(crate) use thumbnail::{optimize_cover_art, prepare_cover_art_for_write};
 pub(crate) use cover_art::ResolvedCover;
 pub use cover_art::{add_cover_art_stream_pre_header, write_cover_art_packet_post_header};
 pub(crate) use ffi::length_is_estimated;
-#[cfg(test)]
-pub(crate) use ffi::set_stream_disposition_and_clear_codec_tag;
 pub use ffmpeg_dict::set_container_metadata;
 pub use passthrough::{
     add_chapters_to_output, extract_passthrough_metadata, read_chapters, verify_chapters,

@@ -35,5 +35,20 @@ Rules:
   chapters, and length after encode and Preserve, and diffs the full
   `ffprobe -show_format` tags: Preserve fails on a tag the output lost, and an
   encode lists the tags it did not carry (`features/corpus.sh`).
+- To prove a code change kept an output (a port, a refactor, an FFmpeg
+  update), compare before and after with `abb-dev parity`:
+  1. On the build before the change, export the input and record it:
+     `bash scripts/abb-dev.sh <input> --format m4b --intent encode --template '{title}' --out <before> --export`,
+     then `bash scripts/abb-dev.sh parity record <before>/*.m4b --reference <ref.json>`.
+  2. On the changed build, export the same input the same way into `<after>`
+     and run `bash scripts/abb-dev.sh parity check <after>/*.m4b --reference <ref.json> --bytes`.
+
+  `SAME` means equal; `DIFFERENT` names the parts (audio, covers, container,
+  streams, chapters, bytes). Use `--bytes` only when both builds link the same
+  FFmpeg and the output is not Matroska; without it the check compares
+  decoded audio, covers, tags, streams, and chapters, which is what an FFmpeg
+  update must keep. The command reads files with the `ffmpeg` and `ffprobe`
+  commands, not with the engine. `features/parity.sh` proves two exports of
+  one input agree.
 - A new feature is a new `features/<name>.sh` added to `run.sh`'s list; check
   the result with ffprobe or the JSON, not with abb-dev's exit code alone.

@@ -216,7 +216,6 @@ fn write_copy(
     muxer
         .finish()
         .map_err(|error| decrypt_failure("finishing the output", error))?;
-    ffmpeg_next::init().map_err(|error| decrypt_failure("starting FFmpeg", error))?;
     crate::metadata::verify_chapters(partial, &crate::metadata::layer_chapter_specs(&chapters))
         .map_err(|error| decrypt_failure("checking the chapters", error))
 }
@@ -302,7 +301,8 @@ fn copy_streams(
     Ok(mapping)
 }
 
-/// A chapter without a title gets an empty one, as the `ffmpeg-next` copy did.
+/// Every copied chapter carries a title tag; a chapter without one gets an
+/// empty title.
 fn copy_chapters(chapters: &[abb_ffmpeg::Chapter], output: &mut abb_ffmpeg::Output) -> Result<()> {
     for chapter in chapters {
         let failure = |error| decrypt_failure(&format!("copying chapter {}", chapter.id), error);

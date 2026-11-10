@@ -273,6 +273,7 @@ fn verify_chapters_inner(path: &std::path::Path, expected: &[ChapterSpec]) -> Re
         );
         return Ok(());
     }
+    ff::init()?;
     let input = ff::format::input(path)?;
     let actual = read_chapters(&input);
     let ends_stored = Container::of_input(&input).stores_chapter_ends();

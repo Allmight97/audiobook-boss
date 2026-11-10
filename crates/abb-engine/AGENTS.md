@@ -47,6 +47,11 @@ app, a test, and the `abb-dev` tool drive the same code
   `SessionIntent::Remote` and the session snapshot, as any host does. A real
   Audible download uses as few titles as the question needs, newest first is
   fine: each one spends the owner's account and time.
+  `abb-dev parity record|check` (`src/bin/abb_dev/parity.rs`) proves a change
+  kept an output: record the files a build exports, export the same input
+  with the changed build, then check. `--bytes` also requires equal file
+  bytes; use it when the FFmpeg build is the same on both sides. Steps:
+  the verify-abb skill.
 
 ## Owner Routes
 
@@ -119,9 +124,10 @@ app, a test, and the `abb-dev` tool drive the same code
 - Validate input audio paths where they enter the engine with
   `crate::audio::validate_input_audio_path()`. Paths the engine hands back are
   canonical; compare paths in that spelling.
-- Production `unsafe` stays under `audio/` and `metadata/`
-  (`scripts/check-known-mistakes.ts`). Prefer a safe `ffmpeg-next` API where
-  one exists.
+- FFmpeg work goes through `abb_ffmpeg` (`crates/abb-ffmpeg/AGENTS.md`); a
+  missing operation is added there. Production `unsafe` stays under `audio/`
+  and `metadata/` (`scripts/check-known-mistakes.ts`), in the files not yet
+  ported and the FAAC and FAAD3 adapters.
 
 ## Proof placement
 
