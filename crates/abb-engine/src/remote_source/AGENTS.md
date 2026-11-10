@@ -254,6 +254,10 @@ message names the decrypt. For AAXC, demuxer success is not that proof. FFmpeg
 keeps plain copies of the key material it is given (option strings and the
 `mov.c` context) that ABB cannot wipe. Accepted: an AAXC key opens one
 title, and AAX activation bytes stay in FFmpeg's process memory only.
+Known gap, accepted: the AAX lane is proven only on test books built with
+FFmpeg's algorithm. Audible's license reply picks the lane per title, no known
+title gets AAX, and every real download so far was AAXC; a review does not
+re-flag it.
 Decrypt honors the download's edit list: packets it hides are dropped, and a partly hidden last packet keeps its
 trim. Why: the edit list is Audible's statement of the book's length, and its
 chapters end there. A Keep-original-audio merge of several decrypted titles
