@@ -153,12 +153,13 @@ runs; their commands live only in `verify.sh`.
 One person owns this repo, so a pull request adds a ritual with no second
 reader.
 
-- Work lands as coherently grouped commits (one group per owner or outcome)
-  pushed straight to `main` after local proof: `bash scripts/verify.sh
-  --changed origin/main`, or the named lanes.
-- Order commits as dependency-ordered vertical slices: the first delivers a
-  complete part of the outcome; every later one depends on it or becomes
-  easier or better because of it.
+- Work lands as commits pushed straight to `main` after local proof:
+  `bash scripts/verify.sh --changed origin/main`, or the named lanes.
+- Structure the commits as vertical slices: each works end to end and is
+  usable on its own. The first delivers a complete part of the outcome; every
+  later one depends on it or becomes easier or better because of it. Work
+  that is horizontal by nature (a rename, an upgrade, updating every caller)
+  cannot be sliced coherently, so it lands whole as one commit group.
 - Open a PR only for a named technical need a direct push cannot meet, and
   state that need first.
 - The `main` ruleset requires `gate`, and the owner's Admin role bypasses it,
