@@ -150,12 +150,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Ffmpeg { step, code } => {
-                write!(
-                    f,
-                    "FFmpeg could not {}: {}",
-                    step.describe(),
-                    ffmpeg_text(*code)
-                )
+                write!(f, "cannot {}: {}", step.describe(), ffmpeg_text(*code))
             }
             Self::OutOfMemory { step } => write!(f, "out of memory to {}", step.describe()),
             Self::NulInText { step } => {

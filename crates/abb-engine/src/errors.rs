@@ -48,10 +48,7 @@ pub enum AppError {
     Io(#[from] std::io::Error),
 
     #[error("FFmpeg error: {0}")]
-    Ffmpeg(#[from] ffmpeg_next::Error),
-
-    #[error("FFmpeg error: {0}")]
-    FfmpegLayer(#[from] abb_ffmpeg::Error),
+    Ffmpeg(#[from] abb_ffmpeg::Error),
 
     #[error("Temporary directory creation failed: {0}")]
     TempDirectoryCreation(String),
@@ -145,12 +142,6 @@ impl From<&AppError> for AppErrorEnvelope {
                 Some(error.to_string()),
             ),
             AppError::Ffmpeg(error) => Self::new(
-                AppErrorCode::FfmpegError,
-                AppErrorCategory::Toolchain,
-                format!("FFmpeg error: {}", error),
-                Some(error.to_string()),
-            ),
-            AppError::FfmpegLayer(error) => Self::new(
                 AppErrorCode::FfmpegError,
                 AppErrorCategory::Toolchain,
                 format!("FFmpeg error: {}", error),

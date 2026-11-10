@@ -22,11 +22,15 @@ const OWNED_SHELL = (file: string) =>
 const OWNED_RUST = (file: string) => file.endsWith('.rs') && !file.startsWith('vendor/');
 const RUST_TEST_FILE = (file: string) =>
 	/(^|\/|_)tests\.rs$/.test(file) || /(^|\/)(tests|test_cases)\//.test(file);
-const ENGINE_OUTSIDE_MEDIA_WRAPPERS = (file: string) =>
+const FAAC_AND_FAAD_ADAPTERS = new Set([
+	'crates/abb-engine/src/audio/processor/encoder/faac.rs',
+	'crates/abb-engine/src/audio/processor/faad_decoder.rs',
+]);
+const ENGINE_OUTSIDE_CODEC_ADAPTERS = (file: string) =>
 	OWNED_RUST(file) &&
+	!RUST_TEST_FILE(file) &&
 	file.startsWith('crates/abb-engine/src/') &&
-	!file.startsWith('crates/abb-engine/src/audio/') &&
-	!file.startsWith('crates/abb-engine/src/metadata/');
+	!FAAC_AND_FAAD_ADAPTERS.has(file);
 const SOLID_SOURCE = (file: string) => file.startsWith('src/') && file.endsWith('.tsx');
 const DESTRUCTURED_PROPS =
 	/\bfunction [A-Z]\w*\s*\(\s*\{|\b(?:const|let) [A-Z]\w*\s*=\s*\(\s*\{|\b(?:const|let)\s*\{[^}]*\}\s*=\s*props\b/;
@@ -233,12 +237,12 @@ const RULES: Rule[] = [
 			'is a rust test outside a test file. Fix: move the test module to a sibling `<file>_tests.rs` (`#[cfg(test)] #[path = "<file>_tests.rs"] mod tests;`); tests live in files named `*tests.rs` and under `tests/` or `test_cases/`.',
 	},
 	{
-		appliesTo: ENGINE_OUTSIDE_MEDIA_WRAPPERS,
+		appliesTo: ENGINE_OUTSIDE_CODEC_ADAPTERS,
 		comment: /^\s*\/\//,
 		findIn: (line) =>
 			CODE_ONLY(line).match(/\bunsafe\s*(\{|fn\b|impl\b|trait\b|extern\b)/)?.[0] ?? null,
 		message:
-			'is unsafe outside the media wrappers. Fix: keep `unsafe` in the FFmpeg and FAAC wrappers under `audio/` and `metadata/` and call a safe function from here (crates/abb-engine/AGENTS.md, Runtime Constraints).',
+			'is unsafe in the engine. Fix: call `abb_ffmpeg` for FFmpeg work and add a missing operation there; only the FAAC and FAAD3 adapters hold `unsafe` (crates/abb-engine/AGENTS.md, Runtime Constraints).',
 	},
 	{
 		appliesTo: OWNED_SOURCE,

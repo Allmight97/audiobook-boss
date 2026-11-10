@@ -131,41 +131,41 @@ pub(crate) fn ffprobe_tag_ci(
         .and_then(|(_, value)| value.as_str().map(str::to_string))
 }
 
-pub(crate) fn picture_codecs(path: &Path) -> Vec<ffmpeg_next::codec::Id> {
-    let input = ffmpeg_next::format::input(path).expect("probe fixture");
+pub(crate) fn picture_codecs(path: &Path) -> Vec<abb_ffmpeg::CodecId> {
+    let input = crate::metadata::open_input(path).expect("probe fixture");
     let mut codecs: Vec<_> = input
         .streams()
+        .iter()
         .filter(|stream| {
-            stream.parameters().medium() == ffmpeg_next::media::Type::Attachment
+            stream.medium == abb_ffmpeg::Medium::Attachment
                 || stream
-                    .disposition()
-                    .contains(ffmpeg_next::format::stream::Disposition::ATTACHED_PIC)
+                    .disposition
+                    .contains(abb_ffmpeg::Disposition::ATTACHED_PIC)
         })
-        .map(|stream| stream.parameters().id())
+        .map(|stream| stream.codec)
         .collect();
-    codecs.sort_by_key(|id| format!("{id:?}"));
+    codecs.sort_by_key(|id| id.name());
     codecs
 }
 
-pub(crate) fn picture_payloads(path: &Path) -> Vec<(ffmpeg_next::codec::Id, Vec<u8>)> {
-    let mut input = ffmpeg_next::format::input(path).expect("probe fixture");
-    let attached: HashMap<usize, ffmpeg_next::codec::Id> = input
+pub(crate) fn picture_payloads(path: &Path) -> Vec<(abb_ffmpeg::CodecId, Vec<u8>)> {
+    let input = crate::metadata::open_input(path).expect("probe fixture");
+    let mut pictures: Vec<_> = input
         .streams()
+        .iter()
         .filter(|stream| {
             stream
-                .disposition()
-                .contains(ffmpeg_next::format::stream::Disposition::ATTACHED_PIC)
+                .disposition
+                .contains(abb_ffmpeg::Disposition::ATTACHED_PIC)
         })
-        .map(|stream| (stream.index(), stream.parameters().id()))
-        .collect();
-    let mut pictures: Vec<_> = input
-        .packets()
-        .filter_map(|(stream, packet)| {
-            let codec = attached.get(&stream.index())?;
-            Some((*codec, packet.data().expect("picture payload").to_vec()))
+        .map(|stream| {
+            let payload = input
+                .attached_picture(stream.index)
+                .expect("picture payload");
+            (stream.codec, payload)
         })
         .collect();
-    pictures.sort_by_key(|(codec, payload)| (format!("{codec:?}"), payload.clone()));
+    pictures.sort_by_key(|(codec, payload)| (codec.name(), payload.clone()));
     pictures
 }
 
@@ -267,17 +267,16 @@ pub(crate) fn write_complete_frame_aac(path: &Path, frequency: u32) {
 }
 
 pub(crate) fn audio_packet_bytes(path: &Path) -> Vec<Vec<u8>> {
-    let mut input = ffmpeg_next::format::input(path).expect("fixture value");
-    let index = input
-        .streams()
-        .best(ffmpeg_next::media::Type::Audio)
-        .expect("fixture value")
-        .index();
-    input
-        .packets()
-        .filter(|(stream, _)| stream.index() == index)
-        .map(|(_, packet)| packet.data().expect("fixture value").to_vec())
-        .collect()
+    let mut input = crate::metadata::open_input(path).expect("fixture value");
+    let index = input.best_audio_stream().expect("fixture value");
+    let mut packet = abb_ffmpeg::Packet::new().expect("packet");
+    let mut payloads = Vec::new();
+    while input.read_packet(&mut packet).expect("read packet") {
+        if packet.stream_index() == index {
+            payloads.push(packet.data().to_vec());
+        }
+    }
+    payloads
 }
 
 pub(crate) fn preflight_payload(

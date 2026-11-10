@@ -43,12 +43,43 @@ impl Rational {
 pub enum Medium {
     Audio,
     Video,
+    Data,
     Attachment,
     Other,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub struct Disposition(c_int);
+
+impl std::fmt::Debug for Disposition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const NAMES: [(c_int, &str); 11] = [
+            (sys::AV_DISPOSITION_DEFAULT, "DEFAULT"),
+            (sys::AV_DISPOSITION_DUB, "DUB"),
+            (sys::AV_DISPOSITION_ORIGINAL, "ORIGINAL"),
+            (sys::AV_DISPOSITION_COMMENT, "COMMENT"),
+            (sys::AV_DISPOSITION_LYRICS, "LYRICS"),
+            (sys::AV_DISPOSITION_KARAOKE, "KARAOKE"),
+            (sys::AV_DISPOSITION_FORCED, "FORCED"),
+            (sys::AV_DISPOSITION_HEARING_IMPAIRED, "HEARING_IMPAIRED"),
+            (sys::AV_DISPOSITION_VISUAL_IMPAIRED, "VISUAL_IMPAIRED"),
+            (sys::AV_DISPOSITION_CLEAN_EFFECTS, "CLEAN_EFFECTS"),
+            (sys::AV_DISPOSITION_ATTACHED_PIC, "ATTACHED_PIC"),
+        ];
+        let named: Vec<&str> = NAMES
+            .iter()
+            .filter(|(bit, _)| self.0 & bit != 0)
+            .map(|(_, name)| *name)
+            .collect();
+        let known = NAMES.iter().fold(0, |bits, (bit, _)| bits | bit);
+        let unnamed = self.0 & !known;
+        if unnamed != 0 || named.is_empty() {
+            write!(f, "Disposition({:#x})", self.0)
+        } else {
+            write!(f, "Disposition({})", named.join(" | "))
+        }
+    }
+}
 
 impl Disposition {
     pub const ATTACHED_PIC: Self = Self(sys::AV_DISPOSITION_ATTACHED_PIC);
@@ -77,6 +108,13 @@ pub struct StreamFacts {
     pub bit_rate: i64,
     /// The stream's length in its time base, or `None` when unknown.
     pub duration: Option<i64>,
+    /// The first timestamp in the stream's time base, or `None` when unknown.
+    pub start_time: Option<i64>,
+    /// Samples a decoder drops before the first audible one.
+    pub initial_padding: i32,
+    /// A picture's size in pixels; 0 when the demuxer could not tell.
+    pub width: i32,
+    pub height: i32,
     pub tags: Tags,
 }
 
@@ -127,6 +165,7 @@ fn medium(kind: sys::AVMediaType) -> Medium {
     match kind {
         sys::AVMediaType::AVMEDIA_TYPE_AUDIO => Medium::Audio,
         sys::AVMediaType::AVMEDIA_TYPE_VIDEO => Medium::Video,
+        sys::AVMediaType::AVMEDIA_TYPE_DATA => Medium::Data,
         sys::AVMediaType::AVMEDIA_TYPE_ATTACHMENT => Medium::Attachment,
         _ => Medium::Other,
     }
@@ -155,6 +194,11 @@ pub(crate) unsafe fn stream_facts(ctx: *const sys::AVFormatContext) -> Vec<Strea
                     bit_rate: (*parameters).bit_rate,
                     duration: Some((*stream).duration)
                         .filter(|duration| *duration != sys::AV_NOPTS_VALUE),
+                    start_time: Some((*stream).start_time)
+                        .filter(|start| *start != sys::AV_NOPTS_VALUE),
+                    initial_padding: (*parameters).initial_padding,
+                    width: (*parameters).width,
+                    height: (*parameters).height,
                     tags: Tags::read((*stream).metadata),
                 }
             })

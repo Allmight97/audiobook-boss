@@ -5,7 +5,7 @@ use crate::audio::AudioFile;
 use crate::errors::{AppError, Result};
 use crate::execution::ProcessingContext;
 use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
-use ffmpeg_next as ff;
+use abb_ffmpeg::{CodecId, Input, Medium, Packet, Rational, StreamFacts};
 use std::path::{Path, PathBuf};
 
 fn incompatible(detail: &str) -> AppError {
@@ -14,20 +14,21 @@ fn incompatible(detail: &str) -> AppError {
 
 #[derive(PartialEq, Eq)]
 struct Configuration {
-    codec: ff::codec::Id,
+    codec: CodecId,
     extradata: Vec<u8>,
     sample_rate: Option<u32>,
     channels: Option<u32>,
-    time_base: ff::Rational,
+    time_base: Rational,
 }
 
-fn open_source(file: &AudioFile) -> Result<(ff::format::context::Input, usize, Configuration)> {
+fn open_source(file: &AudioFile) -> Result<(Input, StreamFacts, Configuration)> {
     crate::audio::validate_preservation_source(file)?;
     let path = crate::audio::validate_input_audio_path(&file.path)?;
-    let input = ff::format::input(&path)?;
-    if input
-        .streams()
-        .filter(|stream| stream.parameters().medium() == ff::media::Type::Audio)
+    let input = crate::metadata::open_input(&path)?;
+    let streams = input.streams();
+    if streams
+        .iter()
+        .filter(|stream| stream.medium == Medium::Audio)
         .count()
         != 1
     {
@@ -35,61 +36,51 @@ fn open_source(file: &AudioFile) -> Result<(ff::format::context::Input, usize, C
             "each source must contain exactly one audio stream",
         ));
     }
-    if super::he_timing::is_abb_faac_he(input.metadata().get("encoder")) {
+    let encoder_tag = input.tags().get("encoder").map(abb_ffmpeg::Text::display);
+    if super::he_timing::is_abb_faac_he(encoder_tag.as_deref()) {
         return Err(incompatible(
             "a source has encoder priming that must be removed at a join",
         ));
     }
     let stream = input
-        .streams()
-        .best(ff::media::Type::Audio)
+        .best_audio_stream()
+        .and_then(|index| streams.into_iter().nth(index))
         .ok_or_else(|| incompatible("an audio stream is missing"))?;
-    let params = stream.parameters();
-    if params.id() != ff::codec::Id::AAC {
+    if stream.codec != CodecId::AAC {
         return Err(incompatible(&format!(
             "merging without re-encoding currently supports AAC; '{}' contains {}",
             crate::errors::sanitize_path_for_display(&path),
-            params.id().name().to_uppercase(),
+            stream.codec.name().to_uppercase(),
         )));
     }
     let configuration = Configuration {
-        codec: params.id(),
-        extradata: read_codec_extradata(&params)
+        codec: stream.codec,
+        extradata: input
+            .stream_extradata(stream.index)
             .ok_or_else(|| incompatible("AAC configuration is missing"))?,
         sample_rate: file.sample_rate,
         channels: file.channels,
-        time_base: stream.time_base(),
+        time_base: stream.time_base,
     };
-    let index = stream.index();
-    Ok((input, index, configuration))
+    Ok((input, stream, configuration))
 }
 
-/// Scan without decoding, requiring an exact frame timeline before accepting a
-/// stream-copy join. Execution repeats this against immutable staged copies.
 fn visit_packets(
-    input: &mut ff::format::context::Input,
-    stream_index: usize,
-    mut visit: impl FnMut(ff::Packet) -> Result<()>,
+    input: &mut Input,
+    stream: &StreamFacts,
+    mut visit: impl FnMut(&mut Packet) -> Result<()>,
 ) -> Result<i64> {
-    let stream = input
-        .stream(stream_index)
-        .ok_or_else(|| incompatible("an audio stream is missing"))?;
-    let duration = stream.duration();
-    if stream.start_time() != 0 || duration <= 0 {
+    let duration = stream.duration.unwrap_or(i64::MIN);
+    if stream.start_time != Some(0) || duration <= 0 {
         return Err(incompatible(
             "a source has a shifted or unknown playable interval",
         ));
     }
     let mut end = 0_i64;
     let mut frame_duration = None;
-    loop {
-        let mut packet = ff::Packet::empty();
-        match packet.read(input) {
-            Ok(()) => {}
-            Err(ff::Error::Eof) => break,
-            Err(error) => return Err(error.into()),
-        }
-        if packet.stream() != stream_index {
+    let mut packet = Packet::new()?;
+    while input.read_packet(&mut packet)? {
+        if packet.stream_index() != stream.index {
             continue;
         }
         if packet.dts() != Some(end) || packet.pts() != Some(end) || packet.duration() <= 0 {
@@ -98,18 +89,22 @@ fn visit_packets(
             ));
         }
         let step = *frame_duration.get_or_insert(packet.duration());
-        if step != packet.duration()
-            || packet.side_data().any(|side| {
-                side.kind() == ff::packet::side_data::Type::SkipSamples
-                    && side.data().iter().take(8).any(|byte| *byte != 0)
-            })
-        {
+        let trimmed = !matches!(
+            packet.skip_samples(),
+            Ok(None
+                | Some(abb_ffmpeg::SkipSamples {
+                    start: 0,
+                    end: 0,
+                    ..
+                }))
+        );
+        if step != packet.duration() || trimmed {
             return Err(incompatible("a source has trimmed or padded audio frames"));
         }
         end = end
             .checked_add(step)
             .ok_or_else(|| incompatible("the audio timeline is too long"))?;
-        visit(packet)?;
+        visit(&mut packet)?;
     }
     if end != duration {
         return Err(incompatible(
@@ -122,7 +117,7 @@ fn visit_packets(
 pub(super) fn validate(files: &[AudioFile]) -> Result<()> {
     let mut expected = None;
     for file in files {
-        let (mut input, index, configuration) = open_source(file)?;
+        let (mut input, stream, configuration) = open_source(file)?;
         if expected
             .as_ref()
             .is_some_and(|value| value != &configuration)
@@ -132,7 +127,7 @@ pub(super) fn validate(files: &[AudioFile]) -> Result<()> {
             ));
         }
         expected = Some(configuration);
-        visit_packets(&mut input, index, |_| Ok(()))?;
+        visit_packets(&mut input, &stream, |_| Ok(()))?;
     }
     Ok(())
 }
@@ -141,27 +136,21 @@ fn remux(files: &[AudioFile], destination: &Path, context: &ProcessingContext) -
     let first = files
         .first()
         .ok_or_else(|| incompatible("there are no sources"))?;
-    let (input, index, expected) = open_source(first)?;
-    let parameters = input
-        .stream(index)
-        .expect("selected stream")
-        .parameters()
-        .clone();
+    let (input, stream, expected) = open_source(first)?;
+    let mut output = abb_ffmpeg::Output::create_for_file_name(destination)?;
+    output.add_stream_copied_from(&input, stream.index)?;
+    output.set_stream_time_base(0, expected.time_base)?;
     drop(input);
-    let mut output = ff::format::output(destination)?;
-    let mut stream = output.add_stream(ff::encoder::find(expected.codec))?;
-    stream.set_parameters(parameters);
-    stream.set_time_base(expected.time_base);
-    crate::audio::write_output_header(&mut output, ff::Dictionary::new())?;
-    let time_base = output.stream(0).expect("created stream").time_base();
+    let mut muxer = crate::audio::write_output_header(output, &abb_ffmpeg::Tags::default())?;
+    let time_base = muxer.stream_time_base(0)?;
     let mut offset = 0_i64;
     let mut durations = Vec::with_capacity(files.len());
     for (source_index, file) in files.iter().enumerate() {
-        let (mut input, index, configuration) = open_source(file)?;
+        let (mut input, stream, configuration) = open_source(file)?;
         if configuration != expected {
             return Err(incompatible("Audio configurations differ"));
         }
-        let duration = visit_packets(&mut input, index, |mut packet| {
+        let duration = visit_packets(&mut input, &stream, |packet| {
             if context.is_cancelled() {
                 return Err(AppError::cancelled());
             }
@@ -171,13 +160,15 @@ fn remux(files: &[AudioFile], destination: &Path, context: &ProcessingContext) -
                 .ok_or_else(|| incompatible("the audio timeline is too long"))?;
             packet.set_pts(Some(timestamp));
             packet.set_dts(Some(timestamp));
-            packet.set_stream(0);
-            packet.set_position(-1);
+            packet.set_stream_index(0);
+            packet.clear_position();
             packet.rescale_ts(configuration.time_base, time_base);
-            packet.write_interleaved(&mut output)?;
+            muxer.write_interleaved(packet)?;
             Ok(())
         })?;
-        durations.push(duration as f64 * f64::from(configuration.time_base));
+        let seconds_per_tick = f64::from(configuration.time_base.numerator)
+            / f64::from(configuration.time_base.denominator);
+        durations.push(duration as f64 * seconds_per_tick);
         offset = offset
             .checked_add(duration)
             .ok_or_else(|| incompatible("the audio timeline is too long"))?;
@@ -187,7 +178,7 @@ fn remux(files: &[AudioFile], destination: &Path, context: &ProcessingContext) -
             "Joining original audio without re-encoding...",
         );
     }
-    output.write_trailer()?;
+    muxer.finish()?;
     Ok(durations)
 }
 
@@ -231,21 +222,6 @@ pub(super) fn write_fresh_mux(
             .chain(cover_warning)
             .collect(),
     ))
-}
-
-fn read_codec_extradata(params: &ff::codec::Parameters) -> Option<Vec<u8>> {
-    // SAFETY: the extradata slice is read while `params` is borrowed and
-    // copied into an owned Vec at once.
-    unsafe {
-        let ptr = params.as_ptr();
-        let data = (*ptr).extradata;
-        let size = (*ptr).extradata_size;
-        if data.is_null() || size <= 0 {
-            return None;
-        }
-
-        Some(std::slice::from_raw_parts(data, size as usize).to_vec())
-    }
 }
 
 #[cfg(test)]

@@ -395,16 +395,19 @@ describe('check-known-mistakes', () => {
 		expect(found('crates/abb-engine/src/x.rs', '// #[test]\nlet s = "#[test]";')).toEqual([]);
 	});
 
-	it('rejects unsafe in the engine outside the media wrappers', () => {
+	it('rejects unsafe in the engine outside the FAAC and FAAD3 adapters', () => {
 		const block = 'let v = unsafe { read(p) };';
 		expect(found('crates/abb-engine/src/session/state.rs', block)).toEqual([
-			expect.stringMatching(/^1: `unsafe \{` is unsafe outside the media wrappers/),
+			expect.stringMatching(/^1: `unsafe \{` is unsafe in the engine/),
 		]);
+		expect(found('crates/abb-engine/src/metadata/remux.rs', block)).toHaveLength(1);
+		expect(found('crates/abb-engine/src/audio/buffer.rs', block)).toHaveLength(1);
 		expect(
 			found('crates/abb-engine/src/x.rs', 'pub unsafe fn f() {}\nunsafe impl Send for X {}'),
 		).toHaveLength(2);
-		expect(found('crates/abb-engine/src/audio/processor/faac.rs', block)).toEqual([]);
-		expect(found('crates/abb-engine/src/metadata/ffi.rs', block)).toEqual([]);
+		expect(found('crates/abb-engine/src/audio/processor/encoder/faac.rs', block)).toEqual([]);
+		expect(found('crates/abb-engine/src/audio/processor/faad_decoder.rs', block)).toEqual([]);
+		expect(found('crates/abb-engine/src/audio/processor/encoder/faac_tests.rs', block)).toEqual([]);
 		expect(found('crates/abb-media-core/src/lib.rs', block)).toEqual([]);
 		expect(
 			found(

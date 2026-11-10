@@ -106,6 +106,27 @@ impl Packet {
         }
     }
 
+    /// The byte position of the packet in its input file, or `None` when
+    /// the demuxer did not say.
+    pub fn position(&self) -> Option<i64> {
+        // SAFETY: `self` owns a live packet.
+        let position = unsafe { self.0.as_ref() }.pos;
+        (position >= 0).then_some(position)
+    }
+
+    /// Forgets the input byte position, as a packet moved to another file
+    /// needs.
+    pub fn clear_position(&mut self) {
+        // SAFETY: `self` owns a live packet.
+        unsafe { self.0.as_mut() }.pos = -1;
+    }
+
+    pub fn dts(&self) -> Option<i64> {
+        // SAFETY: `self` owns a live packet.
+        let dts = unsafe { self.0.as_ref() }.dts;
+        (dts != sys::AV_NOPTS_VALUE).then_some(dts)
+    }
+
     /// Whether the packet is decoded but not played.
     pub fn is_discard(&self) -> bool {
         // SAFETY: `self` owns a live packet.

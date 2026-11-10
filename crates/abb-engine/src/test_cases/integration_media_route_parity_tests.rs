@@ -18,7 +18,7 @@ use crate::audio::{
 use crate::metadata::{
     read_metadata, save_metadata_intent, AlbumSortPatchOp, MetadataIntentPatch, PatchOp,
 };
-use ffmpeg_next::codec::Id;
+use abb_ffmpeg::CodecId;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -47,7 +47,7 @@ struct Route {
     output: OutputAudio,
     intent: AudioIntent,
     expect_preserve: bool,
-    pictures: Vec<Id>,
+    pictures: Vec<CodecId>,
     chapters: Chapters,
     audio: Audio,
 }
@@ -106,7 +106,11 @@ fn picture_source(dir: &Path, extension: &str) -> PathBuf {
     let source = dir.join(format!("drifting.{extension}"));
     drift_chapters(&audio, &source);
     seed(&source);
-    assert_eq!(picture_codecs(&source), [Id::MJPEG, Id::PNG], "{extension}");
+    assert_eq!(
+        picture_codecs(&source),
+        [CodecId::MJPEG, CodecId::PNG],
+        "{extension}"
+    );
     source
 }
 
@@ -214,7 +218,7 @@ fn opus_source(dir: &Path) -> PathBuf {
         3,
         "mka chapters survive the seed"
     );
-    assert_eq!(picture_codecs(&source), [Id::MJPEG], "mka");
+    assert_eq!(picture_codecs(&source), [CodecId::MJPEG], "mka");
     source
 }
 
@@ -267,12 +271,12 @@ fn assert_planned_tags(route: &Route, output: &Path) {
     assert_ffprobe_tag(&external, "sort_album", &sort);
 }
 
-fn expected_pictures(route: &Route) -> Vec<(Id, Vec<u8>)> {
+fn expected_pictures(route: &Route) -> Vec<(CodecId, Vec<u8>)> {
     let source = picture_payloads(&route.sources[0]);
     if route.intent == AudioIntent::Encode {
         source
             .into_iter()
-            .find(|(codec, _)| *codec == Id::MJPEG)
+            .find(|(codec, _)| *codec == CodecId::MJPEG)
             .into_iter()
             .collect()
     } else {
@@ -413,7 +417,7 @@ async fn every_encode_route_writes_the_planned_tags_cover_and_chapters() {
         output,
         intent: AudioIntent::Encode,
         expect_preserve: false,
-        pictures: vec![Id::MJPEG],
+        pictures: vec![CodecId::MJPEG],
         chapters: Chapters::Planned,
         audio: if name == "e-m4b" {
             Audio::EncodedAac
@@ -465,7 +469,7 @@ async fn every_single_file_preserve_route_keeps_source_tags_pictures_and_audio()
             "p-m4b-remux",
             &m4b,
             m4b_output(),
-            vec![Id::MJPEG, Id::PNG],
+            vec![CodecId::MJPEG, CodecId::PNG],
             Chapters::Planned,
             Audio::Copied,
         ),
@@ -481,7 +485,7 @@ async fn every_single_file_preserve_route_keeps_source_tags_pictures_and_audio()
             "p-opus-to-m4a",
             &opus,
             OutputAudio::new(AudiobookFormat::M4aOpus, native_encoder_settings()),
-            vec![Id::MJPEG],
+            vec![CodecId::MJPEG],
             Chapters::Planned,
             Audio::CopiedOpus,
         ),
@@ -489,7 +493,7 @@ async fn every_single_file_preserve_route_keeps_source_tags_pictures_and_audio()
             "p-opus-mka",
             &opus,
             OutputAudio::new(AudiobookFormat::MkaOpus, native_encoder_settings()),
-            vec![Id::MJPEG],
+            vec![CodecId::MJPEG],
             Chapters::Planned,
             Audio::CopiedOpus,
         ),
@@ -589,7 +593,11 @@ async fn a_preserved_merge_follows_the_users_order_and_takes_the_chosen_cover() 
         let tags = read_metadata(&joined).expect("read joined tags");
         assert_eq!(tags.title.as_deref(), Some("Joined"), "{name}");
         assert_eq!(tags.cover_art, Some(minimal_jpg_bytes()), "{name}");
-        assert_eq!(picture_codecs(&joined), [Id::MJPEG], "{name}: pictures");
+        assert_eq!(
+            picture_codecs(&joined),
+            [CodecId::MJPEG],
+            "{name}: pictures"
+        );
         let chapters = chapters_of(&joined);
         let titles: Vec<_> = chapters.iter().map(|c| c.0.as_deref()).collect();
         assert_eq!(titles, [Some("second"), Some("first")], "{name}");

@@ -127,11 +127,51 @@ impl Input {
         Tags::read(unsafe { (*self.0.as_ptr()).metadata })
     }
 
-    /// FFmpeg's duration in microseconds (`AV_TIME_BASE`), negative when
+    /// FFmpeg's duration in microseconds (`AV_TIME_BASE`), or `None` when
     /// unknown.
-    pub fn duration_micros(&self) -> i64 {
+    pub fn duration_micros(&self) -> Option<i64> {
         // SAFETY: `self` owns a live context.
-        unsafe { (*self.0.as_ptr()).duration }
+        let duration = unsafe { (*self.0.as_ptr()).duration };
+        (duration != sys::AV_NOPTS_VALUE).then_some(duration)
+    }
+
+    /// The picture a stream carries as its one attached packet (a cover),
+    /// or `None` when the stream is not an attached picture.
+    pub fn attached_picture(&self, index: usize) -> Option<Vec<u8>> {
+        // SAFETY: `self` owns a live context; an attached picture's packet
+        // holds `size` readable bytes at `data` for the context's life.
+        unsafe {
+            let stream = context::stream(self.0.as_ptr(), index, Step::ReadStreamInfo).ok()?;
+            if (*stream).disposition & sys::AV_DISPOSITION_ATTACHED_PIC == 0 {
+                return None;
+            }
+            let picture = &(*stream).attached_pic;
+            let size = usize::try_from(picture.size)
+                .ok()
+                .filter(|size| *size > 0)?;
+            if picture.data.is_null() {
+                return None;
+            }
+            Some(std::slice::from_raw_parts(picture.data, size).to_vec())
+        }
+    }
+
+    /// The byte range (position, size) of every packet the demuxer indexed
+    /// for a stream, or `None` when an entry cannot be read.
+    pub fn indexed_byte_ranges(&self, index: usize) -> Option<Vec<(i64, i64)>> {
+        // SAFETY: `self` owns a live context; the index calls only read the
+        // stream, and each entry's fields are copied before the next call.
+        unsafe {
+            let stream = context::stream(self.0.as_ptr(), index, Step::ReadStreamInfo).ok()?;
+            let count = sys::avformat_index_get_entries_count(stream);
+            (0..count)
+                .map(|entry| {
+                    sys::avformat_index_get_entry(stream, entry)
+                        .as_ref()
+                        .map(|entry| (entry.pos, i64::from(entry.size())))
+                })
+                .collect()
+        }
     }
 
     /// Reads the next packet into `packet`. Returns `false` at the end.

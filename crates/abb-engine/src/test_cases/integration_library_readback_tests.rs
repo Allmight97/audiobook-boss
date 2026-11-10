@@ -145,7 +145,7 @@ async fn an_edited_grouped_title_exports_every_field_and_the_chosen_cover() {
     assert_ffprobe_tag(&library, "SERIES", "Edit Saga; Edit Arc");
     assert_ffprobe_tag(&library, "SERIES-PART", "3; 2");
     assert_ffprobe_tag(&library, "sort_album", "Edit Saga 03 - Golden Edit");
-    assert_eq!(picture_codecs(&out), vec![ffmpeg_next::codec::Id::MJPEG]);
+    assert_eq!(picture_codecs(&out), vec![abb_ffmpeg::CodecId::MJPEG]);
     assert_eq!(
         read.cover_art,
         Some(
@@ -210,7 +210,7 @@ async fn cleared_cover_export(
         desk.metadata().cover.image.is_some()
     })
     .await;
-    assert_eq!(picture_codecs(&src), vec![ffmpeg_next::codec::Id::MJPEG]);
+    assert_eq!(picture_codecs(&src), vec![abb_ffmpeg::CodecId::MJPEG]);
     desk.send(SessionIntent::SetField {
         binding: desk.metadata().binding,
         field: MetadataField::Title,
@@ -242,7 +242,7 @@ async fn a_cleared_cover_stays_off_the_export_on_every_route() {
         assert_eq!(fs::read(&src).expect("reread source"), before, "{route}");
         assert_eq!(
             picture_codecs(&src),
-            vec![ffmpeg_next::codec::Id::MJPEG],
+            vec![abb_ffmpeg::CodecId::MJPEG],
             "{route}"
         );
     }

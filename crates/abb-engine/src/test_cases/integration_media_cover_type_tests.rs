@@ -4,7 +4,6 @@
 
 use super::media_fixtures::{ffmpeg, minimal_jpg_bytes, write_sine_mp3};
 use crate::metadata::{save_metadata_intent, MetadataIntentPatch, PatchOp};
-use ffmpeg_next as ff;
 use std::path::Path;
 use tempfile::TempDir;
 
@@ -25,16 +24,16 @@ fn write_sine_flac(path: &Path) {
 }
 
 fn picture_types(path: &Path) -> Vec<Option<String>> {
-    ff::init().expect("ffmpeg init");
-    let input = ff::format::input(path).expect("open the saved file");
+    let input = crate::metadata::open_input(path).expect("open the saved file");
     input
         .streams()
+        .iter()
         .filter(|stream| {
             stream
-                .disposition()
-                .contains(ff::format::stream::Disposition::ATTACHED_PIC)
+                .disposition
+                .contains(abb_ffmpeg::Disposition::ATTACHED_PIC)
         })
-        .map(|stream| stream.metadata().get("comment").map(str::to_string))
+        .map(|stream| stream.tags.get("comment").map(abb_ffmpeg::Text::display))
         .collect()
 }
 

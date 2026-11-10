@@ -17,7 +17,6 @@ mod chapter_count;
 mod cover_art;
 mod cover_choice;
 mod embedded_cover;
-mod ffi;
 mod ffmpeg_dict;
 mod field_schema;
 mod intent_plan;
@@ -52,19 +51,25 @@ impl From<MetadataCoreError> for AppError {
     }
 }
 
-pub use reader::{display_tags_from_ffmpeg_dict, read_metadata};
+pub(crate) use reader::display_tags;
+pub use reader::read_metadata;
 pub use thumbnail::read_audio_cover_thumbnail;
 pub(crate) use thumbnail::render_display_thumbnail;
 pub(crate) use thumbnail::{optimize_cover_art, prepare_cover_art_for_write};
 
 pub(crate) use cover_art::{add_cover_stream, write_cover_packet, ResolvedCover};
-pub(crate) use ffi::length_is_estimated;
 pub(crate) use ffmpeg_dict::set_container_metadata;
-pub(crate) use passthrough::{add_chapters, layer_chapter_specs, prepare_output_cover_art};
-pub use passthrough::{
-    add_chapters_to_output, extract_passthrough_metadata, read_chapters, verify_chapters,
-    PassthroughMetadata, PassthroughSource,
+pub(crate) use passthrough::{
+    add_chapters, chapter_specs, prepare_output_cover_art, read_chapters, titled_chapter,
 };
+pub use passthrough::{
+    extract_passthrough_metadata, verify_chapters, PassthroughMetadata, PassthroughSource,
+};
+
+/// Opens and probes a media file for reading.
+pub(crate) fn open_input(path: &std::path::Path) -> Result<abb_ffmpeg::Input> {
+    Ok(abb_ffmpeg::Input::open(path, &abb_ffmpeg::SecretOptions::default())?.input)
+}
 
 pub fn save_metadata_intent(path: &std::path::Path, patch: &MetadataIntentPatch) -> Result<()> {
     let plan = plan_metadata_write_for_path(path, patch)?;
@@ -112,19 +117,16 @@ fn check_saved_audio(original: &std::path::Path, saved: &std::path::Path) -> Res
     const TOLERANCE_US: u64 = 500_000;
     let (original_us, original_estimated, original_streams) = audio_shape(original)?;
     let (saved_us, saved_estimated, saved_streams) = audio_shape(saved)?;
-    let unknown = ffmpeg_next::ffi::AV_NOPTS_VALUE;
-    let duration_moved = original_us != unknown
-        && original_estimated == saved_estimated
-        && (saved_us == unknown || original_us.abs_diff(saved_us) > TOLERANCE_US);
+    let duration_moved = original_us.is_some_and(|original_us| {
+        original_estimated == saved_estimated
+            && saved_us.is_none_or(|saved_us| original_us.abs_diff(saved_us) > TOLERANCE_US)
+    });
     if original_streams == saved_streams && !duration_moved {
         return Ok(());
     }
-    let seconds = |us: i64| {
-        if us == unknown {
-            "unknown".to_string()
-        } else {
-            format!("{:.1} s", us as f64 / 1_000_000.0)
-        }
+    let seconds = |us: Option<i64>| match us {
+        None => "unknown".to_string(),
+        Some(us) => format!("{:.1} s", us as f64 / 1_000_000.0),
     };
     Err(AppError::FileValidation(format!(
         "The original '{}' was kept unchanged: the saved copy's audio did not match it (length {} vs {}, audio streams {} vs {}).",
@@ -136,13 +138,18 @@ fn check_saved_audio(original: &std::path::Path, saved: &std::path::Path) -> Res
     )))
 }
 
-fn audio_shape(path: &std::path::Path) -> Result<(i64, bool, usize)> {
-    let input = ffmpeg_next::format::input(path).map_err(AppError::Ffmpeg)?;
+fn audio_shape(path: &std::path::Path) -> Result<(Option<i64>, bool, usize)> {
+    let input = open_input(path)?;
     let audio_streams = input
         .streams()
-        .filter(|stream| stream.parameters().medium() == ffmpeg_next::media::Type::Audio)
+        .iter()
+        .filter(|stream| stream.medium == abb_ffmpeg::Medium::Audio)
         .count();
-    Ok((input.duration(), length_is_estimated(&input), audio_streams))
+    Ok((
+        input.duration_micros(),
+        input.duration_is_estimated(),
+        audio_streams,
+    ))
 }
 
 /// Remuxes a freshly produced artifact into its container with the accepted

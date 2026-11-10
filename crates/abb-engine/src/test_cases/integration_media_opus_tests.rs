@@ -4,7 +4,7 @@
 
 use super::media_fixtures::{
     accepted_chapters, audio_packet_bytes, chapters_of, decode_pcm_f32, ffmpeg, minimal_jpg_bytes,
-    preflight_payload, run_planned_title, MediaLane,
+    picture_codecs, preflight_payload, run_planned_title, MediaLane,
 };
 use super::support::encoders::native_encoder_settings;
 use super::support::wav::{write_stereo_sine_wav, SAMPLE_RATE};
@@ -230,21 +230,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
                 },
             )
             .expect("fixture value");
-            {
-                let input = ffmpeg_next::format::input(&destination).expect("fixture value");
-                assert_eq!(
-                    input
-                        .streams()
-                        .filter(
-                            |s| s.parameters().medium() == ffmpeg_next::media::Type::Attachment
-                                || s.disposition().contains(
-                                    ffmpeg_next::format::stream::Disposition::ATTACHED_PIC
-                                )
-                        )
-                        .count(),
-                    1
-                );
-            }
+            assert_eq!(picture_codecs(&destination).len(), 1);
             assert!(read_audio_cover_thumbnail(&destination)
                 .expect("fixture value")
                 .is_some());

@@ -132,31 +132,42 @@ pub(super) fn log_output_observation(context: &crate::execution::ProcessingConte
     append_run_record(|| format!("{record}\n"));
 }
 
-fn observe_output(path: &Path) -> Result<String, ffmpeg_next::Error> {
-    use ffmpeg_next as ff;
-    ff::init()?;
-    let input = ff::format::input(path)?;
+/// FFmpeg's name for an AAC profile number, in the form the run log has
+/// always shown it.
+fn profile_label(codec: abb_ffmpeg::CodecId, profile: i32) -> &'static str {
+    use abb_ffmpeg::profile as p;
+    if codec != abb_ffmpeg::CodecId::AAC {
+        return "Unknown";
+    }
+    match profile {
+        p::AAC_MAIN => "AAC(Main)",
+        p::AAC_LOW => "AAC(Low)",
+        p::AAC_SSR => "AAC(SSR)",
+        p::AAC_LTP => "AAC(LTP)",
+        p::AAC_HE => "AAC(HE)",
+        p::AAC_HE_V2 => "AAC(HEv2)",
+        p::AAC_LD => "AAC(LD)",
+        p::AAC_ELD => "AAC(ELD)",
+        _ => "Unknown",
+    }
+}
+
+fn observe_output(path: &Path) -> Result<String, abb_ffmpeg::Error> {
+    let input = abb_ffmpeg::Input::open(path, &abb_ffmpeg::SecretOptions::default())?.input;
     let stream = input
-        .streams()
-        .best(ff::media::Type::Audio)
-        .ok_or(ff::Error::StreamNotFound)?;
-    let parameters = stream.parameters();
-    // SAFETY: parameters owns the live AVCodecParameters. Copy scalar fields only;
-    // no pointer escapes and the input is dropped before publication can move the file.
-    let (profile, rate, channels, bitrate) = unsafe {
-        let parameters = &*parameters.as_ptr();
-        (
-            parameters.profile,
-            parameters.sample_rate,
-            parameters.ch_layout.nb_channels,
-            parameters.bit_rate,
-        )
-    };
-    let profile = ff::codec::Profile::from((parameters.id(), profile));
-    let duration =
-        (input.duration() > 0).then(|| input.duration() as f64 / ff::ffi::AV_TIME_BASE as f64);
-    Ok(format!("codec={:?} profile={:?} sample_rate={} channels={} duration_seconds={:?} stream_bitrate_bps={:?} container_bitrate_bps={:?}",
-        parameters.id(), profile, rate, channels, duration, (bitrate > 0).then_some(bitrate),
+        .best_audio_stream()
+        .and_then(|index| input.streams().into_iter().nth(index))
+        .ok_or(abb_ffmpeg::Error::MissingStream {
+            step: abb_ffmpeg::Step::ReadStreamInfo,
+            index: 0,
+        })?;
+    let duration = input
+        .duration_micros()
+        .filter(|duration| *duration > 0)
+        .map(|duration| duration as f64 / 1_000_000.0);
+    Ok(format!("codec={} profile={} sample_rate={} channels={} duration_seconds={:?} stream_bitrate_bps={:?} container_bitrate_bps={:?}",
+        stream.codec.name().to_uppercase(), profile_label(stream.codec, stream.profile), stream.sample_rate, stream.channels, duration,
+        (stream.bit_rate > 0).then_some(stream.bit_rate),
         (input.bit_rate() > 0).then_some(input.bit_rate())))
 }
 

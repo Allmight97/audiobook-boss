@@ -1,4 +1,3 @@
-use ffmpeg_next as ff;
 use mp4ameta::ImgFmt;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -8,13 +7,6 @@ pub enum CoverFormat {
 }
 
 impl CoverFormat {
-    pub(crate) fn codec_id(self) -> ff::codec::Id {
-        match self {
-            CoverFormat::Jpeg => ff::codec::Id::MJPEG,
-            CoverFormat::Png => ff::codec::Id::PNG,
-        }
-    }
-
     pub(crate) fn codec(self) -> abb_ffmpeg::CodecId {
         match self {
             CoverFormat::Jpeg => abb_ffmpeg::CodecId::MJPEG,
@@ -26,13 +18,6 @@ impl CoverFormat {
         match self {
             CoverFormat::Jpeg => abb_ffmpeg::PictureKind::Jpeg,
             CoverFormat::Png => abb_ffmpeg::PictureKind::Png,
-        }
-    }
-
-    pub(crate) fn pixel_format(self) -> ff::format::Pixel {
-        match self {
-            CoverFormat::Jpeg => ff::format::Pixel::YUVJ420P,
-            CoverFormat::Png => ff::format::Pixel::RGBA,
         }
     }
 

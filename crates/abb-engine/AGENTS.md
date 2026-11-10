@@ -125,9 +125,8 @@ app, a test, and the `abb-dev` tool drive the same code
   `crate::audio::validate_input_audio_path()`. Paths the engine hands back are
   canonical; compare paths in that spelling.
 - FFmpeg work goes through `abb_ffmpeg` (`crates/abb-ffmpeg/AGENTS.md`); a
-  missing operation is added there. Production `unsafe` stays under `audio/`
-  and `metadata/` (`scripts/check-known-mistakes.ts`), in the files not yet
-  ported and the FAAC and FAAD3 adapters.
+  missing operation is added there. Production `unsafe` exists only in the
+  FAAC and FAAD3 adapters (`scripts/check-known-mistakes.ts`).
 
 ## Proof placement
 

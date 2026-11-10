@@ -2,7 +2,6 @@ use crate::metadata::field_schema::{position_keys, text_keys, KeySet, ITUNES_MEA
 use crate::metadata::publication_year_from_date;
 use crate::metadata::MetadataWritePlan;
 use abb_metadata_core::{FieldOp, PatchOp, PositionField, TextField};
-use ffmpeg_next as ff;
 use mp4ameta::{Data, FreeformIdent, MediaType, Tag};
 
 pub struct Mp4ametaSink<'a> {
@@ -150,14 +149,6 @@ pub(crate) fn tag_pairs_for_ops(ops: &[FieldOp]) -> Vec<(&'static str, String)> 
     }
     pairs.push(("media_type", "2".to_string()));
     pairs
-}
-
-pub fn ffmpeg_dict_for_ops(ops: &[FieldOp]) -> ff::Dictionary<'static> {
-    let mut dict = ff::Dictionary::new();
-    for (key, value) in tag_pairs_for_ops(ops) {
-        dict.set(key, &value);
-    }
-    dict
 }
 
 /// Existing-dictionary keys a merge drops before a plan's values are written,

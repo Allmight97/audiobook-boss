@@ -36,21 +36,18 @@ fn ffprobe_json(path: &Path, extra: &[&str]) -> serde_json::Value {
 }
 
 fn cover_bytes(path: &Path) -> Vec<u8> {
-    let mut input = ffmpeg_next::format::input(path).expect("open book");
+    let input = crate::metadata::open_input(path).expect("open book");
     let index = input
         .streams()
+        .iter()
         .find(|stream| {
             stream
-                .disposition()
-                .contains(ffmpeg_next::format::stream::Disposition::ATTACHED_PIC)
+                .disposition
+                .contains(abb_ffmpeg::Disposition::ATTACHED_PIC)
         })
         .expect("cover stream")
-        .index();
-    input
-        .packets()
-        .find(|(stream, _)| stream.index() == index)
-        .and_then(|(_, packet)| packet.data().map(<[u8]>::to_vec))
-        .expect("cover packet")
+        .index;
+    input.attached_picture(index).expect("cover packet")
 }
 
 fn assert_matches_source(output: &Path, source: &Path) {

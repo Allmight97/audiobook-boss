@@ -89,7 +89,7 @@
                 "cover": null,
                 "cueSource": null,
                 "duration": null,
-                "error": "FFmpeg error: Invalid data found when processing input",
+                "error": "FFmpeg error: cannot open the input: Invalid data found when processing input",
                 "format": null,
                 "inputId": "title-3",
                 "isValid": false,

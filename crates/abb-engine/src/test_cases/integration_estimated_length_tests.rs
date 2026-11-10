@@ -33,9 +33,9 @@ async fn a_merge_after_an_estimated_length_file_starts_the_next_chapter_at_the_r
         (he_adts, AacDecoder::Faad),
     ] {
         assert!(
-            crate::metadata::length_is_estimated(
-                &ffmpeg_next::format::input(&estimated).expect("open estimated input")
-            ),
+            crate::metadata::open_input(&estimated)
+                .expect("open estimated input")
+                .duration_is_estimated(),
             "fixture premise: FFmpeg only estimates {estimated:?}"
         );
         let tone = tmp.path().join("tone.wav");
@@ -170,9 +170,9 @@ fn a_joined_mp3_imports_with_its_chapters_and_saves_its_tags() {
     let imported = get_file_list_info(&[&joined], AacDecoder::Auto).expect("probe joined MP3");
     let file = &imported.files[0];
     assert!(file.is_valid, "{:?}", file.error);
-    let joined_input = ffmpeg_next::format::input(&joined).expect("open joined MP3");
+    let joined_input = crate::metadata::open_input(&joined).expect("open joined MP3");
     assert!(
-        crate::metadata::length_is_estimated(&joined_input),
+        joined_input.duration_is_estimated(),
         "fixture premise: FFmpeg can only estimate the joined length"
     );
     let measured = file.duration.expect("joined length");

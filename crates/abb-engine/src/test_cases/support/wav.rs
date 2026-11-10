@@ -71,6 +71,29 @@ pub(crate) fn write_wav(path: &Path, seconds: u32, title: Option<&str>, artist: 
     fs::write(path, wav_file(1, info, &pcm)).expect("write a fixture WAV");
 }
 
+/// A one-second silent WAV whose RIFF INFO `INAM` title holds exactly `title`.
+pub(crate) fn write_wav_with_raw_title(path: &Path, title: &[u8]) {
+    let mut text = title.to_vec();
+    text.push(0);
+    let mut info = b"INFO".to_vec();
+    info.extend(riff_chunk(b"INAM", &text));
+    let pcm = vec![0u8; (SAMPLE_RATE * 2) as usize];
+    fs::write(path, wav_file(1, Some(riff_chunk(b"LIST", &info)), &pcm))
+        .expect("write a fixture WAV");
+}
+
+/// The bytes of the first `INAM` chunk in a RIFF file, without the trailing NUL.
+pub(crate) fn riff_inam_bytes(path: &Path) -> Vec<u8> {
+    let bytes = fs::read(path).expect("read the WAV");
+    let at = bytes
+        .windows(4)
+        .position(|window| window == b"INAM")
+        .expect("an INAM chunk");
+    let size = u32::from_le_bytes(bytes[at + 4..at + 8].try_into().expect("four size bytes"));
+    let text = &bytes[at + 8..at + 8 + size as usize];
+    text.strip_suffix(&[0]).unwrap_or(text).to_vec()
+}
+
 pub(crate) fn write_silence_wav(path: &Path, channels: u16) {
     let pcm = vec![0u8; (SAMPLE_RATE * 2 * u32::from(channels)) as usize];
     fs::write(path, wav_file(channels, None, &pcm)).expect("write WAV fixture");

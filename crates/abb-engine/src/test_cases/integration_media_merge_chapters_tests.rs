@@ -38,8 +38,7 @@ async fn a_preserved_merge_of_chapterless_sources_gets_one_chapter_per_source() 
         .await
         .expect("preserved merge");
 
-    ffmpeg_next::init().expect("ffmpeg");
-    let input = ffmpeg_next::format::input(&output).expect("open the merged file");
+    let input = crate::metadata::open_input(&output).expect("open the merged file");
     let chapters = crate::metadata::read_chapters(&input);
     assert_eq!(chapters.len(), 2, "{chapters:?}");
     assert_eq!(chapters[0].title.as_deref(), Some("first book"));
