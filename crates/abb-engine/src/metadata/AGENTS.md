@@ -236,8 +236,8 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 
 ## Opus Container Timing
 
-MP4 output uses the `mp4` muxer explicitly (`ipod` rejects Opus). Matroska covers
-are attachments with a filename and MIME type. Retagging reuses the selected
+Every output names its muxer from the output extension (`audio::muxer_for_path`);
+MP4 output uses `mp4`. Matroska covers are attachments with a filename and MIME type. Retagging reuses the selected
 cover bytes, preserving explicit-clear intent. For Opus Matroska→MP4 copies,
 packet framing restores the 48 kHz timeline lost to millisecond container
 rounding; discontinuities fail rather than discard audio. MP4 frame-size metadata

@@ -157,15 +157,7 @@ const ABB_COMPONENTS: &[(&str, &[&str])] = &[
     ),
     (
         "muxer",
-        &[
-            "adts",
-            "flac",
-            "ipod",
-            "matroska",
-            "mp3",
-            "mp4",
-            "wav",
-        ],
+        &["adts", "flac", "matroska", "mp3", "mp4", "wav"],
     ),
     (
         "decoder",

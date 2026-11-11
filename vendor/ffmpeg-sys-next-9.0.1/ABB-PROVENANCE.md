@@ -83,7 +83,7 @@ fails the build unless the enabled components are exactly the lists plus
 | Group | Components | The ABB path that needs it |
 | --- | --- | --- |
 | Demuxers | `mov`, `mp3`, `aac` (raw ADTS), `wav`, `flac`, `matroska` | One per import extension (`audio/extensions.rs`: m4a, m4b, mp3, aac, wav, flac, mka); `mov` also reads Audible AAX and AAXC with the license keys, and every ABB export |
-| Muxers | `mp4`, `ipod`, `matroska` | M4B, M4A Opus, MKA Opus output; `ipod` is what FFmpeg guesses from an `.m4b` or `.m4a` name (`Output::create_for_file_name`: a Preserve merge, always AAC). No `.mka` path reaches a guessed name, because a merge needs AAC sources and MKA output is Opus only |
+| Muxers | `mp4`, `matroska` | M4B, M4A Opus, MKA Opus output, named from the output extension (`audio/format.rs`) |
 | Muxers | `mp3`, `flac`, `adts`, `wav` | A tag Save on an MP3, FLAC, raw AAC or WAV remuxes with the file's own container (`metadata/container.rs`) |
 | Decoders | `aac`, `aac_at` (Apple) | AAC import and verification; `aac_at` is an import candidate on macOS |
 | Decoders | `mp3float`, `mp2float`, `mp1float` | MP3 import (an `.mp3` may hold Layer I or II); `mp3float` is the decoder FFmpeg picks for MP3 |

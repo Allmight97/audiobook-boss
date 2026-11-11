@@ -346,7 +346,7 @@ fn an_encode_stopped_part_way_removes_its_file() {
     let mut resampler = Resampler::new(source, target, &none).expect("resampler");
 
     let path = dir.path().join("stopped.m4b");
-    let mut output = Output::create(&path, "ipod").expect("create");
+    let mut output = Output::create(&path, "mp4").expect("create");
     let stream = output.add_stream_for_encoder(&encoder).expect("stream");
     output
         .set_stream_time_base(stream, encoder.time_base())

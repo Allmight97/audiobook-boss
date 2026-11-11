@@ -92,7 +92,7 @@ pub(crate) fn save_metadata_with_plan(
             })?;
             mp4ameta_bridge::write_metadata_with_plan(saved.path(), plan)?;
         }
-        route => remux::remux_into(path, saved.path(), Some(plan), None, Some(&route))?,
+        route => remux::remux_into(path, saved.path(), Some(plan), None, &route)?,
     }
     commit_checked_save(path, saved)
 }
@@ -254,12 +254,7 @@ pub(crate) fn remux_preserved_audio_container(
         ..Default::default()
     };
     let plan = MetadataWritePlan::from_metadata(&metadata);
-    remux::rewrite_metadata_with_ffmpeg_plan_as(
-        path,
-        Some(&plan),
-        Some(&passthrough),
-        Some(&target),
-    )?;
+    remux::rewrite_metadata_with_ffmpeg_plan_as(path, Some(&plan), Some(&passthrough), &target)?;
     finish_artifact_tags(path, Some(&metadata), None, || {})?;
     Ok(())
 }

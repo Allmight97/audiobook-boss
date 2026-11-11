@@ -73,17 +73,11 @@ impl Output {
         let muxer = CString::new(muxer).map_err(|_| Error::NulInText {
             step: Step::CreateOutput,
         })?;
-        Self::create_with(path, Some(&muxer))
-    }
-
-    fn create_with(path: &Path, muxer: Option<&CString>) -> Result<Self> {
         let url = path_text(path, Step::CreateOutput)?;
-        let muxer = muxer.map_or(ptr::null(), |muxer| muxer.as_ptr());
         let mut ctx = ptr::null_mut();
-        // SAFETY: `url` is NUL-terminated and `muxer` is null or
-        // NUL-terminated; FFmpeg allocates `ctx`.
+        // SAFETY: `url` and `muxer` are NUL-terminated; FFmpeg allocates `ctx`.
         let code = unsafe {
-            sys::avformat_alloc_output_context2(&mut ctx, ptr::null(), muxer, url.as_ptr())
+            sys::avformat_alloc_output_context2(&mut ctx, ptr::null(), muxer.as_ptr(), url.as_ptr())
         };
         Error::check(Step::CreateOutput, code)?;
         let ctx = NonNull::new(ctx).ok_or(Error::OutOfMemory {
@@ -102,11 +96,6 @@ impl Output {
         }
         Error::check(Step::OpenOutputFile, code)?;
         Ok(Self(file))
-    }
-
-    /// Creates the file with the muxer FFmpeg picks for the file name.
-    pub fn create_for_file_name(path: &Path) -> Result<Self> {
-        Self::create_with(path, None)
     }
 
     pub fn muxer_name(&self) -> String {
