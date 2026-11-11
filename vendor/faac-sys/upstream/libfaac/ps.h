@@ -18,6 +18,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "faac_internal.h"
 
 #define PS_BANDS 20
 #define PS_PHASE_BANDS 11

@@ -17,6 +17,7 @@
 #define SBR_ANALYSIS_H
 
 #include <stdbool.h>
+#include "faac_internal.h"
 
 #ifdef __cplusplus
 extern "C" {

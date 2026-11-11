@@ -26,6 +26,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "faac_internal.h"
+
 #if FAAC_ENCODER_DRC
 #include <math.h>
 #endif

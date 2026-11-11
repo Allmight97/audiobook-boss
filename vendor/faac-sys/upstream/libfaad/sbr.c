@@ -697,12 +697,6 @@ static faad_status sbr_read_extension(struct faad_decoder *dec, BitReader *bs, u
                 el->header_present = false;
                 return FAAD_ERR_DECODE_FAILED;
             }
-            for (int c = 0; c < nch; c++) {
-                SBRChannel *ch = &dec->sbr[ch0 + c];
-                memset(ch->E_prev, 0, sizeof(ch->E_prev));
-                memset(ch->Q_prev, 0, sizeof(ch->Q_prev));
-                ch->freq_res_prev = 1;
-            }
             reset_synthesis = true;
         }
 #ifdef FAAD_STATS
@@ -719,9 +713,27 @@ static faad_status sbr_read_extension(struct faad_decoder *dec, BitReader *bs, u
         }
 #endif
     }
-    if (!el->header_present) return FAAD_OK; /* nothing to reconstruct against yet */
+    if (!el->header_present) {
+        /* A stream joined between SBR headers has no tables yet, but its output
+         * format must not change when the first header arrives: play the core at
+         * the SBR rate until then. */
+        dec->sbr_present = true;
+        return FAAD_OK;
+    }
 
     SBRChannel *chs[2] = { &dec->sbr[ch0], &dec->sbr[ch0 + (nch > 1 ? 1 : 0)] };
+    /* A channel continues only from this element's previous fill. New tables
+     * start it over, and so does a change of element layout: a channel that
+     * fill did not include holds another element's deltas and history, and
+     * a single channel and a pair share neither. */
+    if (el->nch != nch) reset_synthesis = true;
+    for (int c = 0; c < nch; c++) {
+        SBRChannel *ch = chs[c];
+        if (!reset_synthesis && ch->el_ch == ch0) continue;
+        memset(ch->E_prev, 0, sizeof(ch->E_prev));
+        memset(ch->Q_prev, 0, sizeof(ch->Q_prev));
+        ch->freq_res_prev = 1;
+    }
     el->nch = (uint8_t)nch;
     /* sbr_single_channel_element / sbr_channel_pair_element (§4.6.18.3.4) */
     bool data_extra = bits_get(bs, 1);
@@ -809,8 +821,9 @@ static faad_status sbr_read_extension(struct faad_decoder *dec, BitReader *bs, u
     /* Synthesis history is not read by the parser. Commit its reset only
      * after a valid fill, keeping it out of the rollback snapshot. */
     for (int c = 0; c < nch; c++) {
-        if (reset_synthesis) sbr_reset_synthesis(chs[c]);
+        if (reset_synthesis || chs[c]->el_ch != ch0) sbr_reset_synthesis(chs[c]);
         chs[c]->have_frame = true;
+        chs[c]->el_ch = (uint8_t)ch0;
     }
     dec->sbr_present = true;
     return FAAD_OK;
@@ -1053,9 +1066,9 @@ static void sbr_hf_adjust(const SBRElement *el, SBRChannel *ch, SBRScratch *sc,
             q_m[m] = sqrtf(eo * q / (1.0f + q));
             s_m[m] = s_index[m] ? sqrtf(eo / (1.0f + q)) : 0.0f;
             if (!s_mapped[m])
-                gain[m] = sqrtf(eo / ((1.0f + ec) * (1.0f + (transient ? 0.0f : q))));
+                gain[m] = sqrtf(eo / ((ch->unit_energy + ec) * (1.0f + (transient ? 0.0f : q))));
             else
-                gain[m] = sqrtf(eo * q / ((1.0f + ec) * (1.0f + q)));
+                gain[m] = sqrtf(eo * q / ((ch->unit_energy + ec) * (1.0f + q)));
         }
 
         /* limiter and boost per limiter band */
@@ -1436,10 +1449,22 @@ void sbr_apply(struct faad_decoder *dec, uint32_t num_ch, float *pcm)
     if (lfe_channel < num_ch) num_ch--;
     for (uint32_t ch = 0; ch < num_ch; ) {
         SBRElement *el = &dec->sbr_el[ch];
-        bool pair = el->header_present && el->nch == 2 && (ch + 1 < num_ch);
+        /* After a change of element layout, a channel can still hold another
+         * element's payload: pair and enhance only the channels this element
+         * filled, so a coupled pair always shares one grid. A coupled
+         * element whose partner now belongs to another element has no
+         * payload of its own to apply. Only a fill moves a channel to another
+         * element, so also require this frame's element at ch to have the size
+         * it was filled for. */
+        bool own = dec->sbr[ch].el_ch == ch && dec->elem_nch[ch] == el->nch;
+        bool partner = el->nch == 2 && ch + 1 < num_ch;
+        bool pair = el->header_present && partner && own && dec->sbr[ch + 1].el_ch == ch;
         int nch = pair ? 2 : 1;
-        bool have_hf = el->header_present && dec->sbr[ch].have_frame && (!pair || dec->sbr[ch + 1].have_frame);
+        bool have_hf = el->header_present && own && dec->sbr[ch].have_frame &&
+                       (pair ? dec->sbr[ch + 1].have_frame : !partner);
 
+        dec->sbr[ch].unit_energy = 1.0f;
+        if (pair) dec->sbr[ch + 1].unit_energy = 1.0f;
         if (have_hf) sbr_dequant(el, &dec->sbr[ch], pair ? &dec->sbr[ch + 1] : NULL, E0, Q0, E1, Q1);
 #ifndef FAAD_DISABLE_DRC
         if (have_hf && dec->drc.applied) {
@@ -1448,6 +1473,7 @@ void sbr_apply(struct faad_decoder *dec, uint32_t num_ch, float *pcm)
                 float gain = dec->drc.sbr_gain[ch + c];
                 if (gain == 1.0f) continue;
                 SBRChannel *channel = &dec->sbr[ch + c];
+                channel->unit_energy = gain;
                 for (int l = 0; l < channel->L_E; l++) {
                     int nb = channel->freq_res[l] ? el->n_high : el->n_low;
                     for (int k = 0; k < nb; k++) energy[c][l][k] *= gain;

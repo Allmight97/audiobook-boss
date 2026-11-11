@@ -26,7 +26,9 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include "build_defaults.h"
 #include <math.h>
+#include "bits.h"
 #include <float.h>
 #include "endian.h"
 
@@ -90,9 +92,6 @@ extern const SBRHuffEntry ps_huff_opd_dt[PS_HUFF_OPD_DT_NSYMS];
 
 /* Channel capacity: the build's -Dmax-channels (config.h) when present. Every
  * per-channel buffer, including the SBR and PS state, scales with it. */
-#ifndef MAX_CHANNELS
-#define MAX_CHANNELS 8
-#endif
 #if (MAX_CHANNELS < 2 || defined(FAAD_DISABLE_SBR)) && !defined(FAAD_DISABLE_PS)
 #define FAAD_DISABLE_PS /* parametric stereo needs SBR's QMF domain and two output channels */
 #endif
@@ -352,6 +351,7 @@ typedef struct {
     uint8_t freq_res_prev;
     /* Synthesis history is committed only after a complete fill. */
     float   bw_array[SBR_MAX_NQ];
+    float   unit_energy; /* the spec's unit energy, scaled with the envelope when DRC is applied */
     float   g_hist[4][SBR_MAX_BANDS]; /* gains of the four previous envelopes, a ring */
     float   q_hist[4][SBR_MAX_BANDS];
     uint8_t hist_pos;                 /* oldest entry of the ring */
@@ -363,6 +363,7 @@ typedef struct {
     uint16_t index_noise;
     uint8_t  index_sine;
     bool    have_frame;   /* a payload has been decoded since the last reset */
+    uint8_t el_ch;        /* first channel of the element that filled it last */
     bool    primed;       /* smoothing history holds real gains */
     float   x_low_tail[32][SBR_T_HFGEN][2];
     float   y_tail[SBR_MAX_BANDS][SBR_HF_TAIL_SLOTS][2];
@@ -429,6 +430,18 @@ _Static_assert(sizeof(FrameScratch) <= sizeof(float[MAX_CHANNELS * FRAME_LEN_LON
                "core scratch must fit in the second half of PCM storage");
 #endif
 
+/* Where the channels of a stream sit: built from the channel configuration,
+ * from a PCE seen before the first PCM, or from the element sequence of a
+ * stream that has neither. The output is ordered by WAVE speaker position. */
+struct faad_layout {
+    uint16_t mask;              /* speaker mask, 0 while the positions are unknown */
+    uint8_t cfg, n, lfe;        /* configuration built for, channels, native LFE (0xff none) */
+    uint8_t n_el;               /* PCE only: elements bound to slots by tag */
+    uint8_t frozen;             /* PCM has been emitted in this layout; a PCE no longer changes it */
+    uint8_t el_key[8], el_slot[8];
+    uint8_t map[MAX_CHANNELS];  /* native index of each output channel */
+};
+
 struct faad_decoder {
 #ifndef FAAD_DISABLE_DRC
     struct {
@@ -444,6 +457,9 @@ struct faad_decoder {
     size_t allocated_bytes, largest_allocation;
     bool format_known;
     bool pcm_emitted;
+#if MAX_CHANNELS >= 3
+    struct faad_layout layout;
+#endif
     /* Parsing and synthesis may advance on rejected packets; only emitted PCM
      * may replace the output format that callers use. */
     struct {
@@ -491,17 +507,50 @@ struct faad_decoder {
 #endif
     uint8_t win_seq[MAX_CHANNELS];   /* this frame's window of each decoded channel, for the IMDCT */
     uint8_t win_shape[MAX_CHANNELS];
+#ifndef FAAD_DISABLE_SBR
+    /* The element layout of the last frame decoded without error: the
+     * channel count of the element starting at each channel, 0 elsewhere. */
+    uint8_t elem_nch[MAX_CHANNELS];
+#endif
 
     float *pcm; /* core output, then SBR output in place */
 };
 
+#if MAX_CHANNELS >= 3
+void faad_layout_update(struct faad_decoder *dec);
+void faad_layout_infer(struct faad_decoder *dec, uint32_t seq);
+static inline void faad_layout_freeze(struct faad_decoder *dec) { dec->layout.frozen = 1; }
+static inline bool faad_layout_frozen(const struct faad_decoder *dec) { return dec->layout.frozen; }
+/* NULL keeps the element order. */
+static inline const uint8_t *faad_layout_map(const struct faad_decoder *dec, uint32_t num_chs)
+{
+    return dec->layout.mask && dec->layout.n == num_chs ? dec->layout.map : NULL;
+}
+static inline uint32_t faad_layout_mask(const struct faad_decoder *dec, uint32_t num_chs)
+{
+    return dec->layout.n == num_chs ? dec->layout.mask : 0;
+}
+#else
+static inline void faad_layout_update(struct faad_decoder *dec) { (void)dec; }
+static inline void faad_layout_infer(struct faad_decoder *dec, uint32_t seq) { (void)dec; (void)seq; }
+static inline void faad_layout_freeze(struct faad_decoder *dec) { (void)dec; }
+static inline bool faad_layout_frozen(const struct faad_decoder *dec) { (void)dec; return true; }
+static inline const uint8_t *faad_layout_map(const struct faad_decoder *dec, uint32_t n) { (void)dec; (void)n; return NULL; }
+static inline uint32_t faad_layout_mask(const struct faad_decoder *dec, uint32_t n) { (void)dec; (void)n; return 0; }
+#endif
+
 static inline uint32_t faad_downmix_lfe_channel(const struct faad_decoder *dec, uint32_t num_chs)
 {
     if (dec->config.stream_format != FAAD_STREAM_RAW || !dec->asc_parsed
-        || dec->config.downmix_mode == FAAD_DOWNMIX_NONE)
+        || dec->config.downmix_mode == FAAD_DOWNMIX_NONE
+        || (dec->config.downmix_mode & 8u) /* the target keeps the LFE */
+        || faac_popcount32((uint32_t)dec->config.downmix_mode) >= num_chs) /* nothing is mixed */
         return UINT32_MAX;
-    if (dec->asc.num_channels == 6 && num_chs == 6) return 5;
-    if ((dec->asc.num_channels == 7 || dec->asc.pce.wave71) && num_chs == 8) return 7;
+#if MAX_CHANNELS >= 3
+    if (dec->layout.n == num_chs && dec->layout.lfe != 0xff) return dec->layout.lfe;
+#else
+    (void)num_chs;
+#endif
     return UINT32_MAX;
 }
 

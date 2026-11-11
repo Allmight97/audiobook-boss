@@ -18,6 +18,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "faac_internal.h"
 
 #define EXT_DYNAMIC_RANGE 0xB
 

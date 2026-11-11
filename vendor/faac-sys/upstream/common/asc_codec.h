@@ -43,13 +43,14 @@ static inline int asc_codec_sr_idx(uint32_t rate)
     return -1;
 }
 
-/* Tags in config-7 native order: center, front, side, back, LFE.
- * Unrecognized PCEs retain only their channel count. */
+/* The audio elements of a PCE in list order (front, side, back, LFE), each
+ * as category << 5 | is_cpe << 4 | tag. Only the first eight are kept. */
+enum asc_pce_category { ASC_PCE_FRONT, ASC_PCE_SIDE, ASC_PCE_BACK, ASC_PCE_LFE };
 typedef struct {
     uint8_t channels;
     uint8_t profile, sr_index;
-    uint8_t tags[5];
-    bool wave71;
+    uint8_t n_el;
+    uint8_t el[8];
     /* Where the fields sit in the parsed buffer, so the element can be
      * rewritten into another one: start bit, length before the byte
      * alignment, and comment bytes. */
@@ -101,18 +102,6 @@ static inline uint32_t asc_parse_sample_rate(asc_bitreader *br)
     return idx == 15 ? asc_br_get(br, 24) : asc_codec_sample_rates[idx];
 }
 
-/* Two back pairs use the rear-surround convention: first side, then back.
- * Pair tags must be distinct, since tags select elements, not positions. */
-static inline bool asc_pce_wave71(const AscPce *pce, uint32_t front,
-                                uint32_t side, uint32_t back, uint32_t lfe,
-                                bool pairs)
-{
-    return pairs && front == 2 && lfe == 1
-        && ((side == 0 && back == 2) || (side == 1 && back == 1))
-        && pce->tags[1] != pce->tags[2] && pce->tags[1] != pce->tags[3]
-        && pce->tags[2] != pce->tags[3];
-}
-
 /* PCE lists carry element tags rather than PCM positions. Count only audio
  * elements, but skip every optional field so SBR starts at the correct bit. */
 static inline uint8_t asc_parse_pce(asc_bitreader *br, AscPce *pce)
@@ -129,7 +118,6 @@ static inline uint8_t asc_parse_pce(asc_bitreader *br, AscPce *pce)
     uint32_t lfe = asc_br_get(br, 2);
     uint32_t assoc = asc_br_get(br, 3);
     uint32_t cc = asc_br_get(br, 4);
-    bool pairs = true;
     if (asc_br_get(br, 1)) asc_br_get(br, 4);
     if (asc_br_get(br, 1)) asc_br_get(br, 4);
     if (asc_br_get(br, 1)) asc_br_get(br, 3);
@@ -140,12 +128,12 @@ static inline uint8_t asc_parse_pce(asc_bitreader *br, AscPce *pce)
         uint32_t pair = asc_br_get(br, 1);
         uint8_t tag = (uint8_t)asc_br_get(br, 4);
         channels += 1 + pair;
-        if (i < 4) pce->tags[i] = tag;
-        pairs = pairs && pair == (i != 0);
+        uint32_t cat = i < front ? ASC_PCE_FRONT : i < front + side ? ASC_PCE_SIDE : ASC_PCE_BACK;
+        if (pce->n_el < 8) pce->el[pce->n_el++] = (uint8_t)(cat << 5 | pair << 4 | tag);
     }
     for (uint32_t i = 0; i < lfe; i++) {
         uint8_t tag = (uint8_t)asc_br_get(br, 4);
-        if (i == 0) pce->tags[4] = tag;
+        if (pce->n_el < 8) pce->el[pce->n_el++] = (uint8_t)(ASC_PCE_LFE << 5 | tag);
     }
     br->pos += assoc * 4 + cc * 5;
     pce->body_bits = (uint16_t)(br->pos - start);
@@ -157,7 +145,6 @@ static inline uint8_t asc_parse_pce(asc_bitreader *br, AscPce *pce)
     pce->pos = (uint16_t)start;
     pce->comment_bytes = (uint8_t)(comment_bits / 8);
     pce->channels = (uint8_t)channels;
-    pce->wave71 = asc_pce_wave71(pce, front, side, back, lfe, pairs);
     return pce->channels;
 }
 

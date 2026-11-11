@@ -18,6 +18,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "faac_internal.h"
 #include "bitstream.h"
 #include "coder.h"
 

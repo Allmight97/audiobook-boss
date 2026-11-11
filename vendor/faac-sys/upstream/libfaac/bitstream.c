@@ -19,24 +19,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-BitStream *OpenBitStream(uint32_t size, uint8_t *buffer)
-{
-    BitStream *bs = (BitStream *)AllocMemory(sizeof(BitStream));
-    if (!bs) return NULL;
-
-    InitBitStream(bs, buffer, size);
-
-    return bs;
-}
-
-int CloseBitStream(BitStream *bs)
-{
-    if (!bs) return 0;
-    int bytes = (int)((bs->currentBit + 7) >> 3);
-    FreeMemory(bs);
-    return bytes;
-}
-
 void InitBitStream(BitStream *bs, uint8_t *buffer, uint32_t size)
 {
     bs->data = buffer;
@@ -74,8 +56,8 @@ int PutBit(BitStream *bs, uint32_t data, int numBits)
         uint32_t bitsAvailable = ((end - 1) & 7) + 1;
         uint32_t shift = 8 - bitsAvailable;
         /* PutBit ORs bits into place; it never zeroes them first, so every
-         * caller-supplied buffer must already be zeroed (OpenBitStream does
-         * this). A stale/reused buffer that skips OpenBitStream will corrupt
+         * caller-supplied buffer must already be zeroed (InitBitStream does
+         * this). A stale/reused buffer that skips InitBitStream will corrupt
          * silently in release builds -- catch it here in debug builds. */
         assert((bs->data[start >> 3] & (((1U << (uint32_t)numBits) - 1) << shift)) == 0);
         bs->data[start >> 3] |= (uint8_t)(data << shift);

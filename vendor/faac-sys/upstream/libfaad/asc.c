@@ -48,7 +48,7 @@ static faad_status parse_asc(const uint8_t *buf, uint32_t len, AudioSpecificConf
         aot = asc_br_get(&br, 5);
         if (aot == 31) aot = 32 + asc_br_get(&br, 6);
     }
-    if (br.pos > br.len_bits || !rate || !output_rate || channels > 7)
+    if (br.pos > br.len_bits || !rate || !output_rate || (channels > 7 && channels != 11 && channels != 12))
         return FAAD_ERR_INVALID_ARGUMENT;
     if (aot != 2) return FAAD_ERR_UNSUPPORTED;
     if (explicit_sbr && output_rate != 2 * rate) return FAAD_ERR_UNSUPPORTED;

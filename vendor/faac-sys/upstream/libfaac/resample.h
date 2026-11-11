@@ -20,6 +20,7 @@
 #ifndef RESAMPLE_H
 #define RESAMPLE_H
 
+#include "faac_internal.h"
 #include "coder.h"
 
 #ifdef __cplusplus

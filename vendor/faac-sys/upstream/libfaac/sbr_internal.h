@@ -16,6 +16,7 @@
 #ifndef SBR_INTERNAL_H
 #define SBR_INTERNAL_H
 
+#include "faac_internal.h"
 #include "sbr.h"
 #include "sbr_analysis.h"
 #include "resample.h"

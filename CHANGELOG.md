@@ -4,6 +4,17 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- FAAC HE-AAC files sound slightly different and are up to 1% smaller. The bundled FAAC now
+  uses upstream's retuned noise shaping for HE-AAC; in a blind listening test on real
+  narration the old and new files could not be told apart.
+
+### Fixed
+
+- AAC files with a 7.1 channel layout (channel configurations 11 and 12, or a 7.1 layout
+  described in the stream) now import. ABB used to refuse them when FAAD3 decoded them.
+
 ## [1.18.3] - 2026-11-10
 
 ### Changed

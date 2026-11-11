@@ -24,6 +24,18 @@
 #define FAAC_INTERNAL_H
 
 #include <stdint.h>
+#include "build_defaults.h"
+
+/* meson_options.txt defaults for a build without Meson's config.h. */
+#ifndef FAAC_ENCODER_SBR
+#define FAAC_ENCODER_SBR 1
+#endif
+#ifndef FAAC_ENCODER_PS
+#define FAAC_ENCODER_PS 0
+#endif
+#ifndef FAAC_ENCODER_DRC
+#define FAAC_ENCODER_DRC 1
+#endif
 
 #define FAAC_CFG_VERSION 106
 

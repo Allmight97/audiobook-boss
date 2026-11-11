@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "faac_internal.h"
 #include "drc_analyzer.h"
 #include "util.h"
 

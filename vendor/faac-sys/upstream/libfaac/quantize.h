@@ -26,14 +26,16 @@ typedef struct
     int max_l;
     int pnslevel;
     float treble_slope;
+    float tilt_nyquist_khz; /* Nyquist in kHz; the tilt knots are physical kHz */
     int mask_tuned;
     int sf_nudge;
-    /* Masking-target shape, set by QuantizeConfigureMask(). Untuned (VBR, HE-AAC,
-     * mono, multichannel and low rates) keeps the original formula. */
+    /* Masking-target shape, set by QuantizeConfigureMask(). Untuned (VBR, LC mono,
+     * multichannel and low rates) keeps the original formula. */
     float avg_weight;
     float loud_exponent;
     float peak_floor;
-    /* The HE core at a set rate takes the onset gain to the power 3/4. */
+    /* HE below the tuned profile's reach, at a set rate, takes the onset gain
+     * to the power 3/4. */
     int onset_soften;
 } AACQuantCfg;
 

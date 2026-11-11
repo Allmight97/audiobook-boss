@@ -150,10 +150,16 @@ enum faad_output_format {
 };
 
 enum faad_downmix_mode {
-    FAAD_DOWNMIX_NONE   = 0,         /* preserve native channel layout           */
-    FAAD_DOWNMIX_MONO   = 1,         /* downmix all channels to mono             */
-    FAAD_DOWNMIX_STEREO = 2,         /* downmix surround to 2-channel stereo     */
-    FAAD_DOWNMIX_MAX    = 0x7fffffff
+    FAAD_DOWNMIX_NONE       = 0,         /* preserve native channel layout           */
+    FAAD_DOWNMIX_MONO       = 0x4,       /* downmix all channels to mono (front centre) */
+    FAAD_DOWNMIX_STEREO     = 0x3,       /* downmix surround to stereo (front pair)  */
+    FAAD_DOWNMIX_3_0        = 0x7,       /* 3.0 surround (FL FR FC)                  */
+    FAAD_DOWNMIX_4_0        = 0x33,      /* 4.0 quad (FL FR BL BR)                   */
+    FAAD_DOWNMIX_5_0        = 0x37,      /* 5.0 surround (FL FR FC BL BR)            */
+    FAAD_DOWNMIX_5_1        = 0x3f,      /* 5.1 surround (FL FR FC LFE BL BR)        */
+    FAAD_DOWNMIX_5_0_SIDE   = 0x607,     /* 5.0 side (FL FR FC SL SR)                */
+    FAAD_DOWNMIX_5_1_SIDE   = 0x60f,     /* 5.1 side (FL FR FC LFE SL SR)            */
+    FAAD_DOWNMIX_MAX        = 0x7fffffff
 };
 
 /*
@@ -190,8 +196,10 @@ enum faad_stream_flag {
  * channelConfiguration 0 with an equivalent PCE are reported in WAVE order
  * with side and back pairs. FAAC signals front C/front pair, side pair,
  * back pair and LFE, unambiguously for Apple, FDK, FFmpeg and faad.
- * Configuration 7 streams are also accepted as common side/back 7.1.
- * Other PCE surround layouts retain element order and report mask 0.
+ * Configuration 7 streams are read as 7.1 wide: FL FR FC LFE BL BR FLC FRC;
+ * configuration 12 is the side/back 7.1 and 11 is 6.1.
+ * Other PCE layouts are placed by their elements' speakers; a layout that cannot be
+ * placed retains element order and reports mask 0.
  */
 typedef struct faad_stream_info {
     uint32_t                struct_size;      /* set by caller to sizeof(faad_stream_info) */
