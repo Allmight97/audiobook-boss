@@ -9,7 +9,7 @@
  * Fetches master into a blobless clone under `target/abb-ffmpeg-upstream/`
  * (reused across runs), lists the commits after the pin that touch those
  * files, and says whether the newest BtbN autobuild was built from master
- * head (`gh` reads its releases). Prints a Markdown report and exits 0.
+ * head (`gh api` reads its releases over REST; cloud sessions block GraphQL). Prints a Markdown report and exits 0.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -286,24 +286,17 @@ function buildReport(repoRoot: string): Report {
 	);
 
 	const releases = JSON.parse(
-		run('gh', ['release', 'list', '-R', BTBN_REPO, '--limit', '10', '--json', 'tagName']),
-	) as { tagName: string }[];
+		run('gh', [
+			'api',
+			`repos/${BTBN_REPO}/releases?per_page=10`,
+			'--jq',
+			'[.[] | {tag: .tag_name, assets: [.assets[].name]}]',
+		]),
+	) as { tag: string; assets: string[] }[];
+	const assetsByTag = new Map(releases.map((release) => [release.tag, release.assets]));
 	const autobuild = newestAutobuild(
-		releases.map((release) => release.tagName),
-		(tag) =>
-			run('gh', [
-				'release',
-				'view',
-				tag,
-				'-R',
-				BTBN_REPO,
-				'--json',
-				'assets',
-				'--jq',
-				'.assets[].name',
-			])
-				.split('\n')
-				.filter((name) => name.length > 0),
+		releases.map((release) => release.tag),
+		(tag) => assetsByTag.get(tag) ?? [],
 	);
 	return {
 		pin,
