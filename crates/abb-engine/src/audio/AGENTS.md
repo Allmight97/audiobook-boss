@@ -145,9 +145,9 @@ automatic rate), independent of saved user preferences. Explicit Encode applies
 the settings.
 
 `format.rs` is the one table of output formats: extension, muxer, codec
-family, and allowed encoders, and it holds `is_mp4_family_format`, the one test
-for an FFmpeg format name in the MP4 family. Read a format fact there; never
-list it again. A format "keeps" a source when the source's codec family equals
+family, and allowed encoders. It holds `is_mp4_family_format`, the one test
+for an FFmpeg format name in the MP4 family, and `muxer_for_path`, the muxer
+every output is created with. Read a format fact there; never list it again. A format "keeps" a source when the source's codec family equals
 the format's (`formats_that_keep`). Whether the source can be copied is a
 separate fact (`assess_preservation`, `can_preserve`) that `formats_that_keep`
 does not read.
