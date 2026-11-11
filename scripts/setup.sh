@@ -673,7 +673,7 @@ ensure_readback_cli() {
 	esac
 	tmp="$(mktemp -d)"
 	log "Installing FFmpeg readback CLI ${ffmpeg_cli_build} into ${tools_bin}"
-	fetch_verified "https://github.com/BtbN/FFmpeg-Builds/releases/download/${ffmpeg_cli_release}" \
+	fetch_verified "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/${ffmpeg_cli_release}" \
 		"${asset}" checksums.sha256 "${tmp}"
 	tar -xJf "${tmp}/${asset}" -C "${tmp}"
 	mkdir -p "${tools_bin}"

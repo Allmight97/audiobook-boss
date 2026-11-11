@@ -145,7 +145,7 @@ describe('FFmpeg readback CLI', () => {
 		const result = readbackCli('n9.0.2-39-g7adfbe40dc-20261031');
 		expect(result.status, result.stderr).toBe(42);
 		expect(result.stdout).toContain(
-			`DOWNLOAD https://github.com/BtbN/FFmpeg-Builds/releases/download/${pinnedFfmpegRelease} ffmpeg-${pinnedFfmpegBuild}-linux64-gpl.tar.xz`,
+			`DOWNLOAD https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/${pinnedFfmpegRelease} ffmpeg-${pinnedFfmpegBuild}-linux64-gpl.tar.xz`,
 		);
 	});
 
