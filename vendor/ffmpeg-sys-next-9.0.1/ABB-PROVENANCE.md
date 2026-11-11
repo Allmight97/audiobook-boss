@@ -109,10 +109,13 @@ real file could hold, so listed as unsure: `aac_latm`,
 `mp3on4`, `pcm_s8`, `pcm_f32be`, `pcm_f64be`, `pcm_s64le`, `adpcm_ima_qt`
 (MOV `ima4`), `adpcm_g722`, `adpcm_g726`, `gsm`, `gsm_ms`, `ilbc`, `speex`,
 `wavpack`, `tta`, `truehd`, `mlp`, the `wma*` family, and the legacy
-RealAudio, ATRAC, Cook, Sipr and Nellymoser decoders. No PNG, GIF, BMP, or WebP
-decoder is built (PNG never was: `--disable-autodetect` removes zlib); FFmpeg
-logs a warning for such a cover, the import still works, and a tag Save reads
-the picture's size from its header (`metadata/remux.rs`).
+RealAudio, ATRAC, Cook, Sipr and Nellymoser decoders. No PNG, GIF, BMP, TIFF,
+WebP, or JPEG XL decoder or parser is built (PNG never was:
+`--disable-autodetect` removes zlib); FFmpeg logs a warning for such a cover,
+the import still works, and a tag Save reads the picture's size from its header
+(`metadata/remux.rs`). A JPEG XL cover blocks a Save: ABB reads no JPEG XL
+header, an ID3 picture carries no size, and every muxer refuses a picture
+without one, so a Save of an MP3 that carries one fails and keeps the original.
 
 No image encoder is built. ABB writes a JPEG or PNG cover by filling the
 attached-picture stream's codec parameters and copying the bytes

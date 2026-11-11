@@ -12,7 +12,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   (Ogg, AIFF, CAF, WMA, raw AC-3) no longer imports. ABB goes by what a file holds, not its name,
   so such a renamed file used to import; it now shows as invalid. So does a WAV, MP4 or MKA whose
   audio is a codec ABB does not list, such as DTS in an MKA. AC-3 and E-AC-3 audio in an M4A or
-  M4B still imports, and covers in GIF, BMP or WebP still import and save.
+  M4B still imports, and covers in GIF, BMP, TIFF or WebP still import and save. A JPEG XL cover in
+  an MP3 blocks a tag Save of that file: the Save fails and the file stays unchanged.
 
 ### Fixed
 

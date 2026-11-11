@@ -60,10 +60,15 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   (`audio/processor/AGENTS.md`, FAAC and HE-AAC file timing).
 - A remux with no cover intent copies every source picture unchanged; an
   explicit or passthrough cover replaces them. Matroska pictures are written
-  back as attachments (its muxer drops attached-picture streams), and a
-  picture FFmpeg left unsized takes its dimensions from the image header
-  (`cover_art::format::picture_dimensions`; the bundled FFmpeg decodes JPEG
-  only).
+  back as attachments (its muxer drops attached-picture streams). Every muxer
+  refuses an unsized picture and the bundled FFmpeg decodes JPEG only, so
+  `cover_art::format::picture_dimensions` reads the size of a JPEG, PNG, GIF,
+  BMP, TIFF or WebP picture from its header. A FLAC picture block carries its
+  own size; an ID3 picture does not, so a Save of an MP3 with a JPEG XL cover
+  fails and keeps the original.
+  Why no JPEG XL reader: its size needs a bit reader and a box walk.
+  `format_tests.rs` reads FFmpeg's ID3 picture table (also used for FLAC
+  pictures) and fails on a type with neither a reader nor that exception.
 - Pure intent, validation, naming, and write-plan facts live in
   `abb-metadata-core`; this directory owns container adapters and runtime file
   behavior.

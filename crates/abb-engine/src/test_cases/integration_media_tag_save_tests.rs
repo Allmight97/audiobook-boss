@@ -473,17 +473,17 @@ fn a_save_without_cover_intent_keeps_every_attached_picture() {
     assert_eq!(picture_codecs(&m4b), both, "m4b remux");
 }
 
-/// The bundled FFmpeg has no GIF, BMP or WebP decoder, and the MP3 muxer
-/// refuses a picture whose dimensions are unknown.
+/// The bundled FFmpeg has no GIF, BMP, TIFF or WebP decoder, and the MP3
+/// muxer refuses a picture whose dimensions are unknown.
 #[test]
-fn an_mp3_save_keeps_a_gif_bmp_or_webp_cover() {
+fn an_mp3_save_keeps_a_gif_bmp_tiff_or_webp_cover() {
     let dir = TempDir::new().expect("temp dir");
     let mut webp = Vec::new();
     image::DynamicImage::new_rgb8(5, 3)
         .write_to(&mut std::io::Cursor::new(&mut webp), ImageFormat::WebP)
         .expect("encode WebP fixture");
     fs::write(dir.path().join("cover.webp"), webp).expect("write WebP fixture");
-    for extension in ["gif", "bmp"] {
+    for extension in ["gif", "bmp", "tiff"] {
         let picture = dir.path().join(format!("cover.{extension}"));
         ffmpeg([
             "-hide_banner",
@@ -503,7 +503,7 @@ fn an_mp3_save_keeps_a_gif_bmp_or_webp_cover() {
         title: Some(PatchOp::Set("Retitled".to_string())),
         ..Default::default()
     };
-    for extension in ["gif", "bmp", "webp"] {
+    for extension in ["gif", "bmp", "tiff", "webp"] {
         let picture = dir.path().join(format!("cover.{extension}"));
         let path = dir.path().join(format!("{extension}.mp3"));
         ffmpeg([
