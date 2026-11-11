@@ -17,6 +17,7 @@ mod license_reply_log;
 mod materialization;
 mod protected_file_probe;
 mod registration;
+mod signing;
 mod supplemental_pdf;
 
 use acquisition::acquire;
@@ -157,7 +158,7 @@ impl AudibleProvider {
     pub(in crate::remote_source) async fn load_library(
         auth: Auth,
     ) -> std::result::Result<RemoteLibraryResponse, AudibleRequestError> {
-        let titles = load_all_library_titles(&AudibleApi::new(auth)?).await?;
+        let titles = load_all_library_titles(&AudibleApi::new(&auth)?).await?;
         Ok(RemoteLibraryResponse {
             provider_id: ProviderId::Audible,
             titles,
