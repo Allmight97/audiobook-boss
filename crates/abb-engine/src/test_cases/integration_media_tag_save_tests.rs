@@ -5,8 +5,9 @@
 //! use upper case).
 
 use super::media_fixtures::{
-    assert_ffprobe_tag, ffmpeg, ffprobe_format_tags, minimal_jpg_bytes, picture_codecs,
-    picture_payloads, write_sine_mp3, write_sine_mp3_with, write_two_picture_fixture, MediaLane,
+    assert_ffprobe_tag, audio_packet_bytes, ffmpeg, ffprobe_format_tags, minimal_jpg_bytes,
+    picture_codecs, picture_payloads, write_sine_mp3, write_sine_mp3_with,
+    write_two_picture_fixture, MediaLane,
 };
 use super::support::wav::{write_sine_wav, SAMPLE_RATE};
 use crate::audio::{execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest};
@@ -536,6 +537,64 @@ fn an_mp3_save_keeps_a_gif_bmp_tiff_or_webp_cover() {
 
         assert_eq!(picture_payloads(&path), pictures, "{extension} save");
     }
+}
+
+#[test]
+fn a_save_retitles_a_wav() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join("book.wav");
+    write_sine_wav(&path, 1.0, 440.0);
+    let audio = audio_packet_bytes(&path);
+
+    save_metadata_intent(
+        &path,
+        &MetadataIntentPatch {
+            title: Some(PatchOp::Set("Retitled".to_string())),
+            ..Default::default()
+        },
+    )
+    .expect("save");
+
+    assert_eq!(
+        read_metadata(&path).expect("reread").title.as_deref(),
+        Some("Retitled")
+    );
+    assert_eq!(audio_packet_bytes(&path), audio);
+}
+
+/// ADTS has no tag of its own, so the title is not kept; the Save still
+/// rewrites the file with the `adts` muxer.
+#[test]
+fn a_save_of_raw_aac_keeps_its_audio() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join("book.aac");
+    ffmpeg([
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=d=1",
+        "-c:a",
+        "aac",
+        "-f",
+        "adts",
+        "-y",
+        path.to_str().expect("utf8 path"),
+    ]);
+    let audio = audio_packet_bytes(&path);
+
+    save_metadata_intent(
+        &path,
+        &MetadataIntentPatch {
+            title: Some(PatchOp::Set("Retitled".to_string())),
+            ..Default::default()
+        },
+    )
+    .expect("save");
+
+    assert_eq!(audio_packet_bytes(&path), audio);
 }
 
 /// Copying a PNG cover into an attached-picture container needs no FFmpeg PNG
