@@ -136,9 +136,14 @@ impl AudibleApi {
             .timeout(API_REQUEST_TIMEOUT)
             .build()
             .map_err(|_| provider_private_failure(&format!("{stage} construction")))?;
+        let signed_path = request
+            .url()
+            .as_str()
+            .strip_prefix(&self.base_url)
+            .ok_or_else(|| provider_private_failure(&format!("{stage} path")))?;
         let signed = self.signer.headers(
             request.method().as_str(),
-            &request.url().as_str().replace(&self.base_url, ""),
+            signed_path,
             request
                 .body()
                 .and_then(reqwest::Body::as_bytes)

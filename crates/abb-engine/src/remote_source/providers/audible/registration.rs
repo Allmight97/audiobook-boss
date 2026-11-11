@@ -1,5 +1,6 @@
 //! Device registration with the current Audible for iPhone profile. Ported
 //! from `audible_api` 0.1.0 `auth::register` (MIT OR Apache-2.0).
+//! Copyright (c) 2024 Mark Hendrickson.
 
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};

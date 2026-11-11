@@ -16,4 +16,5 @@ deny = [
   { crate = "url", deny-multiple-versions = true, reason = "cover-fetch SSRF policy types must be the url reqwest resolves" },
   { crate = "percent-encoding", deny-multiple-versions = true, reason = "cover path decoding uses the version url resolves" },
   { crate = "ffmpeg-sys-next", deny-multiple-versions = true, reason = "abb-ffmpeg is the one FFmpeg binding" },
+  { crate = "reqwest", deny-multiple-versions = true, reason = "ABB has one HTTP stack; a second reqwest brings a second TLS stack" },
 ]

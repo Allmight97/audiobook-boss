@@ -26,8 +26,9 @@
   `DO NOT REMOVE`, excuse markers, and history narration.
 - Third-party source under MIT, Apache-2.0, BSD, ISC, or Zlib may be ported
   or vendored without asking; the ported file opens with a header naming the
-  source, its version or commit, and its license (a license stated only in
-  the package manifest counts). Copyleft (GPL, LGPL, MPL) or unlicensed
+  source, its version or commit, its license (a license stated only in
+  the package manifest counts), and its copyright line (MIT, BSD, and ISC
+  require it; add the NOTICE text when an Apache-2.0 source has one). Copyleft (GPL, LGPL, MPL) or unlicensed
   source, and bundling a whole external program, wait for the owner's yes.
   Vendored build provenance lives under `vendor/`.
 

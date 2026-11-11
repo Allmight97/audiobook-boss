@@ -1,6 +1,7 @@
 //! The saved Audible sign-in and the sign-in URL helpers. Ported from
 //! `audible_api` 0.1.0 `auth`, `auth::register`, `auth::localization` and
 //! `auth::oauth` (MIT OR Apache-2.0).
+//! Copyright (c) 2024 Mark Hendrickson.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -76,7 +77,7 @@ pub(super) fn build_client_id(device_serial: &str) -> String {
 
 pub(super) fn new_code_verifier() -> Result<String> {
     let mut bytes = [0u8; CODE_VERIFIER_BYTES];
-    getrandom::fill(&mut bytes).map_err(|_| provider_private_failure("sign-in start"))?;
+    aws_lc_rs::rand::fill(&mut bytes).map_err(|_| provider_private_failure("sign-in start"))?;
     Ok(BASE64_URL_SAFE_NO_PAD.encode(bytes))
 }
 

@@ -1,5 +1,6 @@
 //! Audible API request signing. Ported from `audible_api` 0.1.0
 //! `auth::auth_headers` (MIT OR Apache-2.0).
+//! Copyright (c) 2024 Mark Hendrickson.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -17,16 +18,17 @@ const SIGNING_ALGORITHM: &str = "SHA256withRSA:1.0";
 const MIN_DEVICE_KEY_BITS: usize = 2048;
 
 pub(super) struct AdpSigner {
-    adp_token: String,
+    adp_token: HeaderValue,
     device_key: RsaKeyPair,
 }
 
 impl AdpSigner {
     pub(super) fn new(adp_token: &str, device_private_key_pem: &str) -> Result<Self> {
         let device_key = device_key_from_pem(device_private_key_pem)?;
-        HeaderValue::from_str(adp_token).map_err(|_| provider_private_failure("device token"))?;
+        let adp_token = HeaderValue::from_str(adp_token)
+            .map_err(|_| provider_private_failure("device token"))?;
         Ok(Self {
-            adp_token: adp_token.to_string(),
+            adp_token,
             device_key,
         })
     }
@@ -59,13 +61,12 @@ impl AdpSigner {
             .map_err(|_| provider_private_failure("request signing"))?;
         let signature = format!("{}:{date}", BASE64_STANDARD.encode(signature));
 
-        let value = |text: &str| {
-            HeaderValue::from_str(text).map_err(|_| provider_private_failure("request signing"))
-        };
+        let signature = HeaderValue::from_str(&signature)
+            .map_err(|_| provider_private_failure("request signing"))?;
         let mut headers = HeaderMap::new();
-        headers.insert("x-adp-token", value(&self.adp_token)?);
+        headers.insert("x-adp-token", self.adp_token.clone());
         headers.insert("x-adp-alg", HeaderValue::from_static(SIGNING_ALGORITHM));
-        headers.insert("x-adp-signature", value(&signature)?);
+        headers.insert("x-adp-signature", signature);
         Ok(headers)
     }
 }

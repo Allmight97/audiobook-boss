@@ -39,7 +39,6 @@ dependencies = [
  "bogon",
  "cbc",
  "faac-sys",
- "getrandom 0.4.3",
  "image",
  "keepawake",
  "keyring-core",

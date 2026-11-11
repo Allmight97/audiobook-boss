@@ -285,3 +285,21 @@ async fn a_signed_request_signs_the_path_query_and_body_it_sends() {
         requests[1]
     );
 }
+
+#[tokio::test]
+async fn a_request_outside_the_api_base_fails_instead_of_signing_the_full_url() {
+    let (api, server) = stub_api(vec![]).await;
+    let outside = api.client.get("http://127.0.0.1:1/1.0/library");
+
+    let error = api
+        .send(outside, ApiCall::account("library"))
+        .await
+        .expect_err("a request outside the base URL is refused");
+
+    assert!(
+        matches!(&error, AudibleRequestError::Failed(AppError::General(message))
+            if message.starts_with("Audible library path failed")),
+        "{error:?}"
+    );
+    assert!(server.finished().await.is_empty());
+}
