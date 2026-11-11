@@ -12,7 +12,9 @@ that commit and checks the checkout. `scripts/setup.sh` names it again:
 `ffmpeg_cli_build` is the BtbN describe id, and its `g` suffix is that commit;
 `ffmpeg_cli_release` is the autobuild tag that publishes it. Those two move
 with `ffmpeg-revision`. `scripts/setup-pins.test.ts` fails when the suffix is
-not a prefix of the revision. ABB retains the CoreAudio framework link.
+not a prefix of the revision. On macOS the build links only AudioToolbox,
+CoreAudio, and CoreFoundation; upstream's list adds video, OpenGL, OpenCL,
+and QTKit frameworks that the audio-only build never calls.
 
 What ABB relies on in that source:
 

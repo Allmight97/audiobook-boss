@@ -465,8 +465,8 @@ print_path_line() {
 # Master assets are ffmpeg-<describe>-linux*-gpl.tar.xz. Distro FFmpeg 6.x
 # decodes edit lists and Opus pre-skip differently, so it stays refused.
 # Assigned before --print-env and --check, which both ask which binary this is.
-ffmpeg_cli_release=autobuild-2026-11-09-12-42
-ffmpeg_cli_build=N-128718-gb2b543c079
+ffmpeg_cli_release=autobuild-2026-11-10-12-39
+ffmpeg_cli_build=N-128728-g49a3b1f259
 
 if [[ "${print_env_only}" -eq 1 ]]; then
 	print_env

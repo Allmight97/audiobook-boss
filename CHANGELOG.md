@@ -6,6 +6,10 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- A Native AAC export no longer stalls forever on some books. FFmpeg's AAC encoder could
+  re-encode one frame without end after a near-silent stretch before a loud onset; a 9.6-hour
+  book stopped at about one hour with the CPU busy. The bundled FFmpeg now carries the upstream
+  fix.
 - A title you switch from Opus back to M4B keeps its AAC bitrate. It used to take the Opus
   bitrate instead.
 - Preserve on an M4B with a cover keeps new chapters longer than about 8 minutes. The export used
