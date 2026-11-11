@@ -90,8 +90,8 @@ audio to a chaptered M4B and verifies accepted chapter names and positions,
 plus the QuickTime edit and sample timing tables.
 
 Retire the chapter patch only when the same nonzero-first-chapter regression
-passes against unpatched upstream. Advance source, wrapper mappings and
-header/runtime verification together. Unbundled builds must satisfy the same
+passes against unpatched upstream. Advance the source, the calls in
+`crates/abb-ffmpeg`, and header/runtime verification together. Unbundled builds must satisfy the same
 source/patch contract. Linux fixture readback is the BtbN autobuild named by
 `ffmpeg_cli_release` and `ffmpeg_cli_build`, the same commit as
 `ffmpeg-revision`. macOS readback stays Homebrew's major-9 ffmpeg. `--check`
