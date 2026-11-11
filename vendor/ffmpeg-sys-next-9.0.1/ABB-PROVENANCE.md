@@ -118,8 +118,8 @@ attached-picture stream's codec parameters and copying the bytes
 (`abb-ffmpeg` `Output::add_attached_picture_stream`); libavformat looks up no
 encoder for it. Cover conversion uses the `image` crate.
 
-A change that adds an import extension, an output format, an encoder or a
-cover type extends `ABB_COMPONENTS` in the same change.
+A change that adds an import extension, an output format or an encoder
+extends `ABB_COMPONENTS` in the same change.
 `integration_media_import_formats_tests.rs` fails when a supported extension
 has no fixture recipe, and when a recipe no longer imports, decodes and
 encodes.
