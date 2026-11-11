@@ -32,17 +32,13 @@ What ABB relies on in that source:
 
 ## Moving the pin
 
-`bun run ffmpeg:upstream` lists the commits after the pin that touch the
-sources of the enabled components (from FFmpeg's Makefiles, with their arch
-variants and templates), the fixed list `ALWAYS_WATCHED` in the script
-(`configure`, libavcodec's encode and decode cores, libavformat's demux, mux,
-I/O and MP4 and RIFF helpers, the Native AAC encoder, the libavutil transform,
-float DSP, AES and encryption-info files, libswresample), and the chapter
-patch, and names the newest BtbN
-autobuild with its master commit. Read it before choosing the new commit.
-Blind spot: a helper that `configure` selects for a component and that no
-Makefile line names for it, beyond the fixed list in the script, is not
-watched.
+`bun run ffmpeg:upstream` lists the commits after the pin that touch
+`configure`, libavcodec, libavformat, libavutil or libswresample, leaving out
+each source file that both the pin's and master's Makefiles compile only for
+components ABB does not build, and names the newest BtbN autobuild with its
+master commit. Read it before choosing the new commit. Blind spot: `ffbuild/`,
+`compat/` and the top-level Makefile are not watched, and neither is a left-out
+source file that a built file includes directly.
 
 1. Write the new commit to `ffmpeg-revision`, and move `ffmpeg_cli_release` and
    `ffmpeg_cli_build` in `scripts/setup.sh` to the BtbN master autobuild of

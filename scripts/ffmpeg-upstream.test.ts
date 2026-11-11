@@ -3,116 +3,189 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
-	makefileIncludes,
 	newestAutobuild,
+	objectConditions,
 	parseCommits,
 	parseComponents,
-	patchedFiles,
+	registeredComponents,
 	renderReport,
 	type Report,
-	sourcesOf,
-	watchedPatterns,
+	unbuiltSources,
+	watchedPathspecs,
 } from './ffmpeg-upstream';
 
 const sysCrate = path.resolve(import.meta.dirname, '../vendor/ffmpeg-sys-next-9.0.1');
 const buildRs = readFileSync(path.join(sysCrate, 'build.rs'), 'utf8');
+const provenance = readFileSync(path.join(sysCrate, 'ABB-PROVENANCE.md'), 'utf8');
 
 const codecMakefile = `
+OBJS = allcodecs.o
 OBJS-$(CONFIG_AAC_ENCODER)             += aacenc.o aaccoder.o \\
                                           aacenctab.o
-OBJS-$(CONFIG_PCM_S16LE_DECODER)       += pcm.o
-OBJS-$(CONFIG_H264_DECODER)            += h264dec.o
-OBJS-$(CONFIG_AAC_PARSER)              += aac_parser.o
-OBJS-$(CONFIG_MP3FLOAT_DECODER)        += mpegaudiodec_float.o
-NEON-OBJS-$(CONFIG_AAC_ENCODER)        += aarch64/aacencdsp_neon.o
-include $(SRC_PATH)/libavcodec/aac/Makefile
-include $(SRC_PATH)/libavcodec/$(ARCH)/Makefile
+OBJS-$(CONFIG_H264_DECODER)            += h264dec.o h264_mb.o
+OBJS-$(CONFIG_H264_PARSER)             += h264_parser.o h264_mb.o
+OBJS-$(CONFIG_HEVC_DECODER)            += hevcdec.o
+OBJS-$(CONFIG_HEVCPARSE)               += hevcdec.o
+OBJS-$(CONFIG_MPEGAUDIODSP)            += mpegaudiodsp.o
+OBJS-$(CONFIG_MP3_DECODER)             += mpegaudiodsp.o
+OBJS-$(CONFIG_FRAME_THREAD_ENCODER)    += frame_thread_encoder.o
+OBJS-$(CONFIG_AC3_PARSER)              += ac3_parser.o
+NEON-OBJS-$(CONFIG_H264_DECODER)       += aarch64/h264dsp_neon.o
+X86ASM-OBJS-$(CONFIG_AAC_ENCODER)      += x86/aacencdsp.o
 `;
 
-describe('the component list in build.rs', () => {
-	it('names each group ABB builds, and the optional encoders and decoders', () => {
-		const components = parseComponents(buildRs);
+const codecFiles = [
+	'libavcodec/aac_parser.c',
+	'libavcodec/aacenc.c',
+	'libavcodec/aacenc.h',
+	'libavcodec/ac3_parser.c',
+	'libavcodec/aarch64/h264dsp_neon.S',
+	'libavcodec/allcodecs.c',
+	'libavcodec/frame_thread_encoder.c',
+	'libavcodec/h264_mb.c',
+	'libavcodec/h264_mb_template.c',
+	'libavcodec/h264dec.c',
+	'libavcodec/h264dec.h',
+	'libavcodec/hevcdec.c',
+	'libavcodec/mpegaudiodsp.c',
+	'libavcodec/x86/aacencdsp.asm',
+];
+
+function tableComponents(markdown: string): string[] {
+	const kinds: Record<string, string> = {
+		Demuxers: 'demuxer',
+		Muxers: 'muxer',
+		Decoders: 'decoder',
+		Encoders: 'encoder',
+		Parsers: 'parser',
+		'Bitstream filters': 'bsf',
+		Protocols: 'protocol',
+	};
+	return markdown
+		.split('\n')
+		.map((line) => line.split('|').map((cell) => cell.trim()))
+		.filter((cells) => cells[1] in kinds)
+		.flatMap((cells) =>
+			[...cells[2].matchAll(/`([a-z0-9_]+)`/g)].map(([, name]) => `${kinds[cells[1]]} ${name}`),
+		);
+}
+
+describe('the component lists in build.rs', () => {
+	const named = (text: string) => parseComponents(text).map(({ kind, name }) => `${kind} ${name}`);
+
+	it('names every list, the optional and configure-selected ones included', () => {
+		const components = named(buildRs);
 		for (const expected of [
-			{ kind: 'demuxer', name: 'mov' },
-			{ kind: 'muxer', name: 'ipod' },
-			{ kind: 'decoder', name: 'mp3float' },
-			{ kind: 'encoder', name: 'aac' },
-			{ kind: 'parser', name: 'opus' },
-			{ kind: 'bsf', name: 'aac_adtstoasc' },
-			{ kind: 'protocol', name: 'file' },
-			{ kind: 'encoder', name: 'libopus' },
-			{ kind: 'decoder', name: 'aac_at' },
+			'demuxer mov',
+			'muxer mp4',
+			'decoder mp3float',
+			'encoder aac',
+			'parser opus',
+			'bsf aac_adtstoasc',
+			'protocol file',
+			'encoder libopus',
+			'decoder aac_at',
+			'muxer mov',
+			'bsf vp9_superframe',
 		]) {
-			expect(components).toContainEqual(expected);
+			expect(components).toContain(expected);
 		}
-		expect(components).not.toContainEqual({ kind: 'protocol', name: 'http' });
+		expect(components).not.toContain('protocol http');
 	});
 
-	it('fails when build.rs has no list', () => {
-		expect(() => parseComponents('fn main() {}')).toThrow('ABB_COMPONENTS');
+	it('match the provenance table, apart from what configure selects', () => {
+		const selected = /const CONFIGURE_SELECTED[\s\S]*?\n\];/.exec(buildRs)?.[0] ?? '';
+		const listed = new Set(
+			named(buildRs).filter((component) => !named(selected).includes(component)),
+		);
+		expect(new Set(tableComponents(provenance))).toEqual(listed);
+	});
+
+	it('fails when build.rs lists none', () => {
+		expect(() => parseComponents('fn main() {}')).toThrow('no components');
 	});
 });
 
-describe('sources of the enabled components', () => {
-	it('reads continued Makefile lines, arch variants and templates, and skips other components', () => {
-		const sources = sourcesOf(
-			[
-				{ kind: 'encoder', name: 'aac' },
-				{ kind: 'decoder', name: 'pcm_s16le' },
-				{ kind: 'decoder', name: 'mp3float' },
-				{ kind: 'parser', name: 'aac' },
-			],
-			[{ library: 'libavcodec', text: codecMakefile }],
+const allcodecs = `
+extern const FFCodec ff_aac_encoder;
+extern const FFCodec ff_h264_decoder;
+extern const FFCodec ff_hevc_decoder;
+extern const FFCodec ff_mp3_decoder;
+`;
+const parsers = `
+extern const FFCodecParser ff_ac3_parser;
+extern const FFCodecParser ff_h264_parser;
+`;
+
+describe('sources of unbuilt components', () => {
+	const registries = [allcodecs, parsers];
+	const built = [
+		{ kind: 'encoder', name: 'aac' },
+		{ kind: 'parser', name: 'ac3' },
+	];
+
+	it('records each condition an object is compiled under, continued lines included', () => {
+		const conditions = objectConditions([{ library: 'libavcodec', text: codecMakefile }]);
+		expect(conditions.get('libavcodec/aacenctab')).toEqual(new Set(['CONFIG_AAC_ENCODER']));
+		expect(conditions.get('libavcodec/allcodecs')).toEqual(new Set(['']));
+		expect(conditions.get('libavcodec/h264_mb')).toEqual(
+			new Set(['CONFIG_H264_DECODER', 'CONFIG_H264_PARSER']),
 		);
-		expect(sources).toEqual([
-			'libavcodec/aac_parser*',
-			'libavcodec/aaccoder*',
-			'libavcodec/aacenc*',
-			'libavcodec/aacenctab*',
-			'libavcodec/aarch64/aacencdsp_neon*',
-			'libavcodec/mpegaudiodec_float*',
-			'libavcodec/pcm*',
+		expect(conditions.get('libavcodec/x86/aacencdsp')).toEqual(new Set(['CONFIG_AAC_ENCODER']));
+	});
+
+	it('name the components FFmpeg registers', () => {
+		expect(registeredComponents(registries)).toEqual(
+			new Set([
+				'CONFIG_AAC_ENCODER',
+				'CONFIG_H264_DECODER',
+				'CONFIG_HEVC_DECODER',
+				'CONFIG_MP3_DECODER',
+				'CONFIG_AC3_PARSER',
+				'CONFIG_H264_PARSER',
+			]),
+		);
+	});
+
+	it('leave out only sources every line compiles for an unbuilt component', () => {
+		expect(
+			unbuiltSources(
+				built,
+				registries,
+				[{ library: 'libavcodec', text: codecMakefile }],
+				codecFiles,
+			),
+		).toEqual([
+			'libavcodec/aarch64/h264dsp_neon.S',
+			'libavcodec/h264_mb.c',
+			'libavcodec/h264dec.c',
 		]);
 	});
 
-	it('keeps a component to its own library', () => {
-		const sources = sourcesOf(
-			[{ kind: 'muxer', name: 'aac' }],
-			[{ library: 'libavcodec', text: codecMakefile }],
-		);
-		expect(sources).toEqual([]);
+	it('keep a source another Makefile compiles for a built component', () => {
+		const master = 'OBJS-$(CONFIG_AAC_ENCODER) += h264dec.o\n';
+		expect(
+			unbuiltSources(
+				built,
+				registries,
+				[
+					{ library: 'libavcodec', text: codecMakefile },
+					{ library: 'libavcodec', text: master },
+				],
+				codecFiles,
+			),
+		).not.toContain('libavcodec/h264dec.c');
 	});
 
-	it('lists the literal sub-Makefiles to read', () => {
-		expect(makefileIncludes(codecMakefile)).toEqual(['libavcodec/aac/Makefile']);
-	});
-});
-
-describe('the chapter patch', () => {
-	it('names the files it touches', () => {
-		const patch = readFileSync(path.join(sysCrate, 'patches/mov-chapter-start.patch'), 'utf8');
-		expect(patchedFiles(patch)).toEqual(['libavformat/movenc.c']);
-	});
-});
-
-describe('the watched paths', () => {
-	it('add the fixed list and the chapter patch to the component sources, once each', () => {
-		const patch = readFileSync(path.join(sysCrate, 'patches/mov-chapter-start.patch'), 'utf8');
-		const watched = watchedPatterns(buildRs, patch, [
-			{ library: 'libavcodec', text: codecMakefile },
+	it('watch the libraries and configure whole, minus those sources', () => {
+		expect(watchedPathspecs(['libavcodec/h264dec.c'])).toEqual([
+			'configure',
+			'libavcodec',
+			'libavformat',
+			'libavutil',
+			'libswresample',
+			':(exclude)libavcodec/h264dec.c',
 		]);
-		expect(watched).toContain('libavcodec/aacenc*');
-		expect(watched).toContain('libavcodec/mpegaudio*');
-		expect(watched).toContain('libavcodec/pcm*');
-		expect(watched).toContain('libavformat/movenc.c');
-		expect(watched).toContain('libswresample');
-		expect(watched).toContain('configure');
-		expect(watched).toContain('libavcodec/encode.c');
-		expect(watched).toContain('libavformat/aviobuf.c');
-		expect(watched).toContain('libavutil/tx*');
-		expect(watched).toContain('libavutil/encryption_info*');
-		expect(watched).toContain('libavutil/*/aes*');
-		expect(new Set(watched).size).toBe(watched.length);
 	});
 });
 
@@ -129,17 +202,19 @@ describe('commits', () => {
 });
 
 describe('the BtbN autobuild', () => {
-	const assets: Record<string, string[]> = {
-		'autobuild-2026-11-10-12-39': [
-			'ffmpeg-N-128728-g49a3b1f259-linux64-gpl-shared.tar.xz',
-			'ffmpeg-N-128728-g49a3b1f259-linux64-gpl.tar.xz',
-			'ffmpeg-n9.0.2-48-gd4070a14ce-linux64-gpl-9.0.tar.xz',
-		],
-	};
-
 	it('skips the moving latest tag and names the master asset with its commit', () => {
 		expect(
-			newestAutobuild(['latest', 'autobuild-2026-11-10-12-39'], (tag) => assets[tag] ?? []),
+			newestAutobuild([
+				{ tag: 'latest', assets: ['ffmpeg-N-1-g1111111-linux64-gpl.tar.xz'] },
+				{
+					tag: 'autobuild-2026-11-10-12-39',
+					assets: [
+						'ffmpeg-N-128728-g49a3b1f259-linux64-gpl-shared.tar.xz',
+						'ffmpeg-N-128728-g49a3b1f259-linux64-gpl.tar.xz',
+						'ffmpeg-n9.0.2-48-gd4070a14ce-linux64-gpl-9.0.tar.xz',
+					],
+				},
+			]),
 		).toEqual({
 			tag: 'autobuild-2026-11-10-12-39',
 			asset: 'ffmpeg-N-128728-g49a3b1f259-linux64-gpl.tar.xz',
@@ -148,7 +223,7 @@ describe('the BtbN autobuild', () => {
 	});
 
 	it('finds none when no release has a master asset', () => {
-		expect(newestAutobuild(['latest'], () => [])).toBeNull();
+		expect(newestAutobuild([{ tag: 'latest', assets: [] }])).toBeNull();
 	});
 });
 
@@ -157,8 +232,7 @@ describe('the report', () => {
 		pin: '49a3b1f259e1c34033bf6cca4091a4cb07ebf90d',
 		head: '1111111111111111111111111111111111111111',
 		commits: [],
-		autobuild: null,
-		autobuildMatchesHead: false,
+		autobuild: { found: null },
 	};
 
 	it('says so when nothing relevant changed', () => {
@@ -170,14 +244,25 @@ describe('the report', () => {
 			...base,
 			commits: [{ hash: 'abcdef0123456789', date: '2026-11-10', subject: 'aac | fix' }],
 			autobuild: {
-				tag: 'autobuild-2026-11-10-12-39',
-				asset: 'ffmpeg-N-1-g1111111-linux64-gpl.tar.xz',
-				builtFrom: '1111111',
+				found: {
+					tag: 'autobuild-2026-11-10-12-39',
+					asset: 'ffmpeg-N-1-g1111111-linux64-gpl.tar.xz',
+					builtFrom: '1111111',
+				},
 			},
-			autobuildMatchesHead: true,
 		});
 		expect(text).toContain('| `abcdef0123` | 2026-11-10 | aac \\| fix |');
 		expect(text).not.toContain('no relevant upstream changes');
 		expect(text).toContain('built from master head');
+	});
+
+	it('keeps the commits when the autobuilds could not be read', () => {
+		const text = renderReport({
+			...base,
+			commits: [{ hash: 'abcdef0123456789', date: '2026-11-10', subject: 'aac: fix' }],
+			autobuild: { error: 'HTTP 502' },
+		});
+		expect(text).toContain('| `abcdef0123` | 2026-11-10 | aac: fix |');
+		expect(text).toContain('autobuild: could not read (HTTP 502)');
 	});
 });

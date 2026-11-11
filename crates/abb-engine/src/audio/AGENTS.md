@@ -105,8 +105,11 @@ silently. The session decides what a skip means for the user.
 
 The bundled FFmpeg compiles only the components ABB's formats need, so a file
 whose content is another format fails to open even under a supported
-extension. A change to `SUPPORTED_AUDIO_FORMATS` extends that list in the same
-change (`vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md`, Enabled components).
+extension. A change to `SUPPORTED_AUDIO_FORMATS` extends `ABB_COMPONENTS` in
+`vendor/ffmpeg-sys-next-9.0.1/build.rs` in the same change, and gives each new
+component its reason in the Enabled components table of that crate's
+`ABB-PROVENANCE.md` (`scripts/ffmpeg-upstream.test.ts` fails when the two
+differ).
 
 A file's duration is the length the selected decoder yields. When FFmpeg
 only estimates it from a bitrate (`Input::duration_is_estimated`: an MP3 without a
