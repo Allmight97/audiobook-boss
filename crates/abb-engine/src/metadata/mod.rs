@@ -27,6 +27,7 @@ mod mp4ameta_bridge;
 mod passthrough;
 mod plan_log;
 mod remux;
+mod tag_support;
 mod thumbnail;
 
 pub(crate) use abb_metadata_core::MetadataWritePlan;
@@ -84,6 +85,7 @@ pub(crate) fn save_metadata_with_plan(
     plan: &MetadataWritePlan,
 ) -> Result<()> {
     let route = crate::diagnostics::stage("metadata_classify", path, || container::classify(path))?;
+    tag_support::refuse_unholdable_edits(&route, plan)?;
     let saved = remux::meta_temp(path)?;
     match route {
         Container::Mp4 => {

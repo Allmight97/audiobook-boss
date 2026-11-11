@@ -49,6 +49,13 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   `finalize_artifact_metadata` pay no extra copy; single-file Preserve with a
   patch and post-publish title tag saves go through the Save, copy and check
   included. Any failure removes the temp after FFmpeg's handles close.
+- `tag_support::refuse_unholdable_edits` runs first in a Save and fails it
+  (`FileValidation`, the file untouched, the edit pending) when the plan edits
+  a tag the container cannot store. Raw AAC (ADTS) holds no tags; WAV holds
+  title, author, album, genre, date, comment and track number only. Why: the
+  muxer drops such a tag and the Save would report success. The Work Center
+  shows the reason on the failed file. A container that gains tag support
+  there changes this list and its test.
 - The remux read loop ends only at end of file; any other read error, one
   corrupt packet included, fails the write. Why: skipping or stopping early
   would save a shorter book.

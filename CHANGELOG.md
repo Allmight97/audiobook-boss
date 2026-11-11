@@ -17,6 +17,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Saving a tag edit on a raw AAC (.aac) or WAV file that cannot hold the edit now fails with a
+  reason in the Work Center and keeps the edit pending. It used to report success and drop the
+  edit. A WAV still saves title, author, album, genre, date, comment and track number.
 - Exporting an Opus MKA with a PNG cover to M4A without re-encoding no longer fails; the PNG
   cover is kept.
 

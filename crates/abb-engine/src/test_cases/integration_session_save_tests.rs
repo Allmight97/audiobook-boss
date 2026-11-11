@@ -10,6 +10,7 @@ use crate::work_runtime::WorkOperationStatus;
 use crate::ShutdownOutcome;
 
 use super::integration_session_desk::Desk;
+use super::media_fixtures::ffmpeg;
 
 fn id_of(desk: &Desk, name: &str) -> String {
     desk.engine
@@ -287,5 +288,66 @@ async fn a_cover_loaded_and_then_cleared_through_the_session_is_on_and_then_off_
         listed_cover(&desk),
         after_cover,
         "a cleared cover moves the cover address"
+    );
+}
+
+#[tokio::test]
+async fn a_save_on_raw_aac_fails_with_its_reason_and_keeps_the_edit_pending() {
+    let desk = Desk::new();
+    let book = desk.root.path().join("library/raw.aac");
+    fs::create_dir_all(book.parent().expect("library")).expect("library dir");
+    ffmpeg([
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=d=1",
+        "-c:a",
+        "aac",
+        "-f",
+        "adts",
+        "-y",
+        book.to_str().expect("utf8 path"),
+    ]);
+    let bytes = fs::read(&book).expect("read source");
+    desk.import(&book).await;
+    desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
+        field: MetadataField::Title,
+        value: "NewTitle".to_string(),
+    })
+    .await;
+
+    assert_eq!(
+        desk.send(SessionIntent::Save).await,
+        SessionOutcome::Applied
+    );
+
+    let metadata = desk.metadata();
+    assert!(
+        matches!(
+            metadata.status,
+            Some(MetadataStatus::SaveComplete {
+                succeeded: 0,
+                failed: 1,
+                ..
+            })
+        ),
+        "{:?}",
+        metadata.status
+    );
+    assert!(metadata.has_pending_edits, "the edit stays pending");
+    assert_eq!(fs::read(&book).expect("reread"), bytes);
+    let operations = desk.engine.list_work_operations().expect("operations");
+    let child = &operations.operations[0].children[0];
+    assert!(
+        child
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("Raw AAC (.aac) files can't hold tags")),
+        "{:?}",
+        child.message
     );
 }

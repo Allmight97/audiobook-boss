@@ -562,12 +562,7 @@ fn a_save_retitles_a_wav() {
     assert_eq!(audio_packet_bytes(&path), audio);
 }
 
-/// ADTS has no tag of its own, so the title is not kept; the Save still
-/// rewrites the file with the `adts` muxer.
-#[test]
-fn a_save_of_raw_aac_keeps_its_audio() {
-    let dir = TempDir::new().expect("temp dir");
-    let path = dir.path().join("book.aac");
+fn write_sine_adts(path: &Path) {
     ffmpeg([
         "-hide_banner",
         "-loglevel",
@@ -583,18 +578,58 @@ fn a_save_of_raw_aac_keeps_its_audio() {
         "-y",
         path.to_str().expect("utf8 path"),
     ]);
-    let audio = audio_packet_bytes(&path);
+}
 
-    save_metadata_intent(
+#[test]
+fn a_save_of_a_title_on_raw_aac_fails_and_leaves_the_file_unchanged() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join("book.aac");
+    write_sine_adts(&path);
+    let bytes = fs::read(&path).expect("read source");
+
+    let error = save_metadata_intent(
         &path,
         &MetadataIntentPatch {
             title: Some(PatchOp::Set("Retitled".to_string())),
             ..Default::default()
         },
     )
-    .expect("save");
+    .expect_err("raw AAC cannot hold a title");
 
-    assert_eq!(audio_packet_bytes(&path), audio);
+    assert!(
+        error.to_string().contains(
+            "Raw AAC (.aac) files can't hold tags. Export the title to M4B to keep them."
+        ),
+        "{error}"
+    );
+    assert_eq!(fs::read(&path).expect("reread"), bytes);
+}
+
+#[test]
+fn a_save_of_a_field_a_wav_cannot_hold_fails_and_leaves_the_file_unchanged() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join("book.wav");
+    write_sine_wav(&path, 1.0, 440.0);
+    let bytes = fs::read(&path).expect("read source");
+
+    let error = save_metadata_intent(
+        &path,
+        &MetadataIntentPatch {
+            title: Some(PatchOp::Set("Retitled".to_string())),
+            composer: Some(PatchOp::Set("Narrator".to_string())),
+            series: Some(PatchOp::Set("Saga".to_string())),
+            ..Default::default()
+        },
+    )
+    .expect_err("WAV cannot hold a narrator or a series");
+
+    assert!(
+        error.to_string().contains(
+            "WAV files can't hold narrator or series. Export the title to M4B to keep them."
+        ),
+        "{error}"
+    );
+    assert_eq!(fs::read(&path).expect("reread"), bytes);
 }
 
 /// Copying a PNG cover into an attached-picture container needs no FFmpeg PNG
