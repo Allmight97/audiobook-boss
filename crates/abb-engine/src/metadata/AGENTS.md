@@ -186,6 +186,9 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   set/clear removes those user-comment aliases; an absent field preserves them.
   `iTun*` COMM descriptors are technical passthrough records, never display or
   clear candidates. This policy lives in `field_schema::comment_key_rank`.
+- Known bug, low priority (#635): a FLAC Save writes Comment and Description
+  under one Vorbis key, because FFmpeg maps `comment` to `DESCRIPTION`
+  (`libavformat/vorbiscomment.c`), so they read back joined.
 - `----:com.apple.iTunes:SERIES` / `SERIES-PART` are FFmpeg read and clear
   keys, never write keys; the mp4ameta sink writes the MP4 mirrors. So a stray
   tag from an older ABB still reads, and clearing the series removes it on
