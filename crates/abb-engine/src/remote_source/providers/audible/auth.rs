@@ -1,7 +1,7 @@
 //! The saved Audible sign-in and the sign-in URL helpers. Ported from
 //! `audible_api` 0.1.0 `auth`, `auth::register`, `auth::localization` and
 //! `auth::oauth` (MIT OR Apache-2.0).
-//! Copyright (c) 2024 Mark Hendrickson.
+//! Copyright (c) 2024 the audible_api author (github.com/cmarkh/audible_api).
 
 use std::collections::HashMap;
 use std::fmt;
