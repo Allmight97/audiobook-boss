@@ -37,10 +37,8 @@ mp4ameta = "0.13.0"
 bogon = "0.3"
 url = "2.5.8"
 percent-encoding = "2.3.2"
-# Bump together with the host crate, deliberately, and regenerate bindings.
-# pin: prerelease family whose generated TS contract changes between RCs; unpin when specta 2.0.0 is stable
-specta = "=2.0.0-rc.25"
-specta-typescript = "=0.0.12"
+specta.workspace = true
+specta-typescript.workspace = true
 keyring-core = "1.0.1"
 secrecy = "0.10.3"
 sha2 = "0.11.1"
