@@ -4,6 +4,15 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- The app is smaller. The bundled FFmpeg now builds only the formats ABB imports and writes; the
+  engine's release build shrank from 34 MB to 20 MB.
+- A file with an MP3, M4A, M4B, AAC, WAV, FLAC or MKA extension whose content is another format
+  (Ogg, AIFF, CAF, WMA, AC-3) no longer imports. ABB goes by what a file holds, not its name, so
+  such a renamed file used to import; it now shows as invalid. So does a WAV or MP4 whose audio
+  is a rare codec, such as AC-3 in an M4A.
+
 ## [1.18.2] - 2026-11-10
 
 ### Fixed

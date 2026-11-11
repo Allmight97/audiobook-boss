@@ -149,6 +149,68 @@ fn version() -> String {
 const FFMPEG_SOURCE_REVISION: &str = include_str!("ffmpeg-revision");
 const FFMPEG_SOURCE_PATCH: &str = "patches/mov-chapter-start.patch";
 
+const ABB_COMPONENTS: &[(&str, &[&str])] = &[
+    (
+        "demuxer",
+        &["aac", "flac", "matroska", "mov", "mp3", "wav"],
+    ),
+    (
+        "muxer",
+        &[
+            "adts",
+            "flac",
+            "ipod",
+            "matroska",
+            "mp3",
+            "mp4",
+            "wav",
+        ],
+    ),
+    (
+        "decoder",
+        &[
+            "aac",
+            "adpcm_ima_wav",
+            "adpcm_ms",
+            "alac",
+            "flac",
+            "mjpeg",
+            "mp1float",
+            "mp2float",
+            "mp3float",
+            "opus",
+            "pcm_alaw",
+            "pcm_f32le",
+            "pcm_f64le",
+            "pcm_mulaw",
+            "pcm_s16be",
+            "pcm_s16le",
+            "pcm_s24be",
+            "pcm_s24le",
+            "pcm_s32be",
+            "pcm_s32le",
+            "pcm_u8",
+            "vorbis",
+        ],
+    ),
+    ("encoder", &["aac", "mjpeg"]),
+    (
+        "parser",
+        &["aac", "flac", "mjpeg", "mpegaudio", "opus", "vorbis"],
+    ),
+    ("bsf", &["aac_adtstoasc"]),
+    ("protocol", &["file"]),
+];
+const ABB_APPLE_COMPONENTS: &[(&str, &[&str])] =
+    &[("decoder", &["aac_at"]), ("encoder", &["aac_at"])];
+const ABB_OPUS_COMPONENTS: &[(&str, &[&str])] = &[("encoder", &["libopus"])];
+
+fn enable_components(configure: &mut Command, components: &[(&str, &[&str])]) {
+    for (kind, names) in components {
+        configure.arg(format!("--enable-{kind}={}", names.join(",")));
+    }
+}
+
 fn source_commit() -> &'static str {
     FFMPEG_SOURCE_REVISION.trim()
 }
@@ -867,6 +929,18 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
 
     // do not generate documentation
     configure.arg("--disable-doc");
+
+    configure.arg("--disable-network");
+    configure.arg("--disable-everything");
+    enable_components(&mut configure, ABB_COMPONENTS);
+    if env::var("CARGO_FEATURE_BUILD_LIB_OPUS").is_ok() {
+        enable_components(&mut configure, ABB_OPUS_COMPONENTS);
+    }
+    if env::var("CARGO_FEATURE_BUILD_AUDIOTOOLBOX").is_ok()
+        && matches!(target_os.as_str(), "ios" | "macos" | "tvos")
+    {
+        enable_components(&mut configure, ABB_APPLE_COMPONENTS);
+    }
 
     macro_rules! enable {
         ($conf:expr, $feat:expr, $name:expr) => {

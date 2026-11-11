@@ -29,8 +29,7 @@ pub(crate) fn minimal_jpg_bytes() -> Vec<u8> {
 }
 
 /// Synthesizes one second of audio carrying a JPEG and a PNG picture
-/// (attached pictures in MP3, FLAC and M4B, attachments in Matroska), or for
-/// Opus one JPEG METADATA_BLOCK_PICTURE comment.
+/// (attached pictures in MP3, FLAC and M4B, attachments in Matroska).
 pub(crate) fn write_two_picture_fixture(dir: &Path, extension: &str) -> PathBuf {
     let path = dir.join(format!("two-pictures.{extension}"));
     let jpeg = MINIMAL_JPG;
@@ -59,10 +58,6 @@ pub(crate) fn write_two_picture_fixture(dir: &Path, extension: &str) -> PathBuf 
             args.push(png.clone().into());
             args.extend(["-metadata:s:t:1", "mimetype=image/png"].map(OsString::from));
             args.extend(["-metadata:s:t:1", "filename=back.png"].map(OsString::from));
-        }
-        "opus" => {
-            args.extend(["-c:a", "libopus", "-metadata"].map(OsString::from));
-            args.push(format!("METADATA_BLOCK_PICTURE={}", flac_picture_block_base64()).into());
         }
         _ => {
             args.extend(["-i", jpeg, "-i"].map(OsString::from));
@@ -94,21 +89,6 @@ pub(crate) fn write_two_picture_fixture(dir: &Path, extension: &str) -> PathBuf 
     args.push(path.clone().into());
     ffmpeg(args);
     path
-}
-
-pub(crate) fn flac_picture_block_base64() -> String {
-    use base64::Engine as _;
-    let jpeg = minimal_jpg_bytes();
-    let mut block = Vec::new();
-    block.extend_from_slice(&3u32.to_be_bytes());
-    block.extend_from_slice(&10u32.to_be_bytes());
-    block.extend_from_slice(b"image/jpeg");
-    for value in [0u32, 1, 1, 24, 0] {
-        block.extend_from_slice(&value.to_be_bytes());
-    }
-    block.extend_from_slice(&(jpeg.len() as u32).to_be_bytes());
-    block.extend_from_slice(&jpeg);
-    base64::engine::general_purpose::STANDARD.encode(block)
 }
 
 pub(crate) fn oversized_jpeg() -> Vec<u8> {

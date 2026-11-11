@@ -79,9 +79,9 @@ fn a_packet_knows_where_it_came_from_until_that_is_cleared() {
 fn an_output_named_only_by_its_file_takes_the_muxer_of_the_extension() {
     let dir = TempDir::new().expect("dir");
 
-    let output = Output::create_for_file_name(&dir.path().join("book.mka")).expect("create");
+    let output = Output::create_for_file_name(&dir.path().join("book.m4b")).expect("create");
 
-    assert_eq!(output.muxer_name(), "matroska");
+    assert_eq!(output.muxer_name(), "ipod");
 }
 
 #[test]

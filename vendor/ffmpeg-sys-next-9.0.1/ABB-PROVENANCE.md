@@ -58,6 +58,54 @@ ABB uses libavcodec, libavformat, and libswresample, so the build disables
 libavdevice, libavfilter, and libswscale. Resolved Rust dependency versions
 live in `Cargo.lock`.
 
+## Enabled components
+
+`build.rs` runs `configure` with `--disable-everything`, `--disable-network`,
+and the lists in `ABB_COMPONENTS` (plus `libopus` and, on Apple targets,
+`aac_at`). Why: ABB opens untrusted local files, and FFmpeg probes a file
+against every compiled demuxer. It never uses FFmpeg for network I/O (HTTP is
+ABB's own client). `configure` adds what its `select` rules require (the `mov`
+muxer behind `mp4` and `ipod`; the `ac3` parser, `pgs_frame_merge` and
+`vp9_superframe` filters behind the MP4 and Matroska muxers); those cannot be
+turned off from the command line.
+
+| Group | Components | The ABB path that needs it |
+| --- | --- | --- |
+| Demuxers | `mov`, `mp3`, `aac` (raw ADTS), `wav`, `flac`, `matroska` | One per import extension (`audio/extensions.rs`: m4a, m4b, mp3, aac, wav, flac, mka); `mov` also reads Audible AAX and AAXC with the license keys, and every ABB export |
+| Muxers | `mp4`, `ipod`, `matroska` | M4B, M4A Opus, MKA Opus output; `ipod` is what FFmpeg guesses from an `.m4b` or `.m4a` name (`Output::create_for_file_name`: a Preserve merge, always AAC). No `.mka` path reaches a guessed name, because a merge needs AAC sources and MKA output is Opus only |
+| Muxers | `mp3`, `flac`, `adts`, `wav` | A tag Save on an MP3, FLAC, raw AAC or WAV remuxes with the file's own container (`metadata/container.rs`) |
+| Decoders | `aac`, `aac_at` (Apple) | AAC import and verification; `aac_at` is an import candidate on macOS |
+| Decoders | `mp3float`, `mp2float`, `mp1float` | MP3 import (an `.mp3` may hold Layer I or II); `mp3float` is the decoder FFmpeg picks for MP3 |
+| Decoders | `flac`, `opus`, `vorbis`, `alac` | FLAC import; Opus, Vorbis, FLAC, ALAC inside MKA or M4A |
+| Decoders | `pcm_u8`, `pcm_s16le`, `pcm_s24le`, `pcm_s32le`, `pcm_f32le`, `pcm_f64le`, `pcm_s16be`, `pcm_s24be`, `pcm_s32be`, `pcm_alaw`, `pcm_mulaw`, `adpcm_ima_wav`, `adpcm_ms` | WAV import (the payloads its mainstream format tags name) and PCM in MKA or M4A |
+| Decoders | `mjpeg` | `avformat_find_stream_info` decodes a JPEG cover. Built without it, every file with a JPEG cover logged "Could not find codec parameters" and a FLAC tag Save wrote 0 instead of 24 as the picture's colour depth (checked on a FLAC with a JPEG cover) |
+| Encoders | `aac` (Native NMR), `aac_at` (Apple), `libopus` | The three encoders; FAAC is the separate `faac-sys` library |
+| Encoders | `mjpeg` | `metadata/cover_art/embedding.rs` refuses an MP4 cover whose codec has no encoder (`has_encoder_for`), so JPEG covers need it though ABB only copies them |
+| Parsers | `aac`, `mpegaudio`, `flac`, `opus`, `vorbis`, `mjpeg` | Packet durations and timing for each decoded codec |
+| Bitstream filters | `aac_adtstoasc` | Raw ADTS AAC muxed into MP4 or Matroska |
+| Protocols | `file` | `Input::open` and `Output::create` take local paths only |
+
+Dropped on purpose, so a file with a supported extension but another real
+format stops importing (it shows as invalid): Ogg, AIFF, CAF, ASF/WMA, and raw
+AC-3. Audible requests AAC-LC only (`mp4a.40.2`). Of the 98 audio codecs named
+in the WAV, MOV and Matroska tag tables, 68 have no decoder now; the ones a
+real file could hold, so listed as unsure: `ac3`, `eac3`, `aac_latm`,
+`mp3on4`, `pcm_s8`, `pcm_f32be`, `pcm_f64be`, `pcm_s64le`, `adpcm_ima_qt`
+(MOV `ima4`), `adpcm_g722`, `adpcm_g726`, `gsm`, `gsm_ms`, `ilbc`, `speex`,
+`wavpack`, `tta`, `truehd`, `mlp`, the `wma*` family, and the legacy
+RealAudio, ATRAC, Cook, Sipr and Nellymoser decoders. No PNG, GIF, BMP, or WebP
+decoder is built (PNG never was: `--disable-autodetect` removes zlib); FFmpeg
+logs a warning for such a cover and the import still works.
+
+Planned, not enabled: a PNG encoder for covers (#621 C4). Enabling it needs
+zlib and a decision on `image`.
+
+A change that adds an import extension, an output format, an encoder or a
+cover type extends `ABB_COMPONENTS` in the same change.
+`integration_media_import_formats_tests.rs` fails when a supported extension
+has no fixture recipe, and when a recipe no longer imports, decodes and
+encodes.
+
 Bundled cache reuse requires the source/patch identity and the effective build
 inputs: build-script contents, compiler/version, target, features, CPU flags,
 SDK/sysroot and relevant compiler environment. Rebuild notifications are emitted

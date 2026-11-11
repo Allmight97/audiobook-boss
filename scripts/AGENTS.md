@@ -37,6 +37,9 @@ recorded tool versions still invalidate it.
 - Audio, metadata writing, output artifacts, processing: `engine` and `media`.
   Fixtures are synthesized at test time. `media` also runs the verify-abb
   feature scripts through `scripts/abb-dev.sh`.
+  The `ffmpeg` and `ffprobe` on PATH are readback tools (Homebrew release 9.x
+  on macOS, which lacks the NMR coder), not ABB's encoder; run ABB's bundled
+  FFmpeg through `abb-dev`.
 - Apple AAC (`apple`, macOS only).
 - Audible decrypt: `engine` runs `integration_decrypt_tests`. Fixtures are
   synthesized at test time.

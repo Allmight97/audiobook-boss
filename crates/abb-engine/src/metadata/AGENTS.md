@@ -62,8 +62,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   explicit or passthrough cover replaces them. Matroska pictures are written
   back as attachments (its muxer drops attached-picture streams), and PNG
   pictures take their dimensions from the image header (the bundled FFmpeg has
-  no PNG decoder). Ogg cannot carry picture streams, so a Save of an Opus file
-  with an embedded picture fails and keeps the original.
+  no PNG decoder).
 - Pure intent, validation, naming, and write-plan facts live in
   `abb-metadata-core`; this directory owns container adapters and runtime file
   behavior.

@@ -103,6 +103,11 @@ read (dropped path, subfolder, entry, or file that fails
 walk continues. Unsupported extensions and nested symlinks are left out
 silently. The session decides what a skip means for the user.
 
+The bundled FFmpeg compiles only the components ABB's formats need, so a file
+whose content is another format fails to open even under a supported
+extension. A change to `SUPPORTED_AUDIO_FORMATS` extends that list in the same
+change (`vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md`, Enabled components).
+
 A file's duration is the length the selected decoder yields. When FFmpeg
 only estimates it from a bitrate (`Input::duration_is_estimated`: an MP3 without a
 length header, joined MP3 parts, raw ADTS, Matroska without a Duration),
