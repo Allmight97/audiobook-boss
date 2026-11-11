@@ -57,4 +57,4 @@ jobs:
           prompt: ${{ github.event_name == 'workflow_dispatch' && 'Reply with exactly AUTH_OK. Do not use tools, post comments, or modify files.' || '' }}
           # Both branches pin the model, so the manual auth check also proves access to it.
           # Inline empty value survives the pinned action's shell-argument parser.
-          claude_args: ${{ github.event_name == 'workflow_dispatch' && '--model opus --effort high --max-turns 1 --tools=' || '--model opus --effort high --append-system-prompt "Follow AGENTS.md at the repository root and the applicable nested AGENTS.md files. Review requests follow REVIEW.md."' }}
+          claude_args: ${{ github.event_name == 'workflow_dispatch' && '--model fable --effort medium --max-turns 1 --tools=' || '--model fable --effort medium --append-system-prompt "Follow AGENTS.md at the repository root and the applicable nested AGENTS.md files. Review requests follow REVIEW.md."' }}
