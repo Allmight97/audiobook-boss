@@ -205,10 +205,47 @@ const ABB_APPLE_COMPONENTS: &[(&str, &[&str])] =
     &[("decoder", &["aac_at"]), ("encoder", &["aac_at"])];
 const ABB_OPUS_COMPONENTS: &[(&str, &[&str])] = &[("encoder", &["libopus"])];
 
-fn enable_components(configure: &mut Command, components: &[(&str, &[&str])]) {
-    for (kind, names) in components {
+type ComponentList = &'static [(&'static str, &'static [&'static str])];
+
+fn abb_components(target_os: &str) -> Vec<ComponentList> {
+    let mut lists = vec![ABB_COMPONENTS];
+    if env::var("CARGO_FEATURE_BUILD_LIB_OPUS").is_ok() {
+        lists.push(ABB_OPUS_COMPONENTS);
+    }
+    if env::var("CARGO_FEATURE_BUILD_AUDIOTOOLBOX").is_ok()
+        && matches!(target_os, "ios" | "macos" | "tvos")
+    {
+        lists.push(ABB_APPLE_COMPONENTS);
+    }
+    lists
+}
+
+fn enable_components(configure: &mut Command, lists: &[ComponentList]) {
+    for (kind, names) in lists.iter().copied().flatten() {
         configure.arg(format!("--enable-{kind}={}", names.join(",")));
     }
+}
+
+/// `configure` only warns about a name it does not know and disables a
+/// component whose dependencies are missing, so a renamed or removed component
+/// would drop out of the build silently.
+fn components_configure_left_out(config_components: &str, lists: &[ComponentList]) -> Vec<String> {
+    let enabled: Vec<&str> = config_components.lines().map(str::trim).collect();
+    lists
+        .iter()
+        .copied()
+        .flatten()
+        .flat_map(|(kind, names)| names.iter().map(move |name| (*kind, *name)))
+        .filter(|(kind, name)| {
+            let define = format!(
+                "#define CONFIG_{}_{} 1",
+                name.to_uppercase(),
+                kind.to_uppercase()
+            );
+            !enabled.contains(&define.as_str())
+        })
+        .map(|(kind, name)| format!("{kind} {name}"))
+        .collect()
 }
 
 fn source_commit() -> &'static str {
@@ -932,15 +969,8 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
 
     configure.arg("--disable-network");
     configure.arg("--disable-everything");
-    enable_components(&mut configure, ABB_COMPONENTS);
-    if env::var("CARGO_FEATURE_BUILD_LIB_OPUS").is_ok() {
-        enable_components(&mut configure, ABB_OPUS_COMPONENTS);
-    }
-    if env::var("CARGO_FEATURE_BUILD_AUDIOTOOLBOX").is_ok()
-        && matches!(target_os.as_str(), "ios" | "macos" | "tvos")
-    {
-        enable_components(&mut configure, ABB_APPLE_COMPONENTS);
-    }
+    let components = abb_components(&target_os);
+    enable_components(&mut configure, &components);
 
     macro_rules! enable {
         ($conf:expr, $feat:expr, $name:expr) => {
@@ -1172,6 +1202,17 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
             String::from_utf8_lossy(&output.stderr)
         )));
     }
+    let left_out = components_configure_left_out(
+        &fs::read_to_string(source_dir.join("config_components.h"))?,
+        &components,
+    );
+    assert!(
+        left_out.is_empty(),
+        "FFmpeg configure did not enable these ABB_COMPONENTS entries (renamed, removed, or \
+         missing a dependency; see ffbuild/config.log in {}): {}",
+        source_dir.display(),
+        left_out.join(", ")
+    );
 
     // run make
     if !Command::new("make")

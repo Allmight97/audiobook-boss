@@ -76,7 +76,10 @@ against every compiled demuxer. It never uses FFmpeg for network I/O (HTTP is
 ABB's own client). `configure` adds what its `select` rules require (the `mov`
 muxer behind `mp4` and `ipod`; the `ac3` parser, `pgs_frame_merge` and
 `vp9_superframe` filters behind the MP4 and Matroska muxers); those cannot be
-turned off from the command line.
+turned off from the command line. `configure` only warns about a name it does
+not know and quietly disables a component whose dependency is missing, so
+`build.rs` then reads `config_components.h` and fails the build, naming each
+listed component it does not find enabled.
 
 | Group | Components | The ABB path that needs it |
 | --- | --- | --- |
