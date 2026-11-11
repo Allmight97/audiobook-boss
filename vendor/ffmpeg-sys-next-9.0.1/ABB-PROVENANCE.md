@@ -35,14 +35,19 @@ What ABB relies on in that source:
 `bun run ffmpeg:upstream` lists the commits after the pin that touch
 `configure`, libavcodec, libavformat, libavutil or libswresample, leaving out
 each source file that both the pin's and master's Makefiles compile only for
-components ABB does not build, and names the newest BtbN autobuild with its
-master commit. Read it before choosing the new commit. Blind spot: `ffbuild/`,
-`compat/` and the top-level Makefile are not watched, and neither is a left-out
-source file that a built file includes directly.
+components ABB does not build. Read it before choosing the new commit. Blind
+spot: `ffbuild/`, `compat/` and the top-level Makefile are not watched, and
+neither is a left-out source file that a built file includes directly.
+The scheduled workflow `.github/workflows/ffmpeg-upstream.yml` runs it with
+`--issue`: one open GitHub issue titled "FFmpeg upstream: changes since the
+pin" holds the list while any commit is relevant, and the run closes it when
+none is. The watcher does not read BtbN; step 1 below finds the autobuild.
 
 1. Write the new commit to `ffmpeg-revision`, and move `ffmpeg_cli_release` and
    `ffmpeg_cli_build` in `scripts/setup.sh` to the BtbN master autobuild of
-   that commit. `scripts/setup-pins.test.ts` enforces the pairing: the build
+   that commit: the `autobuild-` release in `FFmpeg-Builds/FFmpeg-Builds`
+   whose `linux64-gpl` asset names the commit's short hash, so pick a commit
+   that has one. `scripts/setup-pins.test.ts` enforces the pairing: the build
    id's `g` suffix must be a prefix of `ffmpeg-revision`, and the installer
    must download `ffmpeg_cli_release` when the tools folder holds a different
    FFmpeg 9. Then run `bash scripts/setup.sh rust` to fetch the source and

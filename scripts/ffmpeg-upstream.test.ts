@@ -3,13 +3,17 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
-	newestAutobuild,
+	decideIssueAction,
+	type Gh,
+	ISSUE_TITLE,
+	issueBody,
 	objectConditions,
 	parseCommits,
 	parseComponents,
 	registeredComponents,
 	renderReport,
 	type Report,
+	syncIssue,
 	unbuiltSources,
 	watchedPathspecs,
 } from './ffmpeg-upstream';
@@ -201,38 +205,11 @@ describe('commits', () => {
 	});
 });
 
-describe('the BtbN autobuild', () => {
-	it('skips the moving latest tag and names the master asset with its commit', () => {
-		expect(
-			newestAutobuild([
-				{ tag: 'latest', assets: ['ffmpeg-N-1-g1111111-linux64-gpl.tar.xz'] },
-				{
-					tag: 'autobuild-2026-11-10-12-39',
-					assets: [
-						'ffmpeg-N-128728-g49a3b1f259-linux64-gpl-shared.tar.xz',
-						'ffmpeg-N-128728-g49a3b1f259-linux64-gpl.tar.xz',
-						'ffmpeg-n9.0.2-48-gd4070a14ce-linux64-gpl-9.0.tar.xz',
-					],
-				},
-			]),
-		).toEqual({
-			tag: 'autobuild-2026-11-10-12-39',
-			asset: 'ffmpeg-N-128728-g49a3b1f259-linux64-gpl.tar.xz',
-			builtFrom: '49a3b1f259',
-		});
-	});
-
-	it('finds none when no release has a master asset', () => {
-		expect(newestAutobuild([{ tag: 'latest', assets: [] }])).toBeNull();
-	});
-});
-
 describe('the report', () => {
 	const base: Report = {
 		pin: '49a3b1f259e1c34033bf6cca4091a4cb07ebf90d',
 		head: '1111111111111111111111111111111111111111',
 		commits: [],
-		autobuild: { found: null },
 	};
 
 	it('says so when nothing relevant changed', () => {
@@ -243,26 +220,118 @@ describe('the report', () => {
 		const text = renderReport({
 			...base,
 			commits: [{ hash: 'abcdef0123456789', date: '2026-11-10', subject: 'aac | fix' }],
-			autobuild: {
-				found: {
-					tag: 'autobuild-2026-11-10-12-39',
-					asset: 'ffmpeg-N-1-g1111111-linux64-gpl.tar.xz',
-					builtFrom: '1111111',
-				},
-			},
 		});
 		expect(text).toContain('| `abcdef0123` | 2026-11-10 | aac \\| fix |');
 		expect(text).not.toContain('no relevant upstream changes');
-		expect(text).toContain('built from master head');
+		expect(text).not.toContain('BtbN');
+	});
+});
+
+describe('the issue', () => {
+	const checkedAt = new Date('2026-11-11T17:37:45Z');
+	const commit = { hash: 'abcdef0123456789', date: '2026-11-10', subject: 'aac: fix' };
+	const report: Report = {
+		pin: '49a3b1f259e1c34033bf6cca4091a4cb07ebf90d',
+		head: '1111111111111111111111111111111111111111',
+		commits: [commit],
+	};
+	const open = (body: string) => ({ number: 634, title: ISSUE_TITLE, body });
+
+	it('opens with the check time and pin, then the next action, then the report', () => {
+		const lines = issueBody(report, checkedAt).split('\n');
+		expect(lines[0]).toBe('Checked 2026-11-11 17:37 UTC against pin 49a3b1f259.');
+		expect(lines[2]).toMatch(/^Next action: decide whether to move the pin/);
+		expect(lines[4]).toBe('# FFmpeg upstream watch');
 	});
 
-	it('keeps the commits when the autobuilds could not be read', () => {
-		const text = renderReport({
-			...base,
-			commits: [{ hash: 'abcdef0123456789', date: '2026-11-10', subject: 'aac: fix' }],
-			autobuild: { error: 'HTTP 502' },
+	it('creates the issue when commits exist and none is open', () => {
+		expect(decideIssueAction(report, undefined, checkedAt)).toEqual({
+			kind: 'create',
+			body: issueBody(report, checkedAt),
 		});
-		expect(text).toContain('| `abcdef0123` | 2026-11-10 | aac: fix |');
-		expect(text).toContain('autobuild: could not read (HTTP 502)');
+	});
+
+	it('leaves the issue alone when the pin and commits match, even if the head moved', () => {
+		const older = issueBody(
+			{ ...report, head: '2222222222222222222222222222222222222222' },
+			new Date('2026-11-09T00:00:00Z'),
+		);
+		expect(decideIssueAction(report, open(older), checkedAt)).toEqual({
+			kind: 'unchanged',
+			number: 634,
+		});
+	});
+
+	it('updates the issue when a commit is added or the pin moves', () => {
+		const older = issueBody(report, checkedAt);
+		const more = { ...report, commits: [{ ...commit, hash: 'fff0001112223334' }, commit] };
+		expect(decideIssueAction(more, open(older), checkedAt).kind).toBe('update');
+		const moved = { ...report, pin: '9bee1e603c000000000000000000000000000000' };
+		expect(decideIssueAction(moved, open(older), checkedAt).kind).toBe('update');
+	});
+
+	it('closes an open issue when no commits remain, and does nothing when none is open', () => {
+		const clean = { ...report, commits: [] };
+		expect(decideIssueAction(clean, open('x'), checkedAt)).toEqual({ kind: 'close', number: 634 });
+		expect(decideIssueAction(clean, undefined, checkedAt)).toEqual({ kind: 'none' });
+	});
+
+	describe('through gh', () => {
+		function fakeGh(listing: string) {
+			const calls: { args: string[]; input?: string }[] = [];
+			const gh: Gh = (args, input) => {
+				calls.push({ args, input });
+				if (args.includes('POST')) return '{"number":700}';
+				return args.includes('--paginate') ? listing : '';
+			};
+			return { gh, calls };
+		}
+		const listing = (title: string, body: string) =>
+			`${JSON.stringify({ number: 5, title: 'other', body: '' })}\n${JSON.stringify({ number: 634, title, body })}\n`;
+
+		it('creates through REST when no open issue has the title', () => {
+			const { gh, calls } = fakeGh(listing('another title', ''));
+			expect(syncIssue(report, gh, 'o/r', checkedAt)).toBe('created issue #700');
+			expect(calls[1].args).toEqual([
+				'api',
+				'--method',
+				'POST',
+				'repos/o/r/issues',
+				'--input',
+				'-',
+			]);
+			expect(JSON.parse(calls[1].input ?? '')).toEqual({
+				title: ISSUE_TITLE,
+				body: issueBody(report, checkedAt),
+			});
+		});
+
+		it('patches the body of the issue with the title when the commits differ', () => {
+			const { gh, calls } = fakeGh(listing(ISSUE_TITLE, 'Checked x UTC against pin 1.'));
+			expect(syncIssue(report, gh, 'o/r', checkedAt)).toBe('updated issue #634');
+			expect(calls[1].args.slice(0, 4)).toEqual([
+				'api',
+				'--method',
+				'PATCH',
+				'repos/o/r/issues/634',
+			]);
+		});
+
+		it('writes nothing when the issue is current', () => {
+			const { gh, calls } = fakeGh(listing(ISSUE_TITLE, issueBody(report, checkedAt)));
+			expect(syncIssue(report, gh, 'o/r', checkedAt)).toBe(
+				'issue #634 already lists these commits',
+			);
+			expect(calls).toHaveLength(1);
+		});
+
+		it('closes as completed when no commits remain', () => {
+			const { gh, calls } = fakeGh(listing(ISSUE_TITLE, 'x'));
+			syncIssue({ ...report, commits: [] }, gh, 'o/r', checkedAt);
+			expect(JSON.parse(calls[1].input ?? '')).toEqual({
+				state: 'closed',
+				state_reason: 'completed',
+			});
+		});
 	});
 });

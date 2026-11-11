@@ -2,7 +2,7 @@
  * What changed in FFmpeg master since ABB's pinned commit, in the sources
  * ABB's build can compile.
  *
- * Usage: bun run ffmpeg:upstream
+ * Usage: bun run ffmpeg:upstream [--issue]
  *
  * Reads the pin from `vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision` and the
  * built components (the lists in that crate's `build.rs`, `CONFIGURE_SELECTED`
@@ -10,10 +10,12 @@
  * `target/abb-ffmpeg-upstream/` (reused across runs) and lists the commits
  * after the pin that touch `configure`, libavcodec, libavformat, libavutil or
  * libswresample, leaving out a source file that the pin's and master's
- * Makefiles assign only to components ABB does not build. Then says whether
- * the newest BtbN autobuild was built from master head (`gh api` reads its
- * releases over REST; cloud sessions block GraphQL). Prints a Markdown report;
- * exits non-zero when it could not read the autobuilds.
+ * Makefiles assign only to components ABB does not build. Prints a Markdown
+ * report. With `--issue` it instead keeps one open issue current through
+ * `gh api` (REST only; cloud sessions block GraphQL): the issue exists while
+ * relevant commits exist, and its body changes only when the pin or the
+ * commit list changes. The scheduled workflow
+ * `.github/workflows/ffmpeg-upstream.yml` runs it.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -21,7 +23,9 @@ import path from 'node:path';
 
 const SYS_CRATE = 'vendor/ffmpeg-sys-next-9.0.1';
 const UPSTREAM_URL = 'https://github.com/FFmpeg/FFmpeg.git';
-const BTBN_REPO = 'BtbN/FFmpeg-Builds';
+export const ISSUE_TITLE = 'FFmpeg upstream: changes since the pin';
+const NEXT_ACTION =
+	'Next action: decide whether to move the pin (procedure: vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md, Moving the pin).';
 const CACHE_DIRECTORY = 'target/abb-ffmpeg-upstream';
 
 const WATCHED_ROOTS = ['configure', 'libavcodec', 'libavformat', 'libavutil', 'libswresample'];
@@ -47,24 +51,15 @@ export interface Commit {
 	subject: string;
 }
 
-export interface Autobuild {
-	tag: string;
-	asset: string;
-	builtFrom: string;
-}
-
 export interface Makefile {
 	library: string;
 	text: string;
 }
 
-export type AutobuildRead = { found: Autobuild | null } | { error: string };
-
 export interface Report {
 	pin: string;
 	head: string;
 	commits: Commit[];
-	autobuild: AutobuildRead;
 }
 
 export function parseComponents(buildRs: string): Component[] {
@@ -157,18 +152,6 @@ export function parseCommits(log: string): Commit[] {
 		});
 }
 
-export function newestAutobuild(releases: { tag: string; assets: string[] }[]): Autobuild | null {
-	for (const { tag, assets } of releases.filter((release) =>
-		release.tag.startsWith('autobuild-'),
-	)) {
-		for (const asset of assets) {
-			const match = /^ffmpeg-N-\d+-g([0-9a-f]+)-linux64-gpl\.tar\.xz$/.exec(asset);
-			if (match) return { tag, asset, builtFrom: match[1] };
-		}
-	}
-	return null;
-}
-
 export function renderReport(report: Report): string {
 	const lines = [
 		'# FFmpeg upstream watch',
@@ -190,28 +173,16 @@ export function renderReport(report: Report): string {
 			),
 		);
 	}
-	lines.push('', '## BtbN autobuild', '');
-	if ('error' in report.autobuild) {
-		lines.push(`autobuild: could not read (${report.autobuild.error})`);
-	} else if (!report.autobuild.found) {
-		lines.push('No autobuild release with a linux64-gpl master asset found.');
-	} else {
-		const { tag, asset, builtFrom } = report.autobuild.found;
-		lines.push(
-			report.head.startsWith(builtFrom)
-				? `\`${tag}\` has \`${asset}\`, built from master head (\`${builtFrom}\`).`
-				: `\`${tag}\` has \`${asset}\`, built from \`${builtFrom}\`, not master head.`,
-		);
-	}
 	return lines.join('\n');
 }
 
-function run(file: string, args: string[], cwd?: string): string {
+function run(file: string, args: string[], cwd?: string, input?: string): string {
 	return execFileSync(file, args, {
 		cwd,
+		input,
 		encoding: 'utf8',
 		maxBuffer: 64 * 1024 * 1024,
-		stdio: ['ignore', 'pipe', 'inherit'],
+		stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'inherit'],
 	}).trim();
 }
 
@@ -261,26 +232,105 @@ function readMakefiles(
 	return { registries, makefiles, files };
 }
 
-function readAutobuild(): AutobuildRead {
-	try {
-		const releases = JSON.parse(
-			execFileSync(
-				'gh',
-				[
-					'api',
-					`repos/${BTBN_REPO}/releases?per_page=10`,
-					'--jq',
-					'[.[] | {tag: .tag_name, assets: [.assets[].name]}]',
-				],
-				{ encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-			),
-		) as { tag: string; assets: string[] }[];
-		return { found: newestAutobuild(releases) };
-	} catch (error) {
-		const stderr = (error as { stderr?: string }).stderr?.trim();
-		const reason = stderr || (error instanceof Error ? error.message : String(error));
-		return { error: reason.split('\n')[0] };
+export type Gh = (args: string[], input?: string) => string;
+
+export interface OpenIssue {
+	number: number;
+	title: string;
+	body: string;
+}
+
+export type IssueAction =
+	| { kind: 'create'; body: string }
+	| { kind: 'update'; number: number; body: string }
+	| { kind: 'close'; number: number }
+	| { kind: 'unchanged'; number: number }
+	| { kind: 'none' };
+
+export function issueBody(report: Report, checkedAt: Date): string {
+	const stamp = checkedAt.toISOString().slice(0, 16).replace('T', ' ');
+	return [
+		`Checked ${stamp} UTC against pin ${report.pin.slice(0, 10)}.`,
+		NEXT_ACTION,
+		renderReport(report),
+	].join('\n\n');
+}
+
+function listedState(body: string): { pin: string | undefined; commits: string[] } {
+	return {
+		pin: /^Checked .* against pin (\w+)\./.exec(body)?.[1],
+		commits: [...body.matchAll(/^\| `(\w+)` \|/gm)].map(([, hash]) => hash),
+	};
+}
+
+export function decideIssueAction(
+	report: Report,
+	issue: OpenIssue | undefined,
+	checkedAt: Date,
+): IssueAction {
+	if (report.commits.length === 0) {
+		return issue ? { kind: 'close', number: issue.number } : { kind: 'none' };
 	}
+	const body = issueBody(report, checkedAt);
+	if (!issue) return { kind: 'create', body };
+	const listed = listedState(issue.body);
+	const current = listedState(body);
+	const same =
+		listed.pin === current.pin &&
+		listed.commits.length === current.commits.length &&
+		listed.commits.every((hash, index) => hash === current.commits[index]);
+	return same
+		? { kind: 'unchanged', number: issue.number }
+		: { kind: 'update', number: issue.number, body };
+}
+
+export function syncIssue(report: Report, gh: Gh, slug: string, checkedAt: Date): string {
+	const openIssues = gh([
+		'api',
+		'--paginate',
+		`repos/${slug}/issues?state=open&per_page=100`,
+		'--jq',
+		'.[] | select(.pull_request == null) | {number, title, body: (.body // "")}',
+	])
+		.split('\n')
+		.filter((line) => line.length > 0)
+		.map((line) => JSON.parse(line) as OpenIssue);
+	const issue = openIssues.find((candidate) => candidate.title === ISSUE_TITLE);
+	const action = decideIssueAction(report, issue, checkedAt);
+	switch (action.kind) {
+		case 'create': {
+			const created = JSON.parse(
+				gh(
+					['api', '--method', 'POST', `repos/${slug}/issues`, '--input', '-'],
+					JSON.stringify({ title: ISSUE_TITLE, body: action.body }),
+				),
+			) as { number: number };
+			return `created issue #${created.number}`;
+		}
+		case 'update':
+			gh(
+				['api', '--method', 'PATCH', `repos/${slug}/issues/${action.number}`, '--input', '-'],
+				JSON.stringify({ body: action.body }),
+			);
+			return `updated issue #${action.number}`;
+		case 'close':
+			gh(
+				['api', '--method', 'PATCH', `repos/${slug}/issues/${action.number}`, '--input', '-'],
+				JSON.stringify({ state: 'closed', state_reason: 'completed' }),
+			);
+			return `closed issue #${action.number}`;
+		case 'unchanged':
+			return `issue #${action.number} already lists these commits`;
+		case 'none':
+			return 'no relevant upstream changes and no open issue';
+	}
+}
+
+function repoSlug(): string {
+	return (
+		process.env.GITHUB_REPOSITORY ||
+		run('gh', ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'])
+	);
 }
 
 function buildReport(repoRoot: string): Report {
@@ -299,14 +349,21 @@ function buildReport(repoRoot: string): Report {
 			cache,
 		),
 	);
-	return { pin, head, commits, autobuild: readAutobuild() };
+	return { pin, head, commits };
 }
 
 if (import.meta.main) {
 	try {
+		const flags = process.argv.slice(2);
+		if (flags.some((flag) => flag !== '--issue'))
+			throw new Error(`Unknown argument: ${flags.join(' ')}`);
 		const report = buildReport(path.resolve(import.meta.dirname, '..'));
-		console.log(renderReport(report));
-		if ('error' in report.autobuild) process.exit(1);
+		if (flags.includes('--issue')) {
+			const gh: Gh = (args, input) => run('gh', args, undefined, input);
+			console.log(syncIssue(report, gh, repoSlug(), new Date()));
+		} else {
+			console.log(renderReport(report));
+		}
 	} catch (error) {
 		console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
 		process.exit(1);
