@@ -1,6 +1,6 @@
+use super::super::auth::{Auth, Locale, Registration};
 use super::*;
 use crate::remote_source::test_support::{Reply, StubServer};
-use audible_api::auth::{localization, Auth};
 use serde_json::json;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -14,8 +14,8 @@ fn fixture_auth_with_cookies(cookies: &[(&str, &str)], store_cookie: &str) -> Au
         .map(|(name, value)| (name.to_string(), value.to_string()))
         .collect::<std::collections::HashMap<_, _>>();
     Auth {
-        locale: localization::find_by_country_code(super::super::COUNTRY_CODE).expect("locale"),
-        device_registration: audible_api::auth::register::Registration {
+        locale: Locale::united_states(),
+        device_registration: Registration {
             device_serial: "device-serial".to_string(),
             client_id: "client-id".to_string(),
             adp_token: "adp-token".to_string(),

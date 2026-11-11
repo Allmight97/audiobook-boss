@@ -46,7 +46,7 @@ secrecy = "0.10.3"
 sha2 = "0.11.1"
 rsa = { version = "0.9.10", features = ["sha2"] }
 base64 = "0.23.1"
-audible_api = "0.1.0"
+getrandom = "0.4.3"
 
 # Platform-native OS credential stores, registered directly through keyring-core
 # (see remote_source/vault.rs).

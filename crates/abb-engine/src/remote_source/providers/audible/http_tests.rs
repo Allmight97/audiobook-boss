@@ -1,13 +1,12 @@
+use super::super::auth::{Locale, Registration};
 use super::*;
 use crate::remote_source::test_support::{Reply, StubServer};
-use audible_api::auth::localization;
-use audible_api::auth::register::Registration;
 use serde_json::json;
 use std::collections::HashMap;
 
-pub(in crate::remote_source::providers::audible) fn signing_auth(country_code: &str) -> Auth {
+pub(in crate::remote_source::providers::audible) fn signing_auth() -> Auth {
     Auth {
-        locale: localization::find_by_country_code(country_code).expect("locale"),
+        locale: Locale::united_states(),
         device_registration: Registration {
             device_serial: "device-serial".to_string(),
             client_id: "client-id".to_string(),
@@ -40,7 +39,7 @@ pub(in crate::remote_source::providers::audible) async fn stub_api(
 
 async fn stub_http(replies: Vec<Reply>) -> (AudibleApi, StubServer) {
     let server = StubServer::start(replies).await;
-    let api = AudibleApi::at(&signing_auth("us"), server.url()).expect("Audible client");
+    let api = AudibleApi::at(&signing_auth(), server.url()).expect("Audible client");
     (api, server)
 }
 
@@ -55,7 +54,10 @@ fn library_page(first_id: usize, count: usize) -> String {
 
 #[test]
 fn requests_go_to_the_signed_in_marketplace() {
-    let api = AudibleApi::new(&signing_auth("uk")).expect("Audible client");
+    let mut auth = signing_auth();
+    auth.locale.domain = "co.uk".to_string();
+
+    let api = AudibleApi::new(&auth).expect("Audible client");
 
     assert_eq!(api.base_url, "https://api.audible.co.uk");
 }

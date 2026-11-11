@@ -4,10 +4,9 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use audible_api::auth::oauth::build_client_id;
-use audible_api::auth::register::Registration;
 use serde_json::{json, Value};
 
+use super::auth::{build_client_id, Registration};
 use super::{provider_private_failure, AUDIBLE_IOS_DEVICE_TYPE};
 use crate::errors::Result;
 

@@ -1,6 +1,6 @@
 use std::time::{Duration, SystemTime};
 
-use audible_api::auth::Auth;
+use super::auth::Auth;
 use reqwest::header::{self, HeaderMap, HeaderValue};
 use reqwest::redirect::Policy;
 use serde_json::Value;

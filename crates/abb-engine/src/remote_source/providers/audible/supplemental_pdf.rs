@@ -1,4 +1,4 @@
-use audible_api::auth::Auth;
+use super::auth::Auth;
 use reqwest::header::{HeaderValue, ACCEPT, COOKIE, LOCATION, USER_AGENT};
 use std::path::Path;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

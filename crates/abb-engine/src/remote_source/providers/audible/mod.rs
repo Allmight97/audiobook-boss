@@ -1,12 +1,11 @@
 use std::collections::HashSet;
 
-use audible_api::auth::oauth::{build_oauth_url, extract_auth_code};
-use audible_api::auth::{localization, Auth};
 use secrecy::{ExposeSecret, SecretString};
 use serde_json::{json, Value};
 
 pub(super) mod acquisition;
 mod audio_download;
+mod auth;
 mod decrypt;
 mod diagnostics;
 mod http;
@@ -21,6 +20,8 @@ mod signing;
 mod supplemental_pdf;
 
 use acquisition::acquire;
+pub(in crate::remote_source) use auth::Auth;
+use auth::{extract_auth_code, new_code_verifier, oauth_url, Locale};
 use http::{ApiCall, AudibleApi};
 pub(in crate::remote_source) use http::{AudibleRequestError, SIGN_IN_REJECTED_MESSAGE};
 use library::parse_library_titles;
@@ -67,18 +68,10 @@ impl AudibleProvider {
     }
 
     pub(in crate::remote_source) fn start_auth() -> Result<(String, PendingAudibleAuth)> {
-        let (url, code_verifier, device_serial) = build_oauth_url(
-            COUNTRY_CODE,
-            DOMAIN,
-            MARKETPLACE_ID,
-            Some(registration::new_device_serial()),
-            false,
-        )
-        .map_err(|error| {
-            AppError::General(format!("Failed to start Audible auth flow: {error}"))
-        })?;
+        let code_verifier = new_code_verifier()?;
+        let device_serial = registration::new_device_serial();
         Ok((
-            url,
+            oauth_url(&code_verifier, &device_serial),
             PendingAudibleAuth {
                 code_verifier,
                 device_serial,
@@ -102,10 +95,8 @@ impl AudibleProvider {
             &pending.device_serial,
         )
         .await?;
-        let locale = localization::find_by_country_code(COUNTRY_CODE)
-            .ok_or_else(|| AppError::General("Audible locale is unavailable".to_string()))?;
         let auth = Auth {
-            locale,
+            locale: Locale::united_states(),
             device_registration: registration,
             authorization_code,
             code_verifier: pending.code_verifier,
@@ -288,7 +279,7 @@ pub(super) fn auth_from_vault(vault: &dyn SecretVault) -> Result<Auth> {
 }
 
 fn extract_audible_auth_code(response_url: &str) -> Result<String> {
-    extract_auth_code(response_url).map_err(|_| {
+    extract_auth_code(response_url).ok_or_else(|| {
         AppError::InvalidInput(
             "Audible auth response URL was not accepted. Provide the final Amazon redirect URL saved by the auth handoff."
                 .to_string(),

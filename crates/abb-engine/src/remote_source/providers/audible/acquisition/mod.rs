@@ -6,6 +6,7 @@ mod supplemental;
 mod validation;
 
 use super::audio_download::download_audio;
+use super::auth::Auth;
 use super::diagnostics::AudibleAcquisitionError;
 use super::http::AudibleApi;
 use super::license::{
@@ -24,7 +25,6 @@ use crate::remote_source::{
 use abb_audible_core::AudibleDecryptionMaterial;
 use abb_audible_core::{title_ref, AudibleLicenseDecryptContext};
 use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage};
-use audible_api::auth::Auth;
 
 pub(super) struct AcquiredTitle {
     pub(super) file: Option<MaterializedSourceFile>,

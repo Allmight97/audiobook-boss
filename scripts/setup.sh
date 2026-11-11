@@ -357,7 +357,7 @@ check_frontend() {
 linux_rust_packages=(
 	build-essential clang mold nasm pkg-config libopus-dev
 	libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev librsvg2-dev
-	libssl-dev shellcheck
+	shellcheck
 )
 
 missing_apt_packages() {
