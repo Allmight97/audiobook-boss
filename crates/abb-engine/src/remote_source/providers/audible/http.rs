@@ -1,11 +1,12 @@
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
-use audible_api::api::Client as AudibleClient;
-use audible_api::auth::Auth;
+use super::auth::Auth;
+use reqwest::header::{self, HeaderMap, HeaderValue};
 use reqwest::redirect::Policy;
 use serde_json::Value;
 
 use super::provider_private_failure;
+use super::signing::{adp_date, AdpSigner};
 use crate::errors::{AppError, Result};
 use abb_audible_core::title_ref;
 
@@ -62,26 +63,35 @@ impl AudibleRequestError {
 }
 
 pub(super) struct AudibleApi {
-    client: AudibleClient,
+    client: reqwest::Client,
+    signer: AdpSigner,
     base_url: String,
-    builder: audible_reqwest::Client,
 }
 
 impl AudibleApi {
-    pub(super) fn new(auth: Auth) -> Result<Self> {
-        let base_url = format!("{AUDIBLE_API_HOST_PREFIX}{}", auth.locale.domain);
-        let client = AudibleClient::new(auth).map_err(|error| {
-            AppError::General(format!("Failed to create Audible client: {error}"))
-        })?;
-        Ok(Self::with_client(client, base_url))
+    pub(super) fn new(auth: &Auth) -> Result<Self> {
+        Self::at(
+            auth,
+            format!("{AUDIBLE_API_HOST_PREFIX}{}", auth.locale.domain),
+        )
     }
 
-    pub(super) fn with_client(client: AudibleClient, base_url: String) -> Self {
-        Self {
+    fn at(auth: &Auth, base_url: String) -> Result<Self> {
+        let registration = &auth.device_registration;
+        let signer = AdpSigner::new(&registration.adp_token, &registration.device_private_key)?;
+        log::info!(
+            "remote_source audible stage=device_key key_bits={}",
+            signer.key_bits()
+        );
+        let client = reqwest::Client::builder()
+            .default_headers(api_default_headers())
+            .build()
+            .map_err(|_| provider_private_failure("API client"))?;
+        Ok(Self {
             client,
+            signer,
             base_url,
-            builder: audible_reqwest::Client::new(),
-        }
+        })
     }
 
     pub(super) fn marketplace_domain(&self) -> &str {
@@ -97,7 +107,7 @@ impl AudibleApi {
         call: ApiCall<'_>,
     ) -> std::result::Result<Value, AudibleRequestError> {
         let request = self
-            .builder
+            .client
             .get(format!("{}{path}", self.base_url))
             .query(query);
         self.send(request, call).await
@@ -110,7 +120,7 @@ impl AudibleApi {
         call: ApiCall<'_>,
     ) -> std::result::Result<Value, AudibleRequestError> {
         let request = self
-            .builder
+            .client
             .post(format!("{}{path}", self.base_url))
             .json(body);
         self.send(request, call).await
@@ -118,15 +128,30 @@ impl AudibleApi {
 
     async fn send(
         &self,
-        request: audible_reqwest::RequestBuilder,
+        request: reqwest::RequestBuilder,
         call: ApiCall<'_>,
     ) -> std::result::Result<Value, AudibleRequestError> {
         let stage = call.stage;
-        let request = request
+        let mut request = request
             .timeout(API_REQUEST_TIMEOUT)
             .build()
             .map_err(|_| provider_private_failure(&format!("{stage} construction")))?;
-        let response = self.client.send_request(request).await.map_err(|_| {
+        let signed_path = request
+            .url()
+            .as_str()
+            .strip_prefix(&self.base_url)
+            .ok_or_else(|| provider_private_failure(&format!("{stage} path")))?;
+        let signed = self.signer.headers(
+            request.method().as_str(),
+            signed_path,
+            request
+                .body()
+                .and_then(reqwest::Body::as_bytes)
+                .unwrap_or_default(),
+            &adp_date(SystemTime::now()),
+        )?;
+        request.headers_mut().extend(signed);
+        let response = self.client.execute(request).await.map_err(|_| {
             log::warn!(
                 "remote_source audible stage=api_request_failed {}",
                 call.log_fields()
@@ -147,6 +172,18 @@ impl AudibleApi {
             .map_err(|_| provider_private_failure(stage))?;
         json_reply(call, status, &body)
     }
+}
+
+fn api_default_headers() -> HeaderMap {
+    HeaderMap::from_iter([
+        (header::ACCEPT, HeaderValue::from_static("application/json")),
+        (header::ACCEPT_CHARSET, HeaderValue::from_static("utf-8")),
+        (
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        ),
+        (header::CONNECTION, HeaderValue::from_static("keep-alive")),
+    ])
 }
 
 #[derive(Clone, Copy)]

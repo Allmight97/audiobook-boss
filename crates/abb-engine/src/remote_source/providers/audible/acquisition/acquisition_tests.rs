@@ -27,7 +27,7 @@ async fn job_and_staging_after_license_body(
 
     let outcome = acquire_one(
         &api,
-        &signing_auth("us"),
+        &signing_auth(),
         TitleAcquisitionRequest {
             title_id: "B000000001",
             include_pdf: false,
@@ -307,7 +307,7 @@ impl FinalizeFixture {
         Self {
             root,
             audio,
-            auth: crate::remote_source::providers::audible::http::stub::signing_auth("us"),
+            auth: crate::remote_source::providers::audible::http::stub::signing_auth(),
             title_details: AudibleTitleDetails {
                 title: Some("Book".to_string()),
                 supplemental_pdf_url: Some("https://example.test/book.pdf".to_string()),

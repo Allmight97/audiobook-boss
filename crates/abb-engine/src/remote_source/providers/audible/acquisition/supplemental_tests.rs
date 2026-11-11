@@ -1,17 +1,16 @@
+use super::super::super::auth::{Locale, Registration};
 use super::super::TitleProgressContext;
 use super::*;
 use crate::remote_source::providers::audible::license_plan::LicensePlan;
 use crate::remote_source::RemoteAcquisitionFailureKind;
-use audible_api::auth::localization;
 use serde_json::json;
 use std::collections::HashMap;
 use std::path::Path;
 
 fn fixture_auth_without_pdf_cookies() -> Auth {
     Auth {
-        locale: localization::find_by_country_code(super::super::super::COUNTRY_CODE)
-            .expect("locale"),
-        device_registration: audible_api::auth::register::Registration {
+        locale: Locale::united_states(),
+        device_registration: Registration {
             device_serial: "device-serial".to_string(),
             client_id: "client-id".to_string(),
             adp_token: "adp-token".to_string(),

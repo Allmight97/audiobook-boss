@@ -1,3 +1,4 @@
+use super::super::auth::Auth;
 use super::AudibleAcquisitionResult;
 use super::TitleAcquisitionCtx;
 use crate::errors::AppError;
@@ -12,7 +13,6 @@ use crate::remote_source::{
     MaterializedSourceFile, RemoteAcquisitionFailureKind, RemoteSourceDiagnostic, SupplementalAsset,
 };
 use abb_audible_core::supplemental_pdf_display_file_name;
-use audible_api::auth::Auth;
 
 pub(super) struct SupplementalPdfAcquisitionRequest<'a> {
     pub(super) auth: &'a Auth,

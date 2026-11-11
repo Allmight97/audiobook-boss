@@ -1,13 +1,13 @@
 //! Device registration with the current Audible for iPhone profile. Ported
 //! from `audible_api` 0.1.0 `auth::register` (MIT OR Apache-2.0).
+//! Copyright (c) 2024 the audible_api author (github.com/cmarkh/audible_api).
 
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use audible_api::auth::oauth::build_client_id;
-use audible_api::auth::register::Registration;
 use serde_json::{json, Value};
 
+use super::auth::{build_client_id, Registration};
 use super::{provider_private_failure, AUDIBLE_IOS_DEVICE_TYPE};
 use crate::errors::Result;
 

@@ -38,12 +38,9 @@ serde_json = { version = "1.0.154", optional = true }
 log = "0.4.29"
 env_logger = "0.11.10"
 tokio = { version = "1.53.3", features = ["sync", "time"] }
-# Exact pins: a prerelease family whose generated TS contract can change between
-# RCs. Bump together with the engine crate, deliberately, and regenerate bindings.
-# pin: prerelease family whose generated TS contract changes between RCs; unpin when specta 2.0.0 is stable
-specta = "=2.0.0-rc.25"
-specta-typescript = "=0.0.12"
-tauri-specta = { version = "=2.0.0-rc.25", features = ["typescript"] }
+specta.workspace = true
+specta-typescript.workspace = true
+tauri-specta = { workspace = true, features = ["typescript"] }
 
 [dev-dependencies]
 tauri = { version = "2.12.5", features = ["test"] }

@@ -25,7 +25,7 @@ fn sign_in_starts_a_device_with_a_current_iphone_serial() {
         .device_serial
         .chars()
         .all(|c| c.is_ascii_alphanumeric()));
-    let client_id = audible_api::auth::oauth::build_client_id(&pending.device_serial);
+    let client_id = super::auth::build_client_id(&pending.device_serial);
     assert!(url.contains(&format!("device%3A{client_id}")), "{url}");
 }
 
@@ -56,18 +56,17 @@ fn license_request_matches_aaxc_adaptive_license_shape() {
     );
 }
 
+use super::auth::{Auth, Locale, Registration};
 use crate::errors::AppError;
 use crate::remote_source::test_support::{keychain_locked, MemoryVault};
 use crate::remote_source::vault::SecretVault;
-use audible_api::auth::register::Registration;
-use audible_api::auth::{localization, Auth};
 use secrecy::ExposeSecret;
 use serde_json::json;
 use std::collections::HashMap;
 
 pub(in crate::remote_source) fn fixture_auth() -> Auth {
     Auth {
-        locale: localization::find_by_country_code(COUNTRY_CODE).expect("locale"),
+        locale: Locale::united_states(),
         device_registration: Registration {
             device_serial: "device-serial".to_string(),
             client_id: "client-id".to_string(),

@@ -24,9 +24,13 @@
   signature cannot show, or an issue or RFC link.
   `scripts/check-known-mistakes.ts` rejects banners, `EXCEPTION:` stamps,
   `DO NOT REMOVE`, excuse markers, and history narration.
-- Upstream source enters the repo only as ABB-owned build provenance under
-  `vendor/`. Using, copying, porting, linking, or bundling third-party runtime
-  source is the owner's design and licensing decision.
+- Third-party source under MIT, Apache-2.0, BSD, ISC, or Zlib may be ported
+  or vendored without asking; the ported file opens with a header naming the
+  source, its version or commit, its license (a license stated only in
+  the package manifest counts), and its copyright line (MIT, BSD, and ISC
+  require it; add the NOTICE text when an Apache-2.0 source has one). Copyleft (GPL, LGPL, MPL) or unlicensed
+  source, and bundling a whole external program, wait for the owner's yes.
+  Vendored build provenance lives under `vendor/`.
 
 ## Golden Path
 

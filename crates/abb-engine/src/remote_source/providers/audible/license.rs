@@ -1,9 +1,9 @@
+use super::auth::Auth;
 use abb_audible_core::{
     find_first_string_for_key, license_facts_from_value, title_metadata_from_value, title_ref,
     AudibleLicenseDecryptContext,
 };
 use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage};
-use audible_api::auth::Auth;
 use serde_json::{json, Value};
 
 use super::acquisition::{ensure_not_cancelled, title_progress, TitleAcquisitionCtx};

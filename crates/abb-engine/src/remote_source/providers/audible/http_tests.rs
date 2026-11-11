@@ -1,31 +1,17 @@
+use super::super::auth::{Locale, Registration};
 use super::*;
 use crate::remote_source::test_support::{Reply, StubServer};
-use audible_api::auth::localization;
-use audible_api::auth::register::Registration;
 use serde_json::json;
 use std::collections::HashMap;
 
-fn test_device_key() -> String {
-    static KEY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    KEY.get_or_init(|| {
-        use rsa::pkcs1::{EncodeRsaPrivateKey, LineEnding};
-        rsa::RsaPrivateKey::new(&mut rsa::rand_core::OsRng, 1024)
-            .expect("test device key")
-            .to_pkcs1_pem(LineEnding::LF)
-            .expect("PKCS#1 PEM")
-            .to_string()
-    })
-    .clone()
-}
-
-pub(in crate::remote_source::providers::audible) fn signing_auth(country_code: &str) -> Auth {
+pub(in crate::remote_source::providers::audible) fn signing_auth() -> Auth {
     Auth {
-        locale: localization::find_by_country_code(country_code).expect("locale"),
+        locale: Locale::united_states(),
         device_registration: Registration {
             device_serial: "device-serial".to_string(),
             client_id: "client-id".to_string(),
             adp_token: "adp-token".to_string(),
-            device_private_key: test_device_key(),
+            device_private_key: super::super::signing::tests::test_device_key_pem(),
             access_token: "access-token".to_string(),
             refresh_token: "refresh-token".to_string(),
             expires: 0,
@@ -53,8 +39,8 @@ pub(in crate::remote_source::providers::audible) async fn stub_api(
 
 async fn stub_http(replies: Vec<Reply>) -> (AudibleApi, StubServer) {
     let server = StubServer::start(replies).await;
-    let client = AudibleClient::new(signing_auth("us")).expect("Audible client");
-    (AudibleApi::with_client(client, server.url()), server)
+    let api = AudibleApi::at(&signing_auth(), server.url()).expect("Audible client");
+    (api, server)
 }
 
 fn library_page(first_id: usize, count: usize) -> String {
@@ -68,7 +54,10 @@ fn library_page(first_id: usize, count: usize) -> String {
 
 #[test]
 fn requests_go_to_the_signed_in_marketplace() {
-    let api = AudibleApi::new(signing_auth("uk")).expect("Audible client");
+    let mut auth = signing_auth();
+    auth.locale.domain = "co.uk".to_string();
+
+    let api = AudibleApi::new(&auth).expect("Audible client");
 
     assert_eq!(api.base_url, "https://api.audible.co.uk");
 }
@@ -234,4 +223,83 @@ async fn a_paged_library_loads_every_title_once_and_stops() {
             "{name}"
         );
     }
+}
+
+#[tokio::test]
+async fn a_signed_request_signs_the_path_query_and_body_it_sends() {
+    let (api, server) = stub_api(vec![(200, "{}".to_string()), (200, library_page(0, 1))]).await;
+
+    api.post(
+        "/1.0/content/B0TEST/licenserequest",
+        &json!({ "quality": "High" }),
+        ApiCall::account("license request"),
+    )
+    .await
+    .expect("license reply");
+    super::super::load_all_library_titles(&api)
+        .await
+        .expect("library");
+    let requests = server.finished().await;
+
+    let signer = super::super::signing::AdpSigner::new(
+        "adp-token",
+        &super::super::signing::tests::test_device_key_pem(),
+    )
+    .expect("signer");
+    for request in &requests {
+        let sent = request.header("x-adp-signature").expect("signature header");
+        let (_, date) = sent.split_once(':').expect("dated signature");
+        let expected = signer
+            .headers(
+                &request.method,
+                &request.path_and_query,
+                request.body.as_bytes(),
+                date,
+            )
+            .expect("signed");
+        assert_eq!(
+            expected["x-adp-signature"],
+            sent.as_str(),
+            "{}",
+            request.request_line()
+        );
+        assert_eq!(request.header("x-adp-token").as_deref(), Some("adp-token"));
+        assert_eq!(
+            request.header("x-adp-alg").as_deref(),
+            Some("SHA256withRSA:1.0")
+        );
+        assert_eq!(
+            request.header("accept").as_deref(),
+            Some("application/json")
+        );
+        assert_eq!(request.header("accept-charset").as_deref(), Some("utf-8"));
+        assert_eq!(
+            request.header("content-type").as_deref(),
+            Some("application/json")
+        );
+    }
+    assert!(requests[0].body.contains("High"), "{:?}", requests[0]);
+    assert!(
+        requests[1].path_and_query.contains('?'),
+        "{:?}",
+        requests[1]
+    );
+}
+
+#[tokio::test]
+async fn a_request_outside_the_api_base_fails_instead_of_signing_the_full_url() {
+    let (api, server) = stub_api(vec![]).await;
+    let outside = api.client.get("http://127.0.0.1:1/1.0/library");
+
+    let error = api
+        .send(outside, ApiCall::account("library"))
+        .await
+        .expect_err("a request outside the base URL is refused");
+
+    assert!(
+        matches!(&error, AudibleRequestError::Failed(AppError::General(message))
+            if message.starts_with("Audible library path failed")),
+        "{error:?}"
+    );
+    assert!(server.finished().await.is_empty());
 }

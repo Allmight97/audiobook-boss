@@ -16,6 +16,13 @@ resolver = "2"
 [workspace.package]
 license = "Apache-2.0"
 
+[workspace.dependencies]
+# Bump the family together and regenerate bindings.
+# pin: prerelease family whose generated TS contract changes between RCs; unpin when specta 2.0.0 is stable
+specta = "=2.0.0-rc.25"
+specta-typescript = "=0.0.12"
+tauri-specta = "=2.0.0-rc.25"
+
 [workspace.lints.rust]
 unused_imports = "warn"
 unused_variables = "warn"

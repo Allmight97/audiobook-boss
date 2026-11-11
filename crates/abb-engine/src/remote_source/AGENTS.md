@@ -30,9 +30,12 @@ session files, Supplemental Assets, and staging cleanup.
 - ABB registers its Audible device itself (`providers/audible/registration.rs`)
   as the current Audible for iPhone app: a 40-character alphanumeric serial and
   the app, iOS, and software versions in that file. Why: since October 2026
-  Audible denies licenses to the 2021 profile that `audible_api` hard-codes
+  Audible denies licenses to the 2021 profile (app 3.56.2, iOS 15)
   (mkb79/Audible#909). A saved sign-in keeps the profile it registered with,
   so a profile change takes effect only after the user signs in again.
+- A saved Audible sign-in is keychain JSON in the format earlier releases
+  wrote; changing `Auth`'s serialized shape signs users out (rustdoc in
+  `providers/audible/auth.rs`, sample in `auth_tests.rs`).
 - Linux vault choice and its account message: rustdoc in `vault.rs`.
 - Staged remote writes (`scoped_output.rs`): `prepare` (stale-partial
   pre-clean) -> partial write -> cancel check -> same-directory
@@ -79,7 +82,7 @@ session files, Supplemental Assets, and staging cleanup.
   "Sign in to Audible again to get the PDF"; other non-PDF replies keep their
   reason.
 - Every Audible API call (library pages, title lookup, license) goes through
-  `http.rs` `AudibleApi`: a signed request on the auth's own marketplace
+  `http.rs` `AudibleApi`: a request signed by `signing.rs` on the auth's own marketplace
   domain (the client signs the path left after that prefix), a per-request
   timeout, then the status check. On library pages and title lookup 401 or
   403 is `AuthRejected`; on a license request only 401 is, because a 403 can
