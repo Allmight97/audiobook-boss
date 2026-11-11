@@ -4,11 +4,15 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.18.4] - 2026-11-11
+
 ### Changed
 
 - FAAC HE-AAC files sound slightly different and are up to 1% smaller. The bundled FAAC now
   uses upstream's retuned noise shaping for HE-AAC; in a blind listening test on real
   narration the old and new files could not be told apart.
+- Audible sign-in and library requests run on ABB's own network client, so ABB carries one HTTP
+  and TLS stack instead of two. Building ABB on Linux no longer needs OpenSSL (`libssl-dev`).
 
 ### Fixed
 
