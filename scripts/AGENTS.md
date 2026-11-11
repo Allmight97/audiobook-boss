@@ -37,9 +37,6 @@ recorded tool versions still invalidate it.
 - Audio, metadata writing, output artifacts, processing: `engine` and `media`.
   Fixtures are synthesized at test time. `media` also runs the verify-abb
   feature scripts through `scripts/abb-dev.sh`.
-  The `ffmpeg` and `ffprobe` on PATH are readback tools (Homebrew release 9.x
-  on macOS, which lacks the NMR coder), not ABB's encoder; run ABB's bundled
-  FFmpeg through `abb-dev`.
 - Apple AAC (`apple`, macOS only).
 - Audible decrypt: `engine` runs `integration_decrypt_tests`. Fixtures are
   synthesized at test time.
@@ -243,6 +240,8 @@ A change to CI or validation speed quotes before and after numbers from
   (`ABB_FFMPEG` and `ABB_FFPROBE` override). `setup.sh rust` installs the pinned
   BtbN master autobuild into the ABB tools folder on Linux when that folder
   does not already hold it, and uses Homebrew `ffmpeg` (major 9) on macOS.
+  This CLI is not ABB's encoder (Homebrew's lacks the NMR coder); run ABB's
+  bundled FFmpeg through `abb-dev`.
   `--check` and `--print-env` accept the pinned build or a major-9 CLI; they
   do not require the pin and they do not install. Those lookups live in
   `--print-env`; do not copy them into callers. Distro FFmpeg 6.x decodes edit
