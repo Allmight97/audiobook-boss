@@ -4,6 +4,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.18.2] - 2026-11-10
+
 ### Fixed
 
 - A Native AAC export no longer stalls forever on some books. FFmpeg's AAC encoder could
