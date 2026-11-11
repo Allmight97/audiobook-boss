@@ -54,8 +54,8 @@ watched.
 2. Build the engine with its `bundled-ffmpeg` feature
    (`bash scripts/verify.sh engine`). `crates/abb-ffmpeg` is the only code
    that uses these bindings: an FFmpeg function or field it calls that
-   upstream renamed or removed fails its build there, and a listed component
-   `configure` no longer enables fails `build.rs`. The chapter patch must
+   upstream renamed or removed fails its build there, and a component set
+   `configure` enables other than the lists in `build.rs` fails `build.rs`. The chapter patch must
    still apply.
 3. Recheck each item in the list above against the upstream diff, and update
    the FAAD3 trim table if `api-skip-samples` changed.
@@ -77,13 +77,12 @@ live in `Cargo.lock`.
 and the lists in `ABB_COMPONENTS` (plus `libopus` and, on Apple targets,
 `aac_at`). Why: ABB opens untrusted local files, and FFmpeg probes a file
 against every compiled demuxer. It never uses FFmpeg for network I/O (HTTP is
-ABB's own client). `configure` adds what its `select` rules require (the `mov`
-muxer behind `mp4` and `ipod`; the `ac3` parser, `pgs_frame_merge` and
-`vp9_superframe` filters behind the MP4 and Matroska muxers); those cannot be
-turned off from the command line. `configure` only warns about a name it does
-not know and quietly disables a component whose dependency is missing, so
-`build.rs` then reads `config_components.h` and fails the build, naming each
-listed component it does not find enabled.
+ABB's own client). `configure` also enables what a listed component's
+`select` rule names; `CONFIGURE_SELECTED` in `build.rs` lists those. It only
+warns about a name it does not know and quietly disables a component whose
+dependency is missing, so `build.rs` then reads `config_components.h` and
+fails the build unless the enabled components are exactly the lists plus
+`CONFIGURE_SELECTED`, naming each one missing or unexpected.
 
 | Group | Components | The ABB path that needs it |
 | --- | --- | --- |

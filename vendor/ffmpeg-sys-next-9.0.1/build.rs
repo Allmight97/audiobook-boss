@@ -3,6 +3,7 @@ extern crate cc;
 extern crate num_cpus;
 extern crate pkg_config;
 
+use std::collections::BTreeSet;
 use std::env;
 use std::fmt::Write as FmtWrite;
 use std::fs::{self, File};
@@ -206,6 +207,11 @@ const ABB_COMPONENTS: &[(&str, &[&str])] = &[
 const ABB_APPLE_COMPONENTS: &[(&str, &[&str])] =
     &[("decoder", &["aac_at"]), ("encoder", &["aac_at"])];
 const ABB_OPUS_COMPONENTS: &[(&str, &[&str])] = &[("encoder", &["libopus"])];
+const CONFIGURE_SELECTED: &[(&str, &[&str])] = &[
+    ("muxer", &["mov"]),
+    ("parser", &["ac3"]),
+    ("bsf", &["pgs_frame_merge", "vp9_superframe"]),
+];
 
 type ComponentList = &'static [(&'static str, &'static [&'static str])];
 
@@ -228,26 +234,35 @@ fn enable_components(configure: &mut Command, lists: &[ComponentList]) {
     }
 }
 
-/// `configure` only warns about a name it does not know and disables a
-/// component whose dependencies are missing, so a renamed or removed component
-/// would drop out of the build silently.
-fn components_configure_left_out(config_components: &str, lists: &[ComponentList]) -> Vec<String> {
-    let enabled: Vec<&str> = config_components.lines().map(str::trim).collect();
-    lists
+/// `configure` only warns about a name it does not know, quietly disables a
+/// component whose dependency is missing, and enables what a listed
+/// component's `select` rule names.
+fn components_configure_changed(config_components: &str, lists: &[ComponentList]) -> Vec<String> {
+    let enabled: BTreeSet<&str> = config_components
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with("#define CONFIG_") && line.ends_with(" 1"))
+        .collect();
+    let expected: BTreeSet<String> = lists
         .iter()
+        .chain([&CONFIGURE_SELECTED])
         .copied()
         .flatten()
-        .flat_map(|(kind, names)| names.iter().map(move |name| (*kind, *name)))
-        .filter(|(kind, name)| {
-            let define = format!(
-                "#define CONFIG_{}_{} 1",
-                name.to_uppercase(),
-                kind.to_uppercase()
-            );
-            !enabled.contains(&define.as_str())
+        .flat_map(|(kind, names)| {
+            names.iter().map(move |name| {
+                format!("#define CONFIG_{}_{} 1", name.to_uppercase(), kind.to_uppercase())
+            })
         })
-        .map(|(kind, name)| format!("{kind} {name}"))
-        .collect()
+        .collect();
+    let missing = expected
+        .iter()
+        .filter(|define| !enabled.contains(define.as_str()))
+        .map(|define| format!("missing {define}"));
+    let unexpected = enabled
+        .iter()
+        .filter(|define| !expected.contains(**define))
+        .map(|define| format!("unexpected {define}"));
+    missing.chain(unexpected).collect()
 }
 
 fn source_commit() -> &'static str {
@@ -1204,16 +1219,17 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
             String::from_utf8_lossy(&output.stderr)
         )));
     }
-    let left_out = components_configure_left_out(
+    let changed = components_configure_changed(
         &fs::read_to_string(source_dir.join("config_components.h"))?,
         &components,
     );
     assert!(
-        left_out.is_empty(),
-        "FFmpeg configure did not enable these ABB_COMPONENTS entries (renamed, removed, or \
-         missing a dependency; see ffbuild/config.log in {}): {}",
+        changed.is_empty(),
+        "FFmpeg configure enabled other components than ABB_COMPONENTS and \
+         CONFIGURE_SELECTED (an entry renamed, removed or missing a dependency, or a new \
+         select rule; see ffbuild/config.log in {}): {}",
         source_dir.display(),
-        left_out.join(", ")
+        changed.join(", ")
     );
 
     // run make
