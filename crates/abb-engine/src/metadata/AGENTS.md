@@ -60,9 +60,10 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   (`audio/processor/AGENTS.md`, FAAC and HE-AAC file timing).
 - A remux with no cover intent copies every source picture unchanged; an
   explicit or passthrough cover replaces them. Matroska pictures are written
-  back as attachments (its muxer drops attached-picture streams), and PNG
-  pictures take their dimensions from the image header (the bundled FFmpeg has
-  no PNG decoder).
+  back as attachments (its muxer drops attached-picture streams), and a
+  picture FFmpeg left unsized takes its dimensions from the image header
+  (`cover_art::format::picture_dimensions`; the bundled FFmpeg decodes JPEG
+  only).
 - Pure intent, validation, naming, and write-plan facts live in
   `abb-metadata-core`; this directory owns container adapters and runtime file
   behavior.

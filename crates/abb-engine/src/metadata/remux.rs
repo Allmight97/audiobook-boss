@@ -240,9 +240,9 @@ fn copy_stream(
     Ok(index)
 }
 
-/// The bundled FFmpeg has no PNG decoder, so a PNG picture probes without
-/// dimensions and every muxer but FLAC's refuses to copy it; the image header
-/// supplies them.
+/// The bundled FFmpeg has no PNG, GIF, BMP or WebP decoder, so such a picture
+/// probes without dimensions and every muxer but FLAC's refuses to copy it;
+/// the image header supplies them.
 fn set_missing_picture_dimensions(
     ictx: &Input,
     input_index: usize,
@@ -259,10 +259,8 @@ fn set_missing_picture_dimensions(
     let Some(bytes) = ictx.attached_picture(input_index) else {
         return Ok(());
     };
-    if let Some((width, height)) = super::cover_art::detect_cover_art_format(&bytes)
-        .and_then(|format| super::cover_art::format::detect_image_dimensions(&bytes, format))
-    {
-        octx.set_stream_picture_size(output_index, width as u32, height as u32)?;
+    if let Some((width, height)) = super::cover_art::format::picture_dimensions(&bytes) {
+        octx.set_stream_picture_size(output_index, width, height)?;
     }
     Ok(())
 }

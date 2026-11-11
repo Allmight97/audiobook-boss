@@ -104,7 +104,8 @@ real file could hold, so listed as unsure: `ac3`, `eac3`, `aac_latm`,
 `wavpack`, `tta`, `truehd`, `mlp`, the `wma*` family, and the legacy
 RealAudio, ATRAC, Cook, Sipr and Nellymoser decoders. No PNG, GIF, BMP, or WebP
 decoder is built (PNG never was: `--disable-autodetect` removes zlib); FFmpeg
-logs a warning for such a cover and the import still works.
+logs a warning for such a cover, the import still works, and a tag Save reads
+the picture's size from its header (`metadata/remux.rs`).
 
 Planned, not enabled: a PNG encoder for covers (#621 C4). Enabling it needs
 zlib and a decision on `image`.

@@ -6,7 +6,7 @@
 
 use super::media_fixtures::{
     assert_ffprobe_tag, ffmpeg, ffprobe_format_tags, minimal_jpg_bytes, picture_codecs,
-    write_sine_mp3, write_sine_mp3_with, write_two_picture_fixture, MediaLane,
+    picture_payloads, write_sine_mp3, write_sine_mp3_with, write_two_picture_fixture, MediaLane,
 };
 use super::support::wav::{write_sine_wav, SAMPLE_RATE};
 use crate::audio::{execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest};
@@ -470,6 +470,71 @@ fn a_save_without_cover_intent_keeps_every_attached_picture() {
     };
     finalize_artifact_metadata(&m4b, Some(&text_only), None).expect("m4b remux finalize");
     assert_eq!(picture_codecs(&m4b), both, "m4b remux");
+}
+
+/// The bundled FFmpeg has no GIF, BMP or WebP decoder, and the MP3 muxer
+/// refuses a picture whose dimensions are unknown.
+#[test]
+fn an_mp3_save_keeps_a_gif_bmp_or_webp_cover() {
+    let dir = TempDir::new().expect("temp dir");
+    let mut webp = Vec::new();
+    image::DynamicImage::new_rgb8(5, 3)
+        .write_to(&mut std::io::Cursor::new(&mut webp), ImageFormat::WebP)
+        .expect("encode WebP fixture");
+    fs::write(dir.path().join("cover.webp"), webp).expect("write WebP fixture");
+    for extension in ["gif", "bmp"] {
+        let picture = dir.path().join(format!("cover.{extension}"));
+        ffmpeg([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=red:s=5x3",
+            "-frames:v",
+            "1",
+            "-y",
+            picture.to_str().expect("utf8 path"),
+        ]);
+    }
+    let retitle = MetadataIntentPatch {
+        title: Some(PatchOp::Set("Retitled".to_string())),
+        ..Default::default()
+    };
+    for extension in ["gif", "bmp", "webp"] {
+        let picture = dir.path().join(format!("cover.{extension}"));
+        let path = dir.path().join(format!("{extension}.mp3"));
+        ffmpeg([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=d=1",
+            "-i",
+            picture.to_str().expect("utf8 path"),
+            "-map",
+            "0",
+            "-map",
+            "1",
+            "-c:a",
+            "libmp3lame",
+            "-c:v",
+            "copy",
+            "-disposition:v",
+            "attached_pic",
+            "-y",
+            path.to_str().expect("utf8 path"),
+        ]);
+        let pictures = picture_payloads(&path);
+        assert_eq!(pictures.len(), 1, "{extension} fixture");
+
+        save_metadata_intent(&path, &retitle).expect(extension);
+
+        assert_eq!(picture_payloads(&path), pictures, "{extension} save");
+    }
 }
 
 #[tokio::test]

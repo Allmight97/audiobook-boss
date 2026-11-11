@@ -46,6 +46,51 @@ pub(crate) fn detect_image_dimensions(data: &[u8], format: CoverFormat) -> Optio
     }
 }
 
+/// Width and height from the header of any picture a file may carry: JPEG,
+/// PNG, GIF, BMP or WebP.
+pub(crate) fn picture_dimensions(data: &[u8]) -> Option<(u32, u32)> {
+    let (width, height) = if let Some(format) = detect_cover_art_format(data) {
+        let (width, height) = detect_image_dimensions(data, format)?;
+        (u32::try_from(width).ok()?, u32::try_from(height).ok()?)
+    } else if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
+        gif_dimensions(data)?
+    } else if data.starts_with(b"BM") {
+        bmp_dimensions(data)?
+    } else {
+        image::ImageReader::with_format(std::io::Cursor::new(data), image::ImageFormat::WebP)
+            .into_dimensions()
+            .ok()?
+    };
+    (width > 0 && height > 0).then_some((width, height))
+}
+
+fn le_u16(data: &[u8], at: usize) -> Option<u32> {
+    Some(u32::from(u16::from_le_bytes(
+        data.get(at..at + 2)?.try_into().ok()?,
+    )))
+}
+
+fn le_i32(data: &[u8], at: usize) -> Option<i32> {
+    Some(i32::from_le_bytes(data.get(at..at + 4)?.try_into().ok()?))
+}
+
+fn gif_dimensions(data: &[u8]) -> Option<(u32, u32)> {
+    Some((le_u16(data, 6)?, le_u16(data, 8)?))
+}
+
+const BMP_CORE_HEADER_SIZE: i32 = 12;
+
+/// A negative BMP height means rows run top-down.
+fn bmp_dimensions(data: &[u8]) -> Option<(u32, u32)> {
+    if le_i32(data, 14)? == BMP_CORE_HEADER_SIZE {
+        return Some((le_u16(data, 18)?, le_u16(data, 20)?));
+    }
+    Some((
+        le_i32(data, 18)?.unsigned_abs(),
+        le_i32(data, 22)?.unsigned_abs(),
+    ))
+}
+
 const JPEG_AFTER_SOI: usize = 2;
 const SOF0: u8 = 0xC0;
 const SOF2: u8 = 0xC2;
