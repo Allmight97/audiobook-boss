@@ -193,7 +193,7 @@ const ABB_COMPONENTS: &[(&str, &[&str])] = &[
             "vorbis",
         ],
     ),
-    ("encoder", &["aac", "mjpeg"]),
+    ("encoder", &["aac"]),
     (
         "parser",
         &["aac", "flac", "mjpeg", "mpegaudio", "opus", "vorbis"],

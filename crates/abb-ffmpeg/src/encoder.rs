@@ -19,17 +19,6 @@ pub fn has_encoder(name: &str) -> bool {
     !unsafe { sys::avcodec_find_encoder_by_name(name.as_ptr()) }.is_null()
 }
 
-/// Whether this FFmpeg build has an encoder for the codec.
-pub fn has_encoder_for(codec: CodecId) -> bool {
-    let mut id = sys::AVCodecID::AV_CODEC_ID_NONE;
-    // SAFETY: `id` is a local codec-id field; the lookup returns a static
-    // codec or null.
-    unsafe {
-        codec.write(&mut id);
-        !sys::avcodec_find_encoder(id).is_null()
-    }
-}
-
 /// Whether the encoder `name` exists and its private options take every
 /// value in `options`, without opening it.
 pub fn encoder_takes_options(name: &str, options: &Tags) -> bool {

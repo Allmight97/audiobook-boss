@@ -11,8 +11,9 @@ use super::media_fixtures::{
 use super::support::wav::{write_sine_wav, SAMPLE_RATE};
 use crate::audio::{execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest};
 use crate::metadata::{
-    finalize_artifact_metadata, read_audio_cover_thumbnail, read_metadata, save_metadata_intent,
-    AlbumSortPatchOp, AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp,
+    finalize_artifact_metadata, read_audio_cover_thumbnail, read_metadata,
+    remux_preserved_audio_container, save_metadata_intent, AlbumSortPatchOp, AudiobookMetadata,
+    CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp,
 };
 use crate::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
 use image::{GenericImageView, ImageFormat};
@@ -535,6 +536,43 @@ fn an_mp3_save_keeps_a_gif_bmp_or_webp_cover() {
 
         assert_eq!(picture_payloads(&path), pictures, "{extension} save");
     }
+}
+
+/// Copying a PNG cover into an attached-picture container needs no FFmpeg PNG
+/// encoder; the bundled build has none.
+#[test]
+fn a_container_change_carries_an_mka_png_cover_into_m4b_as_png() {
+    let dir = TempDir::new().expect("temp dir");
+    let mut png = Vec::new();
+    image::DynamicImage::new_rgb8(4, 4)
+        .write_to(&mut std::io::Cursor::new(&mut png), ImageFormat::Png)
+        .expect("encode PNG fixture");
+    let cover = dir.path().join("cover.png");
+    fs::write(&cover, &png).expect("write PNG fixture");
+    let path = dir.path().join("book.mka");
+    ffmpeg([
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=d=1",
+        "-c:a",
+        "aac",
+        "-attach",
+        cover.to_str().expect("utf8 path"),
+        "-metadata:s:t:0",
+        "mimetype=image/png",
+        "-metadata:s:t:0",
+        "filename=cover.png",
+        "-y",
+        path.to_str().expect("utf8 path"),
+    ]);
+
+    remux_preserved_audio_container(&path, "m4b", &[]).expect("container change");
+
+    assert_eq!(picture_payloads(&path), [(abb_ffmpeg::CodecId::PNG, png)]);
 }
 
 #[tokio::test]

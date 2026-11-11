@@ -92,7 +92,6 @@ listed component it does not find enabled.
 | Decoders | `pcm_u8`, `pcm_s16le`, `pcm_s24le`, `pcm_s32le`, `pcm_f32le`, `pcm_f64le`, `pcm_s16be`, `pcm_s24be`, `pcm_s32be`, `pcm_alaw`, `pcm_mulaw`, `adpcm_ima_wav`, `adpcm_ms` | WAV import (the payloads its mainstream format tags name) and PCM in MKA or M4A |
 | Decoders | `mjpeg` | `avformat_find_stream_info` decodes a JPEG cover. Built without it, every file with a JPEG cover logged "Could not find codec parameters" and a FLAC tag Save wrote 0 instead of 24 as the picture's colour depth (checked on a FLAC with a JPEG cover) |
 | Encoders | `aac` (Native NMR), `aac_at` (Apple), `libopus` | The three encoders; FAAC is the separate `faac-sys` library |
-| Encoders | `mjpeg` | `metadata/cover_art/embedding.rs` refuses an MP4 cover whose codec has no encoder (`has_encoder_for`), so JPEG covers need it though ABB only copies them |
 | Parsers | `aac`, `mpegaudio`, `flac`, `opus`, `vorbis`, `mjpeg` | Packet durations and timing for each decoded codec |
 | Bitstream filters | `aac_adtstoasc` | Raw ADTS AAC muxed into MP4 or Matroska |
 | Protocols | `file` | `Input::open` and `Output::create` take local paths only |
@@ -110,8 +109,10 @@ decoder is built (PNG never was: `--disable-autodetect` removes zlib); FFmpeg
 logs a warning for such a cover, the import still works, and a tag Save reads
 the picture's size from its header (`metadata/remux.rs`).
 
-Planned, not enabled: a PNG encoder for covers (#621 C4). Enabling it needs
-zlib and a decision on `image`.
+No image encoder is built. ABB writes a JPEG or PNG cover by filling the
+attached-picture stream's codec parameters and copying the bytes
+(`abb-ffmpeg` `Output::add_attached_picture_stream`); libavformat looks up no
+encoder for it. Cover conversion uses the `image` crate.
 
 A change that adds an import extension, an output format, an encoder or a
 cover type extends `ABB_COMPONENTS` in the same change.

@@ -7,8 +7,6 @@ use super::format::{detect_cover_art_format, detect_image_dimensions, CoverForma
 /// and its demuxers report for one.
 pub(crate) const FRONT_COVER_COMMENT: &str = "Cover (front)";
 
-/// Adds a cover art stream before the header is written. MP4-family streams get
-/// the `attached_pic` disposition.
 /// A cover stream added to an output before its header.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CoverStream {
@@ -53,12 +51,6 @@ pub(crate) fn add_cover_stream(
             format,
             written_with_header: true,
         }));
-    }
-    if !abb_ffmpeg::has_encoder_for(format.codec()) {
-        return Err(AppError::General(format!(
-            "Cover art codec {:?} missing in ffmpeg build",
-            format
-        )));
     }
     let (width, height) = detect_image_dimensions(cover_data, format).ok_or_else(|| {
         AppError::General(format!(
