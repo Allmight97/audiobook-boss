@@ -89,6 +89,7 @@ listed component it does not find enabled.
 | Decoders | `aac`, `aac_at` (Apple) | AAC import and verification; `aac_at` is an import candidate on macOS |
 | Decoders | `mp3float`, `mp2float`, `mp1float` | MP3 import (an `.mp3` may hold Layer I or II); `mp3float` is the decoder FFmpeg picks for MP3 |
 | Decoders | `flac`, `opus`, `vorbis`, `alac` | FLAC import; Opus, Vorbis, FLAC, ALAC inside MKA or M4A |
+| Decoders | `ac3`, `eac3` | AC-3 and E-AC-3 audiobooks in an M4A or M4B (owner decision: they stay importable) |
 | Decoders | `pcm_u8`, `pcm_s16le`, `pcm_s24le`, `pcm_s32le`, `pcm_f32le`, `pcm_f64le`, `pcm_s16be`, `pcm_s24be`, `pcm_s32be`, `pcm_alaw`, `pcm_mulaw`, `adpcm_ima_wav`, `adpcm_ms` | WAV import (the payloads its mainstream format tags name) and PCM in MKA or M4A |
 | Decoders | `mjpeg` | `avformat_find_stream_info` decodes a JPEG cover. Built without it, every file with a JPEG cover logged "Could not find codec parameters" and a FLAC tag Save wrote 0 instead of 24 as the picture's colour depth (checked on a FLAC with a JPEG cover) |
 | Encoders | `aac` (Native NMR), `aac_at` (Apple), `libopus` | The three encoders; FAAC is the separate `faac-sys` library |
@@ -99,8 +100,8 @@ listed component it does not find enabled.
 Dropped on purpose, so a file with a supported extension but another real
 format stops importing (it shows as invalid): Ogg, AIFF, CAF, ASF/WMA, and raw
 AC-3. Audible requests AAC-LC only (`mp4a.40.2`). Of the 98 audio codecs named
-in the WAV, MOV and Matroska tag tables, 68 have no decoder now; the ones a
-real file could hold, so listed as unsure: `ac3`, `eac3`, `aac_latm`,
+in the WAV, MOV and Matroska tag tables, 66 have no decoder now; the ones a
+real file could hold, so listed as unsure: `aac_latm`,
 `mp3on4`, `pcm_s8`, `pcm_f32be`, `pcm_f64be`, `pcm_s64le`, `adpcm_ima_qt`
 (MOV `ima4`), `adpcm_g722`, `adpcm_g726`, `gsm`, `gsm_ms`, `ilbc`, `speex`,
 `wavpack`, `tta`, `truehd`, `mlp`, the `wma*` family, and the legacy

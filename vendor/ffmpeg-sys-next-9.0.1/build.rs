@@ -170,9 +170,11 @@ const ABB_COMPONENTS: &[(&str, &[&str])] = &[
         "decoder",
         &[
             "aac",
+            "ac3",
             "adpcm_ima_wav",
             "adpcm_ms",
             "alac",
+            "eac3",
             "flac",
             "mjpeg",
             "mp1float",

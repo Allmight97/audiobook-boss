@@ -22,9 +22,19 @@ const RECIPES: &[Recipe] = &[
         ffmpeg_args: &["-c:a", "aac"],
     },
     Recipe {
+        extension: "m4b",
+        codec: "eac3",
+        ffmpeg_args: &["-c:a", "eac3", "-f", "mp4"],
+    },
+    Recipe {
         extension: "m4a",
         codec: "aac",
         ffmpeg_args: &["-c:a", "aac"],
+    },
+    Recipe {
+        extension: "m4a",
+        codec: "ac3",
+        ffmpeg_args: &["-c:a", "ac3"],
     },
     Recipe {
         extension: "m4a",
