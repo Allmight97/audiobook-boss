@@ -54,7 +54,8 @@ watched.
 2. Build the engine with its `bundled-ffmpeg` feature
    (`bash scripts/verify.sh engine`). `crates/abb-ffmpeg` is the only code
    that uses these bindings: an FFmpeg function or field it calls that
-   upstream renamed or removed fails its build there. The chapter patch must
+   upstream renamed or removed fails its build there, and a listed component
+   `configure` no longer enables fails `build.rs`. The chapter patch must
    still apply.
 3. Recheck each item in the list above against the upstream diff, and update
    the FAAD3 trim table if `api-skip-samples` changed.

@@ -111,6 +111,7 @@ describe('the watched paths', () => {
 		expect(watched).toContain('libavformat/aviobuf.c');
 		expect(watched).toContain('libavutil/tx*');
 		expect(watched).toContain('libavutil/encryption_info*');
+		expect(watched).toContain('libavutil/*/aes*');
 		expect(new Set(watched).size).toBe(watched.length);
 	});
 });

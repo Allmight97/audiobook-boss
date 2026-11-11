@@ -14,6 +14,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   audio is a codec ABB does not list, such as DTS in an MKA. AC-3 and E-AC-3 audio in an M4A or
   M4B still imports, and covers in GIF, BMP or WebP still import and save.
 
+### Fixed
+
+- Exporting an Opus MKA with a PNG cover to M4A without re-encoding no longer fails; the PNG
+  cover is kept.
+
 ## [1.18.2] - 2026-11-10
 
 ### Fixed

@@ -46,6 +46,7 @@ const ALWAYS_WATCHED = [
 	'libavutil/float_dsp*',
 	'libavutil/*/float_dsp*',
 	'libavutil/aes*',
+	'libavutil/*/aes*',
 	'libavutil/encryption_info*',
 	'libswresample',
 ];
