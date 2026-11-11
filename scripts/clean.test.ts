@@ -39,6 +39,7 @@ const WHOLE_CHECKOUT = [
 	'target/release/bundle/app.dmg',
 	'target/abb-ffmpeg-cache/tree/dist/lib.a',
 	'target/abb-ffmpeg-source/commit.git/HEAD',
+	'target/abb-ffmpeg-upstream/FFmpeg.git/HEAD',
 	'dist/index.html',
 	'node_modules/.vite/cache',
 	'node_modules/solid-js/index.js',
@@ -79,6 +80,7 @@ it('removes build output and machine logs but keeps the FFmpeg cache, tools, and
 		...ALWAYS_KEPT,
 		'target/abb-ffmpeg-cache/tree/dist/lib.a',
 		'target/abb-ffmpeg-source/commit.git/HEAD',
+		'target/abb-ffmpeg-upstream/FFmpeg.git/HEAD',
 		'node_modules/solid-js/index.js',
 	]) {
 		expect(has(root, kept), kept).toBe(true);

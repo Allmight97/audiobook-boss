@@ -240,6 +240,8 @@ A change to CI or validation speed quotes before and after numbers from
   (`ABB_FFMPEG` and `ABB_FFPROBE` override). `setup.sh rust` installs the pinned
   BtbN master autobuild into the ABB tools folder on Linux when that folder
   does not already hold it, and uses Homebrew `ffmpeg` (major 9) on macOS.
+  This CLI is not ABB's encoder (Homebrew's lacks the NMR coder); run ABB's
+  bundled FFmpeg through `abb-dev`.
   `--check` and `--print-env` accept the pinned build or a major-9 CLI; they
   do not require the pin and they do not install. Those lookups live in
   `--print-env`; do not copy them into callers. Distro FFmpeg 6.x decodes edit

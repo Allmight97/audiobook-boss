@@ -3,6 +3,7 @@ extern crate cc;
 extern crate num_cpus;
 extern crate pkg_config;
 
+use std::collections::BTreeSet;
 use std::env;
 use std::fmt::Write as FmtWrite;
 use std::fs::{self, File};
@@ -148,6 +149,113 @@ fn version() -> String {
 // mutable upstream release branch used by the published sys crate.
 const FFMPEG_SOURCE_REVISION: &str = include_str!("ffmpeg-revision");
 const FFMPEG_SOURCE_PATCH: &str = "patches/mov-chapter-start.patch";
+
+const ABB_COMPONENTS: &[(&str, &[&str])] = &[
+    (
+        "demuxer",
+        &["aac", "flac", "matroska", "mov", "mp3", "wav"],
+    ),
+    (
+        "muxer",
+        &["adts", "flac", "matroska", "mp3", "mp4", "wav"],
+    ),
+    (
+        "decoder",
+        &[
+            "aac",
+            "ac3",
+            "adpcm_ima_wav",
+            "adpcm_ms",
+            "alac",
+            "eac3",
+            "flac",
+            "mjpeg",
+            "mp1float",
+            "mp2float",
+            "mp3float",
+            "opus",
+            "pcm_alaw",
+            "pcm_f32le",
+            "pcm_f64le",
+            "pcm_mulaw",
+            "pcm_s16be",
+            "pcm_s16le",
+            "pcm_s24be",
+            "pcm_s24le",
+            "pcm_s32be",
+            "pcm_s32le",
+            "pcm_u8",
+            "vorbis",
+        ],
+    ),
+    ("encoder", &["aac"]),
+    (
+        "parser",
+        &["aac", "flac", "mjpeg", "mpegaudio", "opus", "vorbis"],
+    ),
+    ("bsf", &["aac_adtstoasc"]),
+    ("protocol", &["file"]),
+];
+const ABB_APPLE_COMPONENTS: &[(&str, &[&str])] =
+    &[("decoder", &["aac_at"]), ("encoder", &["aac_at"])];
+const ABB_OPUS_COMPONENTS: &[(&str, &[&str])] = &[("encoder", &["libopus"])];
+const CONFIGURE_SELECTED: &[(&str, &[&str])] = &[
+    ("muxer", &["mov"]),
+    ("parser", &["ac3"]),
+    ("bsf", &["pgs_frame_merge", "vp9_superframe"]),
+];
+
+type ComponentList = &'static [(&'static str, &'static [&'static str])];
+
+fn abb_components(target_os: &str) -> Vec<ComponentList> {
+    let mut lists = vec![ABB_COMPONENTS];
+    if env::var("CARGO_FEATURE_BUILD_LIB_OPUS").is_ok() {
+        lists.push(ABB_OPUS_COMPONENTS);
+    }
+    if env::var("CARGO_FEATURE_BUILD_AUDIOTOOLBOX").is_ok()
+        && matches!(target_os, "ios" | "macos" | "tvos")
+    {
+        lists.push(ABB_APPLE_COMPONENTS);
+    }
+    lists
+}
+
+fn enable_components(configure: &mut Command, lists: &[ComponentList]) {
+    for (kind, names) in lists.iter().copied().flatten() {
+        configure.arg(format!("--enable-{kind}={}", names.join(",")));
+    }
+}
+
+/// `configure` only warns about a name it does not know, quietly disables a
+/// component whose dependency is missing, and enables what a listed
+/// component's `select` rule names.
+fn components_configure_changed(config_components: &str, lists: &[ComponentList]) -> Vec<String> {
+    let enabled: BTreeSet<&str> = config_components
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with("#define CONFIG_") && line.ends_with(" 1"))
+        .collect();
+    let expected: BTreeSet<String> = lists
+        .iter()
+        .chain([&CONFIGURE_SELECTED])
+        .copied()
+        .flatten()
+        .flat_map(|(kind, names)| {
+            names.iter().map(move |name| {
+                format!("#define CONFIG_{}_{} 1", name.to_uppercase(), kind.to_uppercase())
+            })
+        })
+        .collect();
+    let missing = expected
+        .iter()
+        .filter(|define| !enabled.contains(define.as_str()))
+        .map(|define| format!("missing {define}"));
+    let unexpected = enabled
+        .iter()
+        .filter(|define| !expected.contains(**define))
+        .map(|define| format!("unexpected {define}"));
+    missing.chain(unexpected).collect()
+}
 
 fn source_commit() -> &'static str {
     FFMPEG_SOURCE_REVISION.trim()
@@ -868,6 +976,11 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
     // do not generate documentation
     configure.arg("--disable-doc");
 
+    configure.arg("--disable-network");
+    configure.arg("--disable-everything");
+    let components = abb_components(&target_os);
+    enable_components(&mut configure, &components);
+
     macro_rules! enable {
         ($conf:expr, $feat:expr, $name:expr) => {
             if env::var(concat!("CARGO_FEATURE_", $feat)).is_ok() {
@@ -1098,6 +1211,18 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
             String::from_utf8_lossy(&output.stderr)
         )));
     }
+    let changed = components_configure_changed(
+        &fs::read_to_string(source_dir.join("config_components.h"))?,
+        &components,
+    );
+    assert!(
+        changed.is_empty(),
+        "FFmpeg configure enabled other components than ABB_COMPONENTS and \
+         CONFIGURE_SELECTED (an entry renamed, removed or missing a dependency, or a new \
+         select rule; see ffbuild/config.log in {}): {}",
+        source_dir.display(),
+        changed.join(", ")
+    );
 
     // run make
     if !Command::new("make")

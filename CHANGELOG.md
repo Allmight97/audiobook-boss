@@ -4,6 +4,25 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- The app is smaller. The bundled FFmpeg now builds only the formats ABB imports and writes; the
+  engine's release build shrank from 34 MB to 20 MB.
+- A file with an MP3, M4A, M4B, AAC, WAV, FLAC or MKA extension whose content is another format
+  (Ogg, AIFF, CAF, WMA, raw AC-3) no longer imports. ABB goes by what a file holds, not its name,
+  so such a renamed file used to import; it now shows as invalid. So does a WAV, MP4 or MKA whose
+  audio is a codec ABB does not list, such as DTS in an MKA. AC-3 and E-AC-3 audio in an M4A or
+  M4B still imports, and covers in GIF, BMP, TIFF or WebP still import and save. A JPEG XL cover in
+  an MP3 blocks a tag Save of that file: the Save fails and the file stays unchanged.
+
+### Fixed
+
+- Saving a tag edit on a raw AAC (.aac) or WAV file that cannot hold the edit now fails with a
+  reason in the Work Center and keeps the edit pending. It used to report success and drop the
+  edit. A WAV still saves title, author, album, genre, date, comment and track number.
+- Exporting an Opus MKA with a PNG cover to M4A without re-encoding no longer fails; the PNG
+  cover is kept.
+
 ## [1.18.2] - 2026-11-10
 
 ### Fixed

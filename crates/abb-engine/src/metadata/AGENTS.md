@@ -49,6 +49,13 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   `finalize_artifact_metadata` pay no extra copy; single-file Preserve with a
   patch and post-publish title tag saves go through the Save, copy and check
   included. Any failure removes the temp after FFmpeg's handles close.
+- `tag_support::refuse_unholdable_edits` runs first in a Save and fails it
+  (`FileValidation`, the file untouched, the edit pending) when the plan edits
+  a tag the container cannot store. Raw AAC (ADTS) holds no tags; WAV holds
+  title, author, album, genre, date, comment and track number only. Why: the
+  muxer drops such a tag and the Save would report success. The Work Center
+  shows the reason on the failed file. A container that gains tag support
+  there changes this list and its test.
 - The remux read loop ends only at end of file; any other read error, one
   corrupt packet included, fails the write. Why: skipping or stopping early
   would save a shorter book.
@@ -60,10 +67,15 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   (`audio/processor/AGENTS.md`, FAAC and HE-AAC file timing).
 - A remux with no cover intent copies every source picture unchanged; an
   explicit or passthrough cover replaces them. Matroska pictures are written
-  back as attachments (its muxer drops attached-picture streams), and PNG
-  pictures take their dimensions from the image header (the bundled FFmpeg has
-  no PNG decoder). Ogg cannot carry picture streams, so a Save of an Opus file
-  with an embedded picture fails and keeps the original.
+  back as attachments (its muxer drops attached-picture streams). Every muxer
+  refuses an unsized picture and the bundled FFmpeg decodes JPEG only, so
+  `cover_art::format::picture_dimensions` reads the size of a JPEG, PNG, GIF,
+  BMP, TIFF or WebP picture from its header. A FLAC picture block carries its
+  own size; an ID3 picture does not, so a Save of an MP3 with a JPEG XL cover
+  fails and keeps the original.
+  Why no JPEG XL reader: its size needs a bit reader and a box walk.
+  `format_tests.rs` reads FFmpeg's ID3 picture table (also used for FLAC
+  pictures) and fails on a type with neither a reader nor that exception.
 - Pure intent, validation, naming, and write-plan facts live in
   `abb-metadata-core`; this directory owns container adapters and runtime file
   behavior.
@@ -231,8 +243,8 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 
 ## Opus Container Timing
 
-MP4 output uses the `mp4` muxer explicitly (`ipod` rejects Opus). Matroska covers
-are attachments with a filename and MIME type. Retagging reuses the selected
+Every output names its muxer from the output extension (`audio::muxer_for_path`);
+MP4 output uses `mp4`. Matroska covers are attachments with a filename and MIME type. Retagging reuses the selected
 cover bytes, preserving explicit-clear intent. For Opus Matroska→MP4 copies,
 packet framing restores the 48 kHz timeline lost to millisecond container
 rounding; discontinuities fail rather than discard audio. MP4 frame-size metadata

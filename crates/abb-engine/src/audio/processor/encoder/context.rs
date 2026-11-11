@@ -120,13 +120,7 @@ pub(crate) fn setup_encoder(
     let resolved_encoder_type = plan.encoder_settings.encoder_type;
     settings_encoder::validate_encoder_settings(&plan.encoder_settings)?;
 
-    let muxer = plan
-        .output_path
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .and_then(crate::audio::format_for_extension)
-        .ok_or_else(|| AppError::InvalidInput("Unsupported audiobook container.".into()))?
-        .muxer;
+    let muxer = crate::audio::muxer_for_path(&plan.output_path)?;
     let mut octx = abb_ffmpeg::Output::create(&plan.output_path, muxer.ffmpeg_name())
         .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
 

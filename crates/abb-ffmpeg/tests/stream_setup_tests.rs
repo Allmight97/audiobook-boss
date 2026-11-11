@@ -4,9 +4,8 @@
 use std::path::Path;
 
 use abb_ffmpeg::{
-    encoder_takes_options, has_decoder, has_decoder_named, has_encoder, has_encoder_for, AacStream,
-    ChannelLayout, CodecId, Disposition, Error, Input, Medium, Output, Packet, SecretOptions, Step,
-    Tags, Text,
+    encoder_takes_options, has_decoder, has_decoder_named, has_encoder, AacStream, ChannelLayout,
+    CodecId, Disposition, Error, Input, Medium, Output, Packet, SecretOptions, Step, Tags, Text,
 };
 use tempfile::TempDir;
 
@@ -194,8 +193,6 @@ fn a_build_reports_the_codecs_it_has_and_the_options_they_take() {
     assert!(!has_decoder_named("no_such_decoder"));
     assert!(has_encoder("aac"));
     assert!(!has_encoder("no_such_encoder"));
-    assert!(has_encoder_for(CodecId::AAC));
-    assert!(!has_encoder_for(CodecId::NONE));
     assert!(encoder_takes_options(
         "aac",
         &options(&[("aac_coder", "nmr")])

@@ -46,6 +46,94 @@ pub(crate) fn detect_image_dimensions(data: &[u8], format: CoverFormat) -> Optio
     }
 }
 
+/// Width and height from the header of a JPEG, PNG, GIF, BMP, TIFF or WebP
+/// picture.
+pub(crate) fn picture_dimensions(data: &[u8]) -> Option<(u32, u32)> {
+    let (width, height) = if let Some(format) = detect_cover_art_format(data) {
+        let (width, height) = detect_image_dimensions(data, format)?;
+        (u32::try_from(width).ok()?, u32::try_from(height).ok()?)
+    } else if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
+        gif_dimensions(data)?
+    } else if data.starts_with(b"BM") {
+        bmp_dimensions(data)?
+    } else if data.starts_with(b"II*\0") || data.starts_with(b"MM\0*") {
+        tiff_dimensions(data)?
+    } else {
+        image::ImageReader::with_format(std::io::Cursor::new(data), image::ImageFormat::WebP)
+            .into_dimensions()
+            .ok()?
+    };
+    (width > 0 && height > 0).then_some((width, height))
+}
+
+fn le_u16(data: &[u8], at: usize) -> Option<u32> {
+    Some(u32::from(u16::from_le_bytes(
+        data.get(at..at + 2)?.try_into().ok()?,
+    )))
+}
+
+fn le_i32(data: &[u8], at: usize) -> Option<i32> {
+    Some(i32::from_le_bytes(data.get(at..at + 4)?.try_into().ok()?))
+}
+
+fn gif_dimensions(data: &[u8]) -> Option<(u32, u32)> {
+    Some((le_u16(data, 6)?, le_u16(data, 8)?))
+}
+
+const BMP_CORE_HEADER_SIZE: i32 = 12;
+
+/// A negative BMP height means rows run top-down.
+fn bmp_dimensions(data: &[u8]) -> Option<(u32, u32)> {
+    if le_i32(data, 14)? == BMP_CORE_HEADER_SIZE {
+        return Some((le_u16(data, 18)?, le_u16(data, 20)?));
+    }
+    Some((
+        le_i32(data, 18)?.unsigned_abs(),
+        le_i32(data, 22)?.unsigned_abs(),
+    ))
+}
+
+const TIFF_FIRST_IFD_OFFSET: usize = 4;
+const TIFF_IFD_ENTRY_SIZE: usize = 12;
+const TIFF_IMAGE_WIDTH: u32 = 256;
+const TIFF_IMAGE_LENGTH: u32 = 257;
+const TIFF_SHORT: u32 = 3;
+const TIFF_LONG: u32 = 4;
+
+fn tiff_dimensions(data: &[u8]) -> Option<(u32, u32)> {
+    let big_endian = data.starts_with(b"MM");
+    let read = |at: usize, size: usize| -> Option<u32> {
+        let bytes = data.get(at..at.checked_add(size)?)?;
+        let fold = |value: u32, byte: &u8| value << 8 | u32::from(*byte);
+        Some(if big_endian {
+            bytes.iter().fold(0, fold)
+        } else {
+            bytes.iter().rev().fold(0, fold)
+        })
+    };
+    let ifd = usize::try_from(read(TIFF_FIRST_IFD_OFFSET, 4)?).ok()?;
+    let entries = ifd.checked_add(2)?;
+    let (mut width, mut height) = (None, None);
+    for index in 0..read(ifd, 2)? as usize {
+        let entry = entries.checked_add(index * TIFF_IFD_ENTRY_SIZE)?;
+        if read(entry.checked_add(4)?, 4)? != 1 {
+            continue;
+        }
+        let value_at = entry.checked_add(8)?;
+        let value = match read(entry.checked_add(2)?, 2)? {
+            TIFF_SHORT => read(value_at, 2)?,
+            TIFF_LONG => read(value_at, 4)?,
+            _ => continue,
+        };
+        match read(entry, 2)? {
+            TIFF_IMAGE_WIDTH => width = Some(value),
+            TIFF_IMAGE_LENGTH => height = Some(value),
+            _ => {}
+        }
+    }
+    Some((width?, height?))
+}
+
 const JPEG_AFTER_SOI: usize = 2;
 const SOF0: u8 = 0xC0;
 const SOF2: u8 = 0xC2;

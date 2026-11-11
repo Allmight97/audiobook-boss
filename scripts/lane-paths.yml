@@ -50,6 +50,9 @@ media:
   - crates/**
   - scripts/abb-dev.sh
   - .agents/skills/verify-abb/**
+apple:
+  - *shared
+  - crates/**
 host:
   - *shared
   - crates/**
@@ -98,6 +101,8 @@ tooling:
   - CLAUDE.md
   - README.md
   - REVIEW.md
+  - vendor/ffmpeg-sys-next-*/build.rs
+  - vendor/ffmpeg-sys-next-*/ABB-PROVENANCE.md
 no-lane:
   - CHANGELOG.md # release history; the release skill writes it
   - LICENSE # legal text

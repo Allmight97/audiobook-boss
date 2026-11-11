@@ -132,12 +132,20 @@ pub(super) fn validate(files: &[AudioFile]) -> Result<()> {
     Ok(())
 }
 
+fn create_output(destination: &Path) -> Result<abb_ffmpeg::Output> {
+    let muxer = crate::audio::muxer_for_path(destination)?;
+    Ok(abb_ffmpeg::Output::create(
+        destination,
+        muxer.ffmpeg_name(),
+    )?)
+}
+
 fn remux(files: &[AudioFile], destination: &Path, context: &ProcessingContext) -> Result<Vec<f64>> {
     let first = files
         .first()
         .ok_or_else(|| incompatible("there are no sources"))?;
     let (input, stream, expected) = open_source(first)?;
-    let mut output = abb_ffmpeg::Output::create_for_file_name(destination)?;
+    let mut output = create_output(destination)?;
     output.add_stream_copied_from(&input, stream.index)?;
     output.set_stream_time_base(0, expected.time_base)?;
     drop(input);

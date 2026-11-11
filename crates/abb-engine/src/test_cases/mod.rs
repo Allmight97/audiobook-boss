@@ -30,6 +30,8 @@ mod integration_media_cue_scale_tests;
 mod integration_media_encoded_run_tests;
 #[path = "integration_media_encoding_choice_tests.rs"]
 mod integration_media_encoding_choice_tests;
+#[path = "integration_media_import_formats_tests.rs"]
+mod integration_media_import_formats_tests;
 #[path = "integration_media_latin1_tags_tests.rs"]
 mod integration_media_latin1_tags_tests;
 #[path = "integration_media_merge_chapters_tests.rs"]

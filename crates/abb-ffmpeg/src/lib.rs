@@ -20,8 +20,7 @@ pub use codec::{profile, CodecId, Progress};
 pub use context::{Chapter, Disposition, Medium, Rational, StreamFacts};
 pub use decoder::{has_decoder, has_decoder_named, AudioDecoder};
 pub use encoder::{
-    encoder_takes_options, has_encoder, has_encoder_for, AudioEncoder, EncoderRequest,
-    OpenedEncoder,
+    encoder_takes_options, has_encoder, AudioEncoder, EncoderRequest, OpenedEncoder,
 };
 pub use error::{Error, Result, Step};
 pub use input::{Input, OpenedInput};

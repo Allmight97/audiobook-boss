@@ -25,14 +25,20 @@ pub fn rewrite_metadata_with_ffmpeg(
     passthrough: Option<&PassthroughMetadata>,
 ) -> Result<()> {
     let metadata_plan = metadata.map(MetadataWritePlan::from_metadata);
-    rewrite_metadata_with_ffmpeg_plan_as(input_path, metadata_plan.as_ref(), passthrough, None)
+    let container = crate::audio::muxer_for_path(input_path)?.into();
+    rewrite_metadata_with_ffmpeg_plan_as(
+        input_path,
+        metadata_plan.as_ref(),
+        passthrough,
+        &container,
+    )
 }
 
 pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     input_path: &std::path::Path,
     metadata: Option<&MetadataWritePlan>,
     passthrough: Option<&PassthroughMetadata>,
-    output_format: Option<&Container>,
+    output_format: &Container,
 ) -> Result<()> {
     let temp = meta_temp(input_path)?;
     remux_into(
@@ -48,7 +54,7 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
 }
 
 /// The sibling `.abb_meta_<uuid>.<ext>` a rewrite of `input_path` is written
-/// into; its extension lets FFmpeg pick the muxer when no format is named.
+/// into.
 pub(super) fn meta_temp(input_path: &std::path::Path) -> Result<SiblingTemp> {
     let ext = input_path
         .extension()
@@ -62,7 +68,7 @@ pub(super) fn remux_into(
     temp_path: &std::path::Path,
     metadata: Option<&MetadataWritePlan>,
     passthrough: Option<&PassthroughMetadata>,
-    output_format: Option<&Container>,
+    output_format: &Container,
 ) -> Result<()> {
     use crate::diagnostics::stage;
     let started = Instant::now();
@@ -78,19 +84,7 @@ pub(super) fn remux_into(
     );
 
     let mut octx = stage("metadata_create_output", temp_path, || {
-        match output_format {
-            Some(container) => Output::create(temp_path, container.muxer_name()),
-            None if temp_path
-                .extension()
-                .and_then(|ext| ext.to_str())
-                .and_then(Container::from_extension)
-                .is_some_and(|container| container.is_mp4_family()) =>
-            {
-                Output::create(temp_path, Container::Mp4.muxer_name())
-            }
-            None => Output::create_for_file_name(temp_path),
-        }
-        .map_err(AppError::Ffmpeg)
+        Output::create(temp_path, output_format.muxer_name()).map_err(AppError::Ffmpeg)
     })?;
     let route = Route {
         input: Container::of_input(&ictx),
@@ -240,9 +234,9 @@ fn copy_stream(
     Ok(index)
 }
 
-/// The bundled FFmpeg has no PNG decoder, so a PNG picture probes without
-/// dimensions and every muxer but FLAC's refuses to copy it; the image header
-/// supplies them.
+/// The bundled FFmpeg has no PNG, GIF, BMP or WebP decoder, so such a picture
+/// probes without dimensions and every muxer but FLAC's refuses to copy it;
+/// the image header supplies them.
 fn set_missing_picture_dimensions(
     ictx: &Input,
     input_index: usize,
@@ -259,10 +253,8 @@ fn set_missing_picture_dimensions(
     let Some(bytes) = ictx.attached_picture(input_index) else {
         return Ok(());
     };
-    if let Some((width, height)) = super::cover_art::detect_cover_art_format(&bytes)
-        .and_then(|format| super::cover_art::format::detect_image_dimensions(&bytes, format))
-    {
-        octx.set_stream_picture_size(output_index, width as u32, height as u32)?;
+    if let Some((width, height)) = super::cover_art::format::picture_dimensions(&bytes) {
+        octx.set_stream_picture_size(output_index, width, height)?;
     }
     Ok(())
 }

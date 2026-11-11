@@ -14,7 +14,7 @@ const USAGE = `Usage: bun run clean [--all]
 
 Other folders under .logs/ and verification receipts always stay.`;
 
-const FFMPEG_DIRS = new Set(['abb-ffmpeg-cache', 'abb-ffmpeg-source']);
+const FFMPEG_DIRS = new Set(['abb-ffmpeg-cache', 'abb-ffmpeg-source', 'abb-ffmpeg-upstream']);
 const BUILD_OUTPUT = ['dist', 'node_modules/.vite'];
 
 const DEBUG_BUDGET_KB = 25 * 1024 * 1024;

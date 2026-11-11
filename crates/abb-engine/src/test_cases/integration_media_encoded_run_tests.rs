@@ -251,7 +251,7 @@ fn assert_chapters_at_the_real_joins(chapters: &[(Option<String>, i64, i64)], ge
 }
 
 /// Cover art is a second output stream. If its time_base stays 0/0, FFmpeg's
-/// ipod muxer defaults it to 1/90000, LCMs with audio 1/44100 into movie
+/// MP4 muxer defaults it to 1/90000, LCMs with audio 1/44100 into movie
 /// timescale 4410000, and the QuickTime chapter packets overflow. Apple Books
 /// reads that broken timed-text track; Nero `chpl` stays correct.
 fn assert_quicktime_chapter_track_spans_the_book(path: &Path, generation: &str) {

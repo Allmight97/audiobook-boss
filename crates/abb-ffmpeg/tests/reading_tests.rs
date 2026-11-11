@@ -76,20 +76,11 @@ fn a_packet_knows_where_it_came_from_until_that_is_cleared() {
 }
 
 #[test]
-fn an_output_named_only_by_its_file_takes_the_muxer_of_the_extension() {
+fn a_muxer_ffmpeg_does_not_have_is_a_create_error_and_leaves_no_file() {
     let dir = TempDir::new().expect("dir");
+    let path = dir.path().join("book.m4b");
 
-    let output = Output::create_for_file_name(&dir.path().join("book.mka")).expect("create");
-
-    assert_eq!(output.muxer_name(), "matroska");
-}
-
-#[test]
-fn a_file_name_no_muxer_claims_is_a_create_error_and_leaves_no_file() {
-    let dir = TempDir::new().expect("dir");
-    let path = dir.path().join("book.no-such-extension");
-
-    let error = match Output::create_for_file_name(&path) {
+    let error = match Output::create(&path, "no-such-muxer") {
         Ok(_) => panic!("the output was created"),
         Err(error) => error,
     };

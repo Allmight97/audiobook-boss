@@ -32,6 +32,14 @@ What ABB relies on in that source:
 
 ## Moving the pin
 
+`bun run ffmpeg:upstream` lists the commits after the pin that touch
+`configure`, libavcodec, libavformat, libavutil or libswresample, leaving out
+each source file that both the pin's and master's Makefiles compile only for
+components ABB does not build, and names the newest BtbN autobuild with its
+master commit. Read it before choosing the new commit. Blind spot: `ffbuild/`,
+`compat/` and the top-level Makefile are not watched, and neither is a left-out
+source file that a built file includes directly.
+
 1. Write the new commit to `ffmpeg-revision`, and move `ffmpeg_cli_release` and
    `ffmpeg_cli_build` in `scripts/setup.sh` to the BtbN master autobuild of
    that commit. `scripts/setup-pins.test.ts` enforces the pairing: the build
@@ -42,7 +50,8 @@ What ABB relies on in that source:
 2. Build the engine with its `bundled-ffmpeg` feature
    (`bash scripts/verify.sh engine`). `crates/abb-ffmpeg` is the only code
    that uses these bindings: an FFmpeg function or field it calls that
-   upstream renamed or removed fails its build there. The chapter patch must
+   upstream renamed or removed fails its build there, and a component set
+   `configure` enables other than the lists in `build.rs` fails `build.rs`. The chapter patch must
    still apply.
 3. Recheck each item in the list above against the upstream diff, and update
    the FAAD3 trim table if `api-skip-samples` changed.
@@ -57,6 +66,62 @@ library is static libopus, with AudioToolbox supplied by the Apple SDK on macOS.
 ABB uses libavcodec, libavformat, and libswresample, so the build disables
 libavdevice, libavfilter, and libswscale. Resolved Rust dependency versions
 live in `Cargo.lock`.
+
+## Enabled components
+
+`build.rs` runs `configure` with `--disable-everything`, `--disable-network`,
+and the lists in `ABB_COMPONENTS` (plus `libopus` and, on Apple targets,
+`aac_at`). Why: ABB opens untrusted local files, and FFmpeg probes a file
+against every compiled demuxer. It never uses FFmpeg for network I/O (HTTP is
+ABB's own client). `configure` also enables what a listed component's
+`select` rule names; `CONFIGURE_SELECTED` in `build.rs` lists those. It only
+warns about a name it does not know and quietly disables a component whose
+dependency is missing, so `build.rs` then reads `config_components.h` and
+fails the build unless the enabled components are exactly the lists plus
+`CONFIGURE_SELECTED`, naming each one missing or unexpected.
+
+| Group | Components | The ABB path that needs it |
+| --- | --- | --- |
+| Demuxers | `mov`, `mp3`, `aac` (raw ADTS), `wav`, `flac`, `matroska` | One per import extension (`audio/extensions.rs`: m4a, m4b, mp3, aac, wav, flac, mka); `mov` also reads Audible AAX and AAXC with the license keys, and every ABB export |
+| Muxers | `mp4`, `matroska` | M4B, M4A Opus, MKA Opus output, named from the output extension (`audio/format.rs`) |
+| Muxers | `mp3`, `flac`, `adts`, `wav` | A tag Save on an MP3, FLAC, raw AAC or WAV remuxes with the file's own container (`metadata/container.rs`) |
+| Decoders | `aac`, `aac_at` (Apple) | AAC import and verification; `aac_at` is an import candidate on macOS |
+| Decoders | `mp3float`, `mp2float`, `mp1float` | MP3 import (an `.mp3` may hold Layer I or II); `mp3float` is the decoder FFmpeg picks for MP3 |
+| Decoders | `flac`, `opus`, `vorbis`, `alac` | FLAC import; Opus, Vorbis, FLAC, ALAC inside MKA or M4A |
+| Decoders | `ac3`, `eac3` | AC-3 and E-AC-3 audiobooks in an M4A or M4B (owner decision: they stay importable) |
+| Decoders | `pcm_u8`, `pcm_s16le`, `pcm_s24le`, `pcm_s32le`, `pcm_f32le`, `pcm_f64le`, `pcm_s16be`, `pcm_s24be`, `pcm_s32be`, `pcm_alaw`, `pcm_mulaw`, `adpcm_ima_wav`, `adpcm_ms` | WAV import (the payloads its mainstream format tags name) and PCM in MKA or M4A |
+| Decoders | `mjpeg` | `avformat_find_stream_info` decodes a JPEG cover. Built without it, every file with a JPEG cover logged "Could not find codec parameters" and a FLAC tag Save wrote 0 instead of 24 as the picture's colour depth (checked on a FLAC with a JPEG cover) |
+| Encoders | `aac` (Native NMR), `aac_at` (Apple), `libopus` | The three encoders; FAAC is the separate `faac-sys` library |
+| Parsers | `aac`, `mpegaudio`, `flac`, `opus`, `vorbis`, `mjpeg` | Packet durations and timing for each decoded codec |
+| Bitstream filters | `aac_adtstoasc` | Raw ADTS AAC muxed into MP4 or Matroska |
+| Protocols | `file` | `Input::open` and `Output::create` take local paths only |
+
+Dropped on purpose, so a file with a supported extension but another real
+format stops importing (it shows as invalid): Ogg, AIFF, CAF, ASF/WMA, and raw
+AC-3. Audible requests AAC-LC only (`mp4a.40.2`). Of the 98 audio codecs named
+in the WAV, MOV and Matroska tag tables, 66 have no decoder now; the ones a
+real file could hold, so listed as unsure: `aac_latm`,
+`mp3on4`, `pcm_s8`, `pcm_f32be`, `pcm_f64be`, `pcm_s64le`, `adpcm_ima_qt`
+(MOV `ima4`), `adpcm_g722`, `adpcm_g726`, `gsm`, `gsm_ms`, `ilbc`, `speex`,
+`wavpack`, `tta`, `truehd`, `mlp`, the `wma*` family, and the legacy
+RealAudio, ATRAC, Cook, Sipr and Nellymoser decoders. No PNG, GIF, BMP, TIFF,
+WebP, or JPEG XL decoder or parser is built (PNG never was:
+`--disable-autodetect` removes zlib); FFmpeg logs a warning for such a cover,
+the import still works, and a tag Save reads the picture's size from its header
+(`metadata/remux.rs`). A JPEG XL cover blocks a Save: ABB reads no JPEG XL
+header, an ID3 picture carries no size, and every muxer refuses a picture
+without one, so a Save of an MP3 that carries one fails and keeps the original.
+
+No image encoder is built. ABB writes a JPEG or PNG cover by filling the
+attached-picture stream's codec parameters and copying the bytes
+(`abb-ffmpeg` `Output::add_attached_picture_stream`); libavformat looks up no
+encoder for it. Cover conversion uses the `image` crate.
+
+A change that adds an import extension, an output format or an encoder
+extends `ABB_COMPONENTS` in the same change.
+`integration_media_import_formats_tests.rs` fails when a supported extension
+has no fixture recipe, and when a recipe no longer imports, decodes and
+encodes.
 
 Bundled cache reuse requires the source/patch identity and the effective build
 inputs: build-script contents, compiler/version, target, features, CPU flags,

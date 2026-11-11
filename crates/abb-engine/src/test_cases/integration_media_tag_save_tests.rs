@@ -5,14 +5,16 @@
 //! use upper case).
 
 use super::media_fixtures::{
-    assert_ffprobe_tag, ffmpeg, ffprobe_format_tags, minimal_jpg_bytes, picture_codecs,
-    write_sine_mp3, write_sine_mp3_with, write_two_picture_fixture, MediaLane,
+    assert_ffprobe_tag, audio_packet_bytes, ffmpeg, ffprobe_format_tags, minimal_jpg_bytes,
+    picture_codecs, picture_payloads, write_sine_mp3, write_sine_mp3_with,
+    write_two_picture_fixture, MediaLane,
 };
 use super::support::wav::{write_sine_wav, SAMPLE_RATE};
 use crate::audio::{execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest};
 use crate::metadata::{
-    finalize_artifact_metadata, read_audio_cover_thumbnail, read_metadata, save_metadata_intent,
-    AlbumSortPatchOp, AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp,
+    finalize_artifact_metadata, read_audio_cover_thumbnail, read_metadata,
+    remux_preserved_audio_container, save_metadata_intent, AlbumSortPatchOp, AudiobookMetadata,
+    CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp,
 };
 use crate::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
 use image::{GenericImageView, ImageFormat};
@@ -470,12 +472,201 @@ fn a_save_without_cover_intent_keeps_every_attached_picture() {
     };
     finalize_artifact_metadata(&m4b, Some(&text_only), None).expect("m4b remux finalize");
     assert_eq!(picture_codecs(&m4b), both, "m4b remux");
+}
 
-    let opus = write_two_picture_fixture(dir.path(), "opus");
-    let before = fs::read(&opus).expect("read opus");
-    // The Ogg muxer refuses picture streams, so this Save fails and the original stays intact.
-    save_metadata_intent(&opus, &retitle).expect_err("Ogg cannot carry a picture stream");
-    assert_eq!(fs::read(&opus).expect("reread opus"), before);
+/// The bundled FFmpeg has no GIF, BMP, TIFF or WebP decoder, and the MP3
+/// muxer refuses a picture whose dimensions are unknown.
+#[test]
+fn an_mp3_save_keeps_a_gif_bmp_tiff_or_webp_cover() {
+    let dir = TempDir::new().expect("temp dir");
+    let mut webp = Vec::new();
+    image::DynamicImage::new_rgb8(5, 3)
+        .write_to(&mut std::io::Cursor::new(&mut webp), ImageFormat::WebP)
+        .expect("encode WebP fixture");
+    fs::write(dir.path().join("cover.webp"), webp).expect("write WebP fixture");
+    for extension in ["gif", "bmp", "tiff"] {
+        let picture = dir.path().join(format!("cover.{extension}"));
+        ffmpeg([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=red:s=5x3",
+            "-frames:v",
+            "1",
+            "-y",
+            picture.to_str().expect("utf8 path"),
+        ]);
+    }
+    let retitle = MetadataIntentPatch {
+        title: Some(PatchOp::Set("Retitled".to_string())),
+        ..Default::default()
+    };
+    for extension in ["gif", "bmp", "tiff", "webp"] {
+        let picture = dir.path().join(format!("cover.{extension}"));
+        let path = dir.path().join(format!("{extension}.mp3"));
+        ffmpeg([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=d=1",
+            "-i",
+            picture.to_str().expect("utf8 path"),
+            "-map",
+            "0",
+            "-map",
+            "1",
+            "-c:a",
+            "libmp3lame",
+            "-c:v",
+            "copy",
+            "-disposition:v",
+            "attached_pic",
+            "-y",
+            path.to_str().expect("utf8 path"),
+        ]);
+        let pictures = picture_payloads(&path);
+        assert_eq!(pictures.len(), 1, "{extension} fixture");
+
+        save_metadata_intent(&path, &retitle).expect(extension);
+
+        assert_eq!(picture_payloads(&path), pictures, "{extension} save");
+    }
+}
+
+#[test]
+fn a_save_retitles_a_wav() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join("book.wav");
+    write_sine_wav(&path, 1.0, 440.0);
+    let audio = audio_packet_bytes(&path);
+
+    save_metadata_intent(
+        &path,
+        &MetadataIntentPatch {
+            title: Some(PatchOp::Set("Retitled".to_string())),
+            ..Default::default()
+        },
+    )
+    .expect("save");
+
+    assert_eq!(
+        read_metadata(&path).expect("reread").title.as_deref(),
+        Some("Retitled")
+    );
+    assert_eq!(audio_packet_bytes(&path), audio);
+}
+
+fn write_sine_adts(path: &Path) {
+    ffmpeg([
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=d=1",
+        "-c:a",
+        "aac",
+        "-f",
+        "adts",
+        "-y",
+        path.to_str().expect("utf8 path"),
+    ]);
+}
+
+#[test]
+fn a_save_of_a_title_on_raw_aac_fails_and_leaves_the_file_unchanged() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join("book.aac");
+    write_sine_adts(&path);
+    let bytes = fs::read(&path).expect("read source");
+
+    let error = save_metadata_intent(
+        &path,
+        &MetadataIntentPatch {
+            title: Some(PatchOp::Set("Retitled".to_string())),
+            ..Default::default()
+        },
+    )
+    .expect_err("raw AAC cannot hold a title");
+
+    assert!(
+        error.to_string().contains(
+            "Raw AAC (.aac) files can't hold tags. Export the title to M4B to keep them."
+        ),
+        "{error}"
+    );
+    assert_eq!(fs::read(&path).expect("reread"), bytes);
+}
+
+#[test]
+fn a_save_of_a_field_a_wav_cannot_hold_fails_and_leaves_the_file_unchanged() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join("book.wav");
+    write_sine_wav(&path, 1.0, 440.0);
+    let bytes = fs::read(&path).expect("read source");
+
+    let error = save_metadata_intent(
+        &path,
+        &MetadataIntentPatch {
+            title: Some(PatchOp::Set("Retitled".to_string())),
+            composer: Some(PatchOp::Set("Narrator".to_string())),
+            series: Some(PatchOp::Set("Saga".to_string())),
+            ..Default::default()
+        },
+    )
+    .expect_err("WAV cannot hold a narrator or a series");
+
+    assert!(
+        error.to_string().contains(
+            "WAV files can't hold narrator or series. Export the title to M4B to keep them."
+        ),
+        "{error}"
+    );
+    assert_eq!(fs::read(&path).expect("reread"), bytes);
+}
+
+/// Copying a PNG cover into an attached-picture container needs no FFmpeg PNG
+/// encoder; the bundled build has none.
+#[test]
+fn a_container_change_carries_an_mka_png_cover_into_m4b_as_png() {
+    let dir = TempDir::new().expect("temp dir");
+    let mut png = Vec::new();
+    image::DynamicImage::new_rgb8(4, 4)
+        .write_to(&mut std::io::Cursor::new(&mut png), ImageFormat::Png)
+        .expect("encode PNG fixture");
+    let cover = dir.path().join("cover.png");
+    fs::write(&cover, &png).expect("write PNG fixture");
+    let path = dir.path().join("book.mka");
+    ffmpeg([
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=d=1",
+        "-c:a",
+        "aac",
+        "-attach",
+        cover.to_str().expect("utf8 path"),
+        "-metadata:s:t:0",
+        "mimetype=image/png",
+        "-metadata:s:t:0",
+        "filename=cover.png",
+        "-y",
+        path.to_str().expect("utf8 path"),
+    ]);
+
+    remux_preserved_audio_container(&path, "m4b", &[]).expect("container change");
+
+    assert_eq!(picture_payloads(&path), [(abb_ffmpeg::CodecId::PNG, png)]);
 }
 
 #[tokio::test]

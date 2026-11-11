@@ -1,4 +1,6 @@
 use super::{AudiobookFormat, EncoderType};
+use crate::errors::{AppError, Result};
+use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Muxer {
@@ -15,12 +17,11 @@ impl Muxer {
     }
 }
 
-const MP4_FAMILY_NAMES: [&str; 7] = ["mov", "mp4", "m4a", "ipod", "3gp", "3g2", "mj2"];
+const MP4_FAMILY_NAMES: [&str; 6] = ["mov", "mp4", "m4a", "3gp", "3g2", "mj2"];
 
 /// Whether an FFmpeg format name is in the MP4 family. `name` is
 /// `format().name()`: a muxer name, or a demuxer's comma-separated aliases
-/// (`mov,mp4,m4a,3gp,3g2,mj2`). FFmpeg guesses `ipod` for an `.m4a` or `.m4b`
-/// output opened without a muxer name.
+/// (`mov,mp4,m4a,3gp,3g2,mj2`).
 pub(crate) fn is_mp4_family_format(name: &str) -> bool {
     name.split(',')
         .any(|alias| MP4_FAMILY_NAMES.contains(&alias))
@@ -104,6 +105,14 @@ impl AudiobookFormat {
 
 pub(crate) fn format_for_extension(extension: &str) -> Option<&'static FormatSpec> {
     FORMATS.into_iter().find(|spec| spec.extension == extension)
+}
+
+pub(crate) fn muxer_for_path(path: &Path) -> Result<Muxer> {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .and_then(format_for_extension)
+        .map(|spec| spec.muxer)
+        .ok_or_else(|| AppError::InvalidInput("Unsupported audiobook container.".into()))
 }
 
 #[cfg(test)]

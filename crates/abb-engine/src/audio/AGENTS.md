@@ -103,6 +103,14 @@ read (dropped path, subfolder, entry, or file that fails
 walk continues. Unsupported extensions and nested symlinks are left out
 silently. The session decides what a skip means for the user.
 
+The bundled FFmpeg compiles only the components ABB's formats need, so a file
+whose content is another format fails to open even under a supported
+extension. A change to `SUPPORTED_AUDIO_FORMATS` extends `ABB_COMPONENTS` in
+`vendor/ffmpeg-sys-next-9.0.1/build.rs` in the same change, and gives each new
+component its reason in the Enabled components table of that crate's
+`ABB-PROVENANCE.md` (`scripts/ffmpeg-upstream.test.ts` fails when the two
+differ).
+
 A file's duration is the length the selected decoder yields. When FFmpeg
 only estimates it from a bitrate (`Input::duration_is_estimated`: an MP3 without a
 length header, joined MP3 parts, raw ADTS, Matroska without a Duration),
@@ -137,9 +145,9 @@ automatic rate), independent of saved user preferences. Explicit Encode applies
 the settings.
 
 `format.rs` is the one table of output formats: extension, muxer, codec
-family, and allowed encoders, and it holds `is_mp4_family_format`, the one test
-for an FFmpeg format name in the MP4 family. Read a format fact there; never
-list it again. A format "keeps" a source when the source's codec family equals
+family, and allowed encoders. It holds `is_mp4_family_format`, the one test
+for an FFmpeg format name in the MP4 family, and `muxer_for_path`, the muxer
+every output is created with. Read a format fact there; never list it again. A format "keeps" a source when the source's codec family equals
 the format's (`formats_that_keep`). Whether the source can be copied is a
 separate fact (`assess_preservation`, `can_preserve`) that `formats_that_keep`
 does not read.
