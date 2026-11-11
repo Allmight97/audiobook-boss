@@ -151,14 +151,11 @@ pub(super) fn write_packet(
             trailing_padding = padding;
         }
     } else {
-        // aac_at flushes one packet from an empty frame queue, stamped inside
-        // audio already written and carrying no samples.
-        if pts >= audio_end_pts || stats.written_end.is_some_and(|end| pts < end) {
+        if pts >= audio_end_pts {
             return Ok(());
         }
         trailing_padding = (pts + packet.duration() - audio_end_pts).max(0);
         packet.set_duration(packet.duration().min(audio_end_pts - pts));
-        stats.written_end = Some(pts + packet.duration());
     }
     let bytes = packet.size() as u64;
     packet.set_stream_index(output_stream_index);
