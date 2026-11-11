@@ -4,6 +4,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.18.3] - 2026-11-10
+
 ### Changed
 
 - The app is smaller. The bundled FFmpeg now builds only the formats ABB imports and writes; the
