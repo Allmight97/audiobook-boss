@@ -77,7 +77,7 @@ describe('plan --explain', () => {
 		).toBe('src/app/entry.tsx\n  frontend  src/**\n  tooling  src/**');
 		expect(
 			explainPath(yaml, laneNames, 'crates/abb-engine/src/lib.rs').map((choice) => choice.lane),
-		).toEqual(['core', 'engine', 'media', 'host', 'tooling']);
+		).toEqual(['core', 'engine', 'media', 'host', 'apple', 'tooling']);
 		expect(explainPath(yaml, laneNames, 'docs/DECISIONS.md')).toEqual([
 			{ lane: 'tooling', pattern: 'docs/**' },
 		]);

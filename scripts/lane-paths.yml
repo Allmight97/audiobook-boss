@@ -50,6 +50,9 @@ media:
   - crates/**
   - scripts/abb-dev.sh
   - .agents/skills/verify-abb/**
+apple:
+  - *shared
+  - crates/**
 host:
   - *shared
   - crates/**
