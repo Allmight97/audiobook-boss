@@ -10,6 +10,7 @@
 		"typecheck": "tsc --noEmit && tsc --noEmit -p scripts",
 		"knip": "knip",
 		"ci:timing": "bun scripts/ci-timing.ts",
+		"ffmpeg:upstream": "bun scripts/ffmpeg-upstream.ts",
 		"fmt": "oxfmt",
 		"fmt:check": "oxfmt --check",
 		"lint:check": "oxlint --type-aware --deny-warnings --report-unused-disable-directives && biome lint --error-on-warnings --no-errors-on-unmatched . && bun scripts/check-known-mistakes.ts",

@@ -32,6 +32,15 @@ What ABB relies on in that source:
 
 ## Moving the pin
 
+`bun run ffmpeg:upstream` lists the commits after the pin that touch the
+sources of the enabled components (from FFmpeg's Makefiles, with their arch
+variants and templates), the Native AAC encoder, `decode.c`, the MP4,
+Matroska and RIFF helpers, and the chapter patch, and names the newest BtbN
+autobuild with its master commit. Read it before choosing the new commit.
+Blind spot: a helper that `configure` selects for a component and that no
+Makefile line names for it, beyond the fixed list in the script, is not
+watched.
+
 1. Write the new commit to `ffmpeg-revision`, and move `ffmpeg_cli_release` and
    `ffmpeg_cli_build` in `scripts/setup.sh` to the BtbN master autobuild of
    that commit. `scripts/setup-pins.test.ts` enforces the pairing: the build
