@@ -106,6 +106,11 @@ describe('the watched paths', () => {
 		expect(watched).toContain('libavcodec/pcm*');
 		expect(watched).toContain('libavformat/movenc.c');
 		expect(watched).toContain('libswresample');
+		expect(watched).toContain('configure');
+		expect(watched).toContain('libavcodec/encode.c');
+		expect(watched).toContain('libavformat/aviobuf.c');
+		expect(watched).toContain('libavutil/tx*');
+		expect(watched).toContain('libavutil/encryption_info*');
 		expect(new Set(watched).size).toBe(watched.length);
 	});
 });

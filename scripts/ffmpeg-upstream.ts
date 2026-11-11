@@ -23,10 +23,12 @@ const CACHE_DIRECTORY = 'target/abb-ffmpeg-upstream';
 const ARCH_MAKEFILES = ['libavcodec/aarch64/Makefile', 'libavcodec/x86/Makefile'];
 
 const ALWAYS_WATCHED = [
+	'configure',
 	'libavcodec/aacenc*',
 	'libavcodec/aaccoder*',
 	'libavcodec/aacpsy*',
 	'libavcodec/decode.c',
+	'libavcodec/encode.c',
 	'libavcodec/mpeg4audio*',
 	'libavcodec/adts_header*',
 	'libavcodec/mpegaudio*',
@@ -35,6 +37,16 @@ const ALWAYS_WATCHED = [
 	'libavformat/isom*',
 	'libavformat/riff*',
 	'libavformat/id3v2*',
+	'libavformat/demux.c',
+	'libavformat/mux.c',
+	'libavformat/utils.c',
+	'libavformat/aviobuf.c',
+	'libavutil/tx*',
+	'libavutil/*/tx*',
+	'libavutil/float_dsp*',
+	'libavutil/*/float_dsp*',
+	'libavutil/aes*',
+	'libavutil/encryption_info*',
 	'libswresample',
 ];
 
