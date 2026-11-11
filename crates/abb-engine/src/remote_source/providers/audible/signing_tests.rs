@@ -29,10 +29,30 @@ const TEST_DEVICE_KEY_BASE64: [&str; 25] = [
     "g2weyVuhQdCf8UlNP78M3fy1Iuq97VOgGjyk/iqR1/gr8PIxkNiV",
 ];
 
+const TOO_SMALL_DEVICE_KEY_BASE64: [&str; 13] = [
+    "MIICXgIBAAKBgQDNWkWtqoJ840Y4aPlhGJsL/n7M8bCfc1q2jfKlncSg9D5Wn6zl",
+    "9R846XxwB5SOFQnAbUoTOn4m74Rp+1y1nvtAldH0wM9H7mY9D27CuNWQkM8r8IyA",
+    "onxhif4uPNMOmZUihD19zX9okU4PZo58ngb6xr8+z1u7KyANIqz8C4cOFwIDAQAB",
+    "AoGAOe4VagCH/yM+U/uJHlMKqj+JFde4s8Ke/JDeusnfBmjgjR9ObzDPNgboC9KX",
+    "nd1het9Z3kLKA8Hd4OgAJ1xKFFSKFOXaS6D18aLy+Z9mn/XLKGA5B+duJTm2JoTk",
+    "o+RW0XrnL2zqCG3ZMdLyu4dPJm0B6iz2Oxhk7CiVH0AFTEECQQD09jOyeF2KpsOB",
+    "JazMT4AX83xP11/Dtdnn0QAZrKY7N99X/dDcy7X7v8/7zBKYHV/+v4AfE+sXRZ+j",
+    "YsxaGsNDAkEA1psnFI3W2SWvDCwcNIYSvLhDdwltE6RYxyDhjMkDjNoisStCwu6O",
+    "QHVT9rci4Ke5oTkjLTqE4XNYJvwXsc2anQJBAIb+Nrcfhc0m4Y6GSJe/KAQK9nK5",
+    "adjcml0Z3EhJ0MHJpJdFFJjY2k0GA4PrjkOtzH0C44Q84c1NXRAZHix5mykCQQCT",
+    "h5OFGMDzBGni50v4e5bT76RJZ8x5bUiuk5cajnGHWcnxm7jIgvB9tWqkN1+dqw/8",
+    "mmfpRspkpkOagUDUtXAtAkEAm43fCBlra6Dtljcs0hRRAl0l/x9QYEx/HJKG6XOQ",
+    "TktFmC/GuJyC9orfJCGt4DehFBJg1zcskQ/qlvyScrZJmQ==",
+];
+
 pub(in crate::remote_source::providers::audible) fn test_device_key_pem() -> String {
+    pkcs1_pem(&TEST_DEVICE_KEY_BASE64)
+}
+
+fn pkcs1_pem(base64_lines: &[&str]) -> String {
     format!(
         "-----BEGIN RSA PRIVATE KEY-----\n{}\n-----END RSA PRIVATE KEY-----\n",
-        TEST_DEVICE_KEY_BASE64.join("\n")
+        base64_lines.join("\n")
     )
 }
 
@@ -116,4 +136,15 @@ fn a_saved_key_that_is_not_pkcs1_pem_is_refused() {
         .expect("refused");
 
     assert!(error.to_string().contains("withheld"), "{error}");
+}
+
+#[test]
+fn a_device_key_under_2048_bits_is_refused_with_the_reason() {
+    let error = AdpSigner::new("adp-token", &pkcs1_pem(&TOO_SMALL_DEVICE_KEY_BASE64))
+        .err()
+        .expect("refused");
+
+    let message = error.to_string();
+    assert!(message.contains("shorter than 2048 bits"), "{message}");
+    assert!(message.contains("Sign in to Audible again"), "{message}");
 }

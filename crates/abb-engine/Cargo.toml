@@ -42,7 +42,8 @@ specta-typescript.workspace = true
 keyring-core = "1.0.1"
 secrecy = "0.10.3"
 sha2 = "0.11.1"
-rsa = { version = "0.9.10", features = ["sha2"] }
+aws-lc-rs = { version = "1.18.0", default-features = false, features = ["aws-lc-sys"] }
+rustls-pki-types = "1.15.1"
 base64 = "0.23.1"
 getrandom = "0.4.3"
 

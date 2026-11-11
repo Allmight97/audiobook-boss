@@ -27,12 +27,5 @@ ignore = [
   "RUSTSEC-2026-0370", # zvariant
   "RUSTSEC-2026-0371", # zbus_names
   "RUSTSEC-2026-0372", # zvariant_derive
-
-  # rsa via abb-engine's Audible request signer (providers/audible/signing.rs).
-  # Acceptance: "No fixed upgrade is available" per RUSTSEC-2023-0071 (Marvin timing attack).
-  # It only signs Audible API requests with the device key on the user's machine; the
-  # attack needs precise timing of many private-key operations. Leaves when the signer
-  # moves to aws-lc-rs, which needs a real device key of 2048 bits or more.
-  "RUSTSEC-2023-0071", # rsa
 ]
 informational_warnings = ["unmaintained", "unsound"]

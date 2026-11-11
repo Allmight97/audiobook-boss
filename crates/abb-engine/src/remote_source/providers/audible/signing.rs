@@ -3,27 +3,27 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use aws_lc_rs::rand::SystemRandom;
+use aws_lc_rs::signature::{RsaKeyPair, RSA_PKCS1_SHA256};
 use base64::prelude::{Engine as _, BASE64_STANDARD};
 use reqwest::header::{HeaderMap, HeaderValue};
-use rsa::pkcs1::DecodeRsaPrivateKey;
-use rsa::sha2::{Digest, Sha256};
-use rsa::traits::PublicKeyParts;
-use rsa::{Pkcs1v15Sign, RsaPrivateKey};
+use rustls_pki_types::pem::PemObject;
+use rustls_pki_types::PrivatePkcs1KeyDer;
 
 use super::provider_private_failure;
-use crate::errors::Result;
+use crate::errors::{AppError, Result};
 
 const SIGNING_ALGORITHM: &str = "SHA256withRSA:1.0";
+const MIN_DEVICE_KEY_BITS: usize = 2048;
 
 pub(super) struct AdpSigner {
     adp_token: String,
-    device_key: RsaPrivateKey,
+    device_key: RsaKeyPair,
 }
 
 impl AdpSigner {
     pub(super) fn new(adp_token: &str, device_private_key_pem: &str) -> Result<Self> {
-        let device_key = RsaPrivateKey::from_pkcs1_pem(device_private_key_pem)
-            .map_err(|_| provider_private_failure("device key"))?;
+        let device_key = device_key_from_pem(device_private_key_pem)?;
         HeaderValue::from_str(adp_token).map_err(|_| provider_private_failure("device token"))?;
         Ok(Self {
             adp_token: adp_token.to_string(),
@@ -32,7 +32,7 @@ impl AdpSigner {
     }
 
     pub(super) fn key_bits(&self) -> usize {
-        self.device_key.n().bits()
+        self.device_key.public_modulus_len() * 8
     }
 
     pub(super) fn headers(
@@ -48,9 +48,14 @@ impl AdpSigner {
             signed.push(b'\n');
         }
         signed.extend_from_slice(self.adp_token.as_bytes());
-        let signature = self
-            .device_key
-            .sign(Pkcs1v15Sign::new::<Sha256>(), &Sha256::digest(&signed))
+        let mut signature = vec![0; self.device_key.public_modulus_len()];
+        self.device_key
+            .sign(
+                &RSA_PKCS1_SHA256,
+                &SystemRandom::new(),
+                &signed,
+                &mut signature,
+            )
             .map_err(|_| provider_private_failure("request signing"))?;
         let signature = format!("{}:{date}", BASE64_STANDARD.encode(signature));
 
@@ -63,6 +68,21 @@ impl AdpSigner {
         headers.insert("x-adp-signature", value(&signature)?);
         Ok(headers)
     }
+}
+
+fn device_key_from_pem(pem: &str) -> Result<RsaKeyPair> {
+    let der = PrivatePkcs1KeyDer::from_pem_slice(pem.as_bytes())
+        .map_err(|_| provider_private_failure("device key"))?;
+    RsaKeyPair::from_der(der.secret_pkcs1_der()).map_err(|rejected| {
+        if rejected.description_() == "TooSmall" {
+            AppError::General(format!(
+                "The saved Audible device key is shorter than {MIN_DEVICE_KEY_BITS} bits, \
+                 so ABB cannot sign Audible requests with it. Sign in to Audible again."
+            ))
+        } else {
+            provider_private_failure("device key")
+        }
+    })
 }
 
 /// The signed date Audible expects: UTC RFC 3339 with `+00:00`, then a
