@@ -1,5 +1,6 @@
 use super::*;
-use crate::execution::{OutputConfig, ProcessingSession};
+use crate::execution::OutputConfig;
+use crate::test_cases::support::session::{idle_session, session_with};
 use crate::test_cases::support::wav::SAMPLE_RATE;
 
 use std::sync::Arc;
@@ -21,17 +22,17 @@ fn copying_title_sources_advances_one_shared_progress_interval() {
     let observed = Arc::new(std::sync::Mutex::new(Vec::new()));
     let events = observed.clone();
     let mut context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::new()),
+        Arc::new(idle_session()),
         SAMPLE_RATE,
         OutputConfig::new(tmp.path().join("out.m4b")),
         tmp.path().join("workspace"),
     );
-    context.progress_listener = Some(Arc::new(move |event| {
+    context.progress_listener = Arc::new(move |event| {
         events
             .lock()
             .expect("capture progress")
             .push(event.percentage)
-    }));
+    });
     copy_with_cancellation(
         &source,
         &fingerprint,
@@ -75,7 +76,7 @@ fn preserve_copy_rejects_a_source_replaced_with_a_symlink_after_inspection() {
     std::fs::remove_file(&source).expect("remove old source");
     std::os::unix::fs::symlink(&replacement, &source).expect("replace source with symlink");
     let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::new()),
+        Arc::new(idle_session()),
         SAMPLE_RATE,
         OutputConfig::new(tmp.path().join("final.m4a")),
         tmp.path().join("workspace"),
@@ -110,7 +111,7 @@ fn preserve_copy_rejects_a_regular_source_replaced_after_inspection() {
     std::fs::remove_file(&source).expect("remove old source");
     crate::test_cases::move_test_file(&replacement, &source);
     let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::new()),
+        Arc::new(idle_session()),
         SAMPLE_RATE,
         OutputConfig::new(tmp.path().join("final.m4a")),
         tmp.path().join("workspace"),
@@ -141,19 +142,15 @@ async fn preserve_copy_stops_after_cancellation_during_progress() {
     std::fs::write(&source, vec![7_u8; 4 * 1024 * 1024]).expect("write copy source");
     let source_fingerprint = inspect_source_fingerprint(&source);
     let cancelled = CancellationToken::new();
-    let checker = crate::execution::CancellationChecker::new(Some(cancelled.clone()));
     let mut context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::with_cancellation(
-            uuid::Uuid::new_v4(),
-            checker,
-        )),
+        Arc::new(session_with(cancelled.clone())),
         SAMPLE_RATE,
         OutputConfig::new(tmp.path().join("final.m4a")),
         tmp.path().join("workspace"),
     );
-    context.progress_listener = Some(Arc::new(move |_| {
+    context.progress_listener = Arc::new(move |_| {
         cancelled.cancel();
-    }));
+    });
     let error = copy_with_cancellation(&source, &source_fingerprint, &staged, &context, 0.0..1.0)
         .expect_err("copy must observe cancellation");
     assert!(matches!(error, AppError::Cancellation(_)));
@@ -174,14 +171,14 @@ fn preserve_copy_rejects_source_truncated_during_copy() {
     let source_fingerprint = inspect_source_fingerprint(&source);
     let source_for_listener = source.clone();
     let mut context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::new()),
+        Arc::new(idle_session()),
         SAMPLE_RATE,
         OutputConfig::new(tmp.path().join("final.m4a")),
         tmp.path().join("workspace"),
     );
-    context.progress_listener = Some(Arc::new(move |_| {
+    context.progress_listener = Arc::new(move |_| {
         std::fs::File::create(&source_for_listener).expect("truncate source during copy");
-    }));
+    });
 
     let error = copy_with_cancellation(&source, &source_fingerprint, &staged, &context, 0.0..1.0)
         .expect_err("source truncation must be rejected after copy EOF");
@@ -202,12 +199,12 @@ fn preserve_copy_rejects_same_size_source_overwrite_during_copy() {
     let source_fingerprint = inspect_source_fingerprint(&source);
     let source_for_listener = source.clone();
     let mut context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::new()),
+        Arc::new(idle_session()),
         SAMPLE_RATE,
         OutputConfig::new(tmp.path().join("final.m4a")),
         tmp.path().join("workspace"),
     );
-    context.progress_listener = Some(Arc::new(move |_| {
+    context.progress_listener = Arc::new(move |_| {
         let mut source = std::fs::OpenOptions::new()
             .write(true)
             .open(&source_for_listener)
@@ -218,7 +215,7 @@ fn preserve_copy_rejects_same_size_source_overwrite_during_copy() {
         source
             .set_modified(std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1))
             .expect("set source mtime");
-    }));
+    });
 
     let error = copy_with_cancellation(&source, &source_fingerprint, &staged, &context, 0.0..1.0)
         .expect_err("same-size source overwrite must be rejected after copy EOF");

@@ -16,7 +16,8 @@ use crate::metadata::{
     remux_preserved_audio_container, save_metadata_intent, AlbumSortPatchOp, AudiobookMetadata,
     CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp,
 };
-use crate::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
+use crate::processing::{AudioHandling, OutputConfig, ProcessingContext};
+use crate::test_cases::support::session::idle_session;
 use image::{GenericImageView, ImageFormat};
 use std::fs;
 use std::path::Path;
@@ -126,7 +127,7 @@ async fn preserving_an_mka_with_cleared_fields_leaves_none_of_them_in_the_copy()
     let info =
         get_file_list_info(std::slice::from_ref(&source), AacDecoder::Auto).expect("probe source");
     let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::new()),
+        Arc::new(idle_session()),
         SAMPLE_RATE,
         OutputConfig::new(&destination),
         dir.path().join("workspace"),
@@ -266,7 +267,7 @@ async fn metadata_saved_during_processing_rereads_from_output_artifact() {
     metadata.subseries = Some("Lane Arc".to_string());
     metadata.subseries_part = Some("1".to_string());
 
-    execute_audio_engine(lane.execution_request(ProcessingSession::new(), Some(metadata)))
+    execute_audio_engine(lane.execution_request(idle_session(), Some(metadata)))
         .await
         .expect("processing with metadata succeeds");
 
@@ -314,7 +315,7 @@ async fn artifact_fields_survive_normal_saves_and_clear_only_by_explicit_intent(
     metadata.track = Some((7, Some(42)));
     metadata.disk = Some((1, Some(2)));
 
-    execute_audio_engine(lane.execution_request(ProcessingSession::new(), Some(metadata)))
+    execute_audio_engine(lane.execution_request(idle_session(), Some(metadata)))
         .await
         .expect("processing with artifact metadata succeeds");
     let output = lane.output_path();

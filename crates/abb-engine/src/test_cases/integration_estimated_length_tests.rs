@@ -6,7 +6,7 @@ use super::support::encoders::faac_encoder_settings;
 use super::support::wav::{write_sine_wav, SAMPLE_RATE};
 use crate::audio::{execute_audio_engine, get_file_list_info, AacDecoder};
 use crate::metadata::{read_metadata, save_metadata_intent, MetadataIntentPatch, PatchOp};
-use crate::processing::ProcessingSession;
+use crate::test_cases::support::session::idle_session;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -41,7 +41,7 @@ async fn a_merge_after_an_estimated_length_file_starts_the_next_chapter_at_the_r
         let tone = tmp.path().join("tone.wav");
         write_sine_wav(&tone, 8.0, 330.0);
         let lane = MediaLane::for_inputs(vec![estimated.clone(), tone]).with_aac_decoder(decoder);
-        execute_audio_engine(lane.execution_request(ProcessingSession::new(), None))
+        execute_audio_engine(lane.execution_request(idle_session(), None))
             .await
             .expect("export a merge after an estimated-length file");
 

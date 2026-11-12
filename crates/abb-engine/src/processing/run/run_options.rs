@@ -1,26 +1,41 @@
-use crate::processing::ProgressEventListener;
+use crate::errors::{AppError, Result};
+use crate::processing::{ProgressEventListener, TitleOutput};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
-/// One output title's cancel token and, for an export, its output record.
-#[derive(Clone)]
-pub(crate) struct TitleRun {
-    pub(crate) index: usize,
+pub(crate) struct ProcessingRun {
+    pub(crate) operation_id: String,
+    pub(crate) listener: ProgressEventListener,
+    pub(crate) mode: RunMode,
+}
+
+pub(crate) enum RunMode {
+    Export(Vec<ExportTitle>),
+    Preview(Vec<CancellationToken>),
+}
+
+pub(crate) struct ExportTitle {
     pub(crate) cancel: CancellationToken,
-    pub(crate) output: Option<Arc<crate::processing::TitleOutput>>,
+    pub(crate) output: Arc<TitleOutput>,
 }
 
-#[derive(Clone, Default)]
-pub(crate) struct ProcessingRunOptions {
-    pub(crate) operation_id: Option<String>,
-    /// One entry per output title. Cancelling the whole operation cancels
-    /// every title's token. A preview has no output records.
-    pub(crate) titles: Vec<TitleRun>,
-    pub(crate) progress_listener: Option<ProgressEventListener>,
+pub(super) struct TitleRun {
+    pub(super) cancel: CancellationToken,
+    pub(super) output: Option<Arc<TitleOutput>>,
 }
 
-impl ProcessingRunOptions {
-    pub(crate) fn title(&self, index: usize) -> Option<&TitleRun> {
-        self.titles.iter().find(|title| title.index == index)
+impl RunMode {
+    pub(super) fn title(&self, index: usize) -> Result<TitleRun> {
+        let title = match self {
+            Self::Export(titles) => titles.get(index).map(|title| TitleRun {
+                cancel: title.cancel.clone(),
+                output: Some(Arc::clone(&title.output)),
+            }),
+            Self::Preview(cancels) => cancels.get(index).map(|cancel| TitleRun {
+                cancel: cancel.clone(),
+                output: None,
+            }),
+        };
+        title.ok_or_else(|| AppError::General(format!("No run entry for title {index}")))
     }
 }

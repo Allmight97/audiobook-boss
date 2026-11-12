@@ -388,7 +388,7 @@ async fn external_cancel_interrupts_waiting_permit_acquire_without_waiting_for_a
     let registry = JobRegistry::new(1);
     let (first_job, held_permit) = registry.register_job().await.expect("first job");
     let operation_cancel = CancellationToken::new();
-    let registration = registry.register_job_with_external_cancel(Some(operation_cancel.clone()));
+    let registration = registry.register_job_with_external_cancel(&operation_cancel);
     tokio::pin!(registration);
 
     tokio::select! {
@@ -424,7 +424,7 @@ async fn a_cancelled_token_refuses_registration_before_it_is_tracked() {
     let registry = JobRegistry::new(1);
 
     let result = registry
-        .register_job_with_external_cancel(Some(crate::execution::cancelled_token()))
+        .register_job_with_external_cancel(&crate::execution::cancelled_token())
         .await;
 
     assert!(matches!(

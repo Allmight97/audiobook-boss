@@ -3,7 +3,7 @@ use std::sync::Arc;
 use super::submission_flow::{closing, failed};
 use super::Session;
 use crate::errors::AppError;
-use crate::processing::run::{process_inspected_with_options, ProcessingRunOptions, TitleRun};
+use crate::processing::run::{process_inspected_with_options, ProcessingRun, RunMode};
 use crate::session::intent::SessionOutcome;
 use crate::session::submission::{Draft, SubmissionStatus};
 
@@ -33,25 +33,17 @@ impl Session {
             deps.workspace_root.clone(),
             draft.payload.clone(),
             inspected,
-            ProcessingRunOptions {
-                operation_id: Some(id.to_string()),
-                titles: cancels
-                    .into_iter()
-                    .enumerate()
-                    .map(|(index, cancel)| TitleRun {
-                        index,
-                        cancel,
-                        output: None,
-                    })
-                    .collect(),
-                progress_listener: Some(Arc::new({
+            ProcessingRun {
+                operation_id: id.to_string(),
+                mode: RunMode::Preview(cancels),
+                listener: Arc::new({
                     let session = self.clone();
                     let id = id.clone();
                     move |event| {
                         session.transition(|state| state.preview.progress(&id, event));
                         session.publish();
                     }
-                })),
+                }),
             },
         )
         .await;

@@ -1,5 +1,5 @@
 use super::run_job::{run_processing_job, supplemental_assets_for_input, ProcessingJobRequest};
-use super::ProcessingRunOptions;
+use super::ProcessingRun;
 use crate::audio;
 use crate::errors::{AppError, Result};
 use crate::execution::EmitContext;
@@ -25,7 +25,7 @@ pub(crate) async fn dispatch_title_jobs(
     workspace_root: PathBuf,
     payload: &ProcessPayload,
     execution_plan: ExecutionProcessingPlan,
-    options: ProcessingRunOptions,
+    run: ProcessingRun,
 ) -> Result<ProcessCommandResult> {
     let ExecutionProcessingPlan {
         plan,
@@ -38,7 +38,7 @@ pub(crate) async fn dispatch_title_jobs(
         file_info,
         folders: Arc::clone(&folders),
     };
-    let result = dispatch_batch_plan(host, registry, workspace_root, payload, batch, options).await;
+    let result = dispatch_batch_plan(host, registry, workspace_root, payload, batch, run).await;
     let mut folders = folders.lock().unwrap_or_else(PoisonError::into_inner);
     crate::processing::output_parent_cleanup::finalize_output_parent_cleanup(result, &mut folders)
 }
@@ -57,7 +57,7 @@ async fn dispatch_batch_plan(
     workspace_root: PathBuf,
     payload: &ProcessPayload,
     batch: Batch,
-    options: ProcessingRunOptions,
+    run: ProcessingRun,
 ) -> Result<ProcessCommandResult> {
     let Batch {
         plan,
@@ -74,21 +74,18 @@ async fn dispatch_batch_plan(
             no_write_skipped_result(planned_job.input_index, None, &planned_job.output)
         {
             emit_terminal_skipped_event(
-                options.progress_listener.as_ref(),
+                &run.listener,
                 EmitContext {
                     operation_kind: OperationKind::ProcessingBatch,
                     identity: JobIdentity {
-                        operation_id: options.operation_id.clone(),
+                        operation_id: run.operation_id.clone(),
                         job_id: skipped_entry.job_id.clone(),
                         input_index: skipped_entry.input_index,
                     },
                 },
                 &skipped_entry.message,
             );
-            if let Some(output) = options
-                .title(planned_job.input_index)
-                .and_then(|title| title.output.as_ref())
-            {
+            if let Some(output) = run.mode.title(planned_job.input_index)?.output {
                 output.end();
             }
             scheduled_jobs.push((Box::pin(async move { Ok(skipped_entry) }), None));
@@ -96,7 +93,7 @@ async fn dispatch_batch_plan(
         }
 
         let input_index = planned_job.input_index;
-        let title = options.title(input_index);
+        let title = run.mode.title(input_index)?;
         let request = ProcessingJobRequest {
             host: host.clone(),
             registry: registry.clone(),
@@ -108,12 +105,12 @@ async fn dispatch_batch_plan(
             sample_rate: planned_job.audio_plan.sample_rate,
             aac_decoder: payload.accepted_aac_decoder()?,
             identity: JobIdentity {
-                operation_id: options.operation_id.clone(),
+                operation_id: run.operation_id.clone(),
                 job_id: None,
                 input_index,
             },
             operation_kind: OperationKind::ProcessingBatch,
-            title_cancel: title.map(|title| title.cancel.clone()),
+            title_cancel: title.cancel.clone(),
             output_plan: planned_job.output.clone(),
             file_info: crate::processing::plan::title_file_info(
                 &file_info,
@@ -122,10 +119,10 @@ async fn dispatch_batch_plan(
             metadata: planned_job.metadata.clone(),
             cover_art_passthrough: planned_job.cover_art_passthrough,
             supplemental_assets: supplemental_assets_for_input(payload, input_index),
-            progress_listener: options.progress_listener.clone(),
-            title_output: title.and_then(|title| title.output.clone()),
+            progress_listener: run.listener.clone(),
+            title_output: title.output,
         };
-        let cancel = request.title_cancel.clone();
+        let cancel = Some(request.title_cancel.clone());
         scheduled_jobs.push((
             Box::pin(run_title_job(request, Arc::clone(&folders))),
             cancel,
@@ -133,11 +130,7 @@ async fn dispatch_batch_plan(
     }
 
     let outcomes = registry.run_batch(scheduled_jobs).await;
-    let finalized_results = finalize_batch_results(
-        outcomes,
-        &options.operation_id,
-        options.progress_listener.as_ref(),
-    )?;
+    let finalized_results = finalize_batch_results(outcomes, &run.operation_id, &run.listener)?;
 
     Ok(ProcessCommandResult::new(finalized_results))
 }
@@ -154,10 +147,7 @@ async fn run_title_job(
     let identity = request.identity.clone();
     let input_index = identity.input_index;
     let title_output = request.title_output.clone();
-    let cancelled = request
-        .title_cancel
-        .as_ref()
-        .is_some_and(CancellationToken::is_cancelled);
+    let cancelled = request.title_cancel.is_cancelled();
     let outcome = if cancelled {
         Err(AppError::cancelled())
     } else {
@@ -179,9 +169,9 @@ async fn run_title_job(
     if let Some(title) = &title_output {
         title.end();
     }
-    if listener.is_some() && matches!(outcome, Err(AppError::Cancellation(_))) {
+    if matches!(outcome, Err(AppError::Cancellation(_))) {
         emit_terminal_cancelled_event(
-            listener.as_ref(),
+            &listener,
             EmitContext {
                 operation_kind: OperationKind::ProcessingBatch,
                 identity,
@@ -194,8 +184,8 @@ async fn run_title_job(
 
 fn finalize_batch_results(
     outcomes: Vec<Result<ProcessResultEntry>>,
-    operation_id: &Option<String>,
-    progress_listener: Option<&ProgressEventListener>,
+    operation_id: &str,
+    progress_listener: &ProgressEventListener,
 ) -> Result<Vec<ProcessResultEntry>> {
     let finalized = collect_batch_results(outcomes)?;
     for event in finalized.failure_events {
@@ -204,7 +194,7 @@ fn finalize_batch_results(
             EmitContext {
                 operation_kind: OperationKind::ProcessingBatch,
                 identity: JobIdentity {
-                    operation_id: operation_id.clone(),
+                    operation_id: operation_id.to_string(),
                     job_id: event.job_id.clone(),
                     input_index: event.input_index,
                 },

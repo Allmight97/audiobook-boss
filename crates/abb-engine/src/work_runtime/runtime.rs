@@ -8,7 +8,7 @@ use super::types::{
 use crate::errors::{AppError, Result};
 use crate::host::{EngineEvent, Host};
 use crate::processing::run::{
-    preflight_title_outputs, process_inspected_with_options, ProcessingRunOptions, TitleRun,
+    preflight_title_outputs, process_inspected_with_options, ExportTitle, ProcessingRun, RunMode,
 };
 use crate::processing::ProgressEventListener;
 use crate::processing::TitleOutput;
@@ -142,15 +142,13 @@ impl WorkRuntime {
             }
         }
         let cancel_tokens = CancelTokens::per_title(request.payload.input_files.len());
-        let title_runs: Vec<TitleRun> = cancel_tokens
+        let export_titles: Vec<ExportTitle> = cancel_tokens
             .titles()
             .into_iter()
             .zip(&titles)
-            .enumerate()
-            .map(|(index, (cancel, output))| TitleRun {
-                index,
+            .map(|(cancel, output)| ExportTitle {
                 cancel,
-                output: Some(output.clone()),
+                output: Arc::clone(output),
             })
             .collect();
         let live = Live {
@@ -169,14 +167,9 @@ impl WorkRuntime {
         let progress_operation_id = operation_id_for_task.clone();
         let progress_host = host.clone();
         let run_titles = titles.clone();
-        let progress_listener: Option<ProgressEventListener> =
-            Some(std::sync::Arc::new(move |event: &ProgressEvent| {
-                progress_runtime.apply_progress_and_emit(
-                    &progress_host,
-                    &progress_operation_id,
-                    event,
-                );
-            }));
+        let listener: ProgressEventListener = Arc::new(move |event: &ProgressEvent| {
+            progress_runtime.apply_progress_and_emit(&progress_host, &progress_operation_id, event);
+        });
         self.inner.tasks.spawn(async move {
             let _active_run = active_run;
             runtime.mark_running_and_emit(&host, &operation_id_for_task);
@@ -187,10 +180,10 @@ impl WorkRuntime {
                 workspace_root,
                 request.payload,
                 inspected,
-                ProcessingRunOptions {
-                    operation_id: Some(operation_id_for_task.to_string()),
-                    titles: title_runs,
-                    progress_listener,
+                ProcessingRun {
+                    operation_id: operation_id_for_task.to_string(),
+                    listener,
+                    mode: RunMode::Export(export_titles),
                 },
             )
             .await;

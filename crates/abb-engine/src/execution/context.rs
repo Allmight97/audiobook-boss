@@ -59,7 +59,7 @@ pub struct ProcessingContext {
     pub(crate) workspace_root: PathBuf,
     pub(crate) identity: JobIdentity,
     pub operation_kind: OperationKind,
-    pub(crate) progress_listener: Option<ProgressEventListener>,
+    pub(crate) progress_listener: ProgressEventListener,
     /// The export title's output record; publication goes through it.
     pub(crate) publish_gate: Option<Arc<dyn PublishGate>>,
 }
@@ -74,7 +74,6 @@ impl std::fmt::Debug for ProcessingContext {
             .field("workspace_root", &self.workspace_root)
             .field("identity", &self.identity)
             .field("operation_kind", &self.operation_kind)
-            .field("progress_listener", &self.progress_listener.is_some())
             .field("publish_gate", &self.publish_gate.is_some())
             .finish()
     }
@@ -95,12 +94,12 @@ impl ProcessingContext {
             output,
             workspace_root,
             identity: JobIdentity {
-                operation_id: None,
+                operation_id: "test-operation".to_string(),
                 job_id: None,
                 input_index: 0,
             },
             operation_kind: OperationKind::ProcessingBatch,
-            progress_listener: None,
+            progress_listener: Arc::new(|_| {}),
             publish_gate: None,
         }
     }
@@ -114,11 +113,13 @@ impl ProcessingContext {
     }
 
     pub fn new_emitter(&self) -> super::ProgressEmitter {
-        super::ProgressEmitter::with_context(super::EmitContext {
-            operation_kind: self.operation_kind,
-            identity: self.identity.clone(),
-        })
-        .with_progress_listener(self.progress_listener.clone())
+        super::ProgressEmitter::new(
+            super::EmitContext {
+                operation_kind: self.operation_kind,
+                identity: self.identity.clone(),
+            },
+            self.progress_listener.clone(),
+        )
     }
 
     pub(crate) fn processing_workspace_root(&self) -> &Path {

@@ -6,7 +6,8 @@ use crate::errors::AppError;
 use crate::host::Host;
 use crate::power::PowerManager;
 use crate::processing::run::{
-    inspect_processing_plan, process_inspected_with_options, ProcessingRunOptions, TitleRun,
+    inspect_processing_plan, preflight_title_outputs, process_inspected_with_options, ExportTitle,
+    ProcessingRun, RunMode,
 };
 use crate::processing::{EventStage, JobRegistry, ProcessPayload, ProgressEvent};
 use std::fs;
@@ -56,6 +57,7 @@ async fn a_cancel_during_the_encode_reports_one_cancelled_event_after_the_staged
         aac_decoder: Some(AacDecoder::Auto),
     };
     let inspected = inspect_processing_plan(&payload, None, false).expect("inspect");
+    let outputs = preflight_title_outputs(&payload, None, &inspected).expect("title outputs");
 
     let cancel = CancellationToken::new();
     let cancelled_events: Arc<Mutex<Vec<bool>>> = Arc::default();
@@ -82,14 +84,18 @@ async fn a_cancel_during_the_encode_reports_one_cancelled_event_after_the_staged
         workspace_root.clone(),
         payload,
         inspected,
-        ProcessingRunOptions {
-            titles: vec![TitleRun {
-                index: 0,
-                cancel: cancel.clone(),
-                output: None,
-            }],
-            progress_listener: Some(listener),
-            ..ProcessingRunOptions::default()
+        ProcessingRun {
+            operation_id: "cancel-events".to_string(),
+            listener,
+            mode: RunMode::Export(
+                outputs
+                    .into_iter()
+                    .map(|output| ExportTitle {
+                        cancel: cancel.clone(),
+                        output,
+                    })
+                    .collect(),
+            ),
         },
     );
     tokio::pin!(processing);

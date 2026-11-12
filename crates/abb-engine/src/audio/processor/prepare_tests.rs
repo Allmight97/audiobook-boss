@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_cases::support::session::session_with;
 use std::path::PathBuf;
 
 fn audio_file(name: &str, duration: Option<f64>, is_valid: bool) -> AudioFile {
@@ -31,18 +32,13 @@ fn audio_file(name: &str, duration: Option<f64>, is_valid: bool) -> AudioFile {
 #[tokio::test]
 async fn cancellation_after_workspace_creation_keeps_cleanup_ownership() {
     use crate::audio::{get_file_list_info, AacDecoder};
-    use crate::execution::ProcessingSession;
+
     use crate::test_cases::media_fixtures::MediaLane;
     let lane = MediaLane::with_fixtures(&[1.0]);
     let files = get_file_list_info(&lane.inputs, AacDecoder::Auto)
         .expect("probe fixture")
         .files;
-    let checker =
-        crate::execution::CancellationChecker::new(Some(crate::execution::cancelled_token()));
-    let context = lane.context(ProcessingSession::with_cancellation(
-        uuid::Uuid::new_v4(),
-        checker,
-    ));
+    let context = lane.context(session_with(crate::execution::cancelled_token()));
     assert!(prepare(&context, &files).is_err());
     assert_eq!(
         std::fs::read_dir(lane.workspace_root())

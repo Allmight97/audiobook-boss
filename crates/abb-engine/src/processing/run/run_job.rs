@@ -36,13 +36,13 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) aac_decoder: audio::AacDecoder,
     pub(crate) identity: JobIdentity,
     pub(crate) operation_kind: OperationKind,
-    pub(crate) title_cancel: Option<CancellationToken>,
+    pub(crate) title_cancel: CancellationToken,
     pub(crate) output_plan: ResolvedOutputPlan,
     pub(crate) file_info: FileListInfo,
     pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
     pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
     pub(crate) supplemental_assets: Vec<SupplementalProcessingAsset>,
-    pub(crate) progress_listener: Option<ProgressEventListener>,
+    pub(crate) progress_listener: ProgressEventListener,
     pub(crate) title_output: Option<Arc<crate::processing::TitleOutput>>,
 }
 
@@ -165,7 +165,7 @@ fn log_audio_decision(request: &ProcessingJobRequest, job_id: JobId) {
         });
     log::info!(
         "audio_decision operation_id={} job_id={} input_index={:?} request={:?} action={:?} resolved_rate={:?} reason={:?} output_path={:?}",
-        request.identity.operation_id.as_deref().unwrap_or("foreground"), job_id,
+        request.identity.operation_id, job_id,
         request.identity.input_index, request.audio_request, request.audio_handling,
         request.sample_rate, reason, request.output_plan.resolved_path
     );
@@ -275,12 +275,12 @@ pub(crate) async fn register_job_and_validate_output(
     registry: &crate::ManagedJobRegistry,
     output_path: &Path,
     format: audio::AudiobookFormat,
-    title_cancel: Option<CancellationToken>,
+    title_cancel: CancellationToken,
     identity: JobIdentity,
     operation_kind: OperationKind,
 ) -> Result<RegisteredProcessingJob> {
     let (job_id, permit) = registry
-        .register_job_with_external_cancel(title_cancel.clone())
+        .register_job_with_external_cancel(&title_cancel)
         .await?;
     let job = RegisteredJob::adopt(registry, job_id);
     let cancellation_checker = CancellationChecker::new(title_cancel);
@@ -317,7 +317,7 @@ struct ProcessingContextRequest {
     sample_rate: u32,
     aac_decoder: audio::AacDecoder,
     operation_kind: OperationKind,
-    progress_listener: Option<ProgressEventListener>,
+    progress_listener: ProgressEventListener,
     title_output: Option<Arc<crate::processing::TitleOutput>>,
     output_plan: ResolvedOutputPlan,
     workspace_root: PathBuf,
@@ -418,12 +418,11 @@ fn format_processing_job_record(
     status: ProcessingJobLogStatus<'_>,
     elapsed_ms: Option<u128>,
 ) -> String {
-    let operation_id = identity.operation_id.as_deref().unwrap_or("foreground");
     let job_id = identity.job_id.as_deref().unwrap_or("none");
     let mut record = format!(
         "processing_job event={} operation_id={} job_id={} input_index={} kind={} status={}",
         processing_job_event_label(event),
-        operation_id,
+        identity.operation_id,
         job_id,
         identity.input_index,
         operation_kind.log_label(),

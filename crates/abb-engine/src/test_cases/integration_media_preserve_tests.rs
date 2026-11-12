@@ -16,7 +16,8 @@ use crate::audio::{
     EncoderSettings, EncoderType, SampleRateConfig,
 };
 use crate::metadata::{read_metadata, CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp};
-use crate::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
+use crate::processing::{AudioHandling, OutputConfig, ProcessingContext};
+use crate::test_cases::support::session::idle_session;
 use std::fs;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -39,7 +40,7 @@ async fn preserve_copies_a_supported_m4b_without_mutating_source_bytes() {
             .can_preserve
     );
     let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::new()),
+        Arc::new(idle_session()),
         SAMPLE_RATE,
         OutputConfig::new(&destination),
         lane.workspace_root(),
@@ -92,7 +93,7 @@ async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
     .expect("explicit Keep overrides the size-reduction recommendation");
     assert_eq!(plan.handling, AudioHandling::Preserve);
     let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::new()),
+        Arc::new(idle_session()),
         SAMPLE_RATE,
         OutputConfig::new(&destination),
         lane.workspace_root(),
@@ -304,7 +305,7 @@ async fn preserved_title_rejects_interior_priming_without_publishing() {
     let workspace = tmp.path().join("workspace");
     let info = get_file_list_info(&[source, copy], AacDecoder::Auto).expect("fixture value");
     let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::new()),
+        Arc::new(idle_session()),
         SAMPLE_RATE,
         OutputConfig::new(&destination),
         workspace.clone(),

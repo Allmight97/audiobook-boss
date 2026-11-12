@@ -1,6 +1,7 @@
 use super::*;
 use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
-use crate::execution::{OutputConfig, ProcessingSession};
+use crate::execution::OutputConfig;
+use crate::test_cases::support::session::idle_session;
 use crate::test_cases::support::wav::SAMPLE_RATE;
 
 use std::path::PathBuf;
@@ -23,7 +24,7 @@ fn in_process_run_record_sanitizes_paths_and_names_the_encoder() {
     );
     let workspace = tempfile::tempdir().expect("workspace root");
     let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::new()),
+        Arc::new(idle_session()),
         SAMPLE_RATE,
         OutputConfig::new(Path::new("/tmp/final/Book.m4b")),
         workspace.path().to_path_buf(),

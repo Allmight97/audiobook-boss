@@ -16,7 +16,8 @@ use crate::metadata::{
     read_audio_cover_thumbnail, read_metadata, save_metadata_intent, CoverArtPassthroughPolicy,
     MetadataIntentPatch, PatchOp,
 };
-use crate::processing::{OutputConfig, ProcessingContext, ProcessingSession};
+use crate::processing::{OutputConfig, ProcessingContext};
+use crate::test_cases::support::session::idle_session;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -167,7 +168,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
             .join("copy")
             .with_extension(other_format.extension());
         let context = ProcessingContext::new_headless_with_workspace_root(
-            Arc::new(ProcessingSession::new()),
+            Arc::new(idle_session()),
             SAMPLE_RATE,
             OutputConfig::new(&copied),
             lane.tmp.path().join("work-copy"),
@@ -279,7 +280,7 @@ async fn opus_remux_keeps_variable_frame_timing_and_trim() {
         let info = get_file_list_info(std::slice::from_ref(&source), AacDecoder::Auto)
             .expect("fixture value");
         let context = ProcessingContext::new_headless_with_workspace_root(
-            Arc::new(ProcessingSession::new()),
+            Arc::new(idle_session()),
             SAMPLE_RATE,
             OutputConfig::new(&destination),
             tmp.path().join("work"),

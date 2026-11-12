@@ -118,12 +118,14 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   resolving audio and metadata again.
 - A preview is `OutputKind::Preview`, set once when the plan resolves each
   title's output. Execution asks `ProcessingContext::is_preview()`; no second
-  flag carries it.
+  flag carries it; `RunMode` says only what the caller supplies per title.
 - Keep preflight side-effect-free. Why: a plan that review refuses leaves no
   folders or files behind.
-- `ProcessingRunOptions.titles` carries one `TitleRun` (index, cancel token,
-  and for an export the title's output record) per output title from
-  WorkRuntime or the session preview; a preview has no output records. Each
-  job's admission and `CancellationChecker` (built from that title's token)
-  observe only that token; the registry holds no other cancel state.
-  Cancelled titles finish as Cancelled results while siblings continue.
+- A `ProcessingRun` always carries its operation id, its progress listener,
+  and a `RunMode`: `Export` holds each title's cancel token and output record,
+  `Preview` only each title's cancel token, in title order. WorkRuntime builds
+  the export, the session the preview. Why: one mode makes "an export title
+  without an output record" unbuildable. Each job's admission and
+  `CancellationChecker` (built from that title's token) observe only that
+  token; the registry holds no other cancel state. Cancelled titles finish as
+  Cancelled results while siblings continue.

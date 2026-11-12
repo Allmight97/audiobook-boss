@@ -1,10 +1,11 @@
 use super::{complete_staged_output, settle_published};
 use crate::audio::processor::workspace::Workspace;
-use crate::execution::{OutputConfig, ProcessingContext, ProcessingSession};
+use crate::execution::{OutputConfig, ProcessingContext};
 use crate::output_artifact::{
     commit_output_artifact, finalized_output_success, OutputCommitRequest, OutputKind,
     PlannedOutputAction,
 };
+use crate::test_cases::support::session::session_with;
 use crate::test_cases::support::wav::SAMPLE_RATE;
 
 use std::fs;
@@ -30,14 +31,12 @@ async fn context_for(
     final_output: &Path,
     cancelled: bool,
 ) -> (ProcessingContext, Workspace) {
-    let checker = crate::execution::CancellationChecker::new(
-        cancelled.then(crate::execution::cancelled_token),
-    );
     let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::with_cancellation(
-            uuid::Uuid::new_v4(),
-            checker,
-        )),
+        Arc::new(session_with(if cancelled {
+            crate::execution::cancelled_token()
+        } else {
+            tokio_util::sync::CancellationToken::new()
+        })),
         SAMPLE_RATE,
         OutputConfig::new(final_output),
         local.path().join("processing").join("sessions"),
@@ -78,9 +77,9 @@ async fn complete_staged_output_cleans_local_workspace_after_commit_failure() {
     let session_dir = workspace.dir().to_path_buf();
     let stages = Arc::new(std::sync::Mutex::new(Vec::new()));
     let recorded = Arc::clone(&stages);
-    context.progress_listener = Some(Arc::new(move |event| {
+    context.progress_listener = Arc::new(move |event| {
         recorded.lock().expect("stages").push(event.stage);
-    }));
+    });
 
     let error = complete_staged_output(&context, staged_output, &mut workspace)
         .expect_err("existing destination should fail write action");
@@ -158,12 +157,12 @@ async fn a_cleanup_failure_after_publication_is_a_success_with_a_warning_and_a_r
     fs::write(&sessions, b"a file where a folder is expected").expect("write blocker");
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
     let recorded = Arc::clone(&events);
-    context.progress_listener = Some(Arc::new(move |event| {
+    context.progress_listener = Arc::new(move |event| {
         recorded
             .lock()
             .expect("events")
             .push((event.stage, event.message.clone()));
-    }));
+    });
 
     let message = complete_staged_output(&context, staged_output, &mut workspace)
         .expect("a published title stays a success");

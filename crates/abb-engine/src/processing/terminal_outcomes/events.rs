@@ -3,14 +3,14 @@ use crate::processing::ProgressEmitter;
 use crate::processing::ProgressEventListener;
 
 fn terminal_emitter(
-    progress_listener: Option<&ProgressEventListener>,
+    progress_listener: &ProgressEventListener,
     context: EmitContext,
 ) -> ProgressEmitter {
-    ProgressEmitter::with_context(context).with_progress_listener(progress_listener.cloned())
+    ProgressEmitter::new(context, progress_listener.clone())
 }
 
 pub(in crate::processing) fn emit_terminal_failed_event(
-    progress_listener: Option<&ProgressEventListener>,
+    progress_listener: &ProgressEventListener,
     context: EmitContext,
     message: &str,
 ) {
@@ -18,7 +18,7 @@ pub(in crate::processing) fn emit_terminal_failed_event(
 }
 
 pub(in crate::processing) fn emit_terminal_skipped_event(
-    progress_listener: Option<&ProgressEventListener>,
+    progress_listener: &ProgressEventListener,
     context: EmitContext,
     message: &str,
 ) {
@@ -26,7 +26,7 @@ pub(in crate::processing) fn emit_terminal_skipped_event(
 }
 
 pub(in crate::processing) fn emit_terminal_cancelled_event(
-    progress_listener: Option<&ProgressEventListener>,
+    progress_listener: &ProgressEventListener,
     context: EmitContext,
     message: &str,
 ) {

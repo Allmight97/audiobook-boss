@@ -113,7 +113,7 @@ pub(crate) async fn save_metadata_batch(
 
     let job = crate::processing::RegisteredJob::without_permit(registry);
     let _active_work = host.begin_active_work();
-    let cancellation = CancellationChecker::new(Some(cancel_token));
+    let cancellation = CancellationChecker::new(cancel_token);
 
     let result = save_metadata_batch_impl(items, cancellation, |progress| {
         runtime.record_metadata_save_progress(

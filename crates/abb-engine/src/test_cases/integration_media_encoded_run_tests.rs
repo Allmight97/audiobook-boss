@@ -18,10 +18,8 @@ use crate::audio::{
 #[cfg(target_os = "macos")]
 use crate::audio::{BitrateMode, ChannelConfig, EncoderType};
 use crate::metadata::{read_metadata, AudiobookMetadata, CoverArtPassthroughPolicy};
-use crate::processing::{
-    AudioHandling, CancellationChecker, JobRegistry, OutputConfig, ProcessingContext,
-    ProcessingSession,
-};
+use crate::processing::{AudioHandling, JobRegistry, OutputConfig, ProcessingContext};
+use crate::test_cases::support::session::{idle_session, session_with};
 use crate::AppError;
 use std::fs;
 use std::path::Path;
@@ -209,7 +207,7 @@ async fn truncated_audio_fails_without_publishing_a_shortened_book() {
         .expect("fixture value")
         .contains("incomplete or truncated"));
     let request = AudioExecutionRequest::new(
-        broken_lane.context(ProcessingSession::new()),
+        broken_lane.context(idle_session()),
         info,
         None,
         CoverArtPassthroughPolicy::Preserve,
@@ -309,11 +307,10 @@ async fn merged_title_keeps_every_sample_chapter_and_cover_through_reprocessing(
     metadata.artist = Some("Lane Narrator".to_string());
     metadata.cover_art = Some(cover.clone());
 
-    let message =
-        execute_audio_engine(lane.execution_request(ProcessingSession::new(), Some(metadata)))
-            .await
-            .expect("native processing of generated WAV fixtures succeeds")
-            .message;
+    let message = execute_audio_engine(lane.execution_request(idle_session(), Some(metadata)))
+        .await
+        .expect("native processing of generated WAV fixtures succeeds")
+        .message;
 
     let merged = lane.output_path();
     assert!(
@@ -359,10 +356,9 @@ async fn a_pre_cancelled_run_publishes_nothing_and_leaves_the_source_alone() {
         let source_bytes = fs::read(&source).expect("read cancellation source");
         let destination = tmp.path().join(name);
         let workspace = tmp.path().join(format!("workspace-{name}"));
-        let (job_id, _permit) = registry.register_job().await.expect("register job");
-        let checker = CancellationChecker::new(Some(crate::execution::cancelled_token()));
+        let (_job_id, _permit) = registry.register_job().await.expect("register job");
         let context = ProcessingContext::new_headless_with_workspace_root(
-            Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
+            Arc::new(session_with(crate::execution::cancelled_token())),
             SAMPLE_RATE,
             OutputConfig::new(&destination),
             workspace.clone(),
@@ -443,7 +439,7 @@ async fn rate_converted_merge_keeps_truthful_duration_and_rate() {
         MediaLane::with_fixtures(&[1.5, 1.0]).with_sample_rate(SampleRateConfig::Explicit(22_050));
     let converted_samples = 55_125;
 
-    execute_audio_engine(lane.execution_request(ProcessingSession::new(), None))
+    execute_audio_engine(lane.execution_request(idle_session(), None))
         .await
         .expect("rate-converted native processing succeeds");
 
@@ -554,7 +550,7 @@ async fn prepending_chapterless_audio_preserves_later_embedded_chapter_positions
 #[tokio::test]
 async fn encoding_rejects_a_non_anchor_source_replaced_after_planning() {
     let lane = MediaLane::with_fixtures(&[0.2, 0.2]);
-    let request = lane.execution_request(ProcessingSession::new(), None);
+    let request = lane.execution_request(idle_session(), None);
     write_sine_wav(&lane.inputs[1], 0.4, 880.0);
     let replacement = fs::read(&lane.inputs[1]).expect("read replacement source");
     let error = execute_audio_engine(request)
