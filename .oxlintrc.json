@@ -39,11 +39,11 @@
 					},
 					{
 						"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
-						"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+						"message": "Native CSS is the only styling language (src/ui/AGENTS.md)."
 					},
 					{
 						"group": ["**/foundation/internal", "**/foundation/internal/**"],
-						"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+						"message": "Import from src/ui/foundation; internals are private (src/ui/AGENTS.md)."
 					},
 					{
 						"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
@@ -175,11 +175,11 @@
 							},
 							{
 								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
-								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+								"message": "Native CSS is the only styling language (src/ui/AGENTS.md)."
 							},
 							{
 								"group": ["**/foundation/internal", "**/foundation/internal/**"],
-								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+								"message": "Import from src/ui/foundation; internals are private (src/ui/AGENTS.md)."
 							},
 							{
 								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
@@ -226,11 +226,11 @@
 							},
 							{
 								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
-								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+								"message": "Native CSS is the only styling language (src/ui/AGENTS.md)."
 							},
 							{
 								"group": ["**/foundation/internal", "**/foundation/internal/**"],
-								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+								"message": "Import from src/ui/foundation; internals are private (src/ui/AGENTS.md)."
 							},
 							{
 								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
@@ -282,11 +282,11 @@
 							},
 							{
 								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
-								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+								"message": "Native CSS is the only styling language (src/ui/AGENTS.md)."
 							},
 							{
 								"group": ["**/foundation/internal", "**/foundation/internal/**"],
-								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+								"message": "Import from src/ui/foundation; internals are private (src/ui/AGENTS.md)."
 							},
 							{
 								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
@@ -331,11 +331,11 @@
 							},
 							{
 								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
-								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+								"message": "Native CSS is the only styling language (src/ui/AGENTS.md)."
 							},
 							{
 								"group": ["**/foundation/internal", "**/foundation/internal/**"],
-								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+								"message": "Import from src/ui/foundation; internals are private (src/ui/AGENTS.md)."
 							},
 							{
 								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
@@ -372,11 +372,11 @@
 							},
 							{
 								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
-								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+								"message": "Native CSS is the only styling language (src/ui/AGENTS.md)."
 							},
 							{
 								"group": ["**/foundation/internal", "**/foundation/internal/**"],
-								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+								"message": "Import from src/ui/foundation; internals are private (src/ui/AGENTS.md)."
 							},
 							{
 								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
@@ -413,11 +413,11 @@
 							},
 							{
 								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
-								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+								"message": "Native CSS is the only styling language (src/ui/AGENTS.md)."
 							},
 							{
 								"group": ["**/foundation/internal", "**/foundation/internal/**"],
-								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+								"message": "Import from src/ui/foundation; internals are private (src/ui/AGENTS.md)."
 							},
 							{
 								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],

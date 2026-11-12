@@ -60,6 +60,9 @@ simpler design.
 - ABB ships one Tauri host and this UI, for macOS and Linux. Windows has no
   native build; the plan is WSL, which #557 has yet to prove. No native UI is
   planned.
+- `src/`: Solid 2 is a prerelease baseline; for version-sensitive Solid
+  behavior use the `abb-library-research` skill. UI behavior also needs a
+  visual review where tests cannot prove the UX.
 - The engine builds metadata intent from the session's field edits;
   `crate::metadata` and `abb-metadata-core` validate and normalize it.
 - Greenfield: internal payloads and aliases change freely. Interoperability
