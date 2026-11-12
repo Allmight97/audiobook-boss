@@ -80,7 +80,7 @@ impl TitleOutcome {
             },
             Self::Cancelled { message } => {
                 emitter(None).emit_terminal_cancelled(CANCELLED_EVENT_MESSAGE);
-                terminal_cancelled_result(input_index, None, message)
+                terminal_cancelled_result(input_index, message)
             }
             Self::Failed { job_id, error } => {
                 emitter(job_id.clone()).emit_terminal_failed(&error.message);
@@ -104,7 +104,7 @@ pub(in crate::processing) fn report_skipped(
         listener.clone(),
     )
     .emit_terminal_skipped(&message);
-    skipped_entry(input_index, None, message)
+    skipped_entry(input_index, message)
 }
 
 pub(super) fn is_cancellation_error(error: &AppError) -> bool {

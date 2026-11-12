@@ -175,25 +175,6 @@ mod entry_tests {
     }
 
     #[test]
-    fn terminal_cancelled_result_preserves_job_id_when_available() {
-        let entry =
-            terminal_cancelled_result(4, Some("job-123".to_string()), "Processing was cancelled");
-
-        assert_eq!(entry.input_index, 4);
-        assert_eq!(entry.job_id.as_deref(), Some("job-123"));
-        assert_eq!(entry.status, ProcessResultStatus::Cancelled);
-        assert_eq!(entry.message, "Processing was cancelled");
-        assert_eq!(
-            entry
-                .error
-                .as_ref()
-                .expect("cancelled entry should include structured error")
-                .category,
-            AppErrorCategory::Cancellation
-        );
-    }
-
-    #[test]
     fn entries_that_wrote_nothing_carry_no_output_path() {
         let error = AppErrorEnvelope::new(
             AppErrorCode::InternalError,
@@ -204,9 +185,9 @@ mod entry_tests {
         let existing = output_plan(PlannedOutputAction::SkipExisting, "/tmp/existing.m4b");
         let review = output_plan(PlannedOutputAction::ReviewRequired, "/tmp/review.m4b");
         let entries = [
-            skipped_entry(0, None, no_write_skip_message(&existing).expect("skipped")),
-            skipped_entry(1, None, no_write_skip_message(&review).expect("skipped")),
-            terminal_cancelled_result(2, None, "Processing was cancelled"),
+            skipped_entry(0, no_write_skip_message(&existing).expect("skipped")),
+            skipped_entry(1, no_write_skip_message(&review).expect("skipped")),
+            terminal_cancelled_result(2, "Processing was cancelled"),
             terminal_failure_result(3, None, error),
         ];
 
@@ -309,7 +290,7 @@ mod batch_tests {
         let results = batch_results(vec![
             published(0),
             terminal_failure_result(1, Some("job-2".to_string()), failure),
-            terminal_cancelled_result(2, None, "Processing was cancelled"),
+            terminal_cancelled_result(2, "Processing was cancelled"),
         ])
         .expect("mixed terminal states stay a batch result");
 
@@ -327,8 +308,8 @@ mod batch_tests {
     #[test]
     fn a_batch_whose_every_title_was_cancelled_is_a_cancellation() {
         let error = batch_results(vec![
-            terminal_cancelled_result(0, None, "Processing was cancelled"),
-            terminal_cancelled_result(1, None, "Processing was cancelled"),
+            terminal_cancelled_result(0, "Processing was cancelled"),
+            terminal_cancelled_result(1, "Processing was cancelled"),
         ])
         .expect_err("fully cancelled batch should stay a top-level cancellation");
 

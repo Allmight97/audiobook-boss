@@ -69,7 +69,7 @@ async fn dispatch_batch_plan(
     let mut scheduled_jobs: Vec<(TitleFuture, Option<CancellationToken>)> = Vec::new();
     for planned_job in plan.jobs {
         let input_index = planned_job.input_index;
-        let title = run.mode.title(input_index)?;
+        let title_output = run.mode.output(input_index);
         let identity = JobIdentity {
             operation_id: run.operation_id.clone(),
             job_id: None,
@@ -77,7 +77,7 @@ async fn dispatch_batch_plan(
         };
         if let Some(message) = no_write_skip_message(&planned_job.output) {
             let entry = report_skipped(message, identity, &run.listener);
-            if let Some(output) = title.output {
+            if let Some(output) = title_output {
                 output.end();
             }
             scheduled_jobs.push((Box::pin(async move { Ok(entry) }), None));
@@ -96,7 +96,7 @@ async fn dispatch_batch_plan(
             aac_decoder: payload.accepted_aac_decoder()?,
             identity,
             operation_kind: OperationKind::ProcessingBatch,
-            title_cancel: title.cancel.clone(),
+            title_cancel: run.mode.cancel(input_index),
             output_plan: planned_job.output.clone(),
             file_info: crate::processing::plan::title_file_info(
                 &file_info,
@@ -106,7 +106,7 @@ async fn dispatch_batch_plan(
             cover_art_passthrough: planned_job.cover_art_passthrough,
             supplemental_assets: supplemental_assets_for_input(payload, input_index),
             progress_listener: run.listener.clone(),
-            title_output: title.output,
+            title_output,
         };
         let cancel = Some(request.title_cancel.clone());
         scheduled_jobs.push((

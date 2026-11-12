@@ -19,7 +19,7 @@ pub(in crate::processing) fn build_all_skipped_batch_result(
     let skipped_results = plan
         .jobs
         .iter()
-        .map(|job| skipped_entry(job.input_index, None, skip_existing_message(&job.output)))
+        .map(|job| skipped_entry(job.input_index, skip_existing_message(&job.output)))
         .collect();
     Some(ProcessCommandResult::new(skipped_results))
 }
@@ -42,11 +42,7 @@ fn skip_existing_message(output: &ResolvedOutputPlan) -> String {
     )
 }
 
-pub(super) fn skipped_entry(
-    input_index: usize,
-    job_id: Option<String>,
-    message: String,
-) -> ProcessResultEntry {
+pub(super) fn skipped_entry(input_index: usize, message: String) -> ProcessResultEntry {
     ProcessResultEntry {
         input_index,
         status: ProcessResultStatus::Skipped,
@@ -55,13 +51,12 @@ pub(super) fn skipped_entry(
         output_path: None,
         supplemental_warning: None,
         warnings: Vec::new(),
-        job_id,
+        job_id: None,
     }
 }
 
 pub(super) fn terminal_cancelled_result(
     input_index: usize,
-    job_id: Option<String>,
     message: impl Into<String>,
 ) -> ProcessResultEntry {
     let message = message.into();
@@ -78,7 +73,7 @@ pub(super) fn terminal_cancelled_result(
         output_path: None,
         supplemental_warning: None,
         warnings: Vec::new(),
-        job_id,
+        job_id: None,
     }
 }
 

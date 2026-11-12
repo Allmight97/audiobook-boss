@@ -12,12 +12,6 @@ pub enum AcquisitionStage {
     Cancelled,
 }
 
-impl AcquisitionStage {
-    pub fn is_terminal(self) -> bool {
-        matches!(self, Self::Failed | Self::Cancelled)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AcquisitionProgress {
@@ -72,7 +66,11 @@ pub fn acquisition_progress_for_current_title(
     item_index: u32,
     total_items: u32,
 ) -> AcquisitionProgress {
-    if !progress.stage.is_terminal() && total_items > 0 {
+    if !matches!(
+        progress.stage,
+        AcquisitionStage::Failed | AcquisitionStage::Cancelled
+    ) && total_items > 0
+    {
         let completed_titles = item_index.clamp(1, total_items) - 1;
         progress.percentage =
             (completed_titles as f32 * 100.0 + progress.percentage) / total_items as f32;
