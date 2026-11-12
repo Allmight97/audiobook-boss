@@ -23,8 +23,8 @@
   starts one.
 - A preview's cancel tokens are created in the turn that admits the run, so
   shutdown either sees the run to cancel it or the preview sees shutdown.
-- Source paths are canonical (macOS resolves `/var` to `/private/var`), so
-  matching the staged root checks both spellings.
+- Source paths are canonical, so matching the staged root checks both
+  spellings.
 - Tag-cache tokens, revisions, and `review_id` keep counting across Clear All,
   so nothing issued earlier matches afterward.
 - A new rule goes in the `state/` child that owns its concept, tested in that

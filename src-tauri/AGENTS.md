@@ -30,7 +30,8 @@
   takes no intents yet.
 - `open_preview_output` is the one session action with its own command,
   because opening needs a host capability and the webview must never name a
-  path to open.
+  path to open. An open failure returns the reply with a `Rejected` outcome,
+  so its update still applies.
 - After a new command or an engine behavior change, run
   `bun run bindings:generate`: `src/lib/generated/fixtures/` records real
   engine outcomes and the snapshot parts that changed.

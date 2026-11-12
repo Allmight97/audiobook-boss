@@ -133,7 +133,7 @@ const RULES: Rule[] = [
 		comment: /^\s*(\/\/|\*|\/\*)/,
 		findIn: (line) => line.match(/navigator\.userAgent|⌘Q/)?.[0] ?? null,
 		message:
-			'words the host OS outside src/lib/platform. Fix: import the helper or constant from src/lib/platform (src/ui/AGENTS.md).',
+			'words the host OS outside src/lib/platform. Fix: import the helper or constant from src/lib/platform.',
 	},
 	{
 		appliesTo: SCRIPT_SOURCE,

@@ -14,6 +14,6 @@ Read for Rust type export, serde mapping, macros, or TypeScript generation.
 
 Compare research with ABB's exporter and `src/lib/generated/tauri.ts`.
 If the answer changes TS/Rust shape, follow
-`src-tauri/AGENTS.md`, `src/lib/tauri/AGENTS.md`, and the
-binding verification commands in `scripts/AGENTS.md`. Research alone does
+`src-tauri/AGENTS.md`, `src/lib/tauri/AGENTS.md`, and prove it with
+`bun run bindings:check` and the `host` lane. Research alone does
 not require regeneration.

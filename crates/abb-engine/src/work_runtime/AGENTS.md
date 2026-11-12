@@ -1,6 +1,6 @@
 # WorkRuntime
 
-- Start processing work only through `processing::run`.
+- Reach processing through `processing::run`.
 - A child's `cancellable` is the only authority for offering title cancel; the
   Work Center adds only that the operation has more than one title.
 - Missing child timestamps mean unknown; never derive them from logs or batch
@@ -16,6 +16,9 @@
 - Emission happens after the lock, so updates can arrive out of order; a host
   keeps the newest snapshot per operation and the order with the highest
   revision.
+- `follow_concurrency_lock` publishes an update with no changed operation
+  whenever `concurrency_locked` changes, so the lock can clear after an
+  operation's last update.
 - Metadata-save children match progress by `input_index` and carry no
   `job_id`, because a shared one would cross-match in `apply_progress_event`.
 - Terminal operations are pruned by terminalization order, so a long run that

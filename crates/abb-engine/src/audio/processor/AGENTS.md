@@ -12,6 +12,8 @@
   single copy patches its own tags (`PatchStagedCopy`), because a join has no
   tags to patch and a full write onto a single copy would drop the tags the
   plan never touched.
+- Source bytes are never the metadata writer's target; Preserve writes into
+  its staged copy.
 - Auto sample rate resolves when the title is planned (`audio/output_plan.rs`),
   never at execution.
 - Every route stages media locally and hands off to the shared final commit;

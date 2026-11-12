@@ -6,6 +6,9 @@
 - `upstream/` is one unmodified upstream commit, the latest `master` or a
   tagged release. Fix an upstream defect by moving the pin, never by editing
   `upstream/`. Nothing checks this: the commit is recorded without a checksum.
+- `build.rs` takes its source lists from upstream's `meson.build` files and
+  its bindings from the same `faac.h` and `faad3.h`, so the C libraries and
+  Rust bindings share one ABI.
 - Each library compiles `common/` under its own `COMMON_PREFIX` (`faac_`,
   `faad_`), as upstream does, because one shared copy would link both
   libraries against whichever archive's tables the linker kept.

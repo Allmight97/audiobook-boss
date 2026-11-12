@@ -37,6 +37,9 @@
 - Cancel or failure of a running acquisition purges its staging folder with
   `purge_with_retries`, because an aborted decrypt only signals its blocking
   worker to stop and the worker may still touch the folder.
+- Cancel does nothing to an acquisition that already finished, so it cannot
+  remove files the session holds. Materialized handoff files stay usable
+  after provider logout.
 - A download progress tick carries only the acquisition part, so it stays one
   job's size at any library size and cannot drop a crossing selection change.
 - `begin_account_read` and `change_lane` are the only places that start an
@@ -45,6 +48,8 @@
 - Hosts disable a lane's actions from `RemoteUiSnapshot.busy`; an acquisition
   `busy` change also moves the remote part, so the update that settles a job
   frees the lane.
+- An authorization URL exists only in the `StartAuth` reply, never in a
+  snapshot, so snapshots never reopen a browser.
 - `AUTH_REGISTRATION_TIMEOUT` bounds device registration, so a stalled Amazon
   endpoint cannot hold the surface until quit.
 - A disconnect updates account truth before staging cleanup, so a cleanup

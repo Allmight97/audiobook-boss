@@ -100,7 +100,7 @@ runs; their commands live only in `verify.sh`.
   remember belongs in that owner.
 - A function on a complexity list gains no logic, except one dispatch arm for
   a new intent (a reviewer judgement; no check enforces it). A commit that
-  grows an over-budget file names the split the file needs.
+  touches an over-budget file names the split the file needs.
 - When merging code paths, name what each old path relied on (reads it
   skipped, state it left alone, ordering); keep each reliance or say which one
   the change drops.

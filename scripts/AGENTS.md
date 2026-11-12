@@ -20,6 +20,8 @@
 - Select Rust packages with `-p`: Cargo's workspace discovery pulls unrelated
   binaries into the target set.
 - Each git worktree holds its own `target/`; remove finished worktrees.
+- Linux builds link with mold through clang (`.cargo/config.toml`); a
+  `RUSTFLAGS` variable replaces that config's flags.
 - Clippy still typechecks the FFmpeg bindings crate after a build, because
   Cargo treats check and build as different units.
 - Direct Cargo or upstream Tauri CLI launches bypass the per-checkout dev
@@ -37,8 +39,8 @@
   (only `typescript/unstable/*`) and Oxlint bans importing `typescript`.
 - Oxfmt leaves Markdown, YAML, and TOML unformatted, because a formatter would
   rewrite `vendor/` sources and hand-wrapped guidance.
-- A `no-restricted-imports` message names the `AGENTS.md` that holds its
-  reason.
+- A `no-restricted-imports` message states its rule; when the reason does not
+  fit, it names the `AGENTS.md` that holds it.
 - Update `bun.lock` in place at `lockfileVersion` 1, because Dependabot's Bun
   updater rejects newer versions.
 

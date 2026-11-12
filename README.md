@@ -115,7 +115,7 @@ package a DMG that may run on an unknown recipient Mac.
   (`bun run app:dev:log`) writes the same file name under its own
   `com.audiobook-boss.dev.<checkout id>` folder. A launch adds to it. When it is
   over 5 MB at launch, it becomes `abb.previous.log` and a new one starts.
-- Run the checks: `bash scripts/verify.sh`; lanes are in `scripts/AGENTS.md`.
+- Run the checks: `bash scripts/verify.sh`; `bash scripts/verify.sh --help` lists the lanes.
 - Drive the engine without a window: `bash scripts/abb-dev.sh --help`. It keeps
   its own state and never touches the app's settings.
 - Audit dependencies: `bun run audit`.

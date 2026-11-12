@@ -21,14 +21,17 @@ One bullet per view; a view without one has no trap beyond its owner.
 
 - `collisionDialog`: Overwrite Existing, Skip Existing, Keep Existing, and
   Restart ignore a repeat press (`event.detail > 1`), because a double-click's
-  second press would answer a re-review the user has not read.
+  second press would answer a re-review the user has not read. Closing the
+  restart dialog keeps the location, and teardown answers neither question:
+  teardown is not a user cancellation.
 - `encoderPanel`: every element id carries a per-instance suffix, because
   several panels can be open at once.
 - `fileList`: every selection change sends an Input intent so the engine's
   draft gate runs, and removal and selection pass the title's identity, never
   its position. A drag holds the pressed row's identity and finds positions
   again at release, so an import or removal mid-drag cannot move another
-  title.
+  title. A copied audio plan shows a check and an explicit copy label, not
+  color alone.
 - `metadataLookup`: result covers load eagerly, because the dialog is a
   decision surface. A provider-controlled URL never goes into a DOM attribute;
   covers load from the engine's `cover` addresses through `coverSrc`.
@@ -49,13 +52,14 @@ One bullet per view; a view without one has no trap beyond its owner.
   would reset the element.
 - `JobRow` keys injected `actions` by `id`, so a progress tick does not
   rebuild a button between press and release.
-- Open modals form one stack (`internal/modal.ts`) and only the topmost
-  handles Escape and Tab, because each controller listens on `document` and
-  `stopPropagation` cannot order listeners on one node.
+- Open modals form one stack (`src/ui/foundation/internal/modal.ts`) and
+  only the topmost handles Escape and Tab, because each controller listens on
+  `document` and `stopPropagation` cannot order listeners on one node.
 - Callers use a primitive's props, never its private class names; the
-  `.app-modal-*` dialog-body classes in `internal/dialogs.css` are the shared
-  exception. No check enforces this.
+  `.app-modal-*` dialog-body classes in
+  `src/ui/foundation/internal/dialogs.css` are the shared exception. No
+  check enforces this.
 - `Progress` fill, stripes, and track keep at least 3:1 contrast in both
-  themes (`tokens.css`), the WCAG minimum for non-text contrast.
+  themes (`src/ui/foundation/internal/tokens.css`).
 - A primitive stays only if deleting it would spread real behavior across
   owners.

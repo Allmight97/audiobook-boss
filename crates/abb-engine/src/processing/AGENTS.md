@@ -16,8 +16,9 @@
   row running.
 - `update_max_concurrent` works only while the registry is idle, and an
   `ActiveRun` held from an export's acceptance to its end makes the gap
-  between two titles not idle. Admission and reconfiguration share one lock,
-  so a job never registers against the semaphore being replaced.
+  between two titles not idle. Admission and reconfiguration share one lock:
+  admission records the job and clones the semaphore together, and
+  reconfiguration checks for tracked jobs and swaps it together.
 - A preview is `OutputKind::Preview`, set once when the plan resolves each
   title's output; execution asks `ProcessingContext::is_preview()` and no
   second flag carries it.

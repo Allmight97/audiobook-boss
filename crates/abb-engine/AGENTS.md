@@ -3,6 +3,8 @@
 - `Engine::start` is synchronous and runs with no Tokio runtime; async methods
   need the host's runtime. `open_audio_files` is async only so its caller
   supplies one (the macOS opened-files thread in `src-tauri`).
+- `Engine::start` holds a lock on its cache folder, because a second engine's
+  startup cleanup would delete the first one's live exports and downloads.
 - A new host need (a directory, a platform service, an event) goes into
   `EngineConfig`, `EventSink`, or `Engine`; engine code never reaches a host
   type.
@@ -20,6 +22,8 @@
   load logs one line with its kind; a cover names a remote origin only.
   Metadata diagnostics describe field actions and cover sizes and formats,
   never tag values or artwork bytes. Per-packet tracing stays at debug.
+- Diagnostic records never change an operation result, and artifact IDs
+  correlate paths without exposing parent folders.
 - `power::PowerManager` holds idle sleep off through a macOS power assertion
   or a Linux logind inhibitor; without D-Bus it logs and work continues.
   Encoding, metadata saves, Audible acquisition, and Indexer handoff hold an

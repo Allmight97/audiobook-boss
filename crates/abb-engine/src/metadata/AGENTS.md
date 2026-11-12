@@ -5,8 +5,7 @@
 - Real file saves go through `save_metadata_intent`, so series validation can
   see the source's tags.
 - Ask `container::Container` which container a file is; do not compare FFmpeg
-  format name strings. No check enforces this yet: `audio/file_list.rs`,
-  `audio/processor/streams.rs`, and `tag_support.rs` still compare names.
+  format name strings. No check enforces this.
 - MP4-family tag truth never depends on a bare remux, because FFmpeg's mov
   muxer drops unknown keys (rustdoc on `finish_artifact_tags`).
 - A Save never opens the original for writing: it checks a sibling copy and
@@ -47,6 +46,8 @@
   `sort_album`; Matroska and ID3 user text frames report keys in upper case.
   `reader.rs` still reads `sort_album` on MP3 for files an older ABB tagged,
   though no library reads that stray TXXX frame.
+- A derived album sort keeps book-number fractions, so novellas sort between
+  books.
 - The album sort stays its own `Option<PatchOp>` on `MetadataWritePlan`,
   because its key depends on the output container and a Save keeps it unless
   told otherwise.
