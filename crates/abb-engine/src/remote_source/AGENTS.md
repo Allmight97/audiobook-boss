@@ -37,8 +37,8 @@ session files, Supplemental Assets, and staging cleanup.
   wrote; changing `Auth`'s serialized shape signs users out (rustdoc in
   `providers/audible/auth.rs`, sample in `auth_tests.rs`).
 - Linux vault choice and its account message: rustdoc in `vault.rs`.
-- Staged remote writes (`scoped_output.rs`): `prepare` (stale-partial
-  pre-clean) -> partial write -> cancel check -> same-directory
+- Staged remote writes (`scoped_output.rs`): `StagedTempFile::create`
+  (removes a stale partial) -> partial write -> cancel check -> same-directory
   `rename_and_commit`. Drop removes the partial; the final path appears only
   through that rename, into a fresh item directory. `ProvisionalCommittedFile`
   holds committed audiobook output until validation and supplemental steps
