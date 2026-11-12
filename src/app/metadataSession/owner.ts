@@ -125,6 +125,13 @@ function statusText(status: MetadataStatus | null): string {
 	}
 }
 
+type CoverMessageSlot =
+	| { readonly kind: 'none' }
+	| { readonly kind: 'local'; readonly message: CoverArtMessage }
+	| { readonly kind: 'engine'; readonly serial: number };
+
+const NO_COVER_MESSAGE: CoverMessageSlot = { kind: 'none' };
+
 export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	const { link } = deps;
 	const capabilityValue = deps.capability ?? liveMetadataCapability;
@@ -132,9 +139,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	let isHovered = false;
 	let isDragOver = false;
 	let urlInputValue = '';
-	let localMessage: CoverArtMessage = HIDDEN_COVER_MESSAGE;
-	let hiddenNoticeSerial = 0;
-	let messageTimer: ReturnType<typeof setTimeout> | undefined;
+	let coverSlot: CoverMessageSlot = NO_COVER_MESSAGE;
+	let slotTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function changed(): void {
 		bump((n) => n + 1);
@@ -144,38 +150,43 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		changed,
 	});
 
-	function hideMessageLater(hide: () => void): void {
-		if (messageTimer !== undefined) clearTimeout(messageTimer);
-		messageTimer = setTimeout(() => {
-			messageTimer = undefined;
-			hide();
+	function showInSlot(slot: CoverMessageSlot, hides: boolean): void {
+		if (slotTimer !== undefined) clearTimeout(slotTimer);
+		slotTimer = undefined;
+		coverSlot = slot;
+		changed();
+		if (!hides) return;
+		slotTimer = setTimeout(() => {
+			slotTimer = undefined;
+			coverSlot = NO_COVER_MESSAGE;
 			changed();
 		}, COVER_MESSAGE_MS);
 	}
 
 	function showLocalMessage(message: CoverArtMessage): void {
-		localMessage = message;
-		changed();
-		hideMessageLater(() => {
-			localMessage = HIDDEN_COVER_MESSAGE;
-		});
+		showInSlot({ kind: 'local', message }, true);
 	}
 
 	createEffect(
 		() => link.metadata().cover.noticeSerial,
 		(serial) => {
 			const notice = untrack(() => link.metadata().cover.notice);
-			if (!notice || notice.kind === 'urlRequired') return;
-			hideMessageLater(() => {
-				hiddenNoticeSerial = serial;
-			});
+			if (!notice) return;
+			showInSlot({ kind: 'engine', serial }, notice.kind !== 'urlRequired');
 		},
 	);
 
 	function coverMessage(metadata: MetadataSnapshot): CoverArtMessage {
-		if (localMessage.kind !== 'hidden') return localMessage;
-		if (metadata.cover.noticeSerial <= hiddenNoticeSerial) return HIDDEN_COVER_MESSAGE;
-		return coverNoticeMessage(metadata.cover.notice);
+		switch (coverSlot.kind) {
+			case 'none':
+				return HIDDEN_COVER_MESSAGE;
+			case 'local':
+				return coverSlot.message;
+			case 'engine':
+				return metadata.cover.noticeSerial === coverSlot.serial
+					? coverNoticeMessage(metadata.cover.notice)
+					: HIDDEN_COVER_MESSAGE;
+		}
 	}
 
 	const view: Accessor<MetadataView> = () => {
@@ -241,8 +252,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		},
 		clearCoverArt() {
 			urlInputValue = '';
-			localMessage = HIDDEN_COVER_MESSAGE;
-			changed();
+			if (coverSlot.kind === 'local') showInSlot(NO_COVER_MESSAGE, false);
+			else changed();
 			link.post({ kind: 'clearCover' });
 		},
 		async loadCoverArtFromPicker() {
@@ -287,14 +298,11 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			link.post({ kind: 'save' });
 		},
 		reset() {
-			if (messageTimer !== undefined) clearTimeout(messageTimer);
-			messageTimer = undefined;
 			typed.clear();
 			isHovered = false;
 			isDragOver = false;
 			urlInputValue = '';
-			localMessage = HIDDEN_COVER_MESSAGE;
-			changed();
+			showInSlot(NO_COVER_MESSAGE, false);
 		},
 	};
 }

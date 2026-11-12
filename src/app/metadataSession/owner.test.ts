@@ -236,6 +236,63 @@ describe('metadata owner', () => {
 		expect(app.metadata.view().cover.message).toEqual({ kind: 'hidden' });
 	});
 
+	function failCoverDrops(): void {
+		engine.respond = (intent) =>
+			intent.kind === 'loadCoverFromDrop' ? Promise.reject(new Error('drop failed')) : undefined;
+	}
+
+	it('hides a local cover error on its own time without bringing back an earlier notice', async () => {
+		const app = await open();
+		vi.useFakeTimers();
+		engine.seedCover({ kind: 'loadedFromUrl' });
+		await vi.advanceTimersByTimeAsync(0);
+		expect(app.metadata.view().cover.message.kind).toBe('success');
+
+		await vi.advanceTimersByTimeAsync(1000);
+		failCoverDrops();
+		await app.metadata.applyCoverArtDrop(['/covers/broken.jpg']);
+		expect(app.metadata.view().cover.message.kind).toBe('error');
+
+		await vi.advanceTimersByTimeAsync(4000);
+		expect(app.metadata.view().cover.message).toEqual({ kind: 'hidden' });
+		await vi.advanceTimersByTimeAsync(10_000);
+		expect(app.metadata.view().cover.message).toEqual({ kind: 'hidden' });
+	});
+
+	it('replaces a local cover error with a later notice and hides that notice on time', async () => {
+		const app = await open();
+		vi.useFakeTimers();
+		failCoverDrops();
+		await app.metadata.applyCoverArtDrop(['/covers/broken.jpg']);
+		expect(app.metadata.view().cover.message.kind).toBe('error');
+
+		await vi.advanceTimersByTimeAsync(1000);
+		engine.seedCover({ kind: 'notAnImageUrl' });
+		await vi.advanceTimersByTimeAsync(0);
+		expect(app.metadata.view().cover.message).toEqual({
+			kind: 'error',
+			text: 'This is not an image URL.',
+		});
+
+		await vi.advanceTimersByTimeAsync(4000);
+		expect(app.metadata.view().cover.message).toEqual({ kind: 'hidden' });
+	});
+
+	it('keeps asking for a URL until another cover message replaces it', async () => {
+		const app = await open();
+		vi.useFakeTimers();
+		engine.seedCover({ kind: 'urlRequired' });
+		await vi.advanceTimersByTimeAsync(10_000);
+		expect(app.metadata.view().cover.message).toEqual({
+			kind: 'error',
+			text: 'Paste an image URL first.',
+		});
+
+		engine.seedCover({ kind: 'loadedFromUrl' });
+		await vi.advanceTimersByTimeAsync(4000);
+		expect(app.metadata.view().cover.message).toEqual({ kind: 'hidden' });
+	});
+
 	it('says to select one title when a cover had none to go to', async () => {
 		const app = await open();
 		engine.respond = (intent) => {
