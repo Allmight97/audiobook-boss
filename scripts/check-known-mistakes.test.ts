@@ -429,6 +429,10 @@ describe('check-known-mistakes', () => {
 			),
 		).toHaveLength(1);
 		expect(found(file, 'pub struct S {\n    pub ctx: *mut sys::AVFrame,\n}')).toHaveLength(1);
+		expect(found(file, 'pub struct S {\n    pub ctx:\n        *mut sys::AVFrame,\n}')).toHaveLength(
+			1,
+		);
+		expect(found(file, 'pub async fn run(ctx: *mut sys::AVFrame) -> Result<()> {')).toHaveLength(1);
 		expect(found(file, 'pub type Raw = *mut sys::AVPacket;')).toHaveLength(1);
 		expect(found(file, 'pub(crate) fn as_ptr(&self) -> *mut sys::AVFormatContext {')).toEqual([]);
 		expect(
@@ -448,6 +452,18 @@ describe('check-known-mistakes', () => {
 			),
 		).toHaveLength(1);
 		expect(
+			found(
+				'crates/abb-engine/src/processing/run.rs',
+				'pub(crate) use crate::{\n    audio::X,\n    output_artifact::{Y, Z},\n};',
+			),
+		).toEqual([expect.stringMatching(/^1: .*re-exports output artifact types/)]);
+		expect(
+			found(
+				'crates/abb-engine/src/processing.rs',
+				'// pub use crate::output_artifact::OutputPlan;',
+			),
+		).toEqual([]);
+		expect(
 			found('crates/abb-engine/src/processing.rs', 'use crate::output_artifact::OutputPlan;'),
 		).toEqual([]);
 		expect(
@@ -461,10 +477,25 @@ describe('check-known-mistakes', () => {
 		]);
 		expect(found('src/ui/x.tsx', '\t<Show when={source?.sourceRemoved}>')).toHaveLength(1);
 		expect(found('src/app/x.ts', '\tconst { isValid, label } = file;')).toHaveLength(1);
+		expect(found('src/app/x.ts', '\tfiles.filter(({ isValid }) => isValid);')).toHaveLength(1);
+		expect(found('src/app/x.ts', "\tif (file['isValid']) {")).toHaveLength(1);
 		expect(found('src/app/x.ts', "\t\tcase 'sourceRemoved':")).toEqual([]);
 		expect(found('src/app/x.ts', "\tif (file.status === 'ready') {")).toEqual([]);
 		expect(found('src/test/fixtures/fakeEngine.ts', '\t\tisValid: true,')).toEqual([]);
 		expect(found('src/app/x.test.ts', '\texpect(file.isValid).toBe(true);')).toEqual([]);
+	});
+
+	it('lets only src/styles.css import the foundation stylesheet', () => {
+		expect(found('src/ui/x.tsx', "import './foundation/internal/foundation.css';")).toEqual([
+			expect.stringMatching(/^1: .*imports the foundation stylesheet outside `src\/styles\.css`/),
+		]);
+		expect(found('src/ui/x.css', '@import "./foundation/internal/foundation.css";')).toHaveLength(
+			1,
+		);
+		expect(found('src/styles.css', '@import "./ui/foundation/internal/foundation.css";')).toEqual(
+			[],
+		);
+		expect(found('src/ui/x.tsx', "import './fileImport.css';")).toEqual([]);
 	});
 
 	it('keeps CSS classes out of frontend tests', () => {
@@ -477,6 +508,9 @@ describe('check-known-mistakes', () => {
 		).toHaveLength(1);
 		expect(found(file, "\texpect(row).toHaveClass('is-active');")).toHaveLength(1);
 		expect(found(file, '\texpect(row.className).toContain("active");')).toHaveLength(1);
+		expect(found(file, "\texpect(row.getAttribute('class')).toBe('x');")).toHaveLength(1);
+		expect(found(file, "\texpect(row).toHaveAttribute('class', 'x');")).toHaveLength(1);
+		expect(found(file, "\texpect(row).toHaveAttribute('data-state', 'x');")).toEqual([]);
 		expect(found(file, '\tdocument.querySelectorAll(\'[data-testid="cover.png"]\');')).toEqual([]);
 		expect(found(file, '\tdocument.querySelectorAll(\'[src$=".png"]\');')).toEqual([]);
 		expect(found(file, "\tscreen.getByRole('button', { name: 'Save' });")).toEqual([]);

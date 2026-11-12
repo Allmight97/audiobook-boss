@@ -185,31 +185,34 @@ const RULES: Rule[] = [
 			'moves a file outside the output artifact boundary. Fix: stage locally and commit through crate::output_artifact, which publishes only complete content.',
 	},
 	{
-		appliesTo: PROCESSING_SOURCE,
-		comment: /^\s*\/\//,
-		findIn: (line) =>
-			line.match(/\bpub(?:\([^)]*\))?\s+use\s+crate::(?:\{[^}]*\b)?output_artifact\b/)?.[0] ?? null,
-		message:
-			're-exports output artifact types from processing, which gives one type two import paths. Fix: callers import it from `crate::output_artifact`.',
-	},
-	{
 		appliesTo: FRONTEND_SOURCE,
 		comment: /^\s*(\/\/|\*|\/\*)/,
 		findIn: (line) =>
 			line.match(
-				/\.(?:isValid|sourceRemoved)\b|\{[^}]*\b(?:isValid|sourceRemoved)\b[^}]*\}\s*=[^=]/,
+				/\.(?:isValid|sourceRemoved)\b|\[\s*['"](?:isValid|sourceRemoved)['"]\s*\]|\{[^}]*\b(?:isValid|sourceRemoved)\b[^}]*\}\s*\)?\s*=[^=]/,
 			)?.[0] ?? null,
 		message:
 			'reads a source flag the engine already folds into `status`. Fix: branch on the title or source `status` (`ready`, `failed`, `removedFinished`).',
 	},
 	{
+		appliesTo: (file) =>
+			/^src\/.*\.(?:tsx?|css)$/.test(file) &&
+			file !== 'src/styles.css' &&
+			!file.startsWith('src/lib/generated/'),
+		comment: /^\s*(\/\/|\*|\/\*)/,
+		findIn: (line) => line.match(/(?:@import|\bimport\b)[^;]*foundation\.css/)?.[0] ?? null,
+		message:
+			'imports the foundation stylesheet outside `src/styles.css`. Fix: only `src/styles.css` imports `internal/foundation.css`; a view imports its own stylesheet.',
+	},
+	{
 		appliesTo: FRONTEND_TEST,
 		comment: /^\s*(\/\/|\*|\/\*)/,
 		findIn: (line) =>
-			line.match(/\bgetElementsByClassName\b|\.classList\b|\.className\b|\btoHaveClass\(/)?.[0] ??
-			null,
+			line.match(
+				/\bgetElementsByClassName\b|\.classList\b|\.className\b|\btoHaveClass\(|\b(?:getAttribute|toHaveAttribute)\(\s*['"]class['"]/,
+			)?.[0] ?? null,
 		message:
-			'reads CSS classes in a test, so a style refactor breaks it. Fix: find the element by role and accessible name, and read a `data-state` or `data-status` attribute.',
+			'reads CSS classes in a test, so a style refactor breaks it. Fix: find the element by role and accessible name, or read a data attribute.',
 	},
 	{
 		appliesTo: (file) =>
@@ -379,15 +382,30 @@ function classSelectorFindings(file: string, lines: string[]): Finding[] {
 	});
 }
 
+const OUTPUT_ARTIFACT_REEXPORT =
+	/\bpub(?:\([^)]*\))?\s+use\s+crate::(?:\{[^;]*?\b)?output_artifact\b/g;
+
+function processingReexportFindings(file: string, text: string): Finding[] {
+	if (!PROCESSING_SOURCE(file)) return [];
+	const code = text.replace(/^\s*\/\/.*$/gm, '');
+	return [...code.matchAll(OUTPUT_ARTIFACT_REEXPORT)].map((match) => ({
+		file,
+		line: code.slice(0, match.index).split('\n').length,
+		message: `\`${match[0].replace(/\s+/g, ' ')}\` re-exports output artifact types from processing, which gives one type two import paths. Fix: callers import it from \`crate::output_artifact\`.`,
+	}));
+}
+
 const PUBLIC_ITEM =
-	/^\s*pub\s+(?:(?:const|unsafe|extern\s+"C")\s+)*(?:fn|type)\b|^\s*pub\s+\w+\s*:/;
+	/^\s*pub\s+(?:(?:const|unsafe|async|extern\s+"C")\s+)*(?:fn|type)\b|^\s*pub\s+\w+\s*:/;
 
 function ffmpegPointerFindings(file: string, lines: string[]): Finding[] {
 	if (!FFMPEG_LAYER(file)) return [];
 	return lines.flatMap((line, index) => {
 		if (!PUBLIC_ITEM.test(line)) return [];
 		let end = index;
-		if (/\b(?:fn|type)\b/.test(line)) {
+		if (/:\s*$/.test(line)) {
+			end = Math.min(index + 1, lines.length - 1);
+		} else if (/\b(?:fn|type)\b/.test(line)) {
 			while (end < lines.length - 1 && !/[{;]\s*$/.test(lines[end])) end += 1;
 		}
 		const signature = lines
@@ -449,6 +467,7 @@ export function checkFile(file: string, text: string): Finding[] {
 		...testModuleFindings(file, text.split('\n')),
 		...classSelectorFindings(file, text.split('\n')),
 		...ffmpegPointerFindings(file, text.split('\n')),
+		...processingReexportFindings(file, text),
 		...cargoPinFindings(file, text),
 	];
 	let insideCapture = false;
