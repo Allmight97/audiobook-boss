@@ -8,3 +8,9 @@ pub(crate) fn session_with(token: CancellationToken) -> ProcessingSession {
 pub(crate) fn idle_session() -> ProcessingSession {
     session_with(CancellationToken::new())
 }
+
+pub(crate) fn cancelled_token() -> CancellationToken {
+    let token = CancellationToken::new();
+    token.cancel();
+    token
+}

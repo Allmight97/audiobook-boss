@@ -18,10 +18,3 @@ impl CancellationChecker {
         self.token.is_cancelled()
     }
 }
-
-#[cfg(test)]
-pub(crate) fn cancelled_token() -> CancellationToken {
-    let token = CancellationToken::new();
-    token.cancel();
-    token
-}

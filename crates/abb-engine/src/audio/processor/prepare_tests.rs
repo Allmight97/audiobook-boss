@@ -38,7 +38,9 @@ async fn cancellation_after_workspace_creation_keeps_cleanup_ownership() {
     let files = get_file_list_info(&lane.inputs, AacDecoder::Auto)
         .expect("probe fixture")
         .files;
-    let context = lane.context(session_with(crate::execution::cancelled_token()));
+    let context = lane.context(session_with(
+        crate::test_cases::support::session::cancelled_token(),
+    ));
     assert!(prepare(&context, &files).is_err());
     assert_eq!(
         std::fs::read_dir(lane.workspace_root())

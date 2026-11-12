@@ -424,7 +424,7 @@ async fn a_cancelled_token_refuses_registration_before_it_is_tracked() {
     let registry = JobRegistry::new(1);
 
     let result = registry
-        .register_job_with_external_cancel(&crate::execution::cancelled_token())
+        .register_job_with_external_cancel(&crate::test_cases::support::session::cancelled_token())
         .await;
 
     assert!(matches!(

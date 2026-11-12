@@ -79,14 +79,15 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
 - `EventStage` (`execution/progress/mod.rs`) is the stage every emitted event
   carries.
 - Each title that runs ends as one `TitleOutcome` (Published, Cancelled,
-  Failed); `TitleOutcome::report` makes its one terminal event and its
-  `ProcessResultEntry` (the wire projection). A failed or cancelled stage
+  Failed); `TitleOutcome::report` builds its `ProcessResultEntry` (the
+  wire projection) and emits the terminal event for Cancelled and Failed;
+  Published's Completed event goes out at publication (`audio`). A failed or
+  cancelled stage
   returns its error and emits nothing; the title runner
   (`run/run_dispatch.rs`) reports when that title ends, after its folders and
   `TitleOutput` end. Why: an earlier event shows a finished title whose
   staged files still exist; a later one leaves a failed row running.
-  Exceptions: Published's Completed event goes out at publication (`audio`);
-  a skipped title never runs and reports at dispatch (`report_skipped`), and
+  Exceptions: a skipped title never runs and reports at dispatch (`report_skipped`), and
   an all-skipped batch returns its entries with no event
   (`build_all_skipped_batch_result`); a title task that panics is reported
   Failed after the batch.

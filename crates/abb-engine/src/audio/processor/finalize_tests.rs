@@ -33,7 +33,7 @@ async fn context_for(
 ) -> (ProcessingContext, Workspace) {
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(session_with(if cancelled {
-            crate::execution::cancelled_token()
+            crate::test_cases::support::session::cancelled_token()
         } else {
             tokio_util::sync::CancellationToken::new()
         })),

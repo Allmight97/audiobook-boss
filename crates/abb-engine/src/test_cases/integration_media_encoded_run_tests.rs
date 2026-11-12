@@ -358,7 +358,9 @@ async fn a_pre_cancelled_run_publishes_nothing_and_leaves_the_source_alone() {
         let workspace = tmp.path().join(format!("workspace-{name}"));
         let (_job_id, _permit) = registry.register_job().await.expect("register job");
         let context = ProcessingContext::new_headless_with_workspace_root(
-            Arc::new(session_with(crate::execution::cancelled_token())),
+            Arc::new(session_with(
+                crate::test_cases::support::session::cancelled_token(),
+            )),
             SAMPLE_RATE,
             OutputConfig::new(&destination),
             workspace.clone(),
