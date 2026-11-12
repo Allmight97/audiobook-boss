@@ -1,8 +1,7 @@
 use super::*;
 use abb_engine::remote_source::ProviderId;
 use abb_engine::remote_source::{
-    AcquisitionJob, AcquisitionSnapshot, RemoteAcquisitionStatus, RemoteTitleAvailability,
-    RemoteTitleAvailabilityStatus,
+    AcquisitionJob, AcquisitionSnapshot, RemoteTitleAvailability, RemoteTitleAvailabilityStatus,
 };
 use abb_remote_source_core::{acquisition_progress, AcquisitionStage};
 
@@ -14,7 +13,6 @@ fn job(
         job: AcquisitionJob {
             job_id: "job".into(),
             provider_id: ProviderId::Audible,
-            status: RemoteAcquisitionStatus::Failed,
             progress: acquisition_progress(AcquisitionStage::Failed, Some(1.0), None, None),
             materialized_files: Vec::new(),
             supplemental_assets: Vec::new(),

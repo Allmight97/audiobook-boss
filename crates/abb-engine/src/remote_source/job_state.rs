@@ -3,8 +3,7 @@ use abb_remote_source_core::{acquisition_progress, AcquisitionProgress, Acquisit
 use super::cancellation::remote_acquisition_cancelled;
 use super::types::{
     AcquisitionHandoff, AcquisitionJob, AcquisitionSnapshot, MaterializedSourceFile,
-    RemoteAcquisitionFailureKind, RemoteAcquisitionStatus, RemoteSourceDiagnostic,
-    SupplementalAsset,
+    RemoteAcquisitionFailureKind, RemoteSourceDiagnostic, SupplementalAsset,
 };
 
 /// What a provider hands back when it has worked through a plan. The lifecycle
@@ -109,12 +108,10 @@ impl Registered {
         }
         self.job.diagnostics.extend(outcome.diagnostics);
         if outcome.files.is_empty() {
-            self.job.status = RemoteAcquisitionStatus::Failed;
             self.job.progress =
                 acquisition_progress(AcquisitionStage::Failed, Some(1.0), None, None);
             self.state = JobState::Settled(Settlement::Failed);
         } else {
-            self.job.status = RemoteAcquisitionStatus::Validated;
             self.job.progress =
                 acquisition_progress(AcquisitionStage::ImportHandoff, Some(1.0), None, None);
             self.state = JobState::Validated {
@@ -129,7 +126,6 @@ impl Registered {
         if !self.is_running() {
             return false;
         }
-        self.job.status = RemoteAcquisitionStatus::Cancelled;
         self.job.progress =
             acquisition_progress(AcquisitionStage::Cancelled, Some(1.0), None, None);
         if !self
@@ -151,9 +147,6 @@ impl Registered {
     pub(super) fn handoff_done(&mut self, handoff: AcquisitionHandoff) -> bool {
         if !matches!(self.state, JobState::Validated { .. }) {
             return false;
-        }
-        if matches!(handoff, AcquisitionHandoff::Imported { .. }) {
-            self.job.status = RemoteAcquisitionStatus::ImportedToFileList;
         }
         self.job.handoff = Some(handoff.clone());
         self.state = JobState::Settled(Settlement::Handoff(handoff));

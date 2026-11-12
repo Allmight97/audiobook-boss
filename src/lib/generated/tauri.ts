@@ -64,7 +64,6 @@ export type AcquisitionHandoff = { kind: "imported"; count: number } |
 export type AcquisitionJob = {
 	jobId: string,
 	providerId: ProviderId,
-	status: RemoteAcquisitionStatus,
 	progress: AcquisitionProgress,
 	diagnostics: RemoteSourceDiagnostic[],
 	/**  Set once the engine has tried to import the job's files. */
@@ -82,7 +81,6 @@ export type AcquisitionProgress = {
 	currentTitleId: string | null,
 	currentItemIndex: number | null,
 	totalItems: number | null,
-	terminal: boolean,
 };
 
 export type AcquisitionSnapshot = {
@@ -885,8 +883,6 @@ export type RemoteAcquisitionSnapshot = {
 	revision: number,
 	job: AcquisitionSnapshot | null,
 };
-
-export type RemoteAcquisitionStatus = "acquiring" | "validated" | "importedToFileList" | "failed" | "cancelled";
 
 export type RemoteAuthStartResponse = {
 	providerId: ProviderId,

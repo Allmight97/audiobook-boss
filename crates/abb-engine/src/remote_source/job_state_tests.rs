@@ -71,10 +71,9 @@ fn a_new_job_runs_and_is_neither_terminal_nor_settled() {
     assert!(job.is_running());
     assert!(!job.terminal());
     assert!(!job.settled());
-    assert_eq!(
-        job.snapshot().job.status,
-        RemoteAcquisitionStatus::Acquiring
-    );
+    let snapshot = job.snapshot();
+    assert!(!snapshot.terminal && !snapshot.settled);
+    assert_eq!(snapshot.job.handoff, None);
 }
 
 #[test]
@@ -108,10 +107,9 @@ fn files_validate_the_job_but_leave_it_unsettled_until_the_handoff() {
     assert!(job.terminal());
     assert!(!job.settled());
     assert!(job.holds_staged_files());
-    assert_eq!(
-        job.snapshot().job.status,
-        RemoteAcquisitionStatus::Validated
-    );
+    let snapshot = job.snapshot();
+    assert!(snapshot.terminal && !snapshot.settled);
+    assert_eq!(snapshot.job.handoff, None);
     assert_eq!(
         job.job_for_handoff()
             .expect("files wait")
@@ -127,7 +125,8 @@ fn an_outcome_with_no_file_settles_the_job_as_failed_with_its_reasons() {
 
     let snapshot = job.snapshot();
     assert!(snapshot.terminal && snapshot.settled);
-    assert_eq!(snapshot.job.status, RemoteAcquisitionStatus::Failed);
+    assert_eq!(snapshot.job.progress.stage, AcquisitionStage::Failed);
+    assert_eq!(snapshot.job.handoff, None);
     assert_eq!(snapshot.job.diagnostics[0].message, "not audio");
     assert!(!job.holds_staged_files());
     assert!(job.job_for_handoff().is_none());
@@ -144,7 +143,8 @@ fn a_finish_after_a_cancel_changes_nothing() {
     assert_eq!(job.snapshot(), cancelled);
     assert!(job.is_cancelled());
     assert!(job.settled());
-    assert_eq!(cancelled.job.status, RemoteAcquisitionStatus::Cancelled);
+    assert!(cancelled.terminal && cancelled.settled);
+    assert_eq!(cancelled.job.progress.stage, AcquisitionStage::Cancelled);
 }
 
 #[test]
@@ -153,11 +153,9 @@ fn a_cancel_cannot_undo_a_finished_job() {
 
     assert!(!job.cancel());
 
-    assert_eq!(
-        job.snapshot().job.status,
-        RemoteAcquisitionStatus::Validated
-    );
-    assert!(!job.settled());
+    let snapshot = job.snapshot();
+    assert!(snapshot.terminal && !snapshot.settled);
+    assert!(job.job_for_handoff().is_some());
 }
 
 #[test]
@@ -186,10 +184,6 @@ fn the_handoff_settles_a_validated_job_and_only_a_validated_job() {
     let snapshot = job.snapshot();
     assert!(snapshot.settled);
     assert_eq!(
-        snapshot.job.status,
-        RemoteAcquisitionStatus::ImportedToFileList
-    );
-    assert_eq!(
         snapshot.job.handoff,
         Some(AcquisitionHandoff::Imported { count: 1 })
     );
@@ -201,8 +195,10 @@ fn the_handoff_settles_a_validated_job_and_only_a_validated_job() {
     }));
     assert!(refused.settled());
     assert_eq!(
-        refused.snapshot().job.status,
-        RemoteAcquisitionStatus::Validated
+        refused.snapshot().job.handoff,
+        Some(AcquisitionHandoff::Removed {
+            reason: HandoffRefusal::NothingAdded
+        })
     );
     assert!(!refused.holds_staged_files());
     assert!(!refused.handoff_done(AcquisitionHandoff::Imported { count: 1 }));

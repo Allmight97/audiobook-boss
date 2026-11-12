@@ -20,12 +20,10 @@ function acquisitionJob(percentage: number, terminal = false): AcquisitionSnapsh
 		terminal,
 		jobId: 'remote-job-1',
 		providerId: 'audible',
-		status: terminal ? 'validated' : 'acquiring',
 		progress: {
 			stage: terminal ? 'importHandoff' : 'download',
 			percentage,
 			message: terminal ? 'Acquisition complete.' : 'Downloading audiobook.',
-			terminal,
 			bytesDownloaded: null,
 			bytesTotal: null,
 			currentTitleId: 'B000000001',

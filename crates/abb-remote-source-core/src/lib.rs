@@ -12,6 +12,12 @@ pub enum AcquisitionStage {
     Cancelled,
 }
 
+impl AcquisitionStage {
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Failed | Self::Cancelled)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AcquisitionProgress {
@@ -24,7 +30,6 @@ pub struct AcquisitionProgress {
     pub current_title_id: Option<String>,
     pub current_item_index: Option<u32>,
     pub total_items: Option<u32>,
-    pub terminal: bool,
 }
 
 pub fn acquisition_progress(
@@ -37,14 +42,14 @@ pub fn acquisition_progress(
         .filter(|value| value.is_finite())
         .unwrap_or(0.0)
         .clamp(0.0, 1.0);
-    let (start, end, message, terminal) = match stage {
-        AcquisitionStage::License => (0.0, 15.0, "Requesting download license.", false),
-        AcquisitionStage::Download => (15.0, 65.0, "Downloading audiobook.", false),
-        AcquisitionStage::Decryption => (65.0, 90.0, "Decrypting audiobook.", false),
-        AcquisitionStage::Validation => (90.0, 97.0, "Validating acquired audiobook.", false),
-        AcquisitionStage::ImportHandoff => (97.0, 100.0, "Importing acquired audiobook.", false),
-        AcquisitionStage::Failed => (100.0, 100.0, "Acquisition failed.", true),
-        AcquisitionStage::Cancelled => (100.0, 100.0, "Acquisition cancelled.", true),
+    let (start, end, message) = match stage {
+        AcquisitionStage::License => (0.0, 15.0, "Requesting download license."),
+        AcquisitionStage::Download => (15.0, 65.0, "Downloading audiobook."),
+        AcquisitionStage::Decryption => (65.0, 90.0, "Decrypting audiobook."),
+        AcquisitionStage::Validation => (90.0, 97.0, "Validating acquired audiobook."),
+        AcquisitionStage::ImportHandoff => (97.0, 100.0, "Importing acquired audiobook."),
+        AcquisitionStage::Failed => (100.0, 100.0, "Acquisition failed."),
+        AcquisitionStage::Cancelled => (100.0, 100.0, "Acquisition cancelled."),
     };
 
     AcquisitionProgress {
@@ -56,7 +61,6 @@ pub fn acquisition_progress(
         current_title_id: None,
         current_item_index: None,
         total_items: None,
-        terminal,
     }
 }
 
@@ -68,7 +72,7 @@ pub fn acquisition_progress_for_current_title(
     item_index: u32,
     total_items: u32,
 ) -> AcquisitionProgress {
-    if !progress.terminal && total_items > 0 {
+    if !progress.stage.is_terminal() && total_items > 0 {
         let completed_titles = item_index.clamp(1, total_items) - 1;
         progress.percentage =
             (completed_titles as f32 * 100.0 + progress.percentage) / total_items as f32;

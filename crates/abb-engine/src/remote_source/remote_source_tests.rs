@@ -255,7 +255,6 @@ async fn cancelled_job_keeps_terminal_state_when_background_result_arrives() {
 
     let job = published_job(&runtime);
     assert!(!job_dir.exists());
-    assert_eq!(job.status, types::RemoteAcquisitionStatus::Cancelled);
     assert_eq!(job.progress.stage, AcquisitionStage::Cancelled);
     assert!(job
         .diagnostics
@@ -285,10 +284,7 @@ fn cancelling_a_finished_acquisition_keeps_its_files_for_the_session() {
         .cancel_acquisition(job_id)
         .expect("cancel acquisition");
 
-    assert_eq!(
-        answered.job.status,
-        types::RemoteAcquisitionStatus::Validated
-    );
+    assert!(answered.terminal && !answered.settled);
     let kept = handoff_job(&runtime, job_id).expect("the files still wait for the session");
     assert_eq!(kept.materialized_files.len(), 1);
     assert_eq!(kept.supplemental_assets.len(), 1);
