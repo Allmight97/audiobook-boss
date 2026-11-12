@@ -14,8 +14,7 @@ Use the whole request to distinguish a report from authorized cleanup. An
 audit alone is read-only; an audit followed by requested fixes includes those
 edits. A repository-wide census does not by itself authorize production changes.
 
-Read applicable owner guidance (root tiers, `crates/AGENTS.md`, the surface
-`AGENTS.md`) for test placement and `scripts/AGENTS.md` for commands. Inspect the in-scope tests, fixtures, registries, configuration, and
+Read applicable owner guidance (root test tiers, the surface `AGENTS.md`) for test placement and `scripts/AGENTS.md` for commands. Inspect the in-scope tests, fixtures, registries, configuration, and
 production callers. Use baseline execution when it provides useful evidence;
 distinguish existing failures from regressions.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fails when a Rust tier depends on a crate its tier forbids (crates/AGENTS.md):
+# Fails when a Rust tier depends on a crate its tier forbids:
 # the engine and the pure cores never depend on a UI toolkit, and the pure
 # cores never depend on FFmpeg, a credential store, or the engine. Only
 # abb-ffmpeg depends on ffmpeg-sys-next directly or names it in source, and

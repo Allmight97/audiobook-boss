@@ -125,4 +125,4 @@ package a DMG that may run on an unknown recipient Mac.
 - Why the landing, CI, and review policies are what they are: [docs/DECISIONS.md](docs/DECISIONS.md)
 - Claude on GitHub (tokens, workflows, review triggers): [docs/claude-on-github.md](docs/claude-on-github.md)
 - Release history: [CHANGELOG.md](CHANGELOG.md)
-- Architecture: the crate tiers in [crates/AGENTS.md](crates/AGENTS.md); agent rules start at [AGENTS.md](AGENTS.md)
+- Architecture: the crate tiers are checked by [scripts/check-rust-tiers.sh](scripts/check-rust-tiers.sh); agent rules start at [AGENTS.md](AGENTS.md)

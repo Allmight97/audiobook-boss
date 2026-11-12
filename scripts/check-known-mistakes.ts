@@ -109,14 +109,14 @@ const RULES: Rule[] = [
 		comment: /^\s*\/\//,
 		findIn: (line) => CODE_ONLY(line).match(/\b(?:std::(?:fs|net|process)|tokio)::/)?.[0] ?? null,
 		message:
-			'does I/O in a pure core. Fix: take the bytes, paths, or facts as input and let abb-engine do the I/O (crates/AGENTS.md).',
+			'does I/O in a pure core. Fix: take the bytes, paths, or facts as input and let abb-engine do the I/O.',
 	},
 	{
 		appliesTo: (file) => PURE_CORE(file) && file.startsWith('crates/abb-remote-source-core/'),
 		comment: /^\s*\/\//,
 		findIn: (line) => CODE_ONLY(line).match(/audible|indexer|prowlarr/i)?.[0] ?? null,
 		message:
-			'names a provider in the provider-neutral core. Fix: put provider rules in abb-audible-core or the engine provider module (crates/AGENTS.md).',
+			'names a provider in the provider-neutral core. Fix: put provider rules in abb-audible-core or the engine provider module.',
 	},
 	{
 		appliesTo: (file) => SOLID_SOURCE(file) && file !== 'src/ui/foundation/CoverImage.tsx',
@@ -140,7 +140,7 @@ const RULES: Rule[] = [
 		findIn: (line) =>
 			/\boxlint-disable/.test(line) && !line.includes(' -- ') ? 'oxlint-disable' : null,
 		message:
-			'suppresses a lint without a reason. Fix: name the rule and give its reason after ` -- ` (scripts/AGENTS.md).',
+			'suppresses a lint without a reason. Fix: name the rule and give its reason after ` -- `.',
 	},
 	{
 		appliesTo: OWNED_SHELL,
@@ -168,7 +168,7 @@ const RULES: Rule[] = [
 		comment: /^\s*\/\//,
 		findIn: (line) => line.match(/\bcrate::processing\b/)?.[0] ?? null,
 		message:
-			'reaches up into processing from the audio pipeline. Fix: import the leaf name from crate::execution (crates/abb-engine/AGENTS.md, Owner Routes).',
+			'reaches up into processing from the audio pipeline. Fix: import the leaf name from crate::execution, which processing only re-exports.',
 	},
 	{
 		appliesTo: (file) => PROVIDER_NEUTRAL_OWNERS.some((dir) => ENGINE_DIR(dir)(file)),
@@ -279,7 +279,7 @@ const RULES: Rule[] = [
 		findIn: (line) =>
 			CODE_ONLY(line).match(/\bunsafe\s*(\{|fn\b|impl\b|trait\b|extern\b)/)?.[0] ?? null,
 		message:
-			'is unsafe in the engine. Fix: call `abb_ffmpeg` for FFmpeg work and add a missing operation there; only the FAAC and FAAD3 adapters hold `unsafe` (crates/abb-engine/AGENTS.md, Runtime Constraints).',
+			'is unsafe in the engine. Fix: call `abb_ffmpeg` for FFmpeg work and add a missing operation there; only the FAAC and FAAD3 adapters hold `unsafe`.',
 	},
 	{
 		appliesTo: OWNED_SOURCE,
