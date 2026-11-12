@@ -98,11 +98,19 @@ result, then stop before tagging or publishing.
 
    ```bash
    git push origin main
-   git push origin v<x.y.z>
    ```
 
    The push skips the PR path through the admin bypass on the `CI gate`
-   ruleset, so it needs the owner's credentials.
+   ruleset, so it needs the owner's credentials. Wait for that commit's `ci`
+   run to pass before tagging, because CI is the only Linux proof:
+
+   ```bash
+   gh run watch "$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
+   git push origin v<x.y.z>
+   ```
+
+   A failed run stops the release: fix it on `main` and move the unpushed tag
+   to the fixed release commit.
 
 9. Publish the verified artifact with the
    matching changelog section as release notes:
