@@ -1,111 +1,27 @@
 # WorkRuntime
 
-## Public API Strip
-
-- `submit_processing_operation` spawns a background export and returns
-  `WorkSubmissionAccepted`. Callers name the operation after its books; the
-  request `title` is required and non-empty. `on_finished` receives the
-  terminal snapshot; the session settles staged downloads from it. A tracked
-  task joins the export's work task and owns its end (titles ended, terminal
-  snapshot, `on_finished`, the held run), so a panic in the work ends the
-  operation Failed instead of leaving it Running with its sources held, even
-  when the panic poisoned the operations lock. Finishing drops the live record
-  before terminalizing, so a terminalize that panics still frees the sources.
-- The inline metadata-save hooks (`begin_metadata_save_operation`,
-  `record_metadata_save_progress`, `finish_metadata_save_operation`) are
-  orchestrated by `crates/abb-engine/src/metadata_save.rs`, which the session's
-  Save calls. `finish` takes the run's outcome: `InlineRunTerminal` results or
-  the aborting error. `metadata_save` owns the metadata executor and each
-  child's reason; WorkRuntime owns the lifecycle, snapshots, cancellation, and
-  terminal classification, shared with processing runs.
-- `sources_in_use` (every canonical source path of every queued or running
-  title) and `subscribe_changes` (wakes on any operation change): the session's
-  Save uses them to hold a write until no accepted export reads the file.
-- `sources_held`: every source of every unfinished export, including titles
-  already encoded that still copy companion files. The session's staged-download
-  sweep uses it.
-- `unfinished_exports`: what shutdown cancels and `running_work` counts;
-  metadata Saves are left to finish.
-- Each accepted export title gets a `TitleOutput` (built from the acceptance
-  preflight; returned in `WorkSubmissionAccepted::titles`). The session hands it
-  Save's edits; `stop_title` cancels one title and waits until it published or
-  ended. Every title is ended when its operation ends, so one the run never
-  reached cannot keep an edit waiting. The child's `output_update` shows the
-  latest edit's state.
-
-## Ownership
-
-- Own operation identity, accepted submissions (after acceptance a title's
-  tags change only through its `TitleOutput::update`, which the session
-  calls), operation snapshots, operation and title cancellation, and Work
-  Center event truth.
-- Cancellation: a processing operation holds one cancel token per output title,
-  all children of one operation token, and whole-operation cancel cancels the
-  operation token. `cancel_operation` with a
-  `child_job_id` cancels only that title. Only processing titles cancel one at
-  a time; a metadata save's files share one token. Repeating a cancel, or
-  cancelling a finished title, returns the current snapshot. Child
-  `cancellable` is the authority for offering title cancel; the Work Center
-  adds only that the operation has more than one title.
-- Each output title is one child. A child's `source_input_ids` retain
-  all source identities, so a grouped title's downloads settle together at its
-  terminal outcome, including in mixed-success batches.
-- A child copies `supplemental_warning` and `warnings` from
-  `ProcessResultEntry` and stays Completed.
-- Own child `startedAtMs` / `finishedAtMs` in retained snapshots: first active
-  progress through the output's Completed event. Keep each child's finish when
-  the batch settles; missing timestamps mean unknown, so derive them from
-  neither logs nor batch duration.
-- `concurrency_locked` in the operations snapshot and every update is the job
-  registry's rule (a job or a held run is active), the same one that refuses a
-  job-limit change. `follow_concurrency_lock` publishes an update, without a
-  `changed` operation, whenever that rule's answer changes, so the lock can
-  clear after an operation's last update. Hosts keep the value of the update
-  with the highest `revision`.
-- An export holds concurrency fixed from acceptance to its end, including
-  between titles. One lock guards every operation's snapshot beside its live
-  record (title cancel tokens and sources). Acceptance inserts both together,
-  so a file is never reported free between acceptance and the first read;
-  only finishing removes the record, in the same critical section that writes
-  the terminal snapshot. Sources are therefore free before `on_finished` runs.
-  Terminalizing runs under the lock; `TitleOutput::end`, event emission and
-  `on_finished` run outside it, because `TitleOutput::end` calls a listener
-  that takes the lock. A cancel cancels its tokens in the same critical section
-  that writes the Cancelling snapshot.
-- A metadata save's children match progress by `input_index` and carry no
-  per-file `job_id`: a shared one would cross-match in `apply_progress_event`.
-  A cancel ends the operation as Cancelled and keeps the per-file results.
-- Stamp per-operation `revision` under the state lock before mutable access.
-- Every change reaches hosts as one `EngineEvent::WorkOperations`
-  (`WorkOperationsUpdate`): the changed operation plus the display order,
-  numbered by a state-wide `revision` taken under the state lock when it is
-  published. Emission happens after the lock, so updates can arrive out of
-  order; a host keeps the newest snapshot per operation and the order with the
-  highest revision, and needs no other merge rule. `list_operations` returns
-  the same order and revision. The engine owns display order: active, then
-  accepted, then finished; newest first within each. Session previews reuse the
-  private `WorkRuntimeState` reducer and publish within `SessionUpdate.output`;
-  they stay outside retained export history. Event names belong to the host
-  (`src-tauri/src/events.rs`).
-- Terminal-operation retention: `WorkRuntimeState` keeps at most
-  `TERMINAL_OPERATIONS_CAP` terminal operations, pruned oldest-first by
-  terminalization order (a just-finished long-running operation must survive
-  its own prune). Running and accepted operations are never pruned.
-- Reach processing through `processing::run`.
-- `WorkProgressStage` is a work_runtime-owned display vocabulary;
-  `src/app/workOperations/labels.ts` words each stage.
-- A progress event never changes an operation's status; only the run's result
-  or abort does, through `terminalize` (`state.rs`). Why: the UI,
-  `unfinished_exports`, and `abb-dev` read a terminal status as finished, and a
-  title's cleanup ends after its last progress event. A single-title operation still mirrors its
-  title's stage, message, and ETA.
-- `stage_table.rs` is the one table relating result status, event stage, child
-  status, finished operation status, and display stage. `Cleaning` is the wire
-  value that shows an operation as cancelling (`CANCELLING_STAGE`).
-- `OperationSnapshot.phase` (`accepted`, `active`, `finished`) is the only
-  answer to "has it started" and "is it over". `active` means running or
-  cancelling, including cancelling an operation that never started; read
-  whether it started from `started_at_ms`. `OperationSnapshot::set_status` is
-  the one writer of `status` and derives `phase` from the stage table. Hosts,
-  `abb-dev`, session previews and the UI read `phase` and keep no status list
-  of their own.
+- Start processing work only through `processing::run`.
+- A child's `cancellable` is the only authority for offering title cancel; the
+  Work Center adds only that the operation has more than one title.
+- Missing child timestamps mean unknown; never derive them from logs or batch
+  duration.
+- One lock guards each operation's snapshot and its live record. Acceptance
+  inserts both together, so a file is never reported free between acceptance
+  and the first read; finishing removes the record in the critical section
+  that writes the terminal snapshot.
+- Terminalizing runs under that lock, but `TitleOutput::end`, event emission,
+  and `on_finished` run outside it, because `TitleOutput::end` calls a
+  listener that takes the lock.
+- Stamp an operation's `revision` under the state lock before mutable access.
+- Emission happens after the lock, so updates can arrive out of order; a host
+  keeps the newest snapshot per operation and the order with the highest
+  revision.
+- Metadata-save children match progress by `input_index` and carry no
+  `job_id`, because a shared one would cross-match in `apply_progress_event`.
+- Terminal operations are pruned by terminalization order, so a long run that
+  just finished survives its own prune.
+- A progress event never changes an operation's status; only `terminalize`
+  does. Why: the UI, `unfinished_exports`, and `abb-dev` read a terminal status
+  as finished, and a title's cleanup ends after its last progress event.
+- Hosts, `abb-dev`, session previews, and the UI read `OperationSnapshot.phase`
+  and keep no status list of their own.

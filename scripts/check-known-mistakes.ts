@@ -102,7 +102,7 @@ const RULES: Rule[] = [
 		comment: /^\s*\/\//,
 		findIn: (line) => CODE_ONLY(line).match(/\.write_header(?:_with)?\(/)?.[0] ?? null,
 		message:
-			'writes an output header outside its owner, which pins the MP4 movie timescale so long chapters survive. Fix: call `crate::audio::write_output_header` (crates/abb-engine/src/audio/AGENTS.md).',
+			'writes an output header outside its owner, which pins the MP4 movie timescale so long chapters survive. Fix: call `crate::audio::write_output_header`.',
 	},
 	{
 		appliesTo: PURE_CORE,
@@ -182,7 +182,7 @@ const RULES: Rule[] = [
 		comment: /^\s*\/\//,
 		findIn: (line) => CODE_ONLY(line).match(/\bfs::(?:rename|copy|hard_link)\b/)?.[0] ?? null,
 		message:
-			'moves a file outside the output artifact boundary. Fix: stage locally and commit through crate::output_artifact (crates/abb-engine/src/audio/processor/AGENTS.md).',
+			'moves a file outside the output artifact boundary. Fix: stage locally and commit through crate::output_artifact, which publishes only complete content.',
 	},
 	{
 		appliesTo: PROCESSING_SOURCE,
