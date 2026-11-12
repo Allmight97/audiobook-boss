@@ -95,6 +95,8 @@
     "resources": {
       "../vendor/faac-sys/upstream/COPYING": "licenses/FAAC-LGPL-2.1.txt",
       "../vendor/faac-sys/ABB-PROVENANCE.md": "licenses/FAAC-source.md",
+      "../vendor/ffmpeg-sys-next-9.0.1/COPYING.LGPLv2.1": "licenses/FFmpeg-LGPL-2.1.txt",
+      "../vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md": "licenses/FFmpeg-source.md",
       "../vendor/opus/COPYING": "licenses/Opus-BSD.txt",
       "../vendor/opus/ABB-PROVENANCE.md": "licenses/Opus-source.md"
     }

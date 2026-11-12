@@ -1,5 +1,11 @@
 # ABB FFmpeg sys build patch
 
+AudioBook Boss statically links FFmpeg's libraries under the LGPL 2.1 or
+later (`COPYING.LGPLv2.1` here; no `build-license-*` feature is enabled),
+built from the FFmpeg commit in `ffmpeg-revision` with the patches in
+`patches/` and the `configure` lists in `build.rs`. The app bundle ships
+this file and that license.
+
 Base: crates.io `ffmpeg-sys-next` 9.0.1 archive, SHA-256
 `c6f932d8c1cede016c65d4f1435f323369c99c74df55143b18676aa10e7603f9`.
 The upstream manifest declares WTFPL. 9.0.1 adds `-fno-builtin` to bindgen so
