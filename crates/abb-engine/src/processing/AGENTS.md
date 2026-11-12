@@ -10,7 +10,8 @@
   `title_file_info` projects the same inspection into each title's source
   order.
 - Shared lifecycle vocabulary comes from `crate::processing`'s `pub use` list.
-  `ProgressEmitter` passes progress to the owning engine reducer.
+  `ProgressEmitter` (`crate::execution`) passes progress to the owning engine
+  reducer.
   `OperationKind::log_label` is the stable dev-log label that
   `scripts/dev-log-analysis.ts` parses.
 - `TitleOutput` is engine-internal; `OutputUpdate` and `OutputUpdateStatus` are
@@ -77,10 +78,16 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   has no job id.
 - `EventStage` (`execution/progress/mod.rs`) is the stage every emitted event
   carries.
-- A cancelled stage returns `AppError::cancelled()` and emits nothing. The
-  title runner (`run/run_dispatch.rs`) emits Cancelled once, after the title's
-  folders and `TitleOutput` end. Why: a Cancelled event that arrives earlier
-  shows the title finished while its staged files still exist.
+- Each title ends as one `TitleOutcome`; `TitleOutcome::report` makes its one
+  terminal event and its `ProcessResultEntry` (the wire projection). A failed
+  or cancelled stage returns its error and emits nothing; the title runner
+  (`run/run_dispatch.rs`) reports when that title ends, after its folders and
+  `TitleOutput` end. Why: an earlier event shows a finished title whose
+  staged files still exist; a later one leaves a failed row running.
+  Exceptions: Published's Completed event goes out at publication (`audio`);
+  a skipped title reports at dispatch, and an all-skipped batch returns its
+  entries with no event (`build_all_skipped_batch_result`); a title task that
+  panics is reported Failed after the batch.
 
 ## Job registry (`job_registry/`)
 

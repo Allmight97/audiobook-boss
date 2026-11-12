@@ -1,37 +1,109 @@
 mod classification_tests {
-    use super::super::classification::{
-        classify_processing_error, is_cancellation_error, ProcessingJobTerminalOutcome,
-    };
+    use super::super::classification::{is_cancellation_error, TitleOutcome};
     use crate::errors::{AppError, AppErrorCategory, AppErrorCode};
+    use crate::processing::{
+        EventStage, JobIdentity, ProcessResultStatus, ProgressEvent, ProgressEventListener,
+    };
+    use std::sync::{Arc, Mutex};
 
     #[test]
     fn processing_error_classification_keeps_cancellation_and_failure_distinct() {
-        let cancelled = classify_processing_error(AppError::cancelled());
-        let failed =
-            classify_processing_error(AppError::General("decoder unavailable".to_string()));
+        let cancelled = TitleOutcome::from_error(None, AppError::cancelled());
+        let failed = TitleOutcome::from_error(
+            Some("job-1".to_string()),
+            AppError::General("decoder unavailable".to_string()),
+        );
 
-        match cancelled {
-            ProcessingJobTerminalOutcome::Cancelled(error) => {
-                assert!(is_cancellation_error(&error));
-            }
-            other => panic!("expected cancellation outcome, got {other:?}"),
-        }
-
+        assert!(is_cancellation_error(&AppError::cancelled()));
+        assert!(matches!(cancelled, TitleOutcome::Cancelled { .. }));
         match failed {
-            ProcessingJobTerminalOutcome::Failed(envelope) => {
-                assert_eq!(envelope.code, AppErrorCode::InternalError);
-                assert_eq!(envelope.category, AppErrorCategory::Internal);
-                assert_eq!(envelope.message, "Operation failed: decoder unavailable");
+            TitleOutcome::Failed { job_id, error } => {
+                assert_eq!(job_id.as_deref(), Some("job-1"));
+                assert_eq!(error.code, AppErrorCode::InternalError);
+                assert_eq!(error.category, AppErrorCategory::Internal);
+                assert_eq!(error.message, "Operation failed: decoder unavailable");
             }
             other => panic!("expected failure outcome, got {other:?}"),
         }
+    }
+
+    fn recorded() -> (ProgressEventListener, Arc<Mutex<Vec<ProgressEvent>>>) {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&events);
+        let listener: ProgressEventListener = Arc::new(move |event: &ProgressEvent| {
+            sink.lock().expect("events").push(event.clone());
+        });
+        (listener, events)
+    }
+
+    fn identity(input_index: usize) -> JobIdentity {
+        JobIdentity {
+            operation_id: "operation".to_string(),
+            job_id: None,
+            input_index,
+        }
+    }
+
+    #[test]
+    fn each_unpublished_outcome_reports_one_terminal_event_with_its_entry() {
+        let (listener, events) = recorded();
+        let failed = TitleOutcome::from_error(
+            Some("job-7".to_string()),
+            AppError::General("decoder unavailable".to_string()),
+        )
+        .report(identity(0), &listener);
+        let cancelled =
+            TitleOutcome::from_error(None, AppError::cancelled()).report(identity(1), &listener);
+        let skipped = TitleOutcome::Skipped {
+            message: "Skipped existing output".to_string(),
+        }
+        .report(identity(2), &listener);
+
+        assert_eq!(
+            [failed.status, cancelled.status, skipped.status],
+            [
+                ProcessResultStatus::Failed,
+                ProcessResultStatus::Cancelled,
+                ProcessResultStatus::Skipped
+            ]
+        );
+        assert_eq!(failed.job_id.as_deref(), Some("job-7"));
+        let events = events.lock().expect("events");
+        let ends: Vec<_> = events
+            .iter()
+            .map(|event| (event.stage, event.input_index, event.job_id.clone()))
+            .collect();
+        assert_eq!(
+            ends,
+            [
+                (EventStage::Failed, Some(0), Some("job-7".to_string())),
+                (EventStage::Cancelled, Some(1), None),
+                (EventStage::Skipped, Some(2), None),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_published_outcome_reports_no_second_event() {
+        let (listener, events) = recorded();
+        let entry = TitleOutcome::Published {
+            job_id: "job-1".to_string(),
+            message: "Exported".to_string(),
+            output_path: Some("/tmp/out.m4b".to_string()),
+            supplemental_warning: None,
+            warnings: Vec::new(),
+        }
+        .report(identity(0), &listener);
+
+        assert_eq!(entry.status, ProcessResultStatus::Success);
+        assert!(events.lock().expect("events").is_empty());
     }
 }
 
 mod entry_tests {
     use super::super::entries::{
-        build_all_skipped_batch_result, no_write_skipped_result, terminal_cancelled_result,
-        terminal_failure_result,
+        build_all_skipped_batch_result, no_write_skip_message, skipped_entry,
+        terminal_cancelled_result, terminal_failure_result,
     };
     use crate::errors::{AppErrorCategory, AppErrorCode, AppErrorEnvelope};
     use crate::output_artifact::{
@@ -131,8 +203,8 @@ mod entry_tests {
         let existing = output_plan(PlannedOutputAction::SkipExisting, "/tmp/existing.m4b");
         let review = output_plan(PlannedOutputAction::ReviewRequired, "/tmp/review.m4b");
         let entries = [
-            no_write_skipped_result(0, None, &existing).expect("skipped"),
-            no_write_skipped_result(1, None, &review).expect("skipped"),
+            skipped_entry(0, None, no_write_skip_message(&existing).expect("skipped")),
+            skipped_entry(1, None, no_write_skip_message(&review).expect("skipped")),
             terminal_cancelled_result(2, None, "Processing was cancelled"),
             terminal_failure_result(3, None, error),
         ];
@@ -182,7 +254,7 @@ mod entry_tests {
     }
 
     #[test]
-    fn no_write_skipped_result_covers_skip_and_review_required_outputs() {
+    fn no_write_skip_message_covers_skip_and_review_required_outputs() {
         let skip_existing = output_plan(
             PlannedOutputAction::SkipExisting,
             "/tmp/existing-output.m4b",
@@ -193,110 +265,71 @@ mod entry_tests {
         );
         let writable = output_plan(PlannedOutputAction::Write, "/tmp/new-output.m4b");
 
-        let skip_result = no_write_skipped_result(0, None, &skip_existing)
-            .expect("skip-existing output should become a skipped result");
-        assert_eq!(skip_result.status, ProcessResultStatus::Skipped);
-        assert_eq!(skip_result.input_index, 0);
-        assert!(skip_result.message.contains("Skipped existing output"));
-
-        let review_result = no_write_skipped_result(1, None, &review_required)
-            .expect("review-required output should become a skipped result");
-        assert_eq!(review_result.status, ProcessResultStatus::Skipped);
-        assert_eq!(review_result.input_index, 1);
-        assert!(review_result
-            .message
+        assert!(no_write_skip_message(&skip_existing)
+            .expect("skip-existing output should be skipped")
+            .contains("Skipped existing output"));
+        assert!(no_write_skip_message(&review_required)
+            .expect("review-required output should be skipped")
             .contains("selected collision policy does not allow overwriting"));
-
         assert!(
-            no_write_skipped_result(2, None, &writable).is_none(),
+            no_write_skip_message(&writable).is_none(),
             "writable outputs must still enter normal processing"
         );
     }
 }
 
 mod batch_tests {
-    use super::super::batch::{collect_batch_results, TerminalFailureEvent};
+    use super::super::batch::batch_results;
+    use super::super::entries::{terminal_cancelled_result, terminal_failure_result};
     use crate::errors::{AppError, AppErrorCategory, AppErrorCode, AppErrorEnvelope};
     use crate::processing::{ProcessResultEntry, ProcessResultStatus};
 
-    #[test]
-    fn collect_batch_results_preserves_mixed_success_and_cancelled_entries() {
-        let results = collect_batch_results(vec![
-            Ok(ProcessResultEntry {
-                input_index: 0,
-                status: ProcessResultStatus::Success,
-                message: "Successfully created audiobook: /tmp/ok.m4b".to_string(),
-                error: None,
-                output_path: None,
-                supplemental_warning: None,
-                warnings: Vec::new(),
-                job_id: Some("job-1".to_string()),
-            }),
-            Err(AppError::cancelled()),
-        ])
-        .expect("mixed success and cancellation should remain a successful batch result");
-
-        assert_eq!(results.failure_events, Vec::<TerminalFailureEvent>::new());
-        assert_eq!(results.results.len(), 2);
-        assert_eq!(results.results[0].status, ProcessResultStatus::Success);
-        assert_eq!(results.results[1].status, ProcessResultStatus::Cancelled);
-        assert_eq!(results.results[1].input_index, 1);
-        assert_eq!(results.results[1].message, "Processing was cancelled");
-    }
-
-    #[test]
-    fn collect_batch_results_preserves_mixed_success_failure_and_cancelled_entries() {
-        let failed = ProcessResultEntry {
-            input_index: 1,
-            status: ProcessResultStatus::Failed,
-            message: "decoder unavailable".to_string(),
-            error: Some(AppErrorEnvelope::new(
-                AppErrorCode::FfmpegError,
-                AppErrorCategory::Toolchain,
-                "decoder unavailable".to_string(),
-                Some("ffmpeg missing".to_string()),
-            )),
+    fn published(input_index: usize) -> ProcessResultEntry {
+        ProcessResultEntry {
+            input_index,
+            status: ProcessResultStatus::Success,
+            message: "Successfully created audiobook: /tmp/ok.m4b".to_string(),
+            error: None,
             output_path: None,
             supplemental_warning: None,
             warnings: Vec::new(),
-            job_id: Some("job-2".to_string()),
-        };
+            job_id: Some("job-1".to_string()),
+        }
+    }
 
-        let results = collect_batch_results(vec![
-            Ok(ProcessResultEntry {
-                input_index: 0,
-                status: ProcessResultStatus::Success,
-                message: "Successfully created audiobook: /tmp/ok.m4b".to_string(),
-                error: None,
-                output_path: None,
-                supplemental_warning: None,
-                warnings: Vec::new(),
-                job_id: Some("job-1".to_string()),
-            }),
-            Ok(failed),
-            Err(AppError::cancelled()),
+    #[test]
+    fn a_batch_with_any_uncancelled_title_keeps_every_entry() {
+        let failure = AppErrorEnvelope::new(
+            AppErrorCode::FfmpegError,
+            AppErrorCategory::Toolchain,
+            "decoder unavailable".to_string(),
+            None,
+        );
+        let results = batch_results(vec![
+            published(0),
+            terminal_failure_result(1, Some("job-2".to_string()), failure),
+            terminal_cancelled_result(2, None, "Processing was cancelled"),
         ])
-        .expect("mixed terminal states should remain a successful batch result");
+        .expect("mixed terminal states stay a batch result");
 
-        assert_eq!(results.results.len(), 3);
-        assert_eq!(results.results[0].status, ProcessResultStatus::Success);
-        assert_eq!(results.results[1].status, ProcessResultStatus::Failed);
-        assert_eq!(results.results[2].status, ProcessResultStatus::Cancelled);
+        let statuses: Vec<_> = results.iter().map(|entry| entry.status).collect();
         assert_eq!(
-            results.failure_events,
-            vec![TerminalFailureEvent {
-                input_index: 1,
-                job_id: Some("job-2".to_string()),
-                message: "decoder unavailable".to_string(),
-            }]
+            statuses,
+            [
+                ProcessResultStatus::Success,
+                ProcessResultStatus::Failed,
+                ProcessResultStatus::Cancelled
+            ]
         );
     }
 
     #[test]
-    fn collect_batch_results_returns_cancelled_when_every_job_cancelled() {
-        let error =
-            collect_batch_results(vec![Err(AppError::cancelled()), Err(AppError::cancelled())])
-                .expect_err("fully cancelled batch should stay a top-level cancellation");
+    fn a_batch_whose_every_title_was_cancelled_is_a_cancellation() {
+        let error = batch_results(vec![
+            terminal_cancelled_result(0, None, "Processing was cancelled"),
+            terminal_cancelled_result(1, None, "Processing was cancelled"),
+        ])
+        .expect_err("fully cancelled batch should stay a top-level cancellation");
 
         assert!(matches!(error, AppError::Cancellation(_)));
     }

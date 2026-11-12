@@ -21,7 +21,7 @@ pub use types::{
 pub use crate::audio::AudioHandling;
 pub(crate) use crate::execution::{
     CancellationChecker, JobIdentity, OutputConfig, ProcessingContext, ProcessingSession,
-    ProgressEmitter, ProgressEventListener, PREVIEW_SECONDS,
+    ProgressEventListener, PREVIEW_SECONDS,
 };
 pub use crate::execution::{EventStage, ProgressEvent};
 pub(crate) use job_registry::{JobRegistry, RegisteredJob};

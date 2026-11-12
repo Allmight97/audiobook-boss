@@ -2,15 +2,12 @@ use super::run_job::{run_processing_job, supplemental_assets_for_input, Processi
 use super::ProcessingRun;
 use crate::audio;
 use crate::errors::{AppError, Result};
-use crate::execution::EmitContext;
 use crate::host::Host;
 use crate::output_artifact::OutputParentDirCleanup;
 use crate::processing::plan::{ExecutionProcessingPlan, ResolvedProcessingPlan};
 use crate::processing::terminal_outcomes::{
-    build_all_skipped_batch_result, collect_batch_results, emit_terminal_cancelled_event,
-    emit_terminal_failed_event, emit_terminal_skipped_event, no_write_skipped_result,
+    batch_results, build_all_skipped_batch_result, no_write_skip_message, TitleOutcome,
 };
-use crate::processing::ProcessResultStatus;
 use crate::processing::{JobIdentity, ProgressEventListener};
 use crate::processing::{OperationKind, ProcessCommandResult, ProcessPayload, ProcessResultEntry};
 use std::future::Future;
@@ -70,30 +67,22 @@ async fn dispatch_batch_plan(
 
     let mut scheduled_jobs: Vec<(TitleFuture, Option<CancellationToken>)> = Vec::new();
     for planned_job in plan.jobs {
-        if let Some(skipped_entry) =
-            no_write_skipped_result(planned_job.input_index, None, &planned_job.output)
-        {
-            emit_terminal_skipped_event(
-                &run.listener,
-                EmitContext {
-                    operation_kind: OperationKind::ProcessingBatch,
-                    identity: JobIdentity {
-                        operation_id: run.operation_id.clone(),
-                        job_id: skipped_entry.job_id.clone(),
-                        input_index: skipped_entry.input_index,
-                    },
-                },
-                &skipped_entry.message,
-            );
-            if let Some(output) = run.mode.title(planned_job.input_index)?.output {
+        let input_index = planned_job.input_index;
+        let title = run.mode.title(input_index)?;
+        let identity = JobIdentity {
+            operation_id: run.operation_id.clone(),
+            job_id: None,
+            input_index,
+        };
+        if let Some(message) = no_write_skip_message(&planned_job.output) {
+            let entry = TitleOutcome::Skipped { message }.report(identity, &run.listener);
+            if let Some(output) = title.output {
                 output.end();
             }
-            scheduled_jobs.push((Box::pin(async move { Ok(skipped_entry) }), None));
+            scheduled_jobs.push((Box::pin(async move { Ok(entry) }), None));
             continue;
         }
 
-        let input_index = planned_job.input_index;
-        let title = run.mode.title(input_index)?;
         let request = ProcessingJobRequest {
             host: host.clone(),
             registry: registry.clone(),
@@ -104,11 +93,7 @@ async fn dispatch_batch_plan(
             metadata_intent: planned_job.metadata_intent.clone(),
             sample_rate: planned_job.audio_plan.sample_rate,
             aac_decoder: payload.accepted_aac_decoder()?,
-            identity: JobIdentity {
-                operation_id: run.operation_id.clone(),
-                job_id: None,
-                input_index,
-            },
+            identity,
             operation_kind: OperationKind::ProcessingBatch,
             title_cancel: title.cancel.clone(),
             output_plan: planned_job.output.clone(),
@@ -130,15 +115,31 @@ async fn dispatch_batch_plan(
     }
 
     let outcomes = registry.run_batch(scheduled_jobs).await;
-    let finalized_results = finalize_batch_results(outcomes, &run.operation_id, &run.listener)?;
-
-    Ok(ProcessCommandResult::new(finalized_results))
+    let results = report_stopped_titles(outcomes, &run.operation_id, &run.listener);
+    Ok(ProcessCommandResult::new(batch_results(results)?))
 }
 
-/// Runs one title unless its cancel token is already cancelled. A title cancelled
-/// before its job started emits nothing else, so report it here instead of
-/// leaving its row cancelling until the batch ends. A title that ends without publishing
-/// removes the empty folders made only for it before it reports.
+fn report_stopped_titles(
+    outcomes: Vec<Result<ProcessResultEntry>>,
+    operation_id: &str,
+    listener: &ProgressEventListener,
+) -> Vec<ProcessResultEntry> {
+    outcomes
+        .into_iter()
+        .enumerate()
+        .map(|(input_index, outcome)| {
+            outcome.unwrap_or_else(|stopped| {
+                let identity = JobIdentity {
+                    operation_id: operation_id.to_string(),
+                    job_id: None,
+                    input_index,
+                };
+                TitleOutcome::from_error(None, stopped).report(identity, listener)
+            })
+        })
+        .collect()
+}
+
 async fn run_title_job(
     request: ProcessingJobRequest,
     folders: Arc<Mutex<OutputParentDirCleanup>>,
@@ -147,20 +148,13 @@ async fn run_title_job(
     let identity = request.identity.clone();
     let input_index = identity.input_index;
     let title_output = request.title_output.clone();
-    let cancelled = request.title_cancel.is_cancelled();
-    let outcome = if cancelled {
-        Err(AppError::cancelled())
+    let outcome = if request.title_cancel.is_cancelled() {
+        TitleOutcome::from_error(None, AppError::cancelled())
     } else {
         run_processing_job(request).await
     };
-    let published = outcome.as_ref().is_ok_and(|entry| {
-        matches!(
-            entry.status,
-            ProcessResultStatus::Success | ProcessResultStatus::Skipped
-        )
-    });
     let mut folders = folders.lock().unwrap_or_else(PoisonError::into_inner);
-    if let Err(error) = folders.end_title(input_index, published) {
+    if let Err(error) = folders.end_title(input_index, outcome.is_published()) {
         log::warn!(
             "output_parent_cleanup status=title_cleanup_err input_index={input_index} err={error}"
         );
@@ -169,39 +163,9 @@ async fn run_title_job(
     if let Some(title) = &title_output {
         title.end();
     }
-    if matches!(outcome, Err(AppError::Cancellation(_))) {
-        emit_terminal_cancelled_event(
-            &listener,
-            EmitContext {
-                operation_kind: OperationKind::ProcessingBatch,
-                identity,
-            },
-            "Processing was cancelled",
-        );
-    }
-    outcome
+    Ok(outcome.report(identity, &listener))
 }
 
-fn finalize_batch_results(
-    outcomes: Vec<Result<ProcessResultEntry>>,
-    operation_id: &str,
-    progress_listener: &ProgressEventListener,
-) -> Result<Vec<ProcessResultEntry>> {
-    let finalized = collect_batch_results(outcomes)?;
-    for event in finalized.failure_events {
-        emit_terminal_failed_event(
-            progress_listener,
-            EmitContext {
-                operation_kind: OperationKind::ProcessingBatch,
-                identity: JobIdentity {
-                    operation_id: operation_id.to_string(),
-                    job_id: event.job_id.clone(),
-                    input_index: event.input_index,
-                },
-            },
-            &event.message,
-        );
-    }
-
-    Ok(finalized.results)
-}
+#[cfg(test)]
+#[path = "run_dispatch_tests.rs"]
+mod tests;

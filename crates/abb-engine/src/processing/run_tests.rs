@@ -4,7 +4,8 @@ use super::run_job::{
 };
 use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
 use crate::output_artifact::OutputKind;
-use crate::processing::terminal_outcomes::ProcessingJobTerminalOutcome;
+use crate::processing::job_registry::JobId;
+use crate::processing::terminal_outcomes::TitleOutcome;
 use crate::processing::OperationKind;
 use crate::processing::{ProcessPayload, SupplementalProcessingAsset};
 use crate::test_cases::media_fixtures::preflight_payload;
@@ -682,12 +683,12 @@ async fn supplemental_commit_failure_keeps_published_title_successful_with_warni
         message: "Exported Book.m4b".to_string(),
         warnings: Vec::new(),
     };
-    let outcome = title_outcome(Ok(audio), None, async || {
+    let outcome = title_outcome(JobId::new(), Ok(audio), None, async || {
         commit_supplemental_assets(OutputKind::Final, vec![asset], final_audio.clone()).await
     })
     .await;
 
-    let ProcessingJobTerminalOutcome::Success {
+    let TitleOutcome::Published {
         message,
         supplemental_warning: Some(warning),
         ..
@@ -711,6 +712,7 @@ async fn supplemental_commit_failure_keeps_published_title_successful_with_warni
 #[tokio::test]
 async fn failed_audio_never_publishes_companions() {
     let outcome = title_outcome(
+        JobId::new(),
         Err(crate::errors::AppError::FileValidation(
             "encode failed".into(),
         )),
@@ -721,5 +723,5 @@ async fn failed_audio_never_publishes_companions() {
     )
     .await;
 
-    assert!(matches!(outcome, ProcessingJobTerminalOutcome::Failed(_)));
+    assert!(matches!(outcome, TitleOutcome::Failed { .. }));
 }
