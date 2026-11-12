@@ -293,6 +293,31 @@ describe('metadata owner', () => {
 		expect(app.metadata.view().cover.message).toEqual({ kind: 'hidden' });
 	});
 
+	it('asks for a URL again once a local cover error it replaced has hidden', async () => {
+		const app = await open();
+		vi.useFakeTimers();
+		engine.seedCover({ kind: 'urlRequired' });
+		await vi.advanceTimersByTimeAsync(0);
+		failCoverDrops();
+		await app.metadata.applyCoverArtDrop(['/covers/broken.jpg']);
+		expect(app.metadata.view().cover.message.kind).toBe('error');
+		expect(app.metadata.view().cover.message).not.toEqual({
+			kind: 'error',
+			text: 'Paste an image URL first.',
+		});
+
+		await vi.advanceTimersByTimeAsync(4000);
+		expect(app.metadata.view().cover.message).toEqual({
+			kind: 'error',
+			text: 'Paste an image URL first.',
+		});
+		await vi.advanceTimersByTimeAsync(10_000);
+		expect(app.metadata.view().cover.message).toEqual({
+			kind: 'error',
+			text: 'Paste an image URL first.',
+		});
+	});
+
 	it('says to select one title when a cover had none to go to', async () => {
 		const app = await open();
 		engine.respond = (intent) => {

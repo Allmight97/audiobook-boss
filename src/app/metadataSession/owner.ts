@@ -125,10 +125,16 @@ function statusText(status: MetadataStatus | null): string {
 	}
 }
 
+type EngineCoverSlot = { readonly kind: 'engine'; readonly serial: number };
+
 type CoverMessageSlot =
 	| { readonly kind: 'none' }
-	| { readonly kind: 'local'; readonly message: CoverArtMessage }
-	| { readonly kind: 'engine'; readonly serial: number };
+	| {
+			readonly kind: 'local';
+			readonly message: CoverArtMessage;
+			readonly resumes?: EngineCoverSlot;
+	  }
+	| EngineCoverSlot;
 
 const NO_COVER_MESSAGE: CoverMessageSlot = { kind: 'none' };
 
@@ -158,13 +164,28 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		if (!hides) return;
 		slotTimer = setTimeout(() => {
 			slotTimer = undefined;
-			coverSlot = NO_COVER_MESSAGE;
+			coverSlot = slot.kind === 'local' && slot.resumes ? slot.resumes : NO_COVER_MESSAGE;
 			changed();
 		}, COVER_MESSAGE_MS);
 	}
 
+	function untimedNoticeInSlot(): EngineCoverSlot | undefined {
+		switch (coverSlot.kind) {
+			case 'local':
+				return coverSlot.resumes;
+			case 'engine': {
+				const { cover } = link.metadata();
+				return cover.notice?.kind === 'urlRequired' && cover.noticeSerial === coverSlot.serial
+					? coverSlot
+					: undefined;
+			}
+			case 'none':
+				return undefined;
+		}
+	}
+
 	function showLocalMessage(message: CoverArtMessage): void {
-		showInSlot({ kind: 'local', message }, true);
+		showInSlot({ kind: 'local', message, resumes: untimedNoticeInSlot() }, true);
 	}
 
 	createEffect(
