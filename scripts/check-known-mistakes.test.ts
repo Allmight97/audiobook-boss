@@ -485,6 +485,38 @@ describe('check-known-mistakes', () => {
 		expect(found('src/app/x.test.ts', '\texpect(file.isValid).toBe(true);')).toEqual([]);
 	});
 
+	it('keeps FFmpeg format name comparisons in the two classifiers', () => {
+		const file = 'crates/abb-engine/src/audio/file_list.rs';
+		expect(
+			found(file, '    if !input.format_name().split(\',\').any(|name| name == "mp4") {'),
+		).toEqual([expect.stringMatching(/^1: .*compares an FFmpeg format or muxer name/)]);
+		expect(
+			found(file, '            && container_name.split(\',\').any(|name| name == "matroska")'),
+		).toHaveLength(1);
+		expect(found(file, '    match container.muxer_name() {')).toHaveLength(1);
+		expect(found(file, '    if input.format_name() == "mp4" {')).toHaveLength(1);
+		expect(found(file, '        "adts" if !edited.is_empty() => refuse(),')).toHaveLength(1);
+		expect(found(file, '    Output::create(path, output_format.muxer_name())')).toEqual([]);
+		expect(found(file, '    let kept = matches!(extension, "m4a" | "m4b");')).toEqual([]);
+		expect(found(file, '        .is_some_and(|e| e.eq_ignore_ascii_case("mp3"))')).toEqual([]);
+		expect(found(file, '    // name == "mp4"')).toEqual([]);
+		expect(
+			found(
+				'crates/abb-engine/src/metadata/container.rs',
+				'            "matroska" => Container::Matroska,',
+			),
+		).toEqual([]);
+		expect(
+			found(
+				'crates/abb-engine/src/audio/format.rs',
+				'    name.split(\',\').any(|alias| alias == "mp4")',
+			),
+		).toEqual([]);
+		expect(
+			found('crates/abb-engine/src/audio/file_list_tests.rs', '    assert!(name == "matroska");'),
+		).toEqual([]);
+	});
+
 	it('lets only src/styles.css import the foundation stylesheet', () => {
 		expect(found('src/ui/x.tsx', "import './foundation/internal/foundation.css';")).toEqual([
 			expect.stringMatching(/^1: .*imports the foundation stylesheet outside `src\/styles\.css`/),

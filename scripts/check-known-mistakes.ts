@@ -53,6 +53,24 @@ const FRONTEND_SOURCE = (file: string) =>
 	!file.startsWith('src/test/') &&
 	!file.startsWith('src/lib/generated/');
 const FRONTEND_TEST = (file: string) => /^src\/.*\.test\.tsx?$/.test(file);
+const FORMAT_CLASSIFIER_HOMES = new Set([
+	'crates/abb-engine/src/metadata/container.rs',
+	'crates/abb-engine/src/audio/format.rs',
+]);
+const FORMAT_ONLY_NAME = '"(?:matroska|mov|mj2|3gp|3g2|adts|ipod)"';
+const EXTENSION_LIKE_NAME = '"(?:mp4|m4a|mp3|wav|flac|ogg|webm|aac)"';
+const COMPARE_BEFORE = '(?:==|!=)\\s*';
+const COMPARE_AFTER = '\\s*(?:==|!=|=>|if\\b|\\|)';
+const COMPARE_CALL = '\\b(?:contains|starts_with|ends_with)\\(\\s*';
+const comparesNamed = (name: string) =>
+	new RegExp(`${COMPARE_BEFORE}${name}|${name}${COMPARE_AFTER}|${COMPARE_CALL}${name}`);
+const FORMAT_NAME_COMPARISONS = [
+	comparesNamed(FORMAT_ONLY_NAME),
+	new RegExp(
+		`(?=.*\\b(?:format_name|muxer_name|container_name|demuxer)\\b).*(${comparesNamed(EXTENSION_LIKE_NAME).source})`,
+	),
+	/\bmatch\s+[^{]*\b(?:format_name|muxer_name)\(\)/,
+];
 const FFMPEG_LAYER = (file: string) =>
 	OWNED_RUST(file) && !RUST_TEST_FILE(file) && file.startsWith('crates/abb-ffmpeg/src/');
 const SCRIPT_SOURCE = (file: string) =>
@@ -183,6 +201,23 @@ const RULES: Rule[] = [
 		findIn: (line) => CODE_ONLY(line).match(/\bfs::(?:rename|copy|hard_link)\b/)?.[0] ?? null,
 		message:
 			'moves a file outside the output artifact boundary. Fix: stage locally and commit through crate::output_artifact, which publishes only complete content.',
+	},
+	{
+		appliesTo: (file) =>
+			OWNED_RUST(file) &&
+			!RUST_TEST_FILE(file) &&
+			file.startsWith('crates/abb-engine/src/') &&
+			!FORMAT_CLASSIFIER_HOMES.has(file),
+		comment: /^\s*\/\//,
+		findIn: (line) => {
+			for (const pattern of FORMAT_NAME_COMPARISONS) {
+				const found = line.match(pattern);
+				if (found) return found[0].trim();
+			}
+			return null;
+		},
+		message:
+			'compares an FFmpeg format or muxer name. Fix: ask `Container` (metadata/container.rs) or `audio::format` (`is_mp4_family_format`, `is_matroska_format`, `muxer_for_path`) for the format fact.',
 	},
 	{
 		appliesTo: FRONTEND_SOURCE,

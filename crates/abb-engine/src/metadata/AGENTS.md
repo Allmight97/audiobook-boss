@@ -4,7 +4,6 @@
   conventions, use the `audiobook-metadata` skill.
 - Real file saves go through `save_metadata_intent`, so series validation can
   see the source's tags.
-- Ask `container::Container` (or `audio::format`) for a container fact.
 - MP4-family tag truth never depends on a bare remux, because FFmpeg's mov
   muxer drops unknown keys (rustdoc on `finish_artifact_tags`).
 - A Save never opens the original for writing: it checks a sibling copy and
