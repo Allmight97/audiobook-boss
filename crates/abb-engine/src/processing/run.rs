@@ -15,7 +15,7 @@ mod run_options;
 mod run_validation;
 
 pub(crate) use run_job::supplemental_assets_for_input;
-pub(crate) use run_options::{ProcessingRunOptions, TitleRun};
+pub(crate) use run_options::{ExportTitle, ProcessingRun, RunMode};
 use run_validation::inspect_and_validate_external_processing_contract;
 
 /// Runs an inspected plan. `_run` is the caller's hold on the job registry,
@@ -27,7 +27,7 @@ pub(crate) async fn process_inspected_with_options(
     workspace_root: PathBuf,
     payload: ProcessPayload,
     inspected: InspectedProcessingPlan,
-    options: ProcessingRunOptions,
+    run: ProcessingRun,
 ) -> Result<ProcessCommandResult> {
     let result = async {
         #[expect(
@@ -45,7 +45,7 @@ pub(crate) async fn process_inspected_with_options(
             workspace_root,
             &execution.0,
             execution.1,
-            options,
+            run,
         )
         .await
     }

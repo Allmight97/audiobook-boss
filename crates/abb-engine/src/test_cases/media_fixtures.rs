@@ -11,6 +11,7 @@ use crate::metadata::{
     MetadataIntentPatch, PassthroughSource,
 };
 use crate::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
+use crate::test_cases::support::session::idle_session;
 use crate::AppError;
 use image::ImageFormat;
 use std::collections::HashMap;
@@ -185,7 +186,7 @@ pub(crate) async fn run_planned_title(
     let destination = job.output.resolved_path.clone();
     fs::create_dir_all(destination.parent().expect("output folder")).expect("output folder");
     let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::new()),
+        Arc::new(idle_session()),
         job.audio_plan.sample_rate,
         OutputConfig::from_plan(job.output),
         workspace.to_path_buf(),
@@ -621,7 +622,7 @@ impl MediaLane {
     }
 
     pub(crate) async fn process(&self, metadata: Option<AudiobookMetadata>) -> PathBuf {
-        execute_audio_engine(self.execution_request(ProcessingSession::new(), metadata))
+        execute_audio_engine(self.execution_request(idle_session(), metadata))
             .await
             .expect("native processing succeeds");
         self.output_path()

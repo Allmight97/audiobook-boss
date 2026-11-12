@@ -180,16 +180,6 @@ pub struct AcquisitionPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub enum RemoteAcquisitionStatus {
-    Acquiring,
-    Validated,
-    ImportedToFileList,
-    Failed,
-    Cancelled,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
 pub enum RemoteAcquisitionFailureKind {
     AuthRequired,
     ProviderPrivateProtocolFailed,
@@ -268,7 +258,6 @@ pub struct SupplementalAsset {
 pub struct AcquisitionJob {
     pub job_id: String,
     pub provider_id: ProviderId,
-    pub status: RemoteAcquisitionStatus,
     pub progress: AcquisitionProgress,
     #[serde(skip)]
     pub materialized_files: Vec<MaterializedSourceFile>,
@@ -314,7 +303,6 @@ impl AcquisitionJob {
         Self {
             job_id: job_id.to_string(),
             provider_id: ProviderId::Audible,
-            status: RemoteAcquisitionStatus::Acquiring,
             progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
             materialized_files: Vec::new(),
             supplemental_assets: Vec::new(),

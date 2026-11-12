@@ -3,7 +3,7 @@
 /// starts has none.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct JobIdentity {
-    pub(crate) operation_id: Option<String>,
+    pub(crate) operation_id: String,
     pub(crate) job_id: Option<String>,
     pub(crate) input_index: usize,
 }

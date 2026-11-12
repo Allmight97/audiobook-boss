@@ -4,7 +4,7 @@ use tempfile::TempDir;
 
 fn identity() -> crate::processing::JobIdentity {
     crate::processing::JobIdentity {
-        operation_id: None,
+        operation_id: "registration".to_string(),
         job_id: None,
         input_index: 0,
     }
@@ -28,7 +28,7 @@ async fn registration_accepts_each_formats_own_extension() {
             &registry,
             &output,
             format,
-            None,
+            tokio_util::sync::CancellationToken::new(),
             identity(),
             OperationKind::ProcessingBatch,
         )
@@ -50,7 +50,7 @@ async fn a_registered_job_that_is_dropped_leaves_the_registry() {
         &registry,
         &temp_dir.path().join("output.m4b"),
         audio::AudiobookFormat::M4b,
-        None,
+        tokio_util::sync::CancellationToken::new(),
         identity(),
         OperationKind::ProcessingBatch,
     )

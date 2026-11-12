@@ -11,8 +11,8 @@ use crate::output_artifact::{
 use crate::processing::job_registry::{JobId, RegisteredJob};
 use crate::processing::ProgressEventListener;
 use crate::processing::{
-    AudioHandling, JobIdentity, OperationKind, OutputConfig, ProcessPayload, ProcessResultEntry,
-    ProcessResultStatus, ProcessingContext, ProcessingSession, SupplementalProcessingAsset,
+    AudioHandling, JobIdentity, OperationKind, OutputConfig, ProcessPayload, ProcessingContext,
+    ProcessingSession, SupplementalProcessingAsset,
 };
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -20,9 +20,7 @@ use std::time::Instant;
 use tokio::sync::OwnedSemaphorePermit;
 use tokio_util::sync::CancellationToken;
 
-use crate::processing::terminal_outcomes::{
-    classify_processing_error, terminal_failure_result, ProcessingJobTerminalOutcome,
-};
+use crate::processing::terminal_outcomes::TitleOutcome;
 
 pub(crate) struct ProcessingJobRequest {
     pub(crate) host: Host,
@@ -36,26 +34,18 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) aac_decoder: audio::AacDecoder,
     pub(crate) identity: JobIdentity,
     pub(crate) operation_kind: OperationKind,
-    pub(crate) title_cancel: Option<CancellationToken>,
+    pub(crate) title_cancel: CancellationToken,
     pub(crate) output_plan: ResolvedOutputPlan,
     pub(crate) file_info: FileListInfo,
     pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
     pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
     pub(crate) supplemental_assets: Vec<SupplementalProcessingAsset>,
-    pub(crate) progress_listener: Option<ProgressEventListener>,
+    pub(crate) progress_listener: ProgressEventListener,
     pub(crate) title_output: Option<Arc<crate::processing::TitleOutput>>,
 }
 
-pub(crate) async fn run_processing_job(
-    request: ProcessingJobRequest,
-) -> Result<ProcessResultEntry> {
-    let RegisteredProcessingJob {
-        job,
-        identity,
-        permit: _permit,
-        cancellation_checker,
-        lifecycle_log,
-    } = register_job_and_validate_output(
+pub(crate) async fn run_processing_job(request: ProcessingJobRequest) -> TitleOutcome {
+    let registered = register_job_and_validate_output(
         &request.registry,
         &request.output_plan.resolved_path,
         request.audio_request.format(),
@@ -63,7 +53,17 @@ pub(crate) async fn run_processing_job(
         request.identity.clone(),
         request.operation_kind,
     )
-    .await?;
+    .await;
+    let RegisteredProcessingJob {
+        job,
+        identity,
+        permit: _permit,
+        cancellation_checker,
+        lifecycle_log,
+    } = match registered {
+        Ok(registered) => registered,
+        Err(error) => return TitleOutcome::from_error(None, error),
+    };
     let job_id = job.id();
     log_audio_decision(&request, job_id);
     let _active_work = request.host.begin_active_work();
@@ -95,7 +95,7 @@ pub(crate) async fn run_processing_job(
         .with_metadata_intent(request.metadata_intent),
     )
     .await;
-    let result = title_outcome(audio_result, output_path, async move || {
+    let result = title_outcome(job_id, audio_result, output_path, async move || {
         commit_supplemental_assets(
             request.output_plan.kind,
             request.supplemental_assets,
@@ -105,49 +105,27 @@ pub(crate) async fn run_processing_job(
     })
     .await;
 
-    settle_job(job, request.identity.input_index, &lifecycle_log, result).await
+    settle_job(job, &lifecycle_log, &result);
+    result
 }
 
-async fn settle_job(
+fn settle_job(
     job: RegisteredJob,
-    input_index: usize,
     lifecycle_log: &ProcessingJobLifecycleLog,
-    result: ProcessingJobTerminalOutcome,
-) -> Result<ProcessResultEntry> {
-    let job_id = job.id();
-    match result {
-        ProcessingJobTerminalOutcome::Success {
-            message,
-            output_path,
-            supplemental_warning,
-            warnings,
-        } => {
+    outcome: &TitleOutcome,
+) {
+    match outcome {
+        TitleOutcome::Published { .. } => {
             job.complete();
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Success);
-            Ok(ProcessResultEntry {
-                input_index,
-                status: ProcessResultStatus::Success,
-                message,
-                error: None,
-                output_path,
-                job_id: Some(job_id.to_string()),
-                supplemental_warning,
-                warnings,
-            })
         }
-        ProcessingJobTerminalOutcome::Cancelled(error) => {
+        TitleOutcome::Cancelled { .. } => {
             job.complete();
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Cancelled);
-            Err(error)
         }
-        ProcessingJobTerminalOutcome::Failed(envelope) => {
-            job.fail(envelope.message.clone());
-            lifecycle_log.log_terminal(ProcessingJobLogStatus::Failed(&envelope));
-            Ok(terminal_failure_result(
-                input_index,
-                Some(job_id.to_string()),
-                envelope,
-            ))
+        TitleOutcome::Failed { error, .. } => {
+            job.fail(error.message.clone());
+            lifecycle_log.log_terminal(ProcessingJobLogStatus::Failed(error));
         }
     }
 }
@@ -165,7 +143,7 @@ fn log_audio_decision(request: &ProcessingJobRequest, job_id: JobId) {
         });
     log::info!(
         "audio_decision operation_id={} job_id={} input_index={:?} request={:?} action={:?} resolved_rate={:?} reason={:?} output_path={:?}",
-        request.identity.operation_id.as_deref().unwrap_or("foreground"), job_id,
+        request.identity.operation_id, job_id,
         request.identity.input_index, request.audio_request, request.audio_handling,
         request.sample_rate, reason, request.output_plan.resolved_path
     );
@@ -239,19 +217,21 @@ pub(crate) async fn commit_supplemental_assets(
 }
 
 pub(crate) async fn title_outcome(
+    job_id: JobId,
     audio: Result<crate::audio::AudioRunOutcome>,
     output_path: Option<String>,
     publish_companions: impl AsyncFnOnce() -> Result<()>,
-) -> ProcessingJobTerminalOutcome {
+) -> TitleOutcome {
     let audio = match audio {
         Ok(audio) => audio,
-        Err(error) => return classify_processing_error(error),
+        Err(error) => return TitleOutcome::from_error(Some(job_id.to_string()), error),
     };
     let supplemental_warning = publish_companions().await.err().map(|error| {
         log::warn!("supplemental_pdf_commit status=failed title_status=success");
         AppErrorEnvelope::from(&error).message
     });
-    ProcessingJobTerminalOutcome::Success {
+    TitleOutcome::Published {
+        job_id: job_id.to_string(),
         message: audio.message,
         output_path,
         supplemental_warning,
@@ -275,12 +255,12 @@ pub(crate) async fn register_job_and_validate_output(
     registry: &crate::ManagedJobRegistry,
     output_path: &Path,
     format: audio::AudiobookFormat,
-    title_cancel: Option<CancellationToken>,
+    title_cancel: CancellationToken,
     identity: JobIdentity,
     operation_kind: OperationKind,
 ) -> Result<RegisteredProcessingJob> {
     let (job_id, permit) = registry
-        .register_job_with_external_cancel(title_cancel.clone())
+        .register_job_with_external_cancel(&title_cancel)
         .await?;
     let job = RegisteredJob::adopt(registry, job_id);
     let cancellation_checker = CancellationChecker::new(title_cancel);
@@ -317,7 +297,7 @@ struct ProcessingContextRequest {
     sample_rate: u32,
     aac_decoder: audio::AacDecoder,
     operation_kind: OperationKind,
-    progress_listener: Option<ProgressEventListener>,
+    progress_listener: ProgressEventListener,
     title_output: Option<Arc<crate::processing::TitleOutput>>,
     output_plan: ResolvedOutputPlan,
     workspace_root: PathBuf,
@@ -418,12 +398,11 @@ fn format_processing_job_record(
     status: ProcessingJobLogStatus<'_>,
     elapsed_ms: Option<u128>,
 ) -> String {
-    let operation_id = identity.operation_id.as_deref().unwrap_or("foreground");
     let job_id = identity.job_id.as_deref().unwrap_or("none");
     let mut record = format!(
         "processing_job event={} operation_id={} job_id={} input_index={} kind={} status={}",
         processing_job_event_label(event),
-        operation_id,
+        identity.operation_id,
         job_id,
         identity.input_index,
         operation_kind.log_label(),

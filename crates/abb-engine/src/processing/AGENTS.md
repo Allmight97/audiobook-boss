@@ -10,7 +10,8 @@
   `title_file_info` projects the same inspection into each title's source
   order.
 - Shared lifecycle vocabulary comes from `crate::processing`'s `pub use` list.
-  `ProgressEmitter` passes progress to the owning engine reducer.
+  `ProgressEmitter` (`crate::execution`) passes progress to the owning engine
+  reducer.
   `OperationKind::log_label` is the stable dev-log label that
   `scripts/dev-log-analysis.ts` parses.
 - `TitleOutput` is engine-internal; `OutputUpdate` and `OutputUpdateStatus` are
@@ -77,10 +78,18 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   has no job id.
 - `EventStage` (`execution/progress/mod.rs`) is the stage every emitted event
   carries.
-- A cancelled stage returns `AppError::cancelled()` and emits nothing. The
-  title runner (`run/run_dispatch.rs`) emits Cancelled once, after the title's
-  folders and `TitleOutput` end. Why: a Cancelled event that arrives earlier
-  shows the title finished while its staged files still exist.
+- Each title that runs ends as one `TitleOutcome` (Published, Cancelled,
+  Failed); `TitleOutcome::report` builds its `ProcessResultEntry` (the wire
+  projection) and emits the terminal event for Cancelled and Failed;
+  Published's Completed event goes out at publication (`audio`). A failed or
+  cancelled stage returns its error and emits nothing; the title runner
+  (`run/run_dispatch.rs`) reports when that title ends, after its folders and
+  `TitleOutput` end. Why: an earlier event shows a finished title whose
+  staged files still exist; a later one leaves a failed row running.
+  Exceptions: a skipped title never runs and reports at dispatch
+  (`report_skipped`), and an all-skipped batch returns its entries with no
+  event (`build_all_skipped_batch_result`); a title task that panics is
+  reported Failed after the batch.
 
 ## Job registry (`job_registry/`)
 
@@ -118,12 +127,14 @@ it reports ended (`run/run_dispatch.rs`); a restart waits for that.
   resolving audio and metadata again.
 - A preview is `OutputKind::Preview`, set once when the plan resolves each
   title's output. Execution asks `ProcessingContext::is_preview()`; no second
-  flag carries it.
+  flag carries it; `RunMode` says only what the caller supplies per title.
 - Keep preflight side-effect-free. Why: a plan that review refuses leaves no
   folders or files behind.
-- `ProcessingRunOptions.titles` carries one `TitleRun` (index, cancel token,
-  and for an export the title's output record) per output title from
-  WorkRuntime or the session preview; a preview has no output records. Each
-  job's admission and `CancellationChecker` (built from that title's token)
-  observe only that token; the registry holds no other cancel state.
-  Cancelled titles finish as Cancelled results while siblings continue.
+- A `ProcessingRun` always carries its operation id, its progress listener,
+  and a `RunMode`: `Export` holds each title's cancel token and output record,
+  `Preview` only each title's cancel token, in title order. WorkRuntime builds
+  the export, the session the preview. Why: one mode makes "an export title
+  without an output record" unbuildable. Each job's admission and
+  `CancellationChecker` (built from that title's token) observe only that
+  token; the registry holds no other cancel state. Cancelled titles finish as
+  Cancelled results while siblings continue.

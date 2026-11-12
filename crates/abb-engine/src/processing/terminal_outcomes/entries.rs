@@ -19,55 +19,30 @@ pub(in crate::processing) fn build_all_skipped_batch_result(
     let skipped_results = plan
         .jobs
         .iter()
-        .map(|job| skipped_result(job.input_index, None, &job.output))
+        .map(|job| skipped_entry(job.input_index, skip_existing_message(&job.output)))
         .collect();
     Some(ProcessCommandResult::new(skipped_results))
 }
 
-pub(in crate::processing) fn no_write_skipped_result(
-    input_index: usize,
-    job_id: Option<String>,
-    output: &ResolvedOutputPlan,
-) -> Option<ProcessResultEntry> {
+pub(in crate::processing) fn no_write_skip_message(output: &ResolvedOutputPlan) -> Option<String> {
     match output.action {
-        PlannedOutputAction::SkipExisting => Some(skipped_result(input_index, job_id, output)),
-        PlannedOutputAction::ReviewRequired => {
-            Some(review_required_skipped_result(input_index, job_id, output))
-        }
+        PlannedOutputAction::SkipExisting => Some(skip_existing_message(output)),
+        PlannedOutputAction::ReviewRequired => Some(format!(
+            "Skipped '{}' because the selected collision policy does not allow overwriting this output.",
+            sanitize_path_for_display(&output.requested_path)
+        )),
         _ => None,
     }
 }
 
-fn review_required_skipped_result(
-    input_index: usize,
-    job_id: Option<String>,
-    output: &ResolvedOutputPlan,
-) -> ProcessResultEntry {
-    let message = format!(
-        "Skipped '{}' because the selected collision policy does not allow overwriting this output.",
-        sanitize_path_for_display(&output.requested_path)
-    );
-    ProcessResultEntry {
-        input_index,
-        status: ProcessResultStatus::Skipped,
-        message,
-        error: None,
-        output_path: None,
-        supplemental_warning: None,
-        warnings: Vec::new(),
-        job_id,
-    }
-}
-
-pub(super) fn skipped_result(
-    input_index: usize,
-    job_id: Option<String>,
-    output: &ResolvedOutputPlan,
-) -> ProcessResultEntry {
-    let message = format!(
+fn skip_existing_message(output: &ResolvedOutputPlan) -> String {
+    format!(
         "Skipped existing output at '{}'",
         sanitize_path_for_display(&output.requested_path)
-    );
+    )
+}
+
+pub(super) fn skipped_entry(input_index: usize, message: String) -> ProcessResultEntry {
     ProcessResultEntry {
         input_index,
         status: ProcessResultStatus::Skipped,
@@ -76,13 +51,12 @@ pub(super) fn skipped_result(
         output_path: None,
         supplemental_warning: None,
         warnings: Vec::new(),
-        job_id,
+        job_id: None,
     }
 }
 
 pub(super) fn terminal_cancelled_result(
     input_index: usize,
-    job_id: Option<String>,
     message: impl Into<String>,
 ) -> ProcessResultEntry {
     let message = message.into();
@@ -99,11 +73,11 @@ pub(super) fn terminal_cancelled_result(
         output_path: None,
         supplemental_warning: None,
         warnings: Vec::new(),
-        job_id,
+        job_id: None,
     }
 }
 
-pub(in crate::processing) fn terminal_failure_result(
+pub(super) fn terminal_failure_result(
     input_index: usize,
     job_id: Option<String>,
     error: AppErrorEnvelope,

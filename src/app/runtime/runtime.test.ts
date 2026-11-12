@@ -17,12 +17,10 @@ function runningJob(): AcquisitionSnapshot {
 		terminal: false,
 		jobId: 'remote-job-1',
 		providerId: 'audible',
-		status: 'acquiring',
 		progress: {
 			stage: 'download',
 			percentage: 10,
 			message: 'Downloading audiobook.',
-			terminal: false,
 			bytesDownloaded: null,
 			bytesTotal: null,
 			currentTitleId: null,

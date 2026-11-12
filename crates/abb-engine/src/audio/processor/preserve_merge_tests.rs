@@ -1,8 +1,9 @@
 use crate::audio::AudioHandling;
 use crate::audio::{AacDecoder, AudioExecutionRequest};
 use crate::errors::AppError;
-use crate::execution::{CancellationChecker, OutputConfig, ProcessingContext, ProcessingSession};
+use crate::execution::{OutputConfig, ProcessingContext};
 use crate::metadata::CoverArtPassthroughPolicy;
+use crate::test_cases::support::session::session_with;
 use crate::test_cases::support::wav::SAMPLE_RATE;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -24,12 +25,8 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
     std::fs::create_dir_all(destination.parent().expect("output parent")).expect("output dir");
     let workspace = tmp.path().join("workspace");
     let cancelled = CancellationToken::new();
-    let checker = CancellationChecker::new(Some(cancelled.clone()));
     let mut context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::with_cancellation(
-            uuid::Uuid::new_v4(),
-            checker,
-        )),
+        Arc::new(session_with(cancelled.clone())),
         SAMPLE_RATE,
         OutputConfig::new(&destination),
         workspace.clone(),
@@ -38,13 +35,13 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
     // source; cancel after the first source's packets are in the partial join.
     let joining_events = Arc::new(AtomicUsize::new(0));
     let listener_events = Arc::clone(&joining_events);
-    context.progress_listener = Some(Arc::new(move |event| {
+    context.progress_listener = Arc::new(move |event| {
         if event.message.starts_with("Joining original audio")
             && listener_events.fetch_add(1, Ordering::AcqRel) + 1 == 2
         {
             cancelled.cancel();
         }
-    }));
+    });
     let file_info =
         crate::audio::get_file_list_info(&sources, AacDecoder::Auto).expect("probe AAC fixtures");
     assert_eq!(file_info.invalid_count, 0, "fixtures probe as valid AAC");

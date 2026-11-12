@@ -1,26 +1,35 @@
-use crate::processing::ProgressEventListener;
+use crate::processing::{ProgressEventListener, TitleOutput};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
-/// One output title's cancel token and, for an export, its output record.
-#[derive(Clone)]
-pub(crate) struct TitleRun {
-    pub(crate) index: usize,
+pub(crate) struct ProcessingRun {
+    pub(crate) operation_id: String,
+    pub(crate) listener: ProgressEventListener,
+    pub(crate) mode: RunMode,
+}
+
+pub(crate) enum RunMode {
+    Export(Vec<ExportTitle>),
+    Preview(Vec<CancellationToken>),
+}
+
+pub(crate) struct ExportTitle {
     pub(crate) cancel: CancellationToken,
-    pub(crate) output: Option<Arc<crate::processing::TitleOutput>>,
+    pub(crate) output: Arc<TitleOutput>,
 }
 
-#[derive(Clone, Default)]
-pub(crate) struct ProcessingRunOptions {
-    pub(crate) operation_id: Option<String>,
-    /// One entry per output title. Cancelling the whole operation cancels
-    /// every title's token. A preview has no output records.
-    pub(crate) titles: Vec<TitleRun>,
-    pub(crate) progress_listener: Option<ProgressEventListener>,
-}
+impl RunMode {
+    pub(super) fn cancel(&self, index: usize) -> CancellationToken {
+        match self {
+            Self::Export(titles) => titles[index].cancel.clone(),
+            Self::Preview(cancels) => cancels[index].clone(),
+        }
+    }
 
-impl ProcessingRunOptions {
-    pub(crate) fn title(&self, index: usize) -> Option<&TitleRun> {
-        self.titles.iter().find(|title| title.index == index)
+    pub(super) fn output(&self, index: usize) -> Option<Arc<TitleOutput>> {
+        match self {
+            Self::Export(titles) => Some(Arc::clone(&titles[index].output)),
+            Self::Preview(_) => None,
+        }
     }
 }

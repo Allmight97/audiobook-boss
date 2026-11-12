@@ -13,8 +13,6 @@ mod publish_gate;
 mod session;
 
 pub use aac_decoder::AacDecoder;
-#[cfg(test)]
-pub(crate) use cancel::cancelled_token;
 pub use cancel::CancellationChecker;
 pub(crate) use context::{OutputConfig, ProcessingContext};
 pub(crate) use job_identity::JobIdentity;

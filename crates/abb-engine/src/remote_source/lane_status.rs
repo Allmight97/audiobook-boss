@@ -88,7 +88,7 @@ pub(super) fn settled_job_line(job: &AcquisitionJob) -> String {
         }) => {
             format!("Acquired titles were not added to the input session. {STAGED_FILES_REMOVED}")
         }
-        None if job.progress.terminal && !diagnostics.is_empty() => return diagnostics,
+        None if !diagnostics.is_empty() => return diagnostics,
         None => return job.progress.message.clone(),
     };
     if diagnostics.is_empty() || outcome.contains(&diagnostics) {

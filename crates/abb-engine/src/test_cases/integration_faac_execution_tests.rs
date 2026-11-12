@@ -16,7 +16,8 @@ use crate::metadata::{
     read_metadata, save_metadata_intent, AudiobookMetadata, CoverArtPassthroughPolicy,
     MetadataIntentPatch, PatchOp,
 };
-use crate::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
+use crate::processing::{AudioHandling, OutputConfig, ProcessingContext};
+use crate::test_cases::support::session::idle_session;
 use std::fs;
 use std::sync::Arc;
 
@@ -89,7 +90,7 @@ async fn faac_preview_cuts_each_excerpt_at_an_exact_sample_without_chapters() {
                 fs::write(path, bytes).expect("fixture value");
             }
         }
-        let mut context = lane.context(ProcessingSession::new());
+        let mut context = lane.context(idle_session());
         context.output = OutputConfig::new_preview(lane.output_path());
         let info = get_file_list_info(&lane.inputs, AacDecoder::Auto).expect("fixture value");
         execute_audio_engine(AudioExecutionRequest::new(
@@ -121,7 +122,7 @@ async fn faac_he_refuses_an_explicit_22050_hz_rate_before_output_and_leaves_no_r
         .with_encoder(faac_encoder_settings())
         .with_sample_rate(SampleRateConfig::Explicit(22050));
     assert!(
-        execute_audio_engine(lane.execution_request(ProcessingSession::new(), None))
+        execute_audio_engine(lane.execution_request(idle_session(), None))
             .await
             .is_err()
     );
@@ -416,7 +417,7 @@ async fn faac_he_preserve_with_repaired_chapters_keeps_reimport_timing() {
     let preserved = lane.tmp.path().join("preserved.m4b");
     execute_audio_engine(AudioExecutionRequest::new(
         ProcessingContext::new_headless_with_workspace_root(
-            Arc::new(ProcessingSession::new()),
+            Arc::new(idle_session()),
             SAMPLE_RATE,
             OutputConfig::new(&preserved),
             lane.workspace_root(),

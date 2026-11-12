@@ -10,14 +10,12 @@ afterEach(() => {
 const job: AcquisitionSnapshot = {
 	jobId: 'download-1',
 	providerId: 'audible',
-	status: 'acquiring',
 	terminal: false,
 	settled: false,
 	progress: {
 		stage: 'download',
 		percentage: 40,
 		message: 'Downloading audiobook.',
-		terminal: false,
 		bytesDownloaded: null,
 		bytesTotal: null,
 		currentTitleId: null,
@@ -65,7 +63,6 @@ it('shows the engine line for a settled job and keeps Indexer status independent
 			...job,
 			settled: true,
 			terminal: true,
-			status: 'importedToFileList',
 			handoff: { kind: 'imported', count: 2 },
 		};
 		state.remote.audibleMessage = '2 acquired titles imported.';
@@ -143,8 +140,7 @@ it('shows a new engine refusal instead of hiding it under an older acquisition r
 			...job,
 			settled: true,
 			terminal: true,
-			status: 'failed',
-			progress: { ...job.progress, message: 'Old download failure', terminal: true },
+			progress: { ...job.progress, stage: 'failed', message: 'Old download failure' },
 		};
 	});
 	engine.respond = (intent) =>

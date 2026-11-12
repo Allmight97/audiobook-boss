@@ -17,24 +17,16 @@ pub(crate) struct EmitContext {
 pub(crate) struct ProgressEmitter {
     operation_kind: OperationKind,
     identity: JobIdentity,
-    progress_listener: Option<ProgressEventListener>,
+    listener: ProgressEventListener,
 }
 
 impl ProgressEmitter {
-    pub(crate) fn with_context(context: EmitContext) -> Self {
+    pub(crate) fn new(context: EmitContext, listener: ProgressEventListener) -> Self {
         Self {
             operation_kind: context.operation_kind,
             identity: context.identity,
-            progress_listener: None,
+            listener,
         }
-    }
-
-    pub(crate) fn with_progress_listener(
-        mut self,
-        progress_listener: Option<ProgressEventListener>,
-    ) -> Self {
-        self.progress_listener = progress_listener;
-        self
     }
 
     fn terminal_event(&self, stage: EventStage, message: &str) -> ProgressEvent {
@@ -165,9 +157,7 @@ impl ProgressEmitter {
     }
 
     fn notify_listener(&self, event: &ProgressEvent) {
-        if let Some(listener) = &self.progress_listener {
-            listener(event);
-        }
+        (self.listener)(event);
     }
 }
 

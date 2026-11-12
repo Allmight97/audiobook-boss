@@ -6,7 +6,7 @@ pub mod ipc_contract;
 mod log_file;
 mod opened_files;
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, PoisonError};
 
 use tauri::{LogicalSize, Manager, Size, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
@@ -113,10 +113,71 @@ fn quit_as_second_copy(app: &tauri::App, message: String) {
         .show(move |_| handle.exit(0));
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum QuitPhase {
+    #[default]
+    Running,
+    Asking,
+    ShuttingDown,
+    Exiting,
+}
+
+enum QuitInput {
+    Request,
+    QuitAnyway(abb_engine::QuitConsent),
+}
+
+#[derive(Debug, PartialEq)]
+enum QuitAction {
+    Ask(abb_engine::RunningWork),
+    ShutDown,
+    Nothing,
+    Release,
+}
+
 #[derive(Default)]
 struct Quit {
-    shutting_down: AtomicBool,
-    done: AtomicBool,
+    phase: Mutex<QuitPhase>,
+}
+
+impl Quit {
+    fn advance(
+        &self,
+        input: QuitInput,
+        close_for_quit: impl FnOnce(&abb_engine::QuitConsent) -> Result<(), abb_engine::RunningWork>,
+    ) -> QuitAction {
+        let mut phase = self.phase.lock().unwrap_or_else(PoisonError::into_inner);
+        let close = |consent: &abb_engine::QuitConsent| match close_for_quit(consent) {
+            Ok(()) => (QuitPhase::ShuttingDown, QuitAction::ShutDown),
+            Err(running) => (QuitPhase::Asking, QuitAction::Ask(running)),
+        };
+        let (next, action) = match (*phase, input) {
+            (QuitPhase::Running, QuitInput::Request) => close(&abb_engine::QuitConsent::default()),
+            (QuitPhase::Asking, QuitInput::QuitAnyway(consent)) => close(&consent),
+            (QuitPhase::Exiting, QuitInput::Request) => (QuitPhase::Exiting, QuitAction::Release),
+            (current, _) => (current, QuitAction::Nothing),
+        };
+        *phase = next;
+        action
+    }
+
+    fn keep_open(&self) {
+        let mut phase = self.phase.lock().unwrap_or_else(PoisonError::into_inner);
+        if *phase == QuitPhase::Asking {
+            *phase = QuitPhase::Running;
+        }
+    }
+
+    fn commit_exit(&self) {
+        let mut phase = self.phase.lock().unwrap_or_else(PoisonError::into_inner);
+        if *phase == QuitPhase::ShuttingDown {
+            *phase = QuitPhase::Exiting;
+        }
+    }
+
+    fn exit_committed(&self) -> bool {
+        *self.phase.lock().unwrap_or_else(PoisonError::into_inner) == QuitPhase::Exiting
+    }
 }
 
 const SHUTDOWN_WAIT: std::time::Duration = std::time::Duration::from_secs(15);
@@ -218,10 +279,6 @@ async fn quit_when_saved<S, W, R>(
 }
 
 fn shut_down_then_exit(app: &tauri::AppHandle) {
-    let quit = app.state::<Quit>();
-    if quit.shutting_down.swap(true, Ordering::SeqCst) {
-        return;
-    }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         if let Some(engine) = app.try_state::<abb_engine::Engine>() {
@@ -233,7 +290,7 @@ fn shut_down_then_exit(app: &tauri::AppHandle) {
             )
             .await;
         }
-        app.state::<Quit>().done.store(true, Ordering::SeqCst);
+        app.state::<Quit>().commit_exit();
         app.exit(0);
     });
 }
@@ -241,7 +298,7 @@ fn shut_down_then_exit(app: &tauri::AppHandle) {
 fn settle_unheld_exit<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
     let held = app
         .try_state::<Quit>()
-        .is_some_and(|quit| quit.done.load(Ordering::SeqCst));
+        .is_some_and(|quit| quit.exit_committed());
     let Some(engine) = app.try_state::<abb_engine::Engine>().filter(|_| !held) else {
         return;
     };
@@ -322,29 +379,20 @@ fn quit_prompt(running: &abb_engine::RunningWork) -> QuitPrompt {
     }
 }
 
-#[derive(Debug, PartialEq)]
-enum QuitStep {
-    ShutDown,
-    Ask(abb_engine::RunningWork),
-}
-
-fn next_quit_step(
-    close_for_quit: impl FnOnce(&abb_engine::QuitConsent) -> Result<(), abb_engine::RunningWork>,
-    consent: &abb_engine::QuitConsent,
-) -> QuitStep {
-    match close_for_quit(consent) {
-        Ok(()) => QuitStep::ShutDown,
-        Err(running) => QuitStep::Ask(running),
-    }
-}
-
 fn hold_quit(app: &tauri::AppHandle) -> bool {
-    let quit = app.state::<Quit>();
-    if quit.done.load(Ordering::SeqCst) {
-        return false;
-    }
-    if !quit.shutting_down.load(Ordering::SeqCst) {
-        quit_with_consent(app, &abb_engine::QuitConsent::default());
+    advance_quit(app, QuitInput::Request)
+}
+
+fn advance_quit(app: &tauri::AppHandle, input: QuitInput) -> bool {
+    let action = app.state::<Quit>().advance(input, |consent| {
+        app.try_state::<abb_engine::Engine>()
+            .map_or(Ok(()), |engine| engine.close_for_quit(consent))
+    });
+    match action {
+        QuitAction::Ask(running) => ask_to_quit(app, &running),
+        QuitAction::ShutDown => shut_down_then_exit(app),
+        QuitAction::Nothing => {}
+        QuitAction::Release => return false,
     }
     true
 }
@@ -391,23 +439,10 @@ fn take_over_quit_item(app: &tauri::AppHandle) -> tauri::Result<()> {
     )?)
 }
 
-/// Quits when the engine closes for the work `consent` covers; otherwise
-/// asks about the work quitting would stop now, and asks again if that
-/// changes before the user answers.
-fn quit_with_consent(app: &tauri::AppHandle, consent: &abb_engine::QuitConsent) {
-    let step = next_quit_step(
-        |consent| {
-            app.try_state::<abb_engine::Engine>()
-                .map_or(Ok(()), |engine| engine.close_for_quit(consent))
-        },
-        consent,
-    );
-    let QuitStep::Ask(running) = step else {
-        return shut_down_then_exit(app);
-    };
-    let prompt = quit_prompt(&running);
-    let consent = running.consent;
-    let app = app.clone();
+fn ask_to_quit(app: &tauri::AppHandle, running: &abb_engine::RunningWork) {
+    let prompt = quit_prompt(running);
+    let consent = running.consent.clone();
+    let answer_app = app.clone();
     app.dialog()
         .message(prompt.message)
         .title(prompt.title)
@@ -415,12 +450,11 @@ fn quit_with_consent(app: &tauri::AppHandle, consent: &abb_engine::QuitConsent) 
             "Quit Anyway".to_string(),
             "Keep Open".to_string(),
         ))
-        .show({
-            let app = app.clone();
-            move |quit| {
-                if quit {
-                    quit_with_consent(&app, &consent);
-                }
+        .show(move |quit| {
+            if quit {
+                advance_quit(&answer_app, QuitInput::QuitAnyway(consent));
+            } else {
+                answer_app.state::<Quit>().keep_open();
             }
         });
 }

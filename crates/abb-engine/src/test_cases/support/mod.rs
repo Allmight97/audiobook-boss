@@ -6,5 +6,7 @@ pub(crate) mod form;
 pub(crate) mod fs_listing;
 #[path = "poll.rs"]
 pub(crate) mod poll;
+#[path = "session.rs"]
+pub(crate) mod session;
 #[path = "wav.rs"]
 pub(crate) mod wav;

@@ -4,6 +4,7 @@
 
 use super::support::encoders::{native_encoder_settings, opus_encoder_settings};
 use super::support::wav::SAMPLE_RATE;
+use crate::test_cases::support::session::idle_session;
 use std::fs;
 use std::path::Path;
 
@@ -13,7 +14,7 @@ use crate::audio::{
     TitleAudioPlan, TitleAudioRequest,
 };
 use crate::metadata::CoverArtPassthroughPolicy;
-use crate::processing::{AudioHandling, OutputConfig, ProcessingContext, ProcessingSession};
+use crate::processing::{AudioHandling, OutputConfig, ProcessingContext};
 use crate::session::{AudioEdit, SessionIntent, TitlePlan};
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -167,7 +168,7 @@ async fn opus_in_an_m4b_is_kept_in_both_opus_formats_but_not_in_m4b() {
     );
     crate::test_cases::move_test_file(&moved, &source);
     let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::new()),
+        Arc::new(idle_session()),
         SAMPLE_RATE,
         OutputConfig::new(&copy),
         dir.path().join("work"),

@@ -8,11 +8,6 @@ pub struct ProcessingSession {
 }
 
 impl ProcessingSession {
-    /// Creates a session with a unique ID that nothing can cancel.
-    pub fn new() -> Self {
-        Self::with_cancellation(Uuid::new_v4(), CancellationChecker::new(None))
-    }
-
     pub fn with_cancellation(id: Uuid, cancellation: CancellationChecker) -> Self {
         Self { id, cancellation }
     }
@@ -27,11 +22,5 @@ impl ProcessingSession {
 
     pub fn is_cancelled(&self) -> bool {
         self.cancellation.is_cancelled()
-    }
-}
-
-impl Default for ProcessingSession {
-    fn default() -> Self {
-        Self::new()
     }
 }

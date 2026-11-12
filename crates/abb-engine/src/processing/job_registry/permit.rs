@@ -12,7 +12,8 @@ impl JobRegistry {
 
     #[cfg(test)]
     pub async fn register_job(&self) -> Result<(JobId, OwnedSemaphorePermit)> {
-        self.register_job_with_external_cancel(None).await
+        self.register_job_with_external_cancel(&CancellationToken::new())
+            .await
     }
 
     /// Tracks a job that is not an encode: it counts as active work but takes
@@ -28,9 +29,9 @@ impl JobRegistry {
 
     pub async fn register_job_with_external_cancel(
         &self,
-        external_cancel: Option<CancellationToken>,
+        external_cancel: &CancellationToken,
     ) -> Result<(JobId, OwnedSemaphorePermit)> {
-        if external_cancelled(&external_cancel) {
+        if external_cancel.is_cancelled() {
             return Err(AppError::cancelled());
         }
 
@@ -47,10 +48,10 @@ impl JobRegistry {
             job_id,
         };
 
-        let acquired = acquire_permit(semaphore, external_cancel.as_ref())
+        let acquired = acquire_permit(semaphore, external_cancel)
             .await
             .and_then(|permit| {
-                if external_cancelled(&external_cancel) {
+                if external_cancel.is_cancelled() {
                     Err(AppError::cancelled())
                 } else {
                     Ok(permit)
@@ -76,16 +77,11 @@ impl Drop for PendingAdmission<'_> {
 
 async fn acquire_permit(
     semaphore: Arc<Semaphore>,
-    cancel: Option<&CancellationToken>,
+    cancel: &CancellationToken,
 ) -> Result<OwnedSemaphorePermit> {
     let acquire = semaphore.acquire_owned();
     tokio::pin!(acquire);
-    let cancelled = async {
-        match cancel {
-            Some(token) => token.cancelled().await,
-            None => std::future::pending().await,
-        }
-    };
+    let cancelled = cancel.cancelled();
     tokio::pin!(cancelled);
 
     tokio::select! {
@@ -94,10 +90,4 @@ async fn acquire_permit(
         permit = &mut acquire => permit
             .map_err(|_| AppError::InvalidInput("Semaphore closed".to_string())),
     }
-}
-
-fn external_cancelled(external_cancel: &Option<CancellationToken>) -> bool {
-    external_cancel
-        .as_ref()
-        .is_some_and(CancellationToken::is_cancelled)
 }

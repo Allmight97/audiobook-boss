@@ -4,11 +4,13 @@ use super::run_job::{
 };
 use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
 use crate::output_artifact::OutputKind;
-use crate::processing::terminal_outcomes::ProcessingJobTerminalOutcome;
+use crate::processing::job_registry::JobId;
+use crate::processing::terminal_outcomes::TitleOutcome;
 use crate::processing::OperationKind;
 use crate::processing::{ProcessPayload, SupplementalProcessingAsset};
 use crate::test_cases::media_fixtures::preflight_payload;
 use crate::test_cases::support::encoders::auto_encoder_settings;
+use crate::test_cases::support::session::idle_session;
 use crate::test_cases::support::wav::{write_silence_wav, write_sine_wav};
 use std::collections::HashMap;
 use tempfile::TempDir;
@@ -303,7 +305,7 @@ async fn execute_reviewed_metadata_batch(
     workspace: &std::path::Path,
 ) -> Vec<std::path::PathBuf> {
     use crate::audio::{execute_audio_engine, AudioExecutionRequest};
-    use crate::processing::{OutputConfig, ProcessingContext, ProcessingSession};
+    use crate::processing::{OutputConfig, ProcessingContext};
     let inspected = super::inspect_processing_plan(&payload, Some(metadata), false)
         .expect("review metadata batch");
     payload.preflight_signature = Some(inspected.plan.plan_signature.clone());
@@ -316,7 +318,7 @@ async fn execute_reviewed_metadata_batch(
                 .expect("retain title inspection");
         outputs.push(job.output.resolved_path.clone());
         let context = ProcessingContext::new_headless_with_workspace_root(
-            std::sync::Arc::new(ProcessingSession::new()),
+            std::sync::Arc::new(idle_session()),
             job.audio_plan.sample_rate,
             OutputConfig::from_plan(job.output),
             workspace.to_path_buf(),
@@ -501,9 +503,9 @@ fn supplemental_asset(
     }
 }
 
-fn batch_identity(operation_id: Option<&str>) -> crate::processing::JobIdentity {
+fn batch_identity(operation_id: &str) -> crate::processing::JobIdentity {
     crate::processing::JobIdentity {
-        operation_id: operation_id.map(str::to_string),
+        operation_id: operation_id.to_string(),
         job_id: None,
         input_index: 0,
     }
@@ -520,8 +522,8 @@ async fn failed_output_validation_emits_started_and_failed_terminal_records() {
         &registry,
         &invalid_output,
         crate::audio::AudiobookFormat::M4b,
-        None,
-        batch_identity(Some("log-proof")),
+        tokio_util::sync::CancellationToken::new(),
+        batch_identity("log-proof"),
         OperationKind::ProcessingBatch,
     )
     .await
@@ -576,8 +578,8 @@ async fn register_job_and_validate_output_cleans_up_failed_validation() {
         &registry,
         &invalid_output,
         crate::audio::AudiobookFormat::M4b,
-        None,
-        batch_identity(None),
+        tokio_util::sync::CancellationToken::new(),
+        batch_identity("register-cleanup"),
         OperationKind::ProcessingBatch,
     )
     .await
@@ -681,12 +683,12 @@ async fn supplemental_commit_failure_keeps_published_title_successful_with_warni
         message: "Exported Book.m4b".to_string(),
         warnings: Vec::new(),
     };
-    let outcome = title_outcome(Ok(audio), None, async || {
+    let outcome = title_outcome(JobId::new(), Ok(audio), None, async || {
         commit_supplemental_assets(OutputKind::Final, vec![asset], final_audio.clone()).await
     })
     .await;
 
-    let ProcessingJobTerminalOutcome::Success {
+    let TitleOutcome::Published {
         message,
         supplemental_warning: Some(warning),
         ..
@@ -710,6 +712,7 @@ async fn supplemental_commit_failure_keeps_published_title_successful_with_warni
 #[tokio::test]
 async fn failed_audio_never_publishes_companions() {
     let outcome = title_outcome(
+        JobId::new(),
         Err(crate::errors::AppError::FileValidation(
             "encode failed".into(),
         )),
@@ -720,5 +723,5 @@ async fn failed_audio_never_publishes_companions() {
     )
     .await;
 
-    assert!(matches!(outcome, ProcessingJobTerminalOutcome::Failed(_)));
+    assert!(matches!(outcome, TitleOutcome::Failed { .. }));
 }

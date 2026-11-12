@@ -5,12 +5,11 @@
 use super::media_fixtures::MediaLane;
 use super::support::fs_listing::names_in;
 use super::support::wav::SAMPLE_RATE;
+use crate::test_cases::support::session::idle_session;
 
 use crate::audio::{execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest};
 use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
-use crate::processing::{
-    AudioHandling, EventStage, OutputConfig, ProcessingContext, ProcessingSession,
-};
+use crate::processing::{AudioHandling, EventStage, OutputConfig, ProcessingContext};
 use crate::AppError;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -34,7 +33,7 @@ fn staged_files(workspace_root: &Path) -> Vec<PathBuf> {
 async fn an_encode_that_fails_mid_pipeline_leaves_no_workspace_and_no_output() {
     let lane = MediaLane::with_fixtures(&[3.0]);
     let info = get_file_list_info(&lane.inputs, AacDecoder::Auto).expect("probe fixture");
-    let mut context = lane.context(ProcessingSession::new());
+    let mut context = lane.context(idle_session());
     let workspace_root = lane.workspace_root();
     let sabotaged = Arc::new(AtomicBool::new(false));
     let stages = Arc::new(Mutex::new(Vec::new()));
@@ -43,7 +42,7 @@ async fn an_encode_that_fails_mid_pipeline_leaves_no_workspace_and_no_output() {
         Arc::clone(&stages),
         workspace_root.clone(),
     );
-    context.progress_listener = Some(Arc::new(move |event| {
+    context.progress_listener = Arc::new(move |event| {
         seen.lock().expect("stages").push(event.stage);
         if event.stage != EventStage::Writing || flag.load(Ordering::SeqCst) {
             return;
@@ -56,7 +55,7 @@ async fn an_encode_that_fails_mid_pipeline_leaves_no_workspace_and_no_output() {
             fs::create_dir(&encoded).expect("a folder where the encoder output was");
             flag.store(true, Ordering::SeqCst);
         }
-    }));
+    });
 
     let result = execute_audio_engine(AudioExecutionRequest::new(
         context,
@@ -95,7 +94,7 @@ async fn an_encode_that_fails_mid_pipeline_leaves_no_workspace_and_no_output() {
 async fn an_encode_refused_at_publish_keeps_the_file_already_at_the_destination() {
     let lane = MediaLane::with_fixtures(&[1.0]);
     let info = get_file_list_info(&lane.inputs, AacDecoder::Auto).expect("probe fixture");
-    let context = lane.context(ProcessingSession::new());
+    let context = lane.context(idle_session());
     fs::write(lane.output_path(), b"a book the user already had").expect("existing book");
     let sources: Vec<_> = lane
         .inputs
@@ -141,7 +140,7 @@ async fn a_preserve_that_fails_after_its_workspace_exists_leaves_the_source_and_
     let info = get_file_list_info(&lane.inputs, AacDecoder::Auto).expect("probe source");
     let destination = lane.tmp.path().join("preserved.m4b");
     let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::new()),
+        Arc::new(idle_session()),
         SAMPLE_RATE,
         OutputConfig::new(&destination),
         lane.workspace_root(),

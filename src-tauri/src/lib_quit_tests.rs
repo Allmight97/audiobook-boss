@@ -1,11 +1,13 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use abb_engine::{QuitConsent, RunningWork};
+
 use tauri::test::{mock_builder, mock_context, noop_assets, MockRuntime};
 use tauri::{App, Manager};
 
 use super::{
-    next_quit_step, quit_prompt, quit_when_saved, settle_or_ask, settle_unheld_exit, Quit,
-    QuitStep, ShutdownWait, SHUTDOWN_WAIT,
+    quit_prompt, quit_when_saved, settle_or_ask, settle_unheld_exit, Quit, QuitAction, QuitInput,
+    ShutdownWait, SHUTDOWN_WAIT,
 };
 
 #[test]
@@ -47,43 +49,86 @@ fn exports_running(exports: usize, acquisitions: usize) -> abb_engine::RunningWo
     }
 }
 
+fn closes(_: &QuitConsent) -> Result<(), RunningWork> {
+    Ok(())
+}
+
+fn not_asked(_: &QuitConsent) -> Result<(), RunningWork> {
+    panic!("the engine was asked although the request is held")
+}
+
+fn asks(quit: &Quit, input: QuitInput, running: RunningWork) -> QuitConsent {
+    match quit.advance(input, |_| Err(running)) {
+        QuitAction::Ask(running) => running.consent,
+        other => panic!("asked nothing although work is running: {other:?}"),
+    }
+}
+
+#[test]
+fn a_second_request_while_the_prompt_is_open_opens_nothing() {
+    let quit = Quit::default();
+    asks(&quit, QuitInput::Request, exports_running(1, 0));
+
+    assert_eq!(
+        quit.advance(QuitInput::Request, not_asked),
+        QuitAction::Nothing
+    );
+}
+
+#[test]
+fn keep_open_returns_to_running_so_a_later_request_asks_again() {
+    let quit = Quit::default();
+    asks(&quit, QuitInput::Request, exports_running(1, 0));
+
+    quit.keep_open();
+    asks(&quit, QuitInput::Request, exports_running(1, 0));
+}
+
 #[test]
 fn quitting_shuts_down_when_the_engine_closes_for_the_consent() {
-    let step = next_quit_step(|_| Ok(()), &abb_engine::QuitConsent::default());
-    assert_eq!(step, QuitStep::ShutDown);
+    let quit = Quit::default();
+    assert_eq!(
+        quit.advance(QuitInput::Request, closes),
+        QuitAction::ShutDown
+    );
+    assert_eq!(
+        quit.advance(QuitInput::Request, not_asked),
+        QuitAction::Nothing
+    );
 }
 
 #[test]
 fn quitting_asks_again_when_the_work_changed_since_the_user_agreed() {
-    let none = abb_engine::QuitConsent::default();
-    let first = next_quit_step(|_| Err(exports_running(1, 0)), &none);
-    let QuitStep::Ask(running) = first else {
-        panic!("asked nothing although an export is running");
-    };
-    assert_eq!(quit_prompt(&running).title, "Exports are still running");
-    let consent = running.consent;
+    let quit = Quit::default();
+    let consent = asks(&quit, QuitInput::Request, exports_running(1, 0));
 
-    let second = next_quit_step(
-        |agreed| {
-            assert_eq!(*agreed, consent);
-            Err(exports_running(1, 1))
-        },
-        &consent,
-    );
-    let QuitStep::Ask(running) = second else {
+    let next = quit.advance(QuitInput::QuitAnyway(consent.clone()), |agreed| {
+        assert_eq!(*agreed, consent);
+        Err(exports_running(1, 1))
+    });
+    let QuitAction::Ask(running) = next else {
         panic!("did not ask about the download that started after the first answer");
     };
     assert_eq!(quit_prompt(&running).title, "Work is still running");
     let consent = running.consent;
 
-    let third = next_quit_step(
-        |agreed| {
-            assert_eq!(*agreed, consent);
-            Ok(())
-        },
-        &consent,
+    let last = quit.advance(QuitInput::QuitAnyway(consent.clone()), |agreed| {
+        assert_eq!(*agreed, consent);
+        Ok(())
+    });
+    assert_eq!(last, QuitAction::ShutDown);
+}
+
+#[test]
+fn once_exit_is_committed_a_request_passes_through() {
+    let quit = Quit::default();
+    quit.advance(QuitInput::Request, closes);
+    quit.commit_exit();
+
+    assert_eq!(
+        quit.advance(QuitInput::Request, not_asked),
+        QuitAction::Release
     );
-    assert_eq!(third, QuitStep::ShutDown);
 }
 
 #[tokio::test(start_paused = true)]
@@ -201,7 +246,9 @@ fn an_exit_no_hold_saw_settles_the_engine_first() {
 #[test]
 fn an_exit_after_the_held_quit_settles_nothing_again() {
     let (app, engine, root) = app_with_engine("held");
-    app.state::<Quit>().done.store(true, Ordering::SeqCst);
+    let quit = app.state::<Quit>();
+    quit.advance(QuitInput::Request, closes);
+    quit.commit_exit();
 
     settle_unheld_exit(app.handle());
 

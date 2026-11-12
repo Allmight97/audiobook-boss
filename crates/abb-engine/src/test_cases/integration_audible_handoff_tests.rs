@@ -11,7 +11,7 @@ use crate::power::PowerManager;
 use crate::remote_source::tests::{offer_library_title, recorded_job_ids, test_runtime_acquiring};
 use crate::remote_source::{
     AcquireTitles, AcquisitionHandoff, AcquisitionOutcome, AcquisitionSnapshot,
-    MaterializedSourceFile, RemoteAcquisitionStatus, RemoteSourceRuntime, RemoteUiIntent,
+    MaterializedSourceFile, RemoteSourceRuntime, RemoteUiIntent,
 };
 use crate::session::{AudioEdit, MetadataField, Session, SessionDeps, SessionIntent};
 use crate::work_runtime::WorkRuntime;
@@ -93,7 +93,7 @@ async fn an_acquired_title_reaches_the_list_and_its_download_leaves_with_it() {
     let (session, remote) = session_acquiring(&root, downloads_one_wav(1, None));
 
     let job = acquire(&session).await;
-    assert_eq!(job.job.status, RemoteAcquisitionStatus::ImportedToFileList);
+    assert!(job.settled);
     assert_eq!(
         job.job.handoff,
         Some(AcquisitionHandoff::Imported { count: 1 })

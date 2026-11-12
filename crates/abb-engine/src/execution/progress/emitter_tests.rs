@@ -9,15 +9,17 @@ fn emitter_with_events(job_id: Option<&str>) -> (ProgressEmitter, Arc<Mutex<Vec<
             .expect("capture progress event")
             .push(event.clone());
     });
-    let emitter = ProgressEmitter::with_context(EmitContext {
-        operation_kind: OperationKind::ProcessingBatch,
-        identity: JobIdentity {
-            operation_id: None,
-            job_id: job_id.map(str::to_string),
-            input_index: 7,
+    let emitter = ProgressEmitter::new(
+        EmitContext {
+            operation_kind: OperationKind::ProcessingBatch,
+            identity: JobIdentity {
+                operation_id: "operation".to_string(),
+                job_id: job_id.map(str::to_string),
+                input_index: 7,
+            },
         },
-    })
-    .with_progress_listener(Some(listener));
+        listener,
+    );
     (emitter, events)
 }
 
