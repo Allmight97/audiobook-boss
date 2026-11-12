@@ -227,7 +227,7 @@ async fn download_supplemental_pdf_with_client(
     let path = generated_staging_path(request.job_dir, "pdf");
     let staged = StagedTempFile::create(&path).map_err(|error| {
         log::warn!(
-            "remote_source audible stage=supplemental_pdf_failed job_id={} title_ref={} category=prepare error={error}",
+            "remote_source audible stage=supplemental_pdf_failed job_id={} title_ref={} category=create error={error}",
             request.job_id,
             title_ref(request.title_id),
         );

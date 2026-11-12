@@ -282,10 +282,11 @@ one host attachment.
   cover, or selection result changes nothing. Open, close, search, skip, apply,
   and editing the query, author, or source each supersede it; changing the apply
   mode or the cover-replace choice does not. `state/lookup.rs` owns each of
-  these transitions. Apply
-  names the lookup part's revision; a mismatch changes nothing. A result applies
-  only to the queued title while it is the one title both selected and bound.
-  Applied values are form edits and pass the draft gate like any other.
+  these transitions. A closed lookup's snapshot carries no search or apply in
+  flight. Why: a host renders the snapshot as given. Apply names the lookup
+  part's revision; a mismatch changes nothing. A result applies only to the
+  queued title while it is the one title both selected and bound. Applied
+  values are form edits and pass the draft gate like any other.
 
 ## Proof
 
