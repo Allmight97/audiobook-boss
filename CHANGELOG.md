@@ -4,6 +4,22 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.18.6] - 2026-11-12
+
+### Fixed
+
+- A title that fails in a multi-title export now shows as failed when it fails, not when the
+  whole export ends.
+- A cover-art message no longer comes back after it hid, and a local cover error no longer hides
+  later notices.
+- A second quit request while the "work is still running" prompt is open no longer opens
+  anything new.
+- If an export task stops on an internal error, the export ends as Failed with the message "The
+  export stopped on an internal error." and releases its source files. Before, it could show as
+  running until restart.
+- After such an internal error, later exports, cancels, and the work list keep working. Before,
+  they failed until restart.
+
 ## [1.18.5] - 2026-11-11
 
 ### Fixed
