@@ -173,7 +173,7 @@ async fn a_source_cover_too_large_to_prepare_is_dropped_with_a_warning() {
 
     let export = desk.export_and_finish().await;
 
-    let operations = desk.engine.list_work_operations().expect("operations");
+    let operations = desk.engine.list_work_operations();
     let title = &operations
         .operations
         .iter()
@@ -729,12 +729,7 @@ async fn shutdown_closes_admission_before_an_accepted_submission_finishes_prefli
     // its export when shutdown closes and enumerates running operations.
     assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
     accepted.finish().await;
-    assert!(desk
-        .engine
-        .list_work_operations()
-        .expect("operations")
-        .operations
-        .is_empty());
+    assert!(desk.engine.list_work_operations().operations.is_empty());
     assert_eq!(
         submission(&desk),
         Some(SubmissionStatus::Refused {

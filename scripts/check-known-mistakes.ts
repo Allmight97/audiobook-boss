@@ -45,6 +45,34 @@ const PROVIDER_NEUTRAL_OWNERS = [
 	'output_artifact',
 	'work_runtime',
 ];
+const PROCESSING_SOURCE = (file: string) =>
+	file === 'crates/abb-engine/src/processing.rs' || ENGINE_DIR('processing')(file);
+const FRONTEND_SOURCE = (file: string) =>
+	/^src\/.*\.tsx?$/.test(file) &&
+	!/\.test\.tsx?$/.test(file) &&
+	!file.startsWith('src/test/') &&
+	!file.startsWith('src/lib/generated/');
+const FRONTEND_TEST = (file: string) => /^src\/.*\.test\.tsx?$/.test(file);
+const FORMAT_CLASSIFIER_HOMES = new Set([
+	'crates/abb-engine/src/metadata/container.rs',
+	'crates/abb-engine/src/audio/format.rs',
+]);
+const FORMAT_ONLY_NAME = '"(?:matroska|mov|mj2|3gp|3g2|adts|ipod)"';
+const EXTENSION_LIKE_NAME = '"(?:mp4|m4a|mp3|wav|flac|ogg|webm|aac)"';
+const COMPARE_BEFORE = '(?:==|!=)\\s*';
+const COMPARE_AFTER = '\\s*(?:==|!=|=>|if\\b|\\|)';
+const COMPARE_CALL = '\\b(?:contains|starts_with|ends_with)\\(\\s*';
+const comparesNamed = (name: string) =>
+	new RegExp(`${COMPARE_BEFORE}${name}|${name}${COMPARE_AFTER}|${COMPARE_CALL}${name}`);
+const FORMAT_NAME_COMPARISONS = [
+	comparesNamed(FORMAT_ONLY_NAME),
+	new RegExp(
+		`(?=.*\\b(?:format_name|muxer_name|container_name|demuxer)\\b).*(${comparesNamed(EXTENSION_LIKE_NAME).source})`,
+	),
+	/\bmatch\s+[^{]*\b(?:format_name|muxer_name)\(\)/,
+];
+const FFMPEG_LAYER = (file: string) =>
+	OWNED_RUST(file) && !RUST_TEST_FILE(file) && file.startsWith('crates/abb-ffmpeg/src/');
 const SCRIPT_SOURCE = (file: string) =>
 	/\.(ts|tsx|js|mjs)$/.test(file) &&
 	!file.startsWith('vendor/') &&
@@ -92,21 +120,21 @@ const RULES: Rule[] = [
 		comment: /^\s*\/\//,
 		findIn: (line) => CODE_ONLY(line).match(/\.write_header(?:_with)?\(/)?.[0] ?? null,
 		message:
-			'writes an output header outside its owner, which pins the MP4 movie timescale so long chapters survive. Fix: call `crate::audio::write_output_header` (crates/abb-engine/src/audio/AGENTS.md).',
+			'writes an output header outside its owner, which pins the MP4 movie timescale so long chapters survive. Fix: call `crate::audio::write_output_header`.',
 	},
 	{
 		appliesTo: PURE_CORE,
 		comment: /^\s*\/\//,
 		findIn: (line) => CODE_ONLY(line).match(/\b(?:std::(?:fs|net|process)|tokio)::/)?.[0] ?? null,
 		message:
-			'does I/O in a pure core. Fix: take the bytes, paths, or facts as input and let abb-engine do the I/O (crates/AGENTS.md).',
+			'does I/O in a pure core. Fix: take the bytes, paths, or facts as input and let abb-engine do the I/O.',
 	},
 	{
 		appliesTo: (file) => PURE_CORE(file) && file.startsWith('crates/abb-remote-source-core/'),
 		comment: /^\s*\/\//,
 		findIn: (line) => CODE_ONLY(line).match(/audible|indexer|prowlarr/i)?.[0] ?? null,
 		message:
-			'names a provider in the provider-neutral core. Fix: put provider rules in abb-audible-core or the engine provider module (crates/AGENTS.md).',
+			'names a provider in the provider-neutral core. Fix: put provider rules in abb-audible-core or the engine provider module.',
 	},
 	{
 		appliesTo: (file) => SOLID_SOURCE(file) && file !== 'src/ui/foundation/CoverImage.tsx',
@@ -123,14 +151,14 @@ const RULES: Rule[] = [
 		comment: /^\s*(\/\/|\*|\/\*)/,
 		findIn: (line) => line.match(/navigator\.userAgent|⌘Q/)?.[0] ?? null,
 		message:
-			'words the host OS outside src/lib/platform. Fix: import the helper or constant from src/lib/platform (src/ui/AGENTS.md).',
+			'words the host OS outside src/lib/platform. Fix: import the helper or constant from src/lib/platform.',
 	},
 	{
 		appliesTo: SCRIPT_SOURCE,
 		findIn: (line) =>
 			/\boxlint-disable/.test(line) && !line.includes(' -- ') ? 'oxlint-disable' : null,
 		message:
-			'suppresses a lint without a reason. Fix: name the rule and give its reason after ` -- ` (scripts/AGENTS.md).',
+			'suppresses a lint without a reason. Fix: name the rule and give its reason after ` -- `.',
 	},
 	{
 		appliesTo: OWNED_SHELL,
@@ -151,28 +179,75 @@ const RULES: Rule[] = [
 		comment: /^\s*\/\//,
 		findIn: (line) => line.match(/\bcrate::audio::(?:\{[^}]*)?\bAudioFile\b/)?.[0] ?? null,
 		message:
-			'reads the audio import model from metadata. Fix: pass the paths or tag facts metadata needs (crates/abb-engine/src/metadata/AGENTS.md).',
+			'reads the audio import model from metadata. Fix: pass the paths or tag facts metadata needs (`PassthroughSource`).',
 	},
 	{
 		appliesTo: ENGINE_DIR('audio'),
 		comment: /^\s*\/\//,
 		findIn: (line) => line.match(/\bcrate::processing\b/)?.[0] ?? null,
 		message:
-			'reaches up into processing from the audio pipeline. Fix: import the leaf name from crate::execution (crates/abb-engine/AGENTS.md, Owner Routes).',
+			'reaches up into processing from the audio pipeline. Fix: import the leaf name from crate::execution, which processing only re-exports.',
 	},
 	{
 		appliesTo: (file) => PROVIDER_NEUTRAL_OWNERS.some((dir) => ENGINE_DIR(dir)(file)),
 		comment: /^\s*\/\//,
 		findIn: (line) => line.match(/\bcrate::remote_source\b/)?.[0] ?? null,
 		message:
-			'reaches into remote_source from an owner that takes provider-neutral facts. Fix: receive the fact through its caller (crates/abb-engine/src/remote_source/AGENTS.md).',
+			'reaches into remote_source from an owner that takes provider-neutral facts. Fix: receive the provider-neutral fact through its caller, so provider rules stay in remote_source.',
 	},
 	{
 		appliesTo: ENGINE_DIR('audio'),
 		comment: /^\s*\/\//,
 		findIn: (line) => CODE_ONLY(line).match(/\bfs::(?:rename|copy|hard_link)\b/)?.[0] ?? null,
 		message:
-			'moves a file outside the output artifact boundary. Fix: stage locally and commit through crate::output_artifact (crates/abb-engine/src/audio/processor/AGENTS.md).',
+			'moves a file outside the output artifact boundary. Fix: stage locally and commit through crate::output_artifact, which publishes only complete content.',
+	},
+	{
+		appliesTo: (file) =>
+			OWNED_RUST(file) &&
+			!RUST_TEST_FILE(file) &&
+			file.startsWith('crates/abb-engine/src/') &&
+			!FORMAT_CLASSIFIER_HOMES.has(file),
+		comment: /^\s*\/\//,
+		findIn: (line) => {
+			for (const pattern of FORMAT_NAME_COMPARISONS) {
+				const found = line.match(pattern);
+				if (found) return found[0].trim();
+			}
+			return null;
+		},
+		message:
+			'compares an FFmpeg format or muxer name. Fix: ask `Container` (metadata/container.rs) or `audio::format` (`is_mp4_family_format`, `is_matroska_format`, `muxer_for_path`) for the format fact.',
+	},
+	{
+		appliesTo: FRONTEND_SOURCE,
+		comment: /^\s*(\/\/|\*|\/\*)/,
+		findIn: (line) =>
+			line.match(
+				/\.(?:isValid|sourceRemoved)\b|\[\s*['"](?:isValid|sourceRemoved)['"]\s*\]|\{[^}]*\b(?:isValid|sourceRemoved)\b[^}]*\}\s*\)?\s*=[^=]/,
+			)?.[0] ?? null,
+		message:
+			'reads a source flag the engine already folds into `status`. Fix: branch on the title or source `status` (`ready`, `failed`, `removedFinished`).',
+	},
+	{
+		appliesTo: (file) =>
+			/^src\/.*\.(?:tsx?|css)$/.test(file) &&
+			file !== 'src/styles.css' &&
+			!file.startsWith('src/lib/generated/'),
+		comment: /^\s*(\/\/|\*|\/\*)/,
+		findIn: (line) => line.match(/(?:@import|\bimport\b)[^;]*foundation\.css/)?.[0] ?? null,
+		message:
+			'imports the foundation stylesheet outside `src/styles.css`. Fix: only `src/styles.css` imports `internal/foundation.css`; a view imports its own stylesheet.',
+	},
+	{
+		appliesTo: FRONTEND_TEST,
+		comment: /^\s*(\/\/|\*|\/\*)/,
+		findIn: (line) =>
+			line.match(
+				/\bgetElementsByClassName\b|\.classList\b|\.className\b|\btoHaveClass\(|\b(?:getAttribute|toHaveAttribute)\(\s*['"]class['"]/,
+			)?.[0] ?? null,
+		message:
+			'reads CSS classes in a test, so a style refactor breaks it. Fix: find the element by role and accessible name, or read a data attribute.',
 	},
 	{
 		appliesTo: (file) =>
@@ -183,7 +258,7 @@ const RULES: Rule[] = [
 		findIn: (line) =>
 			CODE_ONLY(line).match(/\b(?:std|tokio)::fs\b|\bFile::(?:open|create)\b/)?.[0] ?? null,
 		message:
-			'does file I/O in a session state module. Fix: return a ticket and let runtime perform the I/O (crates/abb-engine/src/session/AGENTS.md).',
+			'does file I/O in a session state module. Fix: return a ticket (`ReadTicket`, `SavePlan`, `PlanTicket`) and let `runtime.rs` or `runtime/` perform the I/O.',
 	},
 	{
 		appliesTo: (file) => file === 'src/test/fixtures/fakeEngine.ts',
@@ -242,7 +317,7 @@ const RULES: Rule[] = [
 		findIn: (line) =>
 			CODE_ONLY(line).match(/\bunsafe\s*(\{|fn\b|impl\b|trait\b|extern\b)/)?.[0] ?? null,
 		message:
-			'is unsafe in the engine. Fix: call `abb_ffmpeg` for FFmpeg work and add a missing operation there; only the FAAC and FAAD3 adapters hold `unsafe` (crates/abb-engine/AGENTS.md, Runtime Constraints).',
+			'is unsafe in the engine. Fix: call `abb_ffmpeg` for FFmpeg work and add a missing operation there; only the FAAC and FAAD3 adapters hold `unsafe`.',
 	},
 	{
 		appliesTo: OWNED_SOURCE,
@@ -322,6 +397,68 @@ function testModuleFindings(file: string, lines: string[]): Finding[] {
 	});
 }
 
+const SELECTOR_CALL =
+	/\b(querySelector(?:All)?|closest|matches)\s*(?:<[^>]*>)?\(\s*$|\b(querySelector(?:All)?|closest|matches)\s*(?:<[^>]*>)?\(\s*(['"`])(.*?)\3/;
+
+function classSelectorFindings(file: string, lines: string[]): Finding[] {
+	if (!FRONTEND_TEST(file)) return [];
+	return lines.flatMap((line, index) => {
+		const call = line.match(SELECTOR_CALL);
+		if (!call) return [];
+		const selector = call[4] ?? lines[index + 1]?.match(/^\s*(['"`])(.*?)\1/)?.[2] ?? '';
+		if (!/\.[A-Za-z_-]/.test(selector.replace(/\[[^\]]*\]/g, ''))) return [];
+		return [
+			{
+				file,
+				line: index + 1,
+				message: `\`${selector}\` selects by CSS class in a test, so a style refactor breaks it. Fix: find the element by role and accessible name, and read a \`data-state\` or \`data-status\` attribute.`,
+			},
+		];
+	});
+}
+
+const OUTPUT_ARTIFACT_REEXPORT =
+	/\bpub(?:\([^)]*\))?\s+use\s+crate::(?:\{[^;]*?\b)?output_artifact\b/g;
+
+function processingReexportFindings(file: string, text: string): Finding[] {
+	if (!PROCESSING_SOURCE(file)) return [];
+	const code = text.replace(/^\s*\/\/.*$/gm, '');
+	return [...code.matchAll(OUTPUT_ARTIFACT_REEXPORT)].map((match) => ({
+		file,
+		line: code.slice(0, match.index).split('\n').length,
+		message: `\`${match[0].replace(/\s+/g, ' ')}\` re-exports output artifact types from processing, which gives one type two import paths. Fix: callers import it from \`crate::output_artifact\`.`,
+	}));
+}
+
+const PUBLIC_ITEM =
+	/^\s*pub\s+(?:(?:const|unsafe|async|extern\s+"C")\s+)*(?:fn|type)\b|^\s*pub\s+\w+\s*:/;
+
+function ffmpegPointerFindings(file: string, lines: string[]): Finding[] {
+	if (!FFMPEG_LAYER(file)) return [];
+	return lines.flatMap((line, index) => {
+		if (!PUBLIC_ITEM.test(line)) return [];
+		let end = index;
+		if (/:\s*$/.test(line)) {
+			end = Math.min(index + 1, lines.length - 1);
+		} else if (/\b(?:fn|type)\b/.test(line)) {
+			while (end < lines.length - 1 && !/[{;]\s*$/.test(lines[end])) end += 1;
+		}
+		const signature = lines
+			.slice(index, end + 1)
+			.join(' ')
+			.split('{')[0];
+		if (!/\*\s*(?:const|mut)\b/.test(signature)) return [];
+		return [
+			{
+				file,
+				line: index + 1,
+				message:
+					'puts a raw pointer in the public abb-ffmpeg surface, so the engine would hold an FFmpeg lifetime. Fix: take and return owned values or a borrowing wrapper; keep pointers `pub(crate)`.',
+			},
+		];
+	});
+}
+
 export function cargoPinFindings(file: string, text: string): Finding[] {
 	if (path.basename(file) !== 'Cargo.toml' || file.startsWith('vendor/')) return [];
 	const lines = text.split('\n');
@@ -363,6 +500,9 @@ export function checkFile(file: string, text: string): Finding[] {
 	const rules = RULES.filter((rule) => rule.appliesTo(file));
 	const findings: Finding[] = [
 		...testModuleFindings(file, text.split('\n')),
+		...classSelectorFindings(file, text.split('\n')),
+		...ffmpegPointerFindings(file, text.split('\n')),
+		...processingReexportFindings(file, text),
 		...cargoPinFindings(file, text),
 	];
 	let insideCapture = false;
@@ -408,7 +548,7 @@ export function frozenSampleFindings(nameStatus: string): Finding[] {
 			{
 				file,
 				line: 1,
-				message: `was ${verb}. Samples are frozen saved-settings files from real releases. Fix: restore it and add a new sample instead (crates/abb-engine/src/app_settings/AGENTS.md, Storage).`,
+				message: `was ${verb}. Samples are frozen saved-settings files from real releases. Fix: restore it and add a new sample instead, so every release's saved file keeps loading.`,
 			},
 		];
 	});

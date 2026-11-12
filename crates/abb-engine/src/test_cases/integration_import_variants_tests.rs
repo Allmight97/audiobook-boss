@@ -294,7 +294,6 @@ async fn two_titles_differing_only_by_unicode_form_never_overwrite_each_other() 
     let children = desk
         .engine
         .list_work_operations()
-        .expect("operations")
         .operations
         .into_iter()
         .find(|snapshot| snapshot.operation_id == operation)

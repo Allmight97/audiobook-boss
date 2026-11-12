@@ -6,7 +6,6 @@ use crate::errors::{AppError, Result};
 pub(crate) struct StagedTempFile {
     final_path: PathBuf,
     partial_path: PathBuf,
-    prepared: bool,
 }
 
 #[derive(Debug)]
@@ -16,27 +15,18 @@ pub(crate) struct ProvisionalCommittedFile {
 }
 
 impl StagedTempFile {
-    pub(crate) fn new(final_path: impl Into<PathBuf>) -> Self {
+    pub(crate) fn create(final_path: impl Into<PathBuf>) -> Result<Self> {
         let final_path = final_path.into();
-        Self {
-            partial_path: partial_sibling(&final_path),
+        let partial_path = partial_sibling(&final_path);
+        remove_if_present(&partial_path)?;
+        Ok(Self {
+            partial_path,
             final_path,
-            prepared: false,
-        }
+        })
     }
 
     pub(crate) fn partial_path(&self) -> &Path {
         &self.partial_path
-    }
-
-    /// Remove a stale partial sibling before writing. Must run before any partial write.
-    pub(crate) fn prepare(&mut self) -> Result<()> {
-        if self.prepared {
-            return Ok(());
-        }
-        remove_if_present(&self.partial_path)?;
-        self.prepared = true;
-        Ok(())
     }
 
     pub(crate) async fn rename_and_commit(self, is_cancelled: impl Fn() -> bool) -> Result<()> {

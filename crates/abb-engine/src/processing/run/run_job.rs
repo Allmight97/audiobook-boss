@@ -33,7 +33,6 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) sample_rate: u32,
     pub(crate) aac_decoder: audio::AacDecoder,
     pub(crate) identity: JobIdentity,
-    pub(crate) operation_kind: OperationKind,
     pub(crate) title_cancel: CancellationToken,
     pub(crate) output_plan: ResolvedOutputPlan,
     pub(crate) file_info: FileListInfo,
@@ -51,7 +50,6 @@ pub(crate) async fn run_processing_job(request: ProcessingJobRequest) -> TitleOu
         request.audio_request.format(),
         request.title_cancel.clone(),
         request.identity.clone(),
-        request.operation_kind,
     )
     .await;
     let RegisteredProcessingJob {
@@ -74,7 +72,6 @@ pub(crate) async fn run_processing_job(request: ProcessingJobRequest) -> TitleOu
         identity,
         sample_rate: request.sample_rate,
         aac_decoder: request.aac_decoder,
-        operation_kind: request.operation_kind,
         progress_listener: request.progress_listener,
         title_output: request.title_output.clone(),
         output_plan: request.output_plan.clone(),
@@ -257,7 +254,6 @@ pub(crate) async fn register_job_and_validate_output(
     format: audio::AudiobookFormat,
     title_cancel: CancellationToken,
     identity: JobIdentity,
-    operation_kind: OperationKind,
 ) -> Result<RegisteredProcessingJob> {
     let (job_id, permit) = registry
         .register_job_with_external_cancel(&title_cancel)
@@ -265,7 +261,7 @@ pub(crate) async fn register_job_and_validate_output(
     let job = RegisteredJob::adopt(registry, job_id);
     let cancellation_checker = CancellationChecker::new(title_cancel);
     let identity = identity.registered(job_id);
-    let lifecycle_log = ProcessingJobLifecycleLog::start(identity.clone(), operation_kind);
+    let lifecycle_log = ProcessingJobLifecycleLog::start(identity.clone());
 
     let checked_path = output_path.to_path_buf();
     let validation = tokio::task::spawn_blocking(move || {
@@ -296,7 +292,6 @@ struct ProcessingContextRequest {
     identity: JobIdentity,
     sample_rate: u32,
     aac_decoder: audio::AacDecoder,
-    operation_kind: OperationKind,
     progress_listener: ProgressEventListener,
     title_output: Option<Arc<crate::processing::TitleOutput>>,
     output_plan: ResolvedOutputPlan,
@@ -313,7 +308,6 @@ fn build_processing_context(request: ProcessingContextRequest) -> ProcessingCont
         output: OutputConfig::from_plan(request.output_plan),
         workspace_root: request.workspace_root,
         identity: request.identity,
-        operation_kind: request.operation_kind,
         progress_listener: request.progress_listener,
         publish_gate: request
             .title_output
@@ -332,7 +326,6 @@ fn build_processing_context(request: ProcessingContextRequest) -> ProcessingCont
 
 pub(crate) struct ProcessingJobLifecycleLog {
     identity: JobIdentity,
-    operation_kind: OperationKind,
     started_at: Instant,
 }
 
@@ -341,12 +334,11 @@ pub(crate) struct ProcessingJobLifecycleLog {
 mod registration_tests;
 
 impl ProcessingJobLifecycleLog {
-    fn start(identity: JobIdentity, operation_kind: OperationKind) -> Self {
+    fn start(identity: JobIdentity) -> Self {
         log::info!(
             "{}",
             format_processing_job_record(
                 &identity,
-                operation_kind,
                 ProcessingJobLogEvent::Started,
                 ProcessingJobLogStatus::Running,
                 None,
@@ -354,7 +346,6 @@ impl ProcessingJobLifecycleLog {
         );
         Self {
             identity,
-            operation_kind,
             started_at: Instant::now(),
         }
     }
@@ -362,7 +353,6 @@ impl ProcessingJobLifecycleLog {
     fn log_terminal(&self, status: ProcessingJobLogStatus<'_>) {
         let record = format_processing_job_record(
             &self.identity,
-            self.operation_kind,
             ProcessingJobLogEvent::Terminal,
             status,
             Some(self.started_at.elapsed().as_millis()),
@@ -393,7 +383,6 @@ enum ProcessingJobLogStatus<'a> {
 
 fn format_processing_job_record(
     identity: &JobIdentity,
-    operation_kind: OperationKind,
     event: ProcessingJobLogEvent,
     status: ProcessingJobLogStatus<'_>,
     elapsed_ms: Option<u128>,
@@ -405,7 +394,7 @@ fn format_processing_job_record(
         identity.operation_id,
         job_id,
         identity.input_index,
-        operation_kind.log_label(),
+        OperationKind::ProcessingBatch.log_label(),
         processing_job_status_label(status),
     );
     if let Some(elapsed_ms) = elapsed_ms {

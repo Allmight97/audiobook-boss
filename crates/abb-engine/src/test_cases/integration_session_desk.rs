@@ -197,7 +197,6 @@ impl Desk {
     ) -> WorkOperationStatus {
         self.engine
             .list_work_operations()
-            .expect("operations")
             .operations
             .into_iter()
             .find(|snapshot| &snapshot.operation_id == operation)
@@ -208,7 +207,6 @@ impl Desk {
     pub(super) fn export_finished(&self, operation: &crate::work_runtime::OperationId) -> bool {
         self.engine
             .list_work_operations()
-            .expect("operations")
             .operations
             .into_iter()
             .find(|snapshot| &snapshot.operation_id == operation)
@@ -218,7 +216,7 @@ impl Desk {
     }
 
     pub(super) fn output_of(&self, operation: &crate::work_runtime::OperationId) -> PathBuf {
-        let operations = self.engine.list_work_operations().expect("operations");
+        let operations = self.engine.list_work_operations();
         let export = operations
             .operations
             .into_iter()

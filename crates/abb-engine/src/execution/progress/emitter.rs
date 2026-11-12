@@ -8,47 +8,23 @@ use std::sync::Arc;
 
 pub(crate) type ProgressEventListener = Arc<dyn Fn(&ProgressEvent) + Send + Sync>;
 
-#[derive(Clone)]
-pub(crate) struct EmitContext {
-    pub(crate) operation_kind: OperationKind,
-    pub(crate) identity: JobIdentity,
-}
-
 pub(crate) struct ProgressEmitter {
-    operation_kind: OperationKind,
     identity: JobIdentity,
     listener: ProgressEventListener,
 }
 
 impl ProgressEmitter {
-    pub(crate) fn new(context: EmitContext, listener: ProgressEventListener) -> Self {
-        Self {
-            operation_kind: context.operation_kind,
-            identity: context.identity,
-            listener,
-        }
-    }
-
-    fn terminal_event(&self, stage: EventStage, message: &str) -> ProgressEvent {
-        ProgressEvent {
-            operation_kind: self.operation_kind,
-            stage,
-            percentage: if stage == EventStage::Skipped {
-                100.0
-            } else {
-                0.0
-            },
-            message: message.to_string(),
-            current_file: None,
-            eta_seconds: None,
-            job_id: self.identity.job_id.clone(),
-            input_index: Some(self.identity.input_index),
-        }
+    pub(crate) fn new(identity: JobIdentity, listener: ProgressEventListener) -> Self {
+        Self { identity, listener }
     }
 
     fn emit_terminal_event(&self, stage: EventStage, message: &str) {
-        let event = self.terminal_event(stage, message);
-        self.notify_listener(&event);
+        let percentage = if stage == EventStage::Skipped {
+            100.0
+        } else {
+            0.0
+        };
+        self.emit_event(stage, percentage, message, None, None);
     }
 
     pub fn emit_analyzing_start(&self, message: &str) {
@@ -143,7 +119,7 @@ impl ProgressEmitter {
             0.0
         };
         let event = ProgressEvent {
-            operation_kind: self.operation_kind,
+            operation_kind: OperationKind::ProcessingBatch,
             stage,
             percentage,
             message: message.to_string(),

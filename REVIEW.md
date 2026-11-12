@@ -36,8 +36,6 @@ them.
 - Every finding names the rule it breaks (file and heading) or a concrete
   input that produces the wrong result. Read the code a finding depends on
   before posting it.
-- A change to an owned import/export surface without its `AGENTS.md` update
-  is Important.
 
 ## Summary
 

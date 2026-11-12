@@ -669,6 +669,31 @@ async fn accepted_settings_preserve_independent_patches_without_host_reply_order
 }
 
 #[tokio::test]
+async fn an_accepted_change_is_saved_when_the_host_drops_its_wait() {
+    let rig = start();
+    let tasks = crate::engine_tasks::EngineTasks::default();
+    drop(rig.settings.begin(
+        SettingsIntent::SetConcurrency {
+            preference: ConcurrencyPreference::Fixed(1),
+        },
+        &tasks,
+    ));
+    rig.settings
+        .remember_defaults(
+            None,
+            Some(output_in("/later")),
+            EditStamp::default(),
+            &tasks,
+        )
+        .finish()
+        .await;
+    assert_eq!(
+        rig.on_disk().max_concurrent_jobs,
+        ConcurrencyPreference::Fixed(1)
+    );
+}
+
+#[tokio::test]
 async fn an_indexer_change_is_in_effect_at_once_and_saved() {
     let rig = start();
     let chosen = connection("https://indexer.test", &[3030]);

@@ -155,6 +155,12 @@ impl LookupState {
     pub(crate) fn close(&mut self) {
         self.supersede();
         self.open = false;
+        if matches!(
+            self.status,
+            Some(LookupStatus::Searching | LookupStatus::Applying)
+        ) {
+            self.status = None;
+        }
     }
 
     pub(crate) fn begin_search(&mut self) -> u64 {

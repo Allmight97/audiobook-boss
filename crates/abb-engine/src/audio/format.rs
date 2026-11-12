@@ -27,6 +27,11 @@ pub(crate) fn is_mp4_family_format(name: &str) -> bool {
         .any(|alias| MP4_FAMILY_NAMES.contains(&alias))
 }
 
+pub(crate) fn is_matroska_format(name: &str) -> bool {
+    name.split(',')
+        .any(|alias| alias == Muxer::Matroska.ffmpeg_name())
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum CodecFamily {

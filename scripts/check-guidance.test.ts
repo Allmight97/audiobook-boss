@@ -3,6 +3,7 @@ import {
 	checkGuidance,
 	type GuidanceContext,
 	isGuidanceFile,
+	markdownHomeFindings,
 	skillFrontmatterFindings,
 } from './check-guidance';
 
@@ -25,6 +26,24 @@ describe('check-guidance', () => {
 		expect(isGuidanceFile('CHANGELOG.md')).toBe(false);
 		expect(isGuidanceFile('vendor/ffmpeg-sys-next-9.0.1/README.md')).toBe(false);
 		expect(isGuidanceFile('vendor/opus/ABB-PROVENANCE.md')).toBe(true);
+	});
+
+	it('keeps plans in docs/specs and Markdown in its homes', () => {
+		expect(
+			markdownHomeFindings([
+				'PLAN.md',
+				'docs/export-rework.md',
+				'crates/abb-engine/src/session/NOTES.md',
+				'docs/specs/export-rework.md',
+				'docs/DECISIONS.md',
+				'docs/agents/observed-use.md',
+				'.agents/skills/release/references/execution.md',
+				'crates/abb-engine/AGENTS.md',
+				'CHANGELOG.md',
+				'vendor/opus/README.md',
+				'src/main.ts',
+			]).map((finding) => finding.file),
+		).toEqual(['PLAN.md', 'docs/export-rework.md', 'crates/abb-engine/src/session/NOTES.md']);
 	});
 
 	it('rejects skill frontmatter that is not valid YAML', () => {

@@ -1,5 +1,4 @@
 use super::*;
-use crate::processing::OperationKind;
 use tempfile::TempDir;
 
 fn identity() -> crate::processing::JobIdentity {
@@ -30,7 +29,6 @@ async fn registration_accepts_each_formats_own_extension() {
             format,
             tokio_util::sync::CancellationToken::new(),
             identity(),
-            OperationKind::ProcessingBatch,
         )
         .await
         .expect("the format's own extension should be accepted");
@@ -52,7 +50,6 @@ async fn a_registered_job_that_is_dropped_leaves_the_registry() {
         audio::AudiobookFormat::M4b,
         tokio_util::sync::CancellationToken::new(),
         identity(),
-        OperationKind::ProcessingBatch,
     )
     .await
     .expect("registered");

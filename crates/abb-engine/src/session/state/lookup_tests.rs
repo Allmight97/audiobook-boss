@@ -210,7 +210,9 @@ fn closing_and_skipping_supersede_the_work_in_flight() {
     let request = searching(&mut desk);
     desk.state.lookup.close();
     assert_eq!(answer(&mut desk, request, found(&["Late"])), None);
-    assert!(!lookup(&mut desk).open);
+    let closed = lookup(&mut desk);
+    assert!(!closed.open);
+    assert_eq!(closed.status, None, "a closed lookup is not searching");
 
     let request = searching(&mut desk);
     desk.state.lookup.begin_skip();
@@ -359,4 +361,16 @@ fn a_next_title_the_gate_refuses_keeps_the_queue_where_it_was() {
         Some(LookupStatus::NextTitleRejected { cover_failed: true })
     );
     assert_eq!(kept.queue_position.map(|at| at.index), Some(0));
+}
+
+#[test]
+fn closing_during_an_apply_leaves_no_apply_running() {
+    let mut desk = one_book();
+    applying(&mut desk);
+
+    desk.state.lookup.close();
+
+    let closed = lookup(&mut desk);
+    assert!(!closed.open);
+    assert_eq!(closed.status, None);
 }

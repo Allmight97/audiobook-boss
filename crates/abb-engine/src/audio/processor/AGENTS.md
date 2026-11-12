@@ -1,119 +1,56 @@
-# Audio Processor Directives
+# Audio Processor
 
-Owns stage orchestration, cancellation checkpoints, and cleanup for the
-execution pipeline. Final artifact commit policy lives in `output_artifact/`.
-
-## Preferred Path
-
-- Encoding preparation validates every source against its retained inspection
-  fingerprint before creating a workspace. A queued replacement fails instead
-  of running with an audio plan resolved for the previous file.
-- Preserve dispatch happens before encoder resolution. Its blocking worker
-  copies an eligible source into the tracked workspace, writes its accepted
-  chapter plan and planned metadata intent through the metadata owner, verifies
-  the chapters, and uses shared finalization. Copy
-  cancellation stays typed; source bytes are never the metadata writer target.
-  Revalidate the source path at the copy boundary after any scheduler wait;
-  cached import validity does not authorize reopening a replaced path. Compare
-  the inspected size/modified-time fingerprint against the opened source handle
-  before creating the staged copy.
-- Both preserve routes (one source, a join) run one skeleton in `preserve.rs`:
-  Workspace, start event, staged copies, shared finalization. Only the
-  metadata step differs, as a typed `MetadataStrategy`: `PatchStagedCopy` (one
-  staged source: apply the planned patch onto its own tags) or `WriteFreshMux`
-  (a join: write the full effective metadata onto the new file). Why: a join
-  has no tags of its own to patch, and a full write onto a single copy would
-  drop the tags the plan never touched. `integration_media_route_parity_tests.rs`
-  pins both.
-- `preserve_merge` owns compatibility and packet-copy joining of AAC
-  titles: matching configuration/rate/channels/time base, complete contiguous
-  frames, and no per-source priming/trimming. Unsupported joins fail explicitly
-  without falling back to an encoder. Preflight scans timing; execution repeats
-  the check against fingerprint-validated private source copies. Metadata and
-  chapter finalization and output publication use their existing owners.
-- Execution takes the sample rate the plan resolved (Hz). Auto is resolved
-  when the title is planned (`audio/output_plan.rs`), never at execution.
-- Resolve the encoder once at dispatch (`resolution.rs`) and carry that choice
-  into encoder setup. Explicit Native, Apple, and Opus selections validate their
-  linked encoder; bundled FAAC is always available.
-
-## Hard Invariants
-
-- Finalization reports success only after the output artifact boundary returns
-  final artifact truth. Final artifact moves live in `output_artifact`
-  (`check-known-mistakes.ts`).
-- Every route uses the shared final artifact commit handoff. Route-specific code
-  stages media locally; final commit and success wording stay centralized.
-  MP4-family tag truth: `metadata/AGENTS.md`.
-- A preview carries the export's metadata without chapters. Why: the owner
-  previews to hear the encode and check the metadata; chapter layout is not a
-  preview's job.
-- A preview takes the start of each file, cut at an exact sample
-  (`PreviewState::take`). Why: one stop rule for single and merged titles, and
-  a preview length that tests can assert exactly.
-- Drop probe/inspection contexts before reopening the same path for decoder
-  trials, processing, replacement, or another library.
-- One `Workspace` (`workspace.rs`) per job owns the temp folder and every
-  staged file under it, and stages borrow it. It is registered when created,
-  before the job observes cancellation, and removed on drop or when
-  `published` runs after publication. Failed cleanup stays owned for retry;
-  post-publication cleanup failure preserves success with an explicit warning
-  from Output Artifact.
-- Metadata finalize writes happen only for supported container paths and
-  validated metadata payloads.
-- Cancel is checked again right before commit: publishing may first wait for
-  the output lock and write an edit, and a title cancelled meanwhile must not
-  publish. An export title publishes through its output record, which writes
-  an edit accepted meanwhile to the staged file first.
-- A queued job re-validates its source when it runs; preflight may be long past.
+- Encoding preparation checks every source against its inspection fingerprint
+  before creating a workspace, so a queued replacement fails instead of
+  running with a plan resolved for the previous file. A queued job
+  re-validates when it runs, because preflight may be long past.
+- Preserve revalidates the source path at the copy boundary after any
+  scheduler wait and compares the inspected size and modified time against the
+  opened handle: cached import validity never authorizes reopening a replaced
+  path.
+- A join writes the full metadata onto the new file (`WriteFreshMux`) and a
+  single copy patches its own tags (`PatchStagedCopy`), because a join has no
+  tags to patch and a full write onto a single copy would drop the tags the
+  plan never touched.
+- Source bytes are never the metadata writer's target; Preserve writes into
+  its staged copy.
+- Auto sample rate resolves when the title is planned (`audio/output_plan.rs`),
+  never at execution.
+- Every route stages media locally and hands off to the shared final commit;
+  final commit and success wording stay in one place.
+- A preview carries the export's metadata without chapters, because the owner
+  previews to hear the encode and check the metadata.
+- A preview cuts each file at an exact sample (`PreviewState::take`), so single
+  and merged titles share one stop rule and tests can assert the length.
+- Drop FFmpeg probe, inspection, and remux contexts before reopening the same
+  path for decoder trials, processing, replacement, an mp4ameta write, or
+  another library.
+- Cancel is checked again right before commit, because publishing may first
+  wait for the output lock and write an edit, and a title cancelled meanwhile
+  must not publish.
 - The accumulator flush keeps the real tail length, so encoders mark their own
   padding non-playable instead of turning ABB's zero pad into source audio.
 - A user cancel is not logged as ERROR: the job's terminal record reports it,
   and dev-log analysis counts ERROR lines as degradation.
 - The pipeline (prepare, encode, finalize) is CPU-bound and runs on a blocking
   thread.
+- Declare the job's `Workspace` before opening the `EncoderSession`, so handles
+  close before cleanup removes a failed output.
 
-## Encoder diagnostics
+## HE-AAC timing
 
-- Shared encoder run records use the private `run_diagnostics` helper for file
-  writes, requested settings, and monotonic/wall-clock timing. Records take one
-  write lock and append to the file `ABB_ENCODING_LOG` names. Unset or empty
-  disables the records. Unavailable opened settings stay explicitly `unknown`.
-- Each input's decoder logs `decode_open` and, when it closes,
-  `decode_summary` (packets, samples, decode speed; FAAD3 adds its trims and
-  concealment counts). The dev-log summary shows both lines.
-- Finalization emits `audio_output` from a read-only probe of the completed
-  staged file, before publication. These are observed file properties, not
-  encoder configuration; unavailable diagnostics never change processing
-  success.
-- The private `encoder::EncoderSession` owns the selected backend, PCM
-  submission, packet muxing, drain, and trailer. Callers submit contiguous
-  frames and finish the session; backend handles and packet mechanics stay
-  inside `encoder/`. Declare the job's `Workspace` before opening the session
-  so handles close before cleanup removes a failed output.
-
-## FAAC and HE-AAC file timing
-
-- `encoder/faac.rs` owns requested parameters and resolved configuration. Its
-  opened profile determines frame size, mux profile, priming, postroll policy,
-  and encoding-tool tag; profile Auto must work for both LC and HE.
-- `he_timing` owns the decoded PCM interval of HE-AAC MP4 inputs. ABB's
-  FAAC HE files are recognized by their encoding-tool tag; keep each recognized
-  convention (2079, 2080) when upgrading upstream priming. LC uses a distinct
-  tag and its returned encoder delay. A third-party HE or HE v2 file gets a
-  window only when it declares iTunSMPB. Apple's encoder and upstream's `faac`
-  frontend both leave the SBR delay out of that priming. HE files with only an
-  edit list, or with no gapless metadata (FFmpeg's muxer with Apple's encoder),
-  keep FFmpeg's trimming; nothing in them says which convention they follow.
-- Who removes SBR delay (`SbrDelayOwner`): FFmpeg's native HE decoder emits it
-  untrimmed, so the window adds 962; FAAD3 trims its own reported delay, so
-  its window holds priming alone.
+- ABB's FAAC HE files are recognized by their encoding-tool tag. Each tag
+  fixes the priming sample count in the file (`he_timing.rs`: 2079 for the
+  original tag, 2080 for `timing-2`), so an upstream priming upgrade gets a new
+  tag and keeps both. FAAC LC uses a distinct tag and the encoder delay the
+  encoder returns.
+- A third-party HE or HE v2 file gets a window only when it declares
+  iTunSMPB. Apple's encoder and upstream's `faac` frontend both leave the SBR
+  delay out of that priming. A file with only an edit list, or with no gapless
+  metadata (FFmpeg's muxer with Apple's encoder), keeps FFmpeg's trimming,
+  because nothing in it says which convention it follows.
+- FFmpeg's native HE decoder emits the SBR delay untrimmed, so its window adds
+  962 samples; FAAD3 trims its own reported delay, so its window holds priming
+  alone (`SbrDelayOwner`).
 - A windowed input reads all access units (`ignore_editlist`), because an edit
-  list can drop the final unit that holds the delayed tail. The window trims
-  at source sample rate before preview, resampling, or concatenation, through
-  packet skip metadata that replaces what FFmpeg derived from iTunSMPB.
-  Encoder selection does not change the source's playable audio. A metadata
-  remux (Preserve with repaired chapters) keeps the tag and that final unit.
-- Packet-copy joins refuse ABB's FAAC HE files by tag (`is_abb_faac_he`).
-  Other files go through the normal packet checks, which refuse a packet that
-  carries trim metadata (a third-party file with iTunSMPB).
+  list can drop the final unit that holds the delayed tail.

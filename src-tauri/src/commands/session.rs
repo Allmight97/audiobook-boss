@@ -53,7 +53,7 @@ pub async fn attach_frontend(
         client,
         session: engine.session_snapshot(),
         settings: engine.settings_snapshot().await,
-        work_operations: engine.list_work_operations()?,
+        work_operations: engine.list_work_operations(),
     })
 }
 

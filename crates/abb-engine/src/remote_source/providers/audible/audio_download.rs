@@ -139,8 +139,7 @@ async fn download_to_path_with_client(
         ));
     }
 
-    let mut staged = StagedTempFile::new(path);
-    staged.prepare()?;
+    let staged = StagedTempFile::create(path)?;
     let bytes = download_to_partial_path(
         client,
         parsed,

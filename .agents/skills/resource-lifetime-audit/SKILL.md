@@ -19,11 +19,11 @@ terminal outcomes:
 - blocking worker → its task is aborted or its wait dropped (a polled cancel
   joins it) → the worker still writes its partial → removal of that folder
   (Audible decrypt and `purge_with_retries`:
-  `crates/abb-engine/src/remote_source/AGENTS.md`, Handoff);
+  `crates/abb-engine/src/remote_source/session_lifecycle.rs`);
 - register cleanup → transfer or drain ownership;
 - validate path → persist or write it;
 - metadata Save → a waiting write → the export that reads the same source
-  finishing (`crates/abb-engine/src/session/AGENTS.md`);
+  finishing (`crates/abb-engine/src/session/state/write_queue.rs`);
 - staged download → every export, submission, or Save using it finished →
   removal and its retry (`crates/abb-engine/src/session/staged.rs`);
 - published output → a later tag save while another export replaces the

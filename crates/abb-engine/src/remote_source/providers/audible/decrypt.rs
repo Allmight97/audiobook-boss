@@ -81,8 +81,7 @@ pub(super) async fn decrypt_download(
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<PathBuf> {
     ensure_not_cancelled(is_cancelled)?;
-    let mut staged = StagedTempFile::new(request.output);
-    staged.prepare()?;
+    let staged = StagedTempFile::create(request.output)?;
     let control = CopyControl::default();
     let _stop_on_drop = StopOnDrop(control.clone());
     let job = CopyJob {

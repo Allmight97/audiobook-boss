@@ -26,12 +26,10 @@ fn names_a_container_from_a_muxer_name() {
 
 #[test]
 fn maps_other_demuxer_names_to_the_muxer_that_writes_them() {
-    for (demuxer, muxer) in [
-        ("aac", "adts"),
-        ("wav", "wav"),
-        ("flac", "flac"),
-        ("ogg", "ogg"),
-    ] {
+    assert_eq!(Container::from_format_name("aac"), Container::Adts);
+    assert_eq!(Container::from_format_name("adts"), Container::Adts);
+    assert_eq!(Container::from_format_name("wav"), Container::Wav);
+    for (demuxer, muxer) in [("flac", "flac"), ("ogg", "ogg")] {
         assert_eq!(
             Container::from_format_name(demuxer),
             Container::Other(muxer.to_string())
@@ -69,6 +67,12 @@ fn only_mp4_derives_chapter_ends_and_only_mp3_renames_the_album_sort() {
     assert!(!Container::Mp4.stores_chapter_ends());
     assert!(Container::Matroska.stores_chapter_ends());
     assert!(Container::Other("flac".to_string()).stores_chapter_ends());
+    assert!(Container::Adts.stores_chapter_ends());
+    assert!(Container::Wav.stores_chapter_ends());
+    assert!(!Container::Adts.is_mp4_family());
+    assert!(!Container::Wav.is_mp4_family());
+    assert!(!Container::Adts.uses_vorbis_comments());
+    assert!(!Container::Wav.uses_vorbis_comments());
     assert!(Container::Mp4.is_mp4_family());
     assert!(!Container::Mp3.is_mp4_family());
 
@@ -76,6 +80,8 @@ fn only_mp4_derives_chapter_ends_and_only_mp3_renames_the_album_sort() {
     for container in [
         Container::Mp4,
         Container::Matroska,
+        Container::Adts,
+        Container::Wav,
         Container::Other("flac".to_string()),
     ] {
         assert_eq!(container.album_sort_key(), "sort_album");

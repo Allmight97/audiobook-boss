@@ -39,15 +39,15 @@
 					},
 					{
 						"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
-						"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+						"message": "Native CSS is the only styling language."
 					},
 					{
 						"group": ["**/foundation/internal", "**/foundation/internal/**"],
-						"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+						"message": "Import from src/ui/foundation; internals are private."
 					},
 					{
 						"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
-						"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
+						"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip."
 					},
 					{
 						"group": ["**/tauri/commands"],
@@ -175,15 +175,15 @@
 							},
 							{
 								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
-								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+								"message": "Native CSS is the only styling language."
 							},
 							{
 								"group": ["**/foundation/internal", "**/foundation/internal/**"],
-								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+								"message": "Import from src/ui/foundation; internals are private."
 							},
 							{
 								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
-								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
+								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip."
 							},
 							{
 								"group": ["**/tauri/commands"],
@@ -226,19 +226,19 @@
 							},
 							{
 								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
-								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+								"message": "Native CSS is the only styling language."
 							},
 							{
 								"group": ["**/foundation/internal", "**/foundation/internal/**"],
-								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+								"message": "Import from src/ui/foundation; internals are private."
 							},
 							{
 								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
-								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
+								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip."
 							},
 							{
 								"group": ["./*/*"],
-								"message": "Import another view through its folder (src/ui/<view>); its index.ts is the Public API Strip (src/ui/AGENTS.md)."
+								"message": "Import another view through its folder (src/ui/<view>); its index.ts is the Public API Strip."
 							},
 							{
 								"group": ["@tauri-apps/plugin-*", "@tauri-apps/api/event"],
@@ -282,19 +282,19 @@
 							},
 							{
 								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
-								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+								"message": "Native CSS is the only styling language."
 							},
 							{
 								"group": ["**/foundation/internal", "**/foundation/internal/**"],
-								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+								"message": "Import from src/ui/foundation; internals are private."
 							},
 							{
 								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
-								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
+								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip."
 							},
 							{
 								"group": ["../*/*"],
-								"message": "Import another view through its folder (src/ui/<view>); its index.ts is the Public API Strip (src/ui/AGENTS.md)."
+								"message": "Import another view through its folder (src/ui/<view>); its index.ts is the Public API Strip."
 							},
 							{
 								"group": ["@tauri-apps/plugin-*", "@tauri-apps/api/event"],
@@ -331,15 +331,15 @@
 							},
 							{
 								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
-								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+								"message": "Native CSS is the only styling language."
 							},
 							{
 								"group": ["**/foundation/internal", "**/foundation/internal/**"],
-								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+								"message": "Import from src/ui/foundation; internals are private."
 							},
 							{
 								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
-								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
+								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip."
 							},
 							{
 								"group": ["**/tauri/commands"],
@@ -372,15 +372,15 @@
 							},
 							{
 								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
-								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+								"message": "Native CSS is the only styling language."
 							},
 							{
 								"group": ["**/foundation/internal", "**/foundation/internal/**"],
-								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+								"message": "Import from src/ui/foundation; internals are private."
 							},
 							{
 								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
-								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
+								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip."
 							},
 							{
 								"group": ["**/tauri/commands"],
@@ -413,15 +413,15 @@
 							},
 							{
 								"group": ["tailwindcss", "tailwindcss/**", "@tailwindcss/**"],
-								"message": "Native CSS is the only styling language (src/ui/foundation/AGENTS.md)."
+								"message": "Native CSS is the only styling language."
 							},
 							{
 								"group": ["**/foundation/internal", "**/foundation/internal/**"],
-								"message": "Import from src/ui/foundation; internals are private (src/ui/foundation/AGENTS.md)."
+								"message": "Import from src/ui/foundation; internals are private."
 							},
 							{
 								"group": ["**/app/*/**", "!./app/runtime/ProductionRoot"],
-								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip (src/app/AGENTS.md)."
+								"message": "Import the owner root (src/app/<owner>); its index.ts is the Public API Strip."
 							},
 							{
 								"group": ["**/tauri/commands"],

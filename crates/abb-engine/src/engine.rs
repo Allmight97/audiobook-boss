@@ -365,7 +365,7 @@ impl Engine {
         .map_err(|e| AppError::General(format!("Metadata read task failed: {e}")))?
     }
 
-    pub fn list_work_operations(&self) -> Result<WorkOperationsSnapshot> {
+    pub fn list_work_operations(&self) -> WorkOperationsSnapshot {
         self.inner.work.list_operations()
     }
 

@@ -133,7 +133,7 @@ impl WorkRuntimeState {
         let snapshot = self.snapshot_mut(operation_id)?;
         if !snapshot.is_finished() {
             snapshot.started_at_ms.get_or_insert(now_ms);
-            if snapshot.cancel_requested || snapshot.status == WorkOperationStatus::Cancelling {
+            if snapshot.cancel_requested {
                 return Ok(snapshot.clone());
             }
             snapshot.set_status(WorkOperationStatus::Running);
@@ -205,7 +205,7 @@ impl WorkRuntimeState {
             return Ok(snapshot.clone());
         }
 
-        if snapshot.cancel_requested || snapshot.status == WorkOperationStatus::Cancelling {
+        if snapshot.cancel_requested {
             return Ok(snapshot.clone());
         }
 

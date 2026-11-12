@@ -417,6 +417,138 @@ describe('check-known-mistakes', () => {
 		).toEqual([]);
 	});
 
+	it('keeps raw pointers out of the public abb-ffmpeg surface', () => {
+		const file = 'crates/abb-ffmpeg/src/output.rs';
+		expect(found(file, 'pub fn as_ptr(&self) -> *mut sys::AVFormatContext {')).toEqual([
+			expect.stringMatching(/^1: .*raw pointer in the public abb-ffmpeg surface/),
+		]);
+		expect(
+			found(
+				file,
+				'pub fn open(\n    path: &Path,\n    ctx: *const sys::AVFormatContext,\n) -> Self {',
+			),
+		).toHaveLength(1);
+		expect(found(file, 'pub struct S {\n    pub ctx: *mut sys::AVFrame,\n}')).toHaveLength(1);
+		expect(found(file, 'pub struct S {\n    pub ctx:\n        *mut sys::AVFrame,\n}')).toHaveLength(
+			1,
+		);
+		expect(found(file, 'pub async fn run(ctx: *mut sys::AVFrame) -> Result<()> {')).toHaveLength(1);
+		expect(found(file, 'pub type Raw = *mut sys::AVPacket;')).toHaveLength(1);
+		expect(found(file, 'pub(crate) fn as_ptr(&self) -> *mut sys::AVFormatContext {')).toEqual([]);
+		expect(
+			found(file, 'pub fn create(path: &Path) -> Result<Self> {\n    let p: *mut u8 = ptr();'),
+		).toEqual([]);
+		expect(found('crates/abb-engine/src/x.rs', 'pub fn as_ptr(&self) -> *mut u8 {')).toEqual([]);
+	});
+
+	it('keeps output artifact types out of the processing re-exports', () => {
+		expect(
+			found('crates/abb-engine/src/processing.rs', 'pub use crate::output_artifact::OutputPlan;'),
+		).toEqual([expect.stringMatching(/^1: .*re-exports output artifact types/)]);
+		expect(
+			found(
+				'crates/abb-engine/src/processing/run.rs',
+				'pub(crate) use crate::{audio::X, output_artifact::Y};',
+			),
+		).toHaveLength(1);
+		expect(
+			found(
+				'crates/abb-engine/src/processing/run.rs',
+				'pub(crate) use crate::{\n    audio::X,\n    output_artifact::{Y, Z},\n};',
+			),
+		).toEqual([expect.stringMatching(/^1: .*re-exports output artifact types/)]);
+		expect(
+			found(
+				'crates/abb-engine/src/processing.rs',
+				'// pub use crate::output_artifact::OutputPlan;',
+			),
+		).toEqual([]);
+		expect(
+			found('crates/abb-engine/src/processing.rs', 'use crate::output_artifact::OutputPlan;'),
+		).toEqual([]);
+		expect(
+			found('crates/abb-engine/src/session.rs', 'pub use crate::output_artifact::OutputPlan;'),
+		).toEqual([]);
+	});
+
+	it('keeps the frontend on the engine status, not the source flags', () => {
+		expect(found('src/app/x.ts', '\tif (file.isValid) {')).toEqual([
+			expect.stringMatching(/^1: .*Fix: branch on the title or source `status`/),
+		]);
+		expect(found('src/ui/x.tsx', '\t<Show when={source?.sourceRemoved}>')).toHaveLength(1);
+		expect(found('src/app/x.ts', '\tconst { isValid, label } = file;')).toHaveLength(1);
+		expect(found('src/app/x.ts', '\tfiles.filter(({ isValid }) => isValid);')).toHaveLength(1);
+		expect(found('src/app/x.ts', "\tif (file['isValid']) {")).toHaveLength(1);
+		expect(found('src/app/x.ts', "\t\tcase 'sourceRemoved':")).toEqual([]);
+		expect(found('src/app/x.ts', "\tif (file.status === 'ready') {")).toEqual([]);
+		expect(found('src/test/fixtures/fakeEngine.ts', '\t\tisValid: true,')).toEqual([]);
+		expect(found('src/app/x.test.ts', '\texpect(file.isValid).toBe(true);')).toEqual([]);
+	});
+
+	it('keeps FFmpeg format name comparisons in the two classifiers', () => {
+		const file = 'crates/abb-engine/src/audio/file_list.rs';
+		expect(
+			found(file, '    if !input.format_name().split(\',\').any(|name| name == "mp4") {'),
+		).toEqual([expect.stringMatching(/^1: .*compares an FFmpeg format or muxer name/)]);
+		expect(
+			found(file, '            && container_name.split(\',\').any(|name| name == "matroska")'),
+		).toHaveLength(1);
+		expect(found(file, '    match container.muxer_name() {')).toHaveLength(1);
+		expect(found(file, '    if input.format_name() == "mp4" {')).toHaveLength(1);
+		expect(found(file, '        "adts" if !edited.is_empty() => refuse(),')).toHaveLength(1);
+		expect(found(file, '    Output::create(path, output_format.muxer_name())')).toEqual([]);
+		expect(found(file, '    let kept = matches!(extension, "m4a" | "m4b");')).toEqual([]);
+		expect(found(file, '        .is_some_and(|e| e.eq_ignore_ascii_case("mp3"))')).toEqual([]);
+		expect(found(file, '    // name == "mp4"')).toEqual([]);
+		expect(
+			found(
+				'crates/abb-engine/src/metadata/container.rs',
+				'            "matroska" => Container::Matroska,',
+			),
+		).toEqual([]);
+		expect(
+			found(
+				'crates/abb-engine/src/audio/format.rs',
+				'    name.split(\',\').any(|alias| alias == "mp4")',
+			),
+		).toEqual([]);
+		expect(
+			found('crates/abb-engine/src/audio/file_list_tests.rs', '    assert!(name == "matroska");'),
+		).toEqual([]);
+	});
+
+	it('lets only src/styles.css import the foundation stylesheet', () => {
+		expect(found('src/ui/x.tsx', "import './foundation/internal/foundation.css';")).toEqual([
+			expect.stringMatching(/^1: .*imports the foundation stylesheet outside `src\/styles\.css`/),
+		]);
+		expect(found('src/ui/x.css', '@import "./foundation/internal/foundation.css";')).toHaveLength(
+			1,
+		);
+		expect(found('src/styles.css', '@import "./ui/foundation/internal/foundation.css";')).toEqual(
+			[],
+		);
+		expect(found('src/ui/x.tsx', "import './fileImport.css';")).toEqual([]);
+	});
+
+	it('keeps CSS classes out of frontend tests', () => {
+		const file = 'src/ui/__tests__/x.test.tsx';
+		expect(found(file, "\tconst row = container.querySelector('.file-row');")).toEqual([
+			expect.stringMatching(/^1: `\.file-row` selects by CSS class/),
+		]);
+		expect(
+			found(file, '\tconst rows = document.querySelectorAll<HTMLElement>(\n\t\t"li.row",\n\t);'),
+		).toHaveLength(1);
+		expect(found(file, "\texpect(row).toHaveClass('is-active');")).toHaveLength(1);
+		expect(found(file, '\texpect(row.className).toContain("active");')).toHaveLength(1);
+		expect(found(file, "\texpect(row.getAttribute('class')).toBe('x');")).toHaveLength(1);
+		expect(found(file, "\texpect(row).toHaveAttribute('class', 'x');")).toHaveLength(1);
+		expect(found(file, "\texpect(row).toHaveAttribute('data-state', 'x');")).toEqual([]);
+		expect(found(file, '\tdocument.querySelectorAll(\'[data-testid="cover.png"]\');')).toEqual([]);
+		expect(found(file, '\tdocument.querySelectorAll(\'[src$=".png"]\');')).toEqual([]);
+		expect(found(file, "\tscreen.getByRole('button', { name: 'Save' });")).toEqual([]);
+		expect(found('src/ui/x.tsx', "\tel.querySelector('.file-row');")).toEqual([]);
+	});
+
 	it('leaves vendored code alone', () => {
 		expect(found('vendor/x/build.sh', "sed 's/a\\?//'")).toEqual([]);
 	});
