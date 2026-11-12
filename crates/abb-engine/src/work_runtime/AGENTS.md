@@ -8,7 +8,9 @@
   terminal snapshot; the session settles staged downloads from it. A tracked
   task joins the export's work task and owns its end (titles ended, terminal
   snapshot, `on_finished`, the held run), so a panic in the work ends the
-  operation Failed instead of leaving it Running with its sources held.
+  operation Failed instead of leaving it Running with its sources held, even
+  when the panic poisoned the operations lock. Finishing drops the live record
+  before terminalizing, so a terminalize that panics still frees the sources.
 - The inline metadata-save hooks (`begin_metadata_save_operation`,
   `record_metadata_save_progress`, `finish_metadata_save_operation`) are
   orchestrated by `crates/abb-engine/src/metadata_save.rs`, which the session's

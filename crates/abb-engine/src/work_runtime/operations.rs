@@ -33,9 +33,8 @@ impl Operations {
         operation_id: &OperationId,
         terminalize: impl FnOnce(&mut WorkRuntimeState) -> Result<OperationSnapshot>,
     ) -> Result<OperationSnapshot> {
-        let snapshot = terminalize(&mut self.state);
         self.live.remove(operation_id.as_str());
-        snapshot
+        terminalize(&mut self.state)
     }
 
     pub(super) fn cancel_all(

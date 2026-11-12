@@ -28,7 +28,6 @@ impl DuringExport {
 fn operation_of(engine: &Engine, operation_id: &OperationId) -> Result<OperationSnapshot, String> {
     engine
         .list_work_operations()
-        .map_err(|error| error.to_string())?
         .operations
         .into_iter()
         .find(|operation| &operation.operation_id == operation_id)

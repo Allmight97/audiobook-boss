@@ -109,7 +109,7 @@ async fn one_save_blanks_author_on_two_titles_and_writes_each_titles_own_edit() 
     assert!(!metadata.save_in_progress && !metadata.has_pending_edits);
     assert!(alpha.exists() && beta.exists(), "both files stay in place");
 
-    let operations = desk.engine.list_work_operations().expect("operations");
+    let operations = desk.engine.list_work_operations();
     let save = operations.operations.first().expect("the save is listed");
     assert_eq!(save.status, WorkOperationStatus::Completed);
     assert_eq!(save.children.len(), 2, "the save reports each title");
@@ -340,7 +340,7 @@ async fn a_save_on_raw_aac_fails_with_its_reason_and_keeps_the_edit_pending() {
     );
     assert!(metadata.has_pending_edits, "the edit stays pending");
     assert_eq!(fs::read(&book).expect("reread"), bytes);
-    let operations = desk.engine.list_work_operations().expect("operations");
+    let operations = desk.engine.list_work_operations();
     let child = &operations.operations[0].children[0];
     assert!(
         child

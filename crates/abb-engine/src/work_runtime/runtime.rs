@@ -60,14 +60,14 @@ impl WorkRuntime {
                 WorkRuntime { inner }.publish_concurrency_lock(&host, &registry);
             }
         }));
-        self.recover_operations()
+        self.operations()
             .state
             .set_concurrency_locked(registry.concurrency_locked());
     }
 
     fn publish_concurrency_lock(&self, host: &Host, registry: &crate::ManagedJobRegistry) {
         let update = self
-            .recover_operations()
+            .operations()
             .state
             .set_concurrency_locked(registry.concurrency_locked());
         if let Some(update) = update {
@@ -156,7 +156,7 @@ impl WorkRuntime {
             titles: cancel_tokens,
             sources: title_source_paths(&request.payload),
         };
-        let snapshot = self.lock_operations()?.accept(snapshot, live);
+        let snapshot = self.operations().accept(snapshot, live);
 
         for (index, title) in titles.iter().enumerate() {
             title.on_change(self.output_listener(&host, &operation_id, index));
@@ -252,11 +252,11 @@ impl WorkRuntime {
                 return;
             };
             let runtime = WorkRuntime { inner };
-            let snapshot = runtime.lock_operations().ok().and_then(|mut operations| {
-                operations
+            let snapshot =
+                runtime
+                    .operations()
                     .state
-                    .set_output_update(&operation_id, index, update)
-            });
+                    .set_output_update(&operation_id, index, update);
             if let Some(snapshot) = snapshot {
                 runtime.emit_snapshot(&host, &snapshot);
             }
@@ -273,10 +273,7 @@ impl WorkRuntime {
         index: usize,
         title: &TitleOutput,
     ) -> bool {
-        let child = self
-            .lock_operations()
-            .ok()
-            .and_then(|operations| operations.state.child_job_id(operation_id, index));
+        let child = self.operations().state.child_job_id(operation_id, index);
         if let Some(child) = child {
             if let Err(error) = self.cancel_operation(host, operation_id.clone(), Some(child)) {
                 log::warn!("Failed to cancel a title for restart: {error}");
@@ -305,7 +302,7 @@ impl WorkRuntime {
             titles: cancel_tokens,
             sources: Vec::new(),
         };
-        let snapshot = self.lock_operations()?.accept(snapshot, live);
+        let snapshot = self.operations().accept(snapshot, live);
 
         log_work_operation(WorkOperationLogEvent::Accepted, &snapshot);
         self.emit_snapshot(host, &snapshot);
@@ -337,7 +334,7 @@ impl WorkRuntime {
         outcome: std::result::Result<InlineRunTerminal<'_>, &AppError>,
     ) -> Result<OperationSnapshot> {
         let snapshot = self
-            .lock_operations()?
+            .operations()
             .finish(operation_id, |state| match outcome {
                 Ok(run) => {
                     state.complete_from_summary(operation_id, run.summary, run.children, now_ms())
@@ -355,11 +352,11 @@ impl WorkRuntime {
         operation_id: &OperationId,
         event: &ProgressEvent,
     ) {
-        match self.lock_operations().and_then(|mut operations| {
-            operations
-                .state
-                .apply_progress_event(operation_id, event, now_ms())
-        }) {
+        let applied = self
+            .operations()
+            .state
+            .apply_progress_event(operation_id, event, now_ms());
+        match applied {
             Ok(snapshot) => self.emit_snapshot(host, &snapshot),
             Err(error) => log::warn!(
                 "Failed to apply progress event for operation {}: {}",
@@ -369,17 +366,14 @@ impl WorkRuntime {
         }
     }
 
-    pub fn list_operations(&self) -> Result<super::WorkOperationsSnapshot> {
-        Ok(self.lock_operations()?.state.list())
+    pub fn list_operations(&self) -> super::WorkOperationsSnapshot {
+        self.operations().state.list()
     }
 
     /// Accepted exports that have not finished. Metadata Saves are left out:
     /// shutdown lets them finish rather than cancelling them.
     pub(crate) fn unfinished_exports(&self) -> Vec<OperationId> {
-        let Ok(operations) = self.lock_operations() else {
-            return Vec::new();
-        };
-        operations
+        self.operations()
             .state
             .list()
             .operations
@@ -409,7 +403,7 @@ impl WorkRuntime {
     }
 
     fn cancel_whole_operation(&self, operation_id: &OperationId) -> Result<OperationSnapshot> {
-        let snapshot = self.lock_operations()?.cancel_all(operation_id, now_ms())?;
+        let snapshot = self.operations().cancel_all(operation_id, now_ms())?;
         if snapshot.status == WorkOperationStatus::Cancelling {
             log_work_operation(WorkOperationLogEvent::CancelRequested, &snapshot);
         }
@@ -421,9 +415,7 @@ impl WorkRuntime {
         operation_id: &OperationId,
         child_job_id: &str,
     ) -> Result<OperationSnapshot> {
-        let (snapshot, cancelled) = self
-            .lock_operations()?
-            .cancel_title(operation_id, child_job_id)?;
+        let (snapshot, cancelled) = self.operations().cancel_title(operation_id, child_job_id)?;
         if cancelled {
             log::info!(
                 // Not a `work_operation` lifecycle record: dev-log analysis validates
@@ -435,10 +427,8 @@ impl WorkRuntime {
     }
 
     fn mark_running_and_emit(&self, host: &Host, operation_id: &OperationId) {
-        match self
-            .lock_operations()
-            .and_then(|mut operations| operations.state.mark_running(operation_id, now_ms()))
-        {
+        let marked = self.operations().state.mark_running(operation_id, now_ms());
+        match marked {
             Ok(snapshot) => {
                 if snapshot.status == WorkOperationStatus::Running {
                     log_work_operation(WorkOperationLogEvent::Running, &snapshot);
@@ -455,12 +445,12 @@ impl WorkRuntime {
         operation_id: &OperationId,
         result: Result<crate::processing::ProcessCommandResult>,
     ) -> Option<OperationSnapshot> {
-        let snapshot_result = self.lock_operations().and_then(|mut operations| {
-            operations.finish(operation_id, |state| match &result {
+        let snapshot_result = self
+            .operations()
+            .finish(operation_id, |state| match &result {
                 Ok(result) => state.complete_from_process_result(operation_id, result, now_ms()),
                 Err(error) => terminalize_aborted_run(state, operation_id, error),
-            })
-        });
+            });
 
         match snapshot_result {
             Ok(snapshot) => {
@@ -476,30 +466,23 @@ impl WorkRuntime {
     }
 
     pub(crate) fn sources_in_use(&self) -> HashSet<PathBuf> {
-        self.recover_operations().sources_in_use()
+        self.operations().sources_in_use()
     }
 
     /// Every source of every export that has not finished, including titles
     /// already encoded: a title still copies its companion files after its
     /// audio completes.
     pub(crate) fn sources_held(&self) -> HashSet<PathBuf> {
-        self.recover_operations().sources_held()
+        self.operations().sources_held()
     }
 
     pub(crate) fn subscribe_changes(&self) -> tokio::sync::watch::Receiver<u64> {
         self.inner.changes.subscribe()
     }
 
-    fn lock_operations(&self) -> Result<MutexGuard<'_, Operations>> {
-        self.inner
-            .operations
-            .lock()
-            .map_err(|_| AppError::General("Work runtime state lock failed".to_string()))
-    }
-
-    /// The lock for reads that gate a Save or a removal: a panic elsewhere
-    /// never makes a source look free.
-    fn recover_operations(&self) -> MutexGuard<'_, Operations> {
+    /// A panic under this lock ends only its own operation, as Failed; every
+    /// later call keeps working on the state it left.
+    fn operations(&self) -> MutexGuard<'_, Operations> {
         self.inner
             .operations
             .lock()
@@ -511,14 +494,8 @@ impl WorkRuntime {
     /// arrive.
     fn emit_snapshot(&self, host: &Host, snapshot: &OperationSnapshot) {
         self.inner.changes.send_modify(|change| *change += 1);
-        match self.lock_operations() {
-            Ok(mut operations) => {
-                let update = operations.state.publish(snapshot.clone());
-                drop(operations);
-                host.emit(EngineEvent::WorkOperations(update));
-            }
-            Err(error) => log::warn!("Failed to publish a work operation update: {error}"),
-        }
+        let update = self.operations().state.publish(snapshot.clone());
+        host.emit(EngineEvent::WorkOperations(update));
     }
 }
 

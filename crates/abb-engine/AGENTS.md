@@ -117,9 +117,10 @@ app, a test, and the `abb-dev` tool drive the same code
   external downloader activity do not acquire guards.
 - Locks that guard state a panic cannot half-apply are taken with
   `PoisonError::into_inner`, so one panic does not fail every later call:
-  session transitions, job-registry admission, the WorkRuntime source reads
-  (`sources_in_use`, `sources_held`). The power hold also releases during
-  unwinding.
+  session transitions, job-registry admission. The WorkRuntime operations
+  lock is too, through its one taker `WorkRuntime::operations`: a panic ends
+  its own operation as Failed and the runtime keeps serving. The power hold
+  also releases during unwinding.
 - Validate input audio paths where they enter the engine with
   `crate::audio::validate_input_audio_path()`. Paths the engine hands back are
   canonical; compare paths in that spelling.

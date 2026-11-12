@@ -51,7 +51,6 @@ fn assert_job_records(operation: &OperationId, status_and_tail: impl Fn(&str) ->
 fn title_is_running(desk: &Desk, operation: &OperationId) -> bool {
     desk.engine
         .list_work_operations()
-        .expect("operations")
         .operations
         .into_iter()
         .find(|snapshot| &snapshot.operation_id == operation)

@@ -18,7 +18,6 @@ use super::support::poll::until_true;
 fn operation(desk: &Desk, id: &OperationId) -> OperationSnapshot {
     desk.engine
         .list_work_operations()
-        .expect("operations")
         .operations
         .into_iter()
         .find(|snapshot| &snapshot.operation_id == id)

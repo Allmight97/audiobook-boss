@@ -11,7 +11,7 @@ fn accepted_runtime(source: &Path) -> (WorkRuntime, OperationId) {
         &[source.display().to_string()],
         None,
     );
-    runtime.lock_operations().expect("operations lock").accept(
+    runtime.operations().accept(
         snapshot,
         Live {
             titles: CancelTokens::per_title(1),
@@ -39,7 +39,7 @@ fn a_source_is_in_use_from_registration_before_the_first_progress_event() {
     let source = PathBuf::from("/library/book.m4b");
     let (runtime, operation_id) = accepted_runtime(&source);
 
-    let snapshot = runtime.list_operations().expect("operations").operations;
+    let snapshot = runtime.list_operations().operations;
     assert_eq!(snapshot[0].operation_id, operation_id);
     assert_eq!(snapshot[0].status, WorkOperationStatus::Accepted);
     assert_eq!(runtime.sources_in_use(), HashSet::from([source.clone()]));
@@ -70,17 +70,14 @@ fn sources_held_still_reports_every_source_after_the_lock_is_poisoned() {
 fn a_cancel_is_visible_as_snapshot_and_token_together() {
     let source = PathBuf::from("/library/book.m4b");
     let (runtime, operation_id) = accepted_runtime(&source);
-    let tokens = runtime
-        .lock_operations()
-        .expect("operations lock")
-        .live_tokens(&operation_id);
+    let tokens = runtime.operations().live_tokens(&operation_id);
     assert!(tokens.iter().all(|token| !token.is_cancelled()));
 
     runtime
         .cancel_whole_operation(&operation_id)
         .expect("cancel the operation");
 
-    let operations = runtime.lock_operations().expect("operations lock");
+    let operations = runtime.operations();
     let status = operations
         .state
         .operation(operation_id.as_str())
@@ -224,34 +221,21 @@ fn the_concurrency_lock_is_published_with_every_job_and_run_change_and_with_the_
     let host = Host::new(published.clone(), crate::power::PowerManager::default());
     let runtime = WorkRuntime::new(crate::engine_tasks::EngineTasks::default());
     runtime.follow_concurrency_lock(&host, &registry);
-    assert!(
-        !runtime
-            .list_operations()
-            .expect("snapshot")
-            .concurrency_locked
-    );
+    assert!(!runtime.list_operations().concurrency_locked);
 
     let tagging = registry.register_job_without_permit();
     let second = registry.register_job_without_permit();
-    assert!(
-        runtime
-            .list_operations()
-            .expect("snapshot")
-            .concurrency_locked
-    );
+    assert!(runtime.list_operations().concurrency_locked);
     let run = registry.hold_run();
     registry.complete_job(tagging);
     registry.complete_job(second);
     assert!(
-        runtime
-            .list_operations()
-            .expect("snapshot")
-            .concurrency_locked,
+        runtime.list_operations().concurrency_locked,
         "a held run keeps the lock"
     );
     drop(run);
 
-    let snapshot = runtime.list_operations().expect("snapshot");
+    let snapshot = runtime.list_operations();
     assert!(!snapshot.concurrency_locked);
     let published = published.0.lock().expect("published").clone();
     assert_eq!(
@@ -269,6 +253,19 @@ struct PanicsOnFirstRunning {
     operation_id: OperationId,
     title_cancels: Mutex<Vec<tokio_util::sync::CancellationToken>>,
     panicked: std::sync::atomic::AtomicBool,
+    holds_the_operations_lock: bool,
+}
+
+impl PanicsOnFirstRunning {
+    fn new(operation_id: &OperationId, holds_the_operations_lock: bool) -> Arc<Self> {
+        Arc::new(Self {
+            runtime: std::sync::OnceLock::new(),
+            operation_id: operation_id.clone(),
+            title_cancels: Mutex::new(Vec::new()),
+            panicked: std::sync::atomic::AtomicBool::new(false),
+            holds_the_operations_lock,
+        })
+    }
 }
 
 impl crate::EventSink for PanicsOnFirstRunning {
@@ -280,10 +277,12 @@ impl crate::EventSink for PanicsOnFirstRunning {
         );
         if running && !self.panicked.swap(true, Ordering::SeqCst) {
             let runtime = self.runtime.get().expect("sink is wired to the runtime");
-            *self.title_cancels.lock().expect("title cancels") = runtime
-                .lock_operations()
-                .expect("operations lock")
-                .live_tokens(&self.operation_id);
+            let operations = runtime.inner.operations.lock().expect("operations lock");
+            *self.title_cancels.lock().expect("title cancels") =
+                operations.live_tokens(&self.operation_id);
+            if !self.holds_the_operations_lock {
+                drop(operations);
+            }
             panic!("the export task panics before it finishes");
         }
     }
@@ -300,6 +299,12 @@ async fn run_one_title_export(
     operation_id: &OperationId,
     sink: impl FnOnce(&WorkRuntime) -> Arc<dyn crate::EventSink>,
 ) -> ExportRun {
+    let runtime = WorkRuntime::new(crate::engine_tasks::EngineTasks::default());
+    let host = Host::new(sink(&runtime), crate::power::PowerManager::default());
+    export_on(&runtime, host, operation_id).await
+}
+
+async fn export_on(runtime: &WorkRuntime, host: Host, operation_id: &OperationId) -> ExportRun {
     let tmp = tempfile::TempDir::new().expect("tempdir");
     let source = tmp.path().join("source.wav");
     crate::test_cases::support::wav::write_sine_wav(&source, 1.0, 440.0);
@@ -316,9 +321,6 @@ async fn run_one_title_export(
     );
     let inspected =
         crate::processing::run::inspect_processing_plan(&payload, None, false).expect("inspect");
-    let tasks = crate::engine_tasks::EngineTasks::default();
-    let runtime = WorkRuntime::new(tasks.clone());
-    let host = Host::new(sink(&runtime), crate::power::PowerManager::default());
     let registry = Arc::new(crate::processing::JobRegistry::new(1));
     let settled = Arc::new(Mutex::new(Vec::new()));
     let on_finished: OnFinished = {
@@ -348,36 +350,20 @@ async fn run_one_title_export(
         )
         .await
         .expect("accepted");
-    tasks.close();
-    tasks.wait().await;
+    crate::test_cases::support::poll::until_true("the export settled and released its run", || {
+        !settled.lock().expect("settled").is_empty() && !registry.concurrency_locked()
+    })
+    .await;
     ExportRun {
-        runtime,
+        runtime: runtime.clone(),
         registry,
         settled,
         accepted,
     }
 }
 
-#[tokio::test]
-async fn an_export_task_that_panics_ends_failed_frees_its_sources_and_settles_once() {
-    let operation_id = OperationId("panicking-export".to_string());
-    let sink = Arc::new(PanicsOnFirstRunning {
-        runtime: std::sync::OnceLock::new(),
-        operation_id: operation_id.clone(),
-        title_cancels: Mutex::new(Vec::new()),
-        panicked: std::sync::atomic::AtomicBool::new(false),
-    });
-    let run = run_one_title_export(&operation_id, |runtime| {
-        assert!(sink.runtime.set(runtime.clone()).is_ok());
-        sink.clone()
-    })
-    .await;
-
-    let operations = run
-        .runtime
-        .list_operations()
-        .expect("operations")
-        .operations;
+async fn assert_ended_failed_and_settled_once(run: &ExportRun, sink: &PanicsOnFirstRunning) {
+    let operations = run.runtime.list_operations().operations;
     let operation = &operations[0];
     assert!(operation.is_finished());
     assert_eq!(operation.status, WorkOperationStatus::Failed);
@@ -403,15 +389,79 @@ async fn an_export_task_that_panics_ends_failed_frees_its_sources_and_settles_on
 }
 
 #[tokio::test]
+async fn an_export_task_that_panics_ends_failed_frees_its_sources_and_settles_once() {
+    let operation_id = OperationId("panicking-export".to_string());
+    let sink = PanicsOnFirstRunning::new(&operation_id, false);
+    let run = run_one_title_export(&operation_id, |runtime| {
+        assert!(sink.runtime.set(runtime.clone()).is_ok());
+        sink.clone()
+    })
+    .await;
+
+    assert_ended_failed_and_settled_once(&run, &sink).await;
+}
+
+#[tokio::test]
+async fn an_export_task_that_panics_holding_the_operations_lock_still_ends_failed_and_settles_once()
+{
+    let operation_id = OperationId("poisoning-export".to_string());
+    let sink = PanicsOnFirstRunning::new(&operation_id, true);
+    let run = run_one_title_export(&operation_id, |runtime| {
+        assert!(sink.runtime.set(runtime.clone()).is_ok());
+        sink.clone()
+    })
+    .await;
+
+    assert!(run.runtime.inner.operations.is_poisoned());
+    assert_ended_failed_and_settled_once(&run, &sink).await;
+}
+
+#[tokio::test]
+async fn after_the_operations_lock_is_poisoned_a_new_export_is_accepted_and_completes() {
+    let runtime = WorkRuntime::new(crate::engine_tasks::EngineTasks::default());
+    poison(&runtime);
+    let host = Host::new(
+        Arc::new(crate::host::DiscardEvents),
+        crate::power::PowerManager::default(),
+    );
+
+    let run = export_on(&runtime, host, &OperationId("after-poison".to_string())).await;
+
+    let operations = runtime.list_operations().operations;
+    assert_eq!(operations[0].status, WorkOperationStatus::Completed);
+    assert!(runtime.sources_held().is_empty());
+    assert_eq!(
+        *run.settled.lock().expect("settled"),
+        [(WorkOperationStatus::Completed, true)]
+    );
+}
+
+#[test]
+fn after_the_operations_lock_is_poisoned_cancel_and_list_still_work() {
+    let source = PathBuf::from("/library/book.m4b");
+    let (runtime, operation_id) = accepted_runtime(&source);
+    poison(&runtime);
+    let host = Host::new(
+        Arc::new(crate::host::DiscardEvents),
+        crate::power::PowerManager::default(),
+    );
+
+    let cancelled = runtime
+        .cancel_operation(&host, operation_id.clone(), None)
+        .expect("cancel after a poisoning panic");
+
+    assert_eq!(cancelled.status, WorkOperationStatus::Cancelling);
+    let listed = runtime.list_operations();
+    assert_eq!(listed.operations[0].operation_id, operation_id);
+    assert_eq!(listed.operations[0].status, WorkOperationStatus::Cancelling);
+}
+
+#[tokio::test]
 async fn an_export_that_finishes_normally_settles_once_completed_without_the_panic_path() {
     let operation_id = OperationId("normal-export".to_string());
     let run = run_one_title_export(&operation_id, |_| Arc::new(crate::host::DiscardEvents)).await;
 
-    let operations = run
-        .runtime
-        .list_operations()
-        .expect("operations")
-        .operations;
+    let operations = run.runtime.list_operations().operations;
     let operation = &operations[0];
     assert_eq!(operation.status, WorkOperationStatus::Completed);
     assert!(operation.children.iter().all(|child| {
@@ -426,4 +476,21 @@ async fn an_export_that_finishes_normally_settles_once_completed_without_the_pan
         *run.settled.lock().expect("settled"),
         [(WorkOperationStatus::Completed, true)]
     );
+}
+
+#[test]
+fn a_terminalize_that_panics_still_releases_the_operations_sources() {
+    let source = PathBuf::from("/library/book.m4b");
+    let (runtime, operation_id) = accepted_runtime(&source);
+
+    let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        runtime
+            .operations()
+            .finish(&operation_id, |_| panic!("terminalize panics part-way"))
+    }));
+
+    assert!(panicked.is_err());
+    assert!(runtime.sources_held().is_empty());
+    assert!(runtime.sources_in_use().is_empty());
+    assert_eq!(runtime.list_operations().operations.len(), 1);
 }
