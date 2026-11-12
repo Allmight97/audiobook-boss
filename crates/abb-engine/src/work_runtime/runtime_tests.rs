@@ -264,8 +264,10 @@ fn the_concurrency_lock_is_published_with_every_job_and_run_change_and_with_the_
     assert_eq!(published[1].0, snapshot.revision);
 }
 
-#[derive(Default)]
 struct PanicsOnFirstRunning {
+    runtime: std::sync::OnceLock<WorkRuntime>,
+    operation_id: OperationId,
+    title_cancels: Mutex<Vec<tokio_util::sync::CancellationToken>>,
     panicked: std::sync::atomic::AtomicBool,
 }
 
@@ -277,13 +279,27 @@ impl crate::EventSink for PanicsOnFirstRunning {
                 if update.changed.as_ref().is_some_and(|changed| changed.status == WorkOperationStatus::Running)
         );
         if running && !self.panicked.swap(true, Ordering::SeqCst) {
+            let runtime = self.runtime.get().expect("sink is wired to the runtime");
+            *self.title_cancels.lock().expect("title cancels") = runtime
+                .lock_operations()
+                .expect("operations lock")
+                .live_tokens(&self.operation_id);
             panic!("the export task panics before it finishes");
         }
     }
 }
 
-#[tokio::test]
-async fn an_export_task_that_panics_ends_failed_frees_its_sources_and_settles_once() {
+struct ExportRun {
+    runtime: WorkRuntime,
+    registry: Arc<crate::processing::JobRegistry>,
+    settled: Arc<Mutex<Vec<(WorkOperationStatus, bool)>>>,
+    accepted: WorkSubmissionAccepted,
+}
+
+async fn run_one_title_export(
+    operation_id: &OperationId,
+    sink: impl FnOnce(&WorkRuntime) -> Arc<dyn crate::EventSink>,
+) -> ExportRun {
     let tmp = tempfile::TempDir::new().expect("tempdir");
     let source = tmp.path().join("source.wav");
     crate::test_cases::support::wav::write_sine_wav(&source, 1.0, 440.0);
@@ -302,23 +318,27 @@ async fn an_export_task_that_panics_ends_failed_frees_its_sources_and_settles_on
         crate::processing::run::inspect_processing_plan(&payload, None, false).expect("inspect");
     let tasks = crate::engine_tasks::EngineTasks::default();
     let runtime = WorkRuntime::new(tasks.clone());
-    let host = Host::new(
-        Arc::new(PanicsOnFirstRunning::default()),
-        crate::power::PowerManager::default(),
-    );
+    let host = Host::new(sink(&runtime), crate::power::PowerManager::default());
+    let registry = Arc::new(crate::processing::JobRegistry::new(1));
     let settled = Arc::new(Mutex::new(Vec::new()));
     let on_finished: OnFinished = {
         let settled = Arc::clone(&settled);
-        Box::new(move |snapshot| settled.lock().expect("settled").push(snapshot.status))
+        let registry = Arc::clone(&registry);
+        Box::new(move |snapshot| {
+            settled
+                .lock()
+                .expect("settled")
+                .push((snapshot.status, registry.concurrency_locked()))
+        })
     };
 
     let accepted = runtime
         .submit_processing_operation(
             host,
-            Arc::new(crate::processing::JobRegistry::new(1)),
+            Arc::clone(&registry),
             tmp.path().join("workspace"),
             SubmitProcessingOperationRequest {
-                operation_id: OperationId("panicking-export".to_string()),
+                operation_id: operation_id.clone(),
                 payload,
                 metadata: None,
                 title: "Book".to_string(),
@@ -330,8 +350,34 @@ async fn an_export_task_that_panics_ends_failed_frees_its_sources_and_settles_on
         .expect("accepted");
     tasks.close();
     tasks.wait().await;
+    ExportRun {
+        runtime,
+        registry,
+        settled,
+        accepted,
+    }
+}
 
-    let operations = runtime.list_operations().expect("operations").operations;
+#[tokio::test]
+async fn an_export_task_that_panics_ends_failed_frees_its_sources_and_settles_once() {
+    let operation_id = OperationId("panicking-export".to_string());
+    let sink = Arc::new(PanicsOnFirstRunning {
+        runtime: std::sync::OnceLock::new(),
+        operation_id: operation_id.clone(),
+        title_cancels: Mutex::new(Vec::new()),
+        panicked: std::sync::atomic::AtomicBool::new(false),
+    });
+    let run = run_one_title_export(&operation_id, |runtime| {
+        assert!(sink.runtime.set(runtime.clone()).is_ok());
+        sink.clone()
+    })
+    .await;
+
+    let operations = run
+        .runtime
+        .list_operations()
+        .expect("operations")
+        .operations;
     let operation = &operations[0];
     assert!(operation.is_finished());
     assert_eq!(operation.status, WorkOperationStatus::Failed);
@@ -342,12 +388,42 @@ async fn an_export_task_that_panics_ends_failed_frees_its_sources_and_settles_on
                 .as_deref()
                 .is_some_and(|message| message.contains("internal error"))
     }));
-    assert!(runtime.sources_held().is_empty());
+    assert!(run.runtime.sources_held().is_empty());
+    assert!(!run.registry.concurrency_locked());
+    let title_cancels = sink.title_cancels.lock().expect("title cancels").clone();
+    assert_eq!(title_cancels.len(), 1);
+    assert!(title_cancels.iter().all(|cancel| cancel.is_cancelled()));
     assert_eq!(
-        *settled.lock().expect("settled"),
-        [WorkOperationStatus::Failed]
+        *run.settled.lock().expect("settled"),
+        [(WorkOperationStatus::Failed, true)]
     );
-    for title in &accepted.titles {
+    for title in &run.accepted.titles {
         assert!(!title.settled().await);
     }
+}
+
+#[tokio::test]
+async fn an_export_that_finishes_normally_settles_once_completed_without_the_panic_path() {
+    let operation_id = OperationId("normal-export".to_string());
+    let run = run_one_title_export(&operation_id, |_| Arc::new(crate::host::DiscardEvents)).await;
+
+    let operations = run
+        .runtime
+        .list_operations()
+        .expect("operations")
+        .operations;
+    let operation = &operations[0];
+    assert_eq!(operation.status, WorkOperationStatus::Completed);
+    assert!(operation.children.iter().all(|child| {
+        !child
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("internal error"))
+    }));
+    assert!(run.runtime.sources_held().is_empty());
+    assert!(!run.registry.concurrency_locked());
+    assert_eq!(
+        *run.settled.lock().expect("settled"),
+        [(WorkOperationStatus::Completed, true)]
+    );
 }

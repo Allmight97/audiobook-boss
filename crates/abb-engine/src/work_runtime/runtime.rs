@@ -215,9 +215,6 @@ impl WorkRuntime {
         })
     }
 
-    /// Ends an export once its work returns or panics: a panic cancels every
-    /// title and becomes a Failed operation, so the titles still end, the
-    /// sources are freed, and `on_finished` runs once.
     async fn end_export(
         self,
         work: tokio::task::JoinHandle<Result<crate::processing::ProcessCommandResult>>,
