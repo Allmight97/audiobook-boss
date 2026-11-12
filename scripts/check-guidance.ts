@@ -29,6 +29,20 @@ const SINGLE_OWNER_FACTS: { pattern: RegExp; owner: string }[] = [
 	},
 ];
 
+const MARKDOWN_HOMES =
+	/^(?:vendor|docs\/specs|docs\/agents|\.agents\/skills)\/|(^|\/)(AGENTS|CLAUDE|REVIEW)\.md$|^(README|CHANGELOG)\.md$|^docs\/(DECISIONS|claude-on-github)\.md$/;
+
+export function markdownHomeFindings(tracked: string[]): Finding[] {
+	return tracked
+		.filter((file) => file.endsWith('.md') && !MARKDOWN_HOMES.test(file))
+		.map((file) => ({
+			file,
+			line: 1,
+			message:
+				'is Markdown outside the document homes. Fix: a plan goes in `docs/specs/<task>.md` and leaves when its work lands; a lasting document adds its home to MARKDOWN_HOMES in scripts/check-guidance.ts.',
+		}));
+}
+
 export function isGuidanceFile(repoRelativePath: string): boolean {
 	return GUIDANCE_FILE.test(repoRelativePath);
 }
@@ -147,6 +161,7 @@ function main(): number {
 		pathExists: (repoRelativePath) => existsSync(path.join(repoRoot, repoRelativePath)),
 	};
 	const findings = [
+		...markdownHomeFindings(tracked),
 		...tracked
 			.filter(isGuidanceFile)
 			.flatMap((file) =>

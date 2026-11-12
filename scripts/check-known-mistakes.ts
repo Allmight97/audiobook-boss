@@ -45,6 +45,16 @@ const PROVIDER_NEUTRAL_OWNERS = [
 	'output_artifact',
 	'work_runtime',
 ];
+const PROCESSING_SOURCE = (file: string) =>
+	file === 'crates/abb-engine/src/processing.rs' || ENGINE_DIR('processing')(file);
+const FRONTEND_SOURCE = (file: string) =>
+	/^src\/.*\.tsx?$/.test(file) &&
+	!/\.test\.tsx?$/.test(file) &&
+	!file.startsWith('src/test/') &&
+	!file.startsWith('src/lib/generated/');
+const FRONTEND_TEST = (file: string) => /^src\/.*\.test\.tsx?$/.test(file);
+const FFMPEG_LAYER = (file: string) =>
+	OWNED_RUST(file) && !RUST_TEST_FILE(file) && file.startsWith('crates/abb-ffmpeg/src/');
 const SCRIPT_SOURCE = (file: string) =>
 	/\.(ts|tsx|js|mjs)$/.test(file) &&
 	!file.startsWith('vendor/') &&
@@ -173,6 +183,33 @@ const RULES: Rule[] = [
 		findIn: (line) => CODE_ONLY(line).match(/\bfs::(?:rename|copy|hard_link)\b/)?.[0] ?? null,
 		message:
 			'moves a file outside the output artifact boundary. Fix: stage locally and commit through crate::output_artifact (crates/abb-engine/src/audio/processor/AGENTS.md).',
+	},
+	{
+		appliesTo: PROCESSING_SOURCE,
+		comment: /^\s*\/\//,
+		findIn: (line) =>
+			line.match(/\bpub(?:\([^)]*\))?\s+use\s+crate::(?:\{[^}]*\b)?output_artifact\b/)?.[0] ?? null,
+		message:
+			're-exports output artifact types from processing, which gives one type two import paths. Fix: callers import it from `crate::output_artifact`.',
+	},
+	{
+		appliesTo: FRONTEND_SOURCE,
+		comment: /^\s*(\/\/|\*|\/\*)/,
+		findIn: (line) =>
+			line.match(
+				/\.(?:isValid|sourceRemoved)\b|\{[^}]*\b(?:isValid|sourceRemoved)\b[^}]*\}\s*=[^=]/,
+			)?.[0] ?? null,
+		message:
+			'reads a source flag the engine already folds into `status`. Fix: branch on the title or source `status` (`ready`, `failed`, `removedFinished`).',
+	},
+	{
+		appliesTo: FRONTEND_TEST,
+		comment: /^\s*(\/\/|\*|\/\*)/,
+		findIn: (line) =>
+			line.match(/\bgetElementsByClassName\b|\.classList\b|\.className\b|\btoHaveClass\(/)?.[0] ??
+			null,
+		message:
+			'reads CSS classes in a test, so a style refactor breaks it. Fix: find the element by role and accessible name, and read a `data-state` or `data-status` attribute.',
 	},
 	{
 		appliesTo: (file) =>
@@ -322,6 +359,53 @@ function testModuleFindings(file: string, lines: string[]): Finding[] {
 	});
 }
 
+const SELECTOR_CALL =
+	/\b(querySelector(?:All)?|closest|matches)\s*(?:<[^>]*>)?\(\s*$|\b(querySelector(?:All)?|closest|matches)\s*(?:<[^>]*>)?\(\s*(['"`])(.*?)\3/;
+
+function classSelectorFindings(file: string, lines: string[]): Finding[] {
+	if (!FRONTEND_TEST(file)) return [];
+	return lines.flatMap((line, index) => {
+		const call = line.match(SELECTOR_CALL);
+		if (!call) return [];
+		const selector = call[4] ?? lines[index + 1]?.match(/^\s*(['"`])(.*?)\1/)?.[2] ?? '';
+		if (!/\.[A-Za-z_-]/.test(selector.replace(/\[[^\]]*\]/g, ''))) return [];
+		return [
+			{
+				file,
+				line: index + 1,
+				message: `\`${selector}\` selects by CSS class in a test, so a style refactor breaks it. Fix: find the element by role and accessible name, and read a \`data-state\` or \`data-status\` attribute.`,
+			},
+		];
+	});
+}
+
+const PUBLIC_ITEM =
+	/^\s*pub\s+(?:(?:const|unsafe|extern\s+"C")\s+)*(?:fn|type)\b|^\s*pub\s+\w+\s*:/;
+
+function ffmpegPointerFindings(file: string, lines: string[]): Finding[] {
+	if (!FFMPEG_LAYER(file)) return [];
+	return lines.flatMap((line, index) => {
+		if (!PUBLIC_ITEM.test(line)) return [];
+		let end = index;
+		if (/\b(?:fn|type)\b/.test(line)) {
+			while (end < lines.length - 1 && !/[{;]\s*$/.test(lines[end])) end += 1;
+		}
+		const signature = lines
+			.slice(index, end + 1)
+			.join(' ')
+			.split('{')[0];
+		if (!/\*\s*(?:const|mut)\b/.test(signature)) return [];
+		return [
+			{
+				file,
+				line: index + 1,
+				message:
+					'puts a raw pointer in the public abb-ffmpeg surface, so the engine would hold an FFmpeg lifetime. Fix: take and return owned values or a borrowing wrapper; keep pointers `pub(crate)`.',
+			},
+		];
+	});
+}
+
 export function cargoPinFindings(file: string, text: string): Finding[] {
 	if (path.basename(file) !== 'Cargo.toml' || file.startsWith('vendor/')) return [];
 	const lines = text.split('\n');
@@ -363,6 +447,8 @@ export function checkFile(file: string, text: string): Finding[] {
 	const rules = RULES.filter((rule) => rule.appliesTo(file));
 	const findings: Finding[] = [
 		...testModuleFindings(file, text.split('\n')),
+		...classSelectorFindings(file, text.split('\n')),
+		...ffmpegPointerFindings(file, text.split('\n')),
 		...cargoPinFindings(file, text),
 	];
 	let insideCapture = false;

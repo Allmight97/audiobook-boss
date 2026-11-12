@@ -417,6 +417,72 @@ describe('check-known-mistakes', () => {
 		).toEqual([]);
 	});
 
+	it('keeps raw pointers out of the public abb-ffmpeg surface', () => {
+		const file = 'crates/abb-ffmpeg/src/output.rs';
+		expect(found(file, 'pub fn as_ptr(&self) -> *mut sys::AVFormatContext {')).toEqual([
+			expect.stringMatching(/^1: .*raw pointer in the public abb-ffmpeg surface/),
+		]);
+		expect(
+			found(
+				file,
+				'pub fn open(\n    path: &Path,\n    ctx: *const sys::AVFormatContext,\n) -> Self {',
+			),
+		).toHaveLength(1);
+		expect(found(file, 'pub struct S {\n    pub ctx: *mut sys::AVFrame,\n}')).toHaveLength(1);
+		expect(found(file, 'pub type Raw = *mut sys::AVPacket;')).toHaveLength(1);
+		expect(found(file, 'pub(crate) fn as_ptr(&self) -> *mut sys::AVFormatContext {')).toEqual([]);
+		expect(
+			found(file, 'pub fn create(path: &Path) -> Result<Self> {\n    let p: *mut u8 = ptr();'),
+		).toEqual([]);
+		expect(found('crates/abb-engine/src/x.rs', 'pub fn as_ptr(&self) -> *mut u8 {')).toEqual([]);
+	});
+
+	it('keeps output artifact types out of the processing re-exports', () => {
+		expect(
+			found('crates/abb-engine/src/processing.rs', 'pub use crate::output_artifact::OutputPlan;'),
+		).toEqual([expect.stringMatching(/^1: .*re-exports output artifact types/)]);
+		expect(
+			found(
+				'crates/abb-engine/src/processing/run.rs',
+				'pub(crate) use crate::{audio::X, output_artifact::Y};',
+			),
+		).toHaveLength(1);
+		expect(
+			found('crates/abb-engine/src/processing.rs', 'use crate::output_artifact::OutputPlan;'),
+		).toEqual([]);
+		expect(
+			found('crates/abb-engine/src/session.rs', 'pub use crate::output_artifact::OutputPlan;'),
+		).toEqual([]);
+	});
+
+	it('keeps the frontend on the engine status, not the source flags', () => {
+		expect(found('src/app/x.ts', '\tif (file.isValid) {')).toEqual([
+			expect.stringMatching(/^1: .*Fix: branch on the title or source `status`/),
+		]);
+		expect(found('src/ui/x.tsx', '\t<Show when={source?.sourceRemoved}>')).toHaveLength(1);
+		expect(found('src/app/x.ts', '\tconst { isValid, label } = file;')).toHaveLength(1);
+		expect(found('src/app/x.ts', "\t\tcase 'sourceRemoved':")).toEqual([]);
+		expect(found('src/app/x.ts', "\tif (file.status === 'ready') {")).toEqual([]);
+		expect(found('src/test/fixtures/fakeEngine.ts', '\t\tisValid: true,')).toEqual([]);
+		expect(found('src/app/x.test.ts', '\texpect(file.isValid).toBe(true);')).toEqual([]);
+	});
+
+	it('keeps CSS classes out of frontend tests', () => {
+		const file = 'src/ui/__tests__/x.test.tsx';
+		expect(found(file, "\tconst row = container.querySelector('.file-row');")).toEqual([
+			expect.stringMatching(/^1: `\.file-row` selects by CSS class/),
+		]);
+		expect(
+			found(file, '\tconst rows = document.querySelectorAll<HTMLElement>(\n\t\t"li.row",\n\t);'),
+		).toHaveLength(1);
+		expect(found(file, "\texpect(row).toHaveClass('is-active');")).toHaveLength(1);
+		expect(found(file, '\texpect(row.className).toContain("active");')).toHaveLength(1);
+		expect(found(file, '\tdocument.querySelectorAll(\'[data-testid="cover.png"]\');')).toEqual([]);
+		expect(found(file, '\tdocument.querySelectorAll(\'[src$=".png"]\');')).toEqual([]);
+		expect(found(file, "\tscreen.getByRole('button', { name: 'Save' });")).toEqual([]);
+		expect(found('src/ui/x.tsx', "\tel.querySelector('.file-row');")).toEqual([]);
+	});
+
 	it('leaves vendored code alone', () => {
 		expect(found('vendor/x/build.sh', "sed 's/a\\?//'")).toEqual([]);
 	});
