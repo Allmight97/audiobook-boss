@@ -80,10 +80,7 @@ fn keep_open_returns_to_running_so_a_later_request_asks_again() {
     let quit = Quit::default();
     asks(&quit, QuitInput::Request, exports_running(1, 0));
 
-    assert_eq!(
-        quit.advance(QuitInput::KeepOpen, not_asked),
-        QuitAction::Nothing
-    );
+    quit.keep_open();
     asks(&quit, QuitInput::Request, exports_running(1, 0));
 }
 
@@ -126,7 +123,7 @@ fn quitting_asks_again_when_the_work_changed_since_the_user_agreed() {
 fn once_exit_is_committed_a_request_passes_through() {
     let quit = Quit::default();
     quit.advance(QuitInput::Request, closes);
-    quit.advance(QuitInput::ExitCommitted, not_asked);
+    quit.commit_exit();
 
     assert_eq!(
         quit.advance(QuitInput::Request, not_asked),
@@ -251,7 +248,7 @@ fn an_exit_after_the_held_quit_settles_nothing_again() {
     let (app, engine, root) = app_with_engine("held");
     let quit = app.state::<Quit>();
     quit.advance(QuitInput::Request, closes);
-    quit.advance(QuitInput::ExitCommitted, not_asked);
+    quit.commit_exit();
 
     settle_unheld_exit(app.handle());
 

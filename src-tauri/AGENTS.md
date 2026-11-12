@@ -37,8 +37,10 @@ engine does not offer, add it to the engine's host interface.
   and with unsaved settings only when the user chooses Quit Anyway. Saves
   waiting only behind a review or preview are written during shutdown, and the
   quit prompt says so first. One `QuitPhase` (Running, Asking, ShuttingDown,
-  Exiting) changes only in `Quit::advance`. Why: a quit or close request while
-  the prompt is open or during shutdown is held and opens nothing new. Keep
+  Exiting) changes only in `Quit`'s methods; only `Quit::advance` takes the
+  engine's close call, under the phase lock. Why: a quit or close request
+  while the prompt is open or during shutdown is held and opens nothing new.
+  Keep
   Open or a dismissed prompt returns to Running; Quit Anyway asks the engine
   again and asks once more if the work changed.
 - **Quit item.** Tauri's default Quit item calls AppKit `terminate:`, which

@@ -125,8 +125,6 @@ enum QuitPhase {
 enum QuitInput {
     Request,
     QuitAnyway(abb_engine::QuitConsent),
-    KeepOpen,
-    ExitCommitted,
 }
 
 #[derive(Debug, PartialEq)]
@@ -156,15 +154,25 @@ impl Quit {
         let (next, action) = match (*phase, input) {
             (QuitPhase::Running, QuitInput::Request) => close(&abb_engine::QuitConsent::default()),
             (QuitPhase::Asking, QuitInput::QuitAnyway(consent)) => close(&consent),
-            (QuitPhase::Asking, QuitInput::KeepOpen) => (QuitPhase::Running, QuitAction::Nothing),
-            (QuitPhase::ShuttingDown, QuitInput::ExitCommitted) => {
-                (QuitPhase::Exiting, QuitAction::Nothing)
-            }
             (QuitPhase::Exiting, QuitInput::Request) => (QuitPhase::Exiting, QuitAction::Release),
             (current, _) => (current, QuitAction::Nothing),
         };
         *phase = next;
         action
+    }
+
+    fn keep_open(&self) {
+        let mut phase = self.phase.lock().unwrap_or_else(PoisonError::into_inner);
+        if *phase == QuitPhase::Asking {
+            *phase = QuitPhase::Running;
+        }
+    }
+
+    fn commit_exit(&self) {
+        let mut phase = self.phase.lock().unwrap_or_else(PoisonError::into_inner);
+        if *phase == QuitPhase::ShuttingDown {
+            *phase = QuitPhase::Exiting;
+        }
     }
 
     fn exit_committed(&self) -> bool {
@@ -282,8 +290,7 @@ fn shut_down_then_exit(app: &tauri::AppHandle) {
             )
             .await;
         }
-        app.state::<Quit>()
-            .advance(QuitInput::ExitCommitted, |_| Ok(()));
+        app.state::<Quit>().commit_exit();
         app.exit(0);
     });
 }
@@ -444,12 +451,11 @@ fn ask_to_quit(app: &tauri::AppHandle, running: &abb_engine::RunningWork) {
             "Keep Open".to_string(),
         ))
         .show(move |quit| {
-            let input = if quit {
-                QuitInput::QuitAnyway(consent)
+            if quit {
+                advance_quit(&answer_app, QuitInput::QuitAnyway(consent));
             } else {
-                QuitInput::KeepOpen
-            };
-            advance_quit(&answer_app, input);
+                answer_app.state::<Quit>().keep_open();
+            }
         });
 }
 
