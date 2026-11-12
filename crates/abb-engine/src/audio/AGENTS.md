@@ -18,6 +18,12 @@
 - The import skip notice lists each skipped path in full, because a bare name
   cannot tell same-named files in different folders apart. Other user-facing
   diagnostics use sanitized display strings.
+- Read and write samples only through the `abb_ffmpeg::AudioFrame` accessors,
+  because a planar frame's first plane and its byte `linesize` say nothing
+  about the other channels.
+- The resampler keeps swresample's default downmix matrix, which retains the
+  center and surround channels and omits LFE; `resampler_options` only
+  normalizes the coefficients so coherent channels cannot overflow.
 - Silence padding serves a deliberate short-frame or tail policy, or a
   verified missing-plane condition, with regression coverage.
 - `scripts/dev-log-analysis.ts` counts WARN lines as actionable, so the clip

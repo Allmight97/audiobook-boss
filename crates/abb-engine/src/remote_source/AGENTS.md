@@ -45,9 +45,6 @@
 - `begin_account_read` and `change_lane` are the only places that start an
   account read or switch lanes, so they bump every generation they must
   expire.
-- Hosts disable a lane's actions from `RemoteUiSnapshot.busy`; an acquisition
-  `busy` change also moves the remote part, so the update that settles a job
-  frees the lane.
 - An authorization URL exists only in the `StartAuth` reply, never in a
   snapshot, so snapshots never reopen a browser.
 - `AUTH_REGISTRATION_TIMEOUT` bounds device registration, so a stalled Amazon

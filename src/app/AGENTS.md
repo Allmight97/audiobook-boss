@@ -2,7 +2,7 @@
 
 - Input, metadata, lookup, settings, encoding, output, preview, remote
   choices, and Work Center progress are engine facts. An owner words typed
-  statuses and sends intents; views keep no second copy of owner state.
+  statuses and sends intents.
 - An owner keeps only frontend lifetime and presentation resources: dialog
   disclosure, typing echo, visible filter and sort, opening the authorization
   browser. None of them decides accepted file work or terminal truth.
@@ -46,8 +46,6 @@ bullet has none.
   settings Reset clears the URL echo, an unaccepted key, and a kept refusal,
   because Reset replaces the draft and neither local fact has a snapshot
   transition that drops it.
-- `workOperations`: `phase === 'active'` decides which work shows motion; no
-  view keeps its own status list.
 
 ## Tests
 

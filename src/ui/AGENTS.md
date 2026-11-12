@@ -1,7 +1,5 @@
 # UI Views
 
-- A view keeps only screen-local state (disclosure, focus, typed input); every
-  other value comes from its owner, and every change is an intent.
 - A `<For>` over rows a snapshot rebuilds passes `keyed` a stable key, because
   a recreated `<option>` resets its `<select>` to the first option and a
   button rebuilt by a progress tick between press and release loses the click.
@@ -47,6 +45,8 @@ One bullet per view; a view without one has no trap beyond its owner.
 
 ## Foundation (`src/ui/foundation`)
 
+- Views read the semantic tokens on `:root` in
+  `src/ui/foundation/internal/tokens.css`.
 - A select whose value the engine owns uses `Select`: it shows the owner's
   value again after sending a choice, because a refusal changes nothing that
   would reset the element.

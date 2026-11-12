@@ -43,7 +43,7 @@ function ownersWithIndex(kind: 'app' | 'ui', modules: Record<string, unknown>): 
 }
 
 function missingStripMessage(owner: string): string {
-	return `src/${owner} has an index.ts but no STRIPS entry. Fix: add its hand-written export list to STRIPS in src/__tests__/public-api-strips.contract.test.ts.`;
+	return `src/${owner} has an index.ts but no STRIPS entry. Fix: add its hand-written export list to STRIPS in src/__tests__/public-api-strips.contract.test.ts; that edit needs no new permission.`;
 }
 
 const STRIPS: ReadonlyArray<readonly [string, object, readonly string[]]> = [
@@ -137,7 +137,10 @@ describe('owner Public API Strips', () => {
 		expect(missing, missing.map(missingStripMessage).join('\n')).toEqual([]);
 	});
 
-	it.each(STRIPS)('%s exports exactly its strip', (_owner, module, expected) => {
-		expect(Object.keys(module).toSorted()).toEqual([...expected].toSorted());
+	it.each(STRIPS)('%s exports exactly its strip', (owner, module, expected) => {
+		expect(
+			Object.keys(module).toSorted(),
+			`src/${owner} exports differ from its STRIPS entry. Fix: if the export change is intended, edit that entry in this file; the edit needs no new permission.`,
+		).toEqual([...expected].toSorted());
 	});
 });

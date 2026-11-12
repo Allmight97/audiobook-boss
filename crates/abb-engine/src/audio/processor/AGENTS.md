@@ -22,8 +22,9 @@
   previews to hear the encode and check the metadata.
 - A preview cuts each file at an exact sample (`PreviewState::take`), so single
   and merged titles share one stop rule and tests can assert the length.
-- Drop probe and inspection contexts before reopening the same path for
-  decoder trials, processing, replacement, or another library.
+- Drop FFmpeg probe, inspection, and remux contexts before reopening the same
+  path for decoder trials, processing, replacement, an mp4ameta write, or
+  another library.
 - Cancel is checked again right before commit, because publishing may first
   wait for the output lock and write an edit, and a title cancelled meanwhile
   must not publish.
@@ -38,8 +39,11 @@
 
 ## HE-AAC timing
 
-- ABB's FAAC HE files are recognized by their encoding-tool tag; keep each
-  recognized convention (2079, 2080) when upgrading upstream priming.
+- ABB's FAAC HE files are recognized by their encoding-tool tag. Each tag
+  fixes the priming sample count in the file (`he_timing.rs`: 2079 for the
+  original tag, 2080 for `timing-2`), so an upstream priming upgrade gets a new
+  tag and keeps both. FAAC LC uses a distinct tag and the encoder delay the
+  encoder returns.
 - A third-party HE or HE v2 file gets a window only when it declares
   iTunSMPB. Apple's encoder and upstream's `faac` frontend both leave the SBR
   delay out of that priming. A file with only an edit list, or with no gapless

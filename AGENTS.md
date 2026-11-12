@@ -150,8 +150,8 @@ runs; their commands live only in `verify.sh`.
 One person owns this repo, so a pull request adds a ritual with no second
 reader.
 
-- Work lands as commits pushed straight to `main` after local proof:
-  `bash scripts/verify.sh --changed origin/main`, or the named lanes.
+- Work lands as commits pushed straight to `main` after the local proof
+  under Environment.
 - Structure the commits as vertical slices: each works end to end and is
   usable on its own. The first delivers a complete part of the outcome; every
   later one depends on it or becomes easier or better because of it. Work

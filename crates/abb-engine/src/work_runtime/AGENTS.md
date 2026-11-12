@@ -1,6 +1,5 @@
 # WorkRuntime
 
-- Reach processing through `processing::run`.
 - A child's `cancellable` is the only authority for offering title cancel; the
   Work Center adds only that the operation has more than one title.
 - Missing child timestamps mean unknown; never derive them from logs or batch

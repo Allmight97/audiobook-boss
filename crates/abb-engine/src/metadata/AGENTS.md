@@ -4,8 +4,7 @@
   conventions, use the `audiobook-metadata` skill.
 - Real file saves go through `save_metadata_intent`, so series validation can
   see the source's tags.
-- Ask `container::Container` which container a file is; do not compare FFmpeg
-  format name strings. No check enforces this.
+- Ask `container::Container` (or `audio::format`) for a container fact.
 - MP4-family tag truth never depends on a bare remux, because FFmpeg's mov
   muxer drops unknown keys (rustdoc on `finish_artifact_tags`).
 - A Save never opens the original for writing: it checks a sibling copy and
@@ -77,8 +76,6 @@
 - MP4 artist and composer reads join repeated values with `;`, as FFmpeg's
   text projection does. A name list is one text value; nothing preserves its
   structure or a distinct album artist.
-- Drop FFmpeg probe and remux contexts before mp4ameta writes the same path or
-  the source file is replaced.
 - CUE `FILE` text never chooses another audio path and never refuses a sheet,
   because a real rip's label holds colons and Windows paths.
 - Chapter repair refuses an end it would move more than 1 s, because real rips
@@ -86,8 +83,11 @@
 - ABB's own tag write moves a source's fingerprint forward only when the file
   still matched it just before the write, so a change made outside ABB is
   still refused.
-- An MP4 is remuxed only for a real chapter change, because FFmpeg's mov
+- Every route writes the accepted chapter plan, never the raw source chapters.
+  An MP4 is remuxed only for a real chapter change, because FFmpeg's mov
   writer drops the freeform tags ABB does not model.
+- A same-container remux carries no cover, so it copies every picture the file
+  holds; the first is not a chosen cover.
 - Opus Matroska to MP4 copies restore the 48 kHz timeline lost to millisecond
   container rounding; a discontinuity fails rather than discards audio. MP4
   frame-size metadata must let the muxer honor trailing discard padding. An

@@ -1,7 +1,5 @@
 # App Settings
 
-- Every reply carries the whole `SettingsSnapshot` with a revision that
-  advances per intent; a host keeps the newest.
 - Session defaults take the same settings turn as direct settings intents.
   Template typing reserves its turn at once and writes after `TEMPLATE_PAUSE`
   only while its `LatestEdit` is current, so a Reset follows earlier typing and
