@@ -151,6 +151,7 @@ impl WorkRuntime {
                 output: Arc::clone(output),
             })
             .collect();
+        let title_cancels = cancel_tokens.titles();
         let live = Live {
             titles: cancel_tokens,
             sources: title_source_paths(&request.payload),
@@ -170,31 +171,41 @@ impl WorkRuntime {
         let listener: ProgressEventListener = Arc::new(move |event: &ProgressEvent| {
             progress_runtime.apply_progress_and_emit(&progress_host, &progress_operation_id, event);
         });
+        let active_run = Arc::new(active_run);
+        #[expect(clippy::disallowed_methods, reason = "joined by end_export")]
+        let work = tokio::task::spawn({
+            let runtime = runtime.clone();
+            let host = host.clone();
+            let operation_id = operation_id_for_task.clone();
+            let active_run = Arc::clone(&active_run);
+            async move {
+                runtime.mark_running_and_emit(&host, &operation_id);
+                process_inspected_with_options(
+                    &active_run,
+                    host,
+                    registry,
+                    workspace_root,
+                    request.payload,
+                    inspected,
+                    ProcessingRun {
+                        operation_id: operation_id.to_string(),
+                        listener,
+                        mode: RunMode::Export(export_titles),
+                    },
+                )
+                .await
+            }
+        });
+        let end = ExportEnd {
+            host,
+            operation_id: operation_id_for_task,
+            titles: run_titles,
+            title_cancels,
+            on_finished,
+        };
         self.inner.tasks.spawn(async move {
             let _active_run = active_run;
-            runtime.mark_running_and_emit(&host, &operation_id_for_task);
-            let result = process_inspected_with_options(
-                &_active_run,
-                host.clone(),
-                registry,
-                workspace_root,
-                request.payload,
-                inspected,
-                ProcessingRun {
-                    operation_id: operation_id_for_task.to_string(),
-                    listener,
-                    mode: RunMode::Export(export_titles),
-                },
-            )
-            .await;
-            for title in &run_titles {
-                title.end();
-            }
-            let finished =
-                runtime.finish_processing_and_emit(&host, &operation_id_for_task, result);
-            if let (Some(on_finished), Some(snapshot)) = (on_finished, finished) {
-                on_finished(snapshot);
-            }
+            runtime.end_export(work, end).await;
         });
 
         Ok(WorkSubmissionAccepted {
@@ -202,6 +213,32 @@ impl WorkRuntime {
             snapshot,
             titles,
         })
+    }
+
+    /// Ends an export once its work returns or panics: a panic cancels every
+    /// title and becomes a Failed operation, so the titles still end, the
+    /// sources are freed, and `on_finished` runs once.
+    async fn end_export(
+        self,
+        work: tokio::task::JoinHandle<Result<crate::processing::ProcessCommandResult>>,
+        end: ExportEnd,
+    ) {
+        let result = work.await.unwrap_or_else(|stopped| {
+            log::error!("export {} stopped: {stopped}", end.operation_id);
+            for cancel in &end.title_cancels {
+                cancel.cancel();
+            }
+            Err(AppError::General(
+                "The export stopped on an internal error.".to_string(),
+            ))
+        });
+        for title in &end.titles {
+            title.end();
+        }
+        let finished = self.finish_processing_and_emit(&end.host, &end.operation_id, result);
+        if let (Some(on_finished), Some(snapshot)) = (end.on_finished, finished) {
+            on_finished(snapshot);
+        }
     }
 
     fn output_listener(
@@ -486,6 +523,14 @@ impl WorkRuntime {
             Err(error) => log::warn!("Failed to publish a work operation update: {error}"),
         }
     }
+}
+
+struct ExportEnd {
+    host: Host,
+    operation_id: OperationId,
+    titles: Vec<Arc<TitleOutput>>,
+    title_cancels: Vec<CancellationToken>,
+    on_finished: Option<OnFinished>,
 }
 
 /// The source files each title reads, in the spelling import gives a file,

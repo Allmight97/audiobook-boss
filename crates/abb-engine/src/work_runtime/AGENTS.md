@@ -5,7 +5,10 @@
 - `submit_processing_operation` spawns a background export and returns
   `WorkSubmissionAccepted`. Callers name the operation after its books; the
   request `title` is required and non-empty. `on_finished` receives the
-  terminal snapshot; the session settles staged downloads from it.
+  terminal snapshot; the session settles staged downloads from it. A tracked
+  task joins the export's work task and owns its end (titles ended, terminal
+  snapshot, `on_finished`, the held run), so a panic in the work ends the
+  operation Failed instead of leaving it Running with its sources held.
 - The inline metadata-save hooks (`begin_metadata_save_operation`,
   `record_metadata_save_progress`, `finish_metadata_save_operation`) are
   orchestrated by `crates/abb-engine/src/metadata_save.rs`, which the session's

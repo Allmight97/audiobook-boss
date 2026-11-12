@@ -263,3 +263,91 @@ fn the_concurrency_lock_is_published_with_every_job_and_run_change_and_with_the_
     );
     assert_eq!(published[1].0, snapshot.revision);
 }
+
+#[derive(Default)]
+struct PanicsOnFirstRunning {
+    panicked: std::sync::atomic::AtomicBool,
+}
+
+impl crate::EventSink for PanicsOnFirstRunning {
+    fn emit(&self, event: EngineEvent) {
+        let running = matches!(
+            &event,
+            EngineEvent::WorkOperations(update)
+                if update.changed.as_ref().is_some_and(|changed| changed.status == WorkOperationStatus::Running)
+        );
+        if running && !self.panicked.swap(true, Ordering::SeqCst) {
+            panic!("the export task panics before it finishes");
+        }
+    }
+}
+
+#[tokio::test]
+async fn an_export_task_that_panics_ends_failed_frees_its_sources_and_settles_once() {
+    let tmp = tempfile::TempDir::new().expect("tempdir");
+    let source = tmp.path().join("source.wav");
+    crate::test_cases::support::wav::write_sine_wav(&source, 1.0, 440.0);
+    let payload = crate::test_cases::media_fixtures::single_title_payload(
+        &source,
+        &tmp.path().join("out"),
+        crate::audio::TitleAudioRequest {
+            output: crate::audio::OutputAudio::M4b {
+                settings: crate::test_cases::support::encoders::native_encoder_settings(),
+            },
+            intent: crate::audio::AudioIntent::Encode,
+            sample_rate: crate::audio::SampleRateConfig::Auto,
+        },
+    );
+    let inspected =
+        crate::processing::run::inspect_processing_plan(&payload, None, false).expect("inspect");
+    let tasks = crate::engine_tasks::EngineTasks::default();
+    let runtime = WorkRuntime::new(tasks.clone());
+    let host = Host::new(
+        Arc::new(PanicsOnFirstRunning::default()),
+        crate::power::PowerManager::default(),
+    );
+    let settled = Arc::new(Mutex::new(Vec::new()));
+    let on_finished: OnFinished = {
+        let settled = Arc::clone(&settled);
+        Box::new(move |snapshot| settled.lock().expect("settled").push(snapshot.status))
+    };
+
+    let accepted = runtime
+        .submit_processing_operation(
+            host,
+            Arc::new(crate::processing::JobRegistry::new(1)),
+            tmp.path().join("workspace"),
+            SubmitProcessingOperationRequest {
+                operation_id: OperationId("panicking-export".to_string()),
+                payload,
+                metadata: None,
+                title: "Book".to_string(),
+            },
+            Some(on_finished),
+            inspected,
+        )
+        .await
+        .expect("accepted");
+    tasks.close();
+    tasks.wait().await;
+
+    let operations = runtime.list_operations().expect("operations").operations;
+    let operation = &operations[0];
+    assert!(operation.is_finished());
+    assert_eq!(operation.status, WorkOperationStatus::Failed);
+    assert!(operation.children.iter().all(|child| {
+        child.status == super::super::ChildJobStatus::Failed
+            && child
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("internal error"))
+    }));
+    assert!(runtime.sources_held().is_empty());
+    assert_eq!(
+        *settled.lock().expect("settled"),
+        [WorkOperationStatus::Failed]
+    );
+    for title in &accepted.titles {
+        assert!(!title.settled().await);
+    }
+}
