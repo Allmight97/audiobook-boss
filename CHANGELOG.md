@@ -4,6 +4,13 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.18.5] - 2026-11-11
+
+### Fixed
+
+- The app now includes FFmpeg's LGPL 2.1 license and a note naming the FFmpeg source it is
+  built from, in its `licenses` folder beside the FAAC and Opus licenses.
+
 ## [1.18.4] - 2026-11-11
 
 ### Changed
