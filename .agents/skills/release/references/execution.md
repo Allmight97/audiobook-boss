@@ -57,13 +57,15 @@ result, then stop before tagging or publishing.
 
 1. Use the selected version and accepted change's impact.
 2. Write the matching `CHANGELOG.md` section and run the version bump script.
-3. For a build containing statically linked FAAC and FAAD3, verify the release
-   provides matching source and build materials that let recipients modify
-   them and rebuild the app, alongside their license and usage notice. Use
-   `vendor/faac-sys/ABB-PROVENANCE.md` and `upstream/COPYING` there for the
-   shipped source identity and distribution terms. The app bundle currently
-   includes license/provenance only; verify the corresponding release source
-   and rebuild route before publishing.
+3. The app statically links three LGPL-2.1-or-later libraries: FAAC and
+   FAAD3 (`vendor/faac-sys/ABB-PROVENANCE.md`, `upstream/COPYING` there) and
+   FFmpeg (`vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md`: the commit in
+   `ffmpeg-revision`, `patches/`, and the `configure` lists in `build.rs`;
+   LGPL because no `build-license-*` feature is enabled). For each, verify
+   the release provides matching source and build materials that let
+   recipients modify it and rebuild the app, and that the bundle carries its
+   license and usage notice. The bundle's licenses are the `resources` in
+   `src-tauri/tauri.conf.json`.
 4. Run `bun run audit` so both Rust and JavaScript dependency graphs report
    before public packaging; any failure blocks the release. Run additional
    validation selected by the changed owner. For release-only metadata,
