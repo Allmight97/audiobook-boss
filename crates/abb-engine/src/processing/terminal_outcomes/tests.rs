@@ -1,5 +1,5 @@
 mod classification_tests {
-    use super::super::classification::{is_cancellation_error, TitleOutcome};
+    use super::super::classification::{is_cancellation_error, report_skipped, TitleOutcome};
     use crate::errors::{AppError, AppErrorCategory, AppErrorCode};
     use crate::processing::{
         EventStage, JobIdentity, ProcessResultStatus, ProgressEvent, ProgressEventListener,
@@ -54,10 +54,11 @@ mod classification_tests {
         .report(identity(0), &listener);
         let cancelled =
             TitleOutcome::from_error(None, AppError::cancelled()).report(identity(1), &listener);
-        let skipped = TitleOutcome::Skipped {
-            message: "Skipped existing output".to_string(),
-        }
-        .report(identity(2), &listener);
+        let skipped = report_skipped(
+            "Skipped existing output".to_string(),
+            identity(2),
+            &listener,
+        );
 
         assert_eq!(
             [failed.status, cancelled.status, skipped.status],

@@ -16,9 +16,6 @@ pub(in crate::processing) enum TitleOutcome {
         supplemental_warning: Option<String>,
         warnings: Vec<String>,
     },
-    Skipped {
-        message: String,
-    },
     Cancelled {
         message: String,
     },
@@ -81,10 +78,6 @@ impl TitleOutcome {
                 supplemental_warning,
                 warnings,
             },
-            Self::Skipped { message } => {
-                emitter(None).emit_terminal_skipped(&message);
-                skipped_entry(input_index, None, message)
-            }
             Self::Cancelled { message } => {
                 emitter(None).emit_terminal_cancelled(CANCELLED_EVENT_MESSAGE);
                 terminal_cancelled_result(input_index, None, message)
@@ -95,6 +88,23 @@ impl TitleOutcome {
             }
         }
     }
+}
+
+pub(in crate::processing) fn report_skipped(
+    message: String,
+    identity: JobIdentity,
+    listener: &ProgressEventListener,
+) -> ProcessResultEntry {
+    let input_index = identity.input_index;
+    ProgressEmitter::new(
+        EmitContext {
+            operation_kind: OperationKind::ProcessingBatch,
+            identity,
+        },
+        listener.clone(),
+    )
+    .emit_terminal_skipped(&message);
+    skipped_entry(input_index, None, message)
 }
 
 pub(super) fn is_cancellation_error(error: &AppError) -> bool {

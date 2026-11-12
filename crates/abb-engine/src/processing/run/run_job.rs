@@ -115,7 +115,7 @@ fn settle_job(
     outcome: &TitleOutcome,
 ) {
     match outcome {
-        TitleOutcome::Published { .. } | TitleOutcome::Skipped { .. } => {
+        TitleOutcome::Published { .. } => {
             job.complete();
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Success);
         }

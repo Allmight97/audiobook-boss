@@ -6,7 +6,8 @@ use crate::host::Host;
 use crate::output_artifact::OutputParentDirCleanup;
 use crate::processing::plan::{ExecutionProcessingPlan, ResolvedProcessingPlan};
 use crate::processing::terminal_outcomes::{
-    batch_results, build_all_skipped_batch_result, no_write_skip_message, TitleOutcome,
+    batch_results, build_all_skipped_batch_result, no_write_skip_message, report_skipped,
+    TitleOutcome,
 };
 use crate::processing::{JobIdentity, ProgressEventListener};
 use crate::processing::{OperationKind, ProcessCommandResult, ProcessPayload, ProcessResultEntry};
@@ -75,7 +76,7 @@ async fn dispatch_batch_plan(
             input_index,
         };
         if let Some(message) = no_write_skip_message(&planned_job.output) {
-            let entry = TitleOutcome::Skipped { message }.report(identity, &run.listener);
+            let entry = report_skipped(message, identity, &run.listener);
             if let Some(output) = title.output {
                 output.end();
             }

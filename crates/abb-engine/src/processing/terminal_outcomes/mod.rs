@@ -5,5 +5,5 @@ mod entries;
 mod tests;
 
 pub(super) use batch::batch_results;
-pub(super) use classification::TitleOutcome;
+pub(super) use classification::{report_skipped, TitleOutcome};
 pub(super) use entries::{build_all_skipped_batch_result, no_write_skip_message};
