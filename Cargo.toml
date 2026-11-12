@@ -11,6 +11,7 @@ members = [
     "vendor/faac-sys",
     "src-tauri",
 ]
+exclude = ["spikes/rune-queue"]
 resolver = "2"
 
 [workspace.package]

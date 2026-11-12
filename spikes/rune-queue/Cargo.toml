@@ -1,0 +1,20 @@
+[package]
+name = "abb-rune-spike"
+version = "0.0.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+description = "Throwaway Rune host for the batch queue screen. Not part of the product build."
+
+[[bin]]
+name = "abb-rune-spike"
+path = "src/main.rs"
+
+[dependencies]
+abb-engine = { path = "../../crates/abb-engine", features = ["bundled-ffmpeg"] }
+# pin: Rune is pre-release and its dev branch is append-only, so this rev stays buildable; unpin when Rune ships a version
+rune = { git = "https://github.com/anomalyco/rune", rev = "d5338988a7c1b3377adb60853815b6d0843dae7c", features = ["native-file-dialog"] }
+tokio = { version = "1.53.3", features = ["rt-multi-thread", "macros", "sync", "time"] }
+
+[patch.crates-io]
+ffmpeg-sys-next = { path = "../../vendor/ffmpeg-sys-next-9.0.1" }
