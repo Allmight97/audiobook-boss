@@ -45,8 +45,7 @@ app, a test, and the `abb-dev` tool drive the same code
   credentials.
   `abb-dev audible` (`src/bin/abb_dev/audible.rs`) reaches Audible only through
   `SessionIntent::Remote` and the session snapshot, as any host does. A real
-  Audible download uses as few titles as the question needs, newest first is
-  fine: each one spends the owner's account and time.
+  download is the owner's call; route: the verify-abb skill.
   `abb-dev parity record|check` (`src/bin/abb_dev/parity.rs`) proves a change
   kept an output: record the files a build exports, export the same input
   with the changed build, then check. `--bytes` also requires equal file

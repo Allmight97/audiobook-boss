@@ -1,6 +1,6 @@
 ---
 name: verify-abb
-description: "Prove ABB's golden path on real output files without a window, from import through export, collisions, cancel, a save during an export, chapters, layout, a killed export, or a copy of the owner's library. Use to verify a change end to end."
+description: "Prove ABB's golden path on real output files without a window, from import through export, collisions, cancel, a save during an export, chapters, layout, a killed export, a copy of the owner's library, or a real Audible download. Use to verify a change end to end."
 ---
 
 # Verify ABB
@@ -27,8 +27,15 @@ Rules:
   except `crash`, which reuses one on purpose to relaunch after `kill -9`.
 - Audible decrypt is proved by `bash scripts/verify.sh engine` (synthetic
   AAX/AAXC fixtures through the bundled FFmpeg), not by this skill.
-- Remote Audible download is blocked: it needs a real account, and this skill
-  never reads stored credentials. Report it as blocked.
+- A real Audible download and decrypt runs only when the owner asks for it,
+  through `bash scripts/abb-dev.sh audible` (its `--help` lists the commands).
+  The owner runs `sign-in` once; the sign-in lives in abb-dev's own keychain
+  entry, never the app's. Then `acquire` into a fresh `--state-dir` the
+  fewest titles the question needs, newest first is fine: each one spends the
+  owner's account and time. Check each landed file with ffprobe, and delete
+  the state folder after, because it holds decrypted audiobooks. With no
+  sign-in, `library` and `acquire` fail and say so: report the download as
+  blocked on the owner's sign-in.
 - `corpus` is opt-in and not in `run.sh`'s default list: set
   `ABB_CORPUS_DIR=<folder of the owner's audiobooks>` and run `run.sh corpus`.
   It reads the owner's files but works only on copies, and compares title,
