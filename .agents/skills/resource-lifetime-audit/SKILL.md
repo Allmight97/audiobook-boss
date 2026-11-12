@@ -23,7 +23,7 @@ terminal outcomes:
 - register cleanup → transfer or drain ownership;
 - validate path → persist or write it;
 - metadata Save → a waiting write → the export that reads the same source
-  finishing (`crates/abb-engine/src/session/AGENTS.md`);
+  finishing (`crates/abb-engine/src/session/state/write_queue.rs`);
 - staged download → every export, submission, or Save using it finished →
   removal and its retry (`crates/abb-engine/src/session/staged.rs`);
 - published output → a later tag save while another export replaces the

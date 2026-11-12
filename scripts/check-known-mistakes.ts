@@ -220,7 +220,7 @@ const RULES: Rule[] = [
 		findIn: (line) =>
 			CODE_ONLY(line).match(/\b(?:std|tokio)::fs\b|\bFile::(?:open|create)\b/)?.[0] ?? null,
 		message:
-			'does file I/O in a session state module. Fix: return a ticket and let runtime perform the I/O (crates/abb-engine/src/session/AGENTS.md).',
+			'does file I/O in a session state module. Fix: return a ticket (`ReadTicket`, `SavePlan`, `PlanTicket`) and let `runtime.rs` or `runtime/` perform the I/O.',
 	},
 	{
 		appliesTo: (file) => file === 'src/test/fixtures/fakeEngine.ts',
@@ -494,7 +494,7 @@ export function frozenSampleFindings(nameStatus: string): Finding[] {
 			{
 				file,
 				line: 1,
-				message: `was ${verb}. Samples are frozen saved-settings files from real releases. Fix: restore it and add a new sample instead (crates/abb-engine/src/app_settings/AGENTS.md, Storage).`,
+				message: `was ${verb}. Samples are frozen saved-settings files from real releases. Fix: restore it and add a new sample instead, so every release's saved file keeps loading.`,
 			},
 		];
 	});

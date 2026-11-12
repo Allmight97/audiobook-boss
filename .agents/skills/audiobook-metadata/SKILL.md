@@ -20,7 +20,7 @@ the writer, reader, and player behavior actually verified.
 Repository paths in these references are relative to the ABB root. Metadata
 intent, validation, and write planning stay under
 `crates/abb-engine/src/metadata/AGENTS.md`; the session builds intent from
-field edits (`crates/abb-engine/src/session/AGENTS.md`, Edit intent). Output path
+field edits (`crates/abb-engine/src/session/metadata_form.rs`). Output path
 policy stays under `crates/abb-engine/src/output_artifact/AGENTS.md`.
 
 ## Verify The Changed Handoff
