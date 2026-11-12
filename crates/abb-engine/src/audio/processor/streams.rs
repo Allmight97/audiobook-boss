@@ -619,7 +619,7 @@ pub(crate) fn assess_preservation(
         && mp4_container
         && matches!(codec_id, CodecId::AAC | CodecId::OPUS))
         || (extension == "mka"
-            && container_name.split(',').any(|name| name == "matroska")
+            && crate::audio::is_matroska_format(container_name)
             && codec_id == CodecId::OPUS);
     AudioPreservation {
         can_preserve: supported_container_codec,

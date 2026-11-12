@@ -107,3 +107,13 @@ fn the_mp4_family_covers_muxer_names_and_demuxer_aliases() {
         assert!(!is_mp4_family_format(name), "{name}");
     }
 }
+
+#[test]
+fn matroska_covers_its_muxer_name_and_demuxer_aliases() {
+    for name in ["matroska", "matroska,webm"] {
+        assert!(is_matroska_format(name), "{name}");
+    }
+    for name in ["webm", "mp4", "mov,mp4,m4a,3gp,3g2,mj2", "mp3", ""] {
+        assert!(!is_matroska_format(name), "{name}");
+    }
+}

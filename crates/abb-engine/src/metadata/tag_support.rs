@@ -83,9 +83,11 @@ pub(super) fn refuse_unholdable_edits(
     plan: &MetadataWritePlan,
 ) -> Result<()> {
     let edited = edited(plan);
-    match container.muxer_name() {
-        "adts" if !edited.is_empty() => Err(AppError::FileValidation(RAW_AAC_REFUSAL.to_string())),
-        "wav" => {
+    match container {
+        Container::Adts if !edited.is_empty() => {
+            Err(AppError::FileValidation(RAW_AAC_REFUSAL.to_string()))
+        }
+        Container::Wav => {
             let lost: Vec<&str> = edited
                 .iter()
                 .filter(|edit| !edit.wav_holds())

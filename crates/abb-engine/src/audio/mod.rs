@@ -177,7 +177,7 @@ pub(crate) use ffmpeg_log::limit_ffmpeg_logging;
 pub(crate) use file_list::{apply_chapter_plans, get_file_list_info, FileListInfo};
 pub use format::CodecFamily;
 pub(crate) use format::{
-    format_for_extension, is_mp4_family_format, muxer_for_path, Muxer, FORMATS,
+    format_for_extension, is_matroska_format, is_mp4_family_format, muxer_for_path, Muxer, FORMATS,
 };
 pub(crate) use imports::discover_audio_import_paths;
 pub use imports::{

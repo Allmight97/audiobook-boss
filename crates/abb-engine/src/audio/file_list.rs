@@ -106,7 +106,7 @@ fn validate_mp4_audio_extent(
     audio_stream: usize,
     file_size: u64,
 ) -> Result<()> {
-    if !input.format_name().split(',').any(|name| name == "mp4") {
+    if !crate::audio::is_mp4_family_format(&input.format_name()) {
         return Ok(());
     }
     let incomplete = || {

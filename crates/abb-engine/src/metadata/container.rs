@@ -11,6 +11,8 @@ pub(crate) enum Container {
     Mp4,
     Matroska,
     Mp3,
+    Adts,
+    Wav,
     Other(String),
 }
 
@@ -34,7 +36,8 @@ impl Container {
             "matroska" => Container::Matroska,
             "mp3" => Container::Mp3,
             // FFmpeg detects raw ADTS AAC as `aac`; the muxer that writes it is `adts`.
-            "aac" => Container::Other("adts".to_string()),
+            "aac" | "adts" => Container::Adts,
+            "wav" => Container::Wav,
             other => Container::Other(other.to_string()),
         }
     }
@@ -81,6 +84,8 @@ impl Container {
             Container::Mp4 => Muxer::Mp4.ffmpeg_name(),
             Container::Matroska => Muxer::Matroska.ffmpeg_name(),
             Container::Mp3 => "mp3",
+            Container::Adts => "adts",
+            Container::Wav => "wav",
             Container::Other(name) => name,
         }
     }
