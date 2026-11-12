@@ -12,7 +12,7 @@ Read for Solid rendering, reactivity, disposal, or component-testing questions.
   [testing library](https://github.com/solidjs/solid-testing-library).
 - Optional Context7 hints: `/solidjs/solid` or `/websites/docs_solidjs_com`.
 
-Root `AGENTS.md` owns the checkout's Solid-major constraint.
+`src/AGENTS.md` owns the checkout's Solid-major constraint and frontend scope.
 `src/app/AGENTS.md` owns frontend owner state and disposal (the engine owns
-the working session); `src/AGENTS.md` owns frontend scope. Reconcile upstream examples with those owners and the installed
+the working session). Reconcile upstream examples with those owners and the installed
 public APIs before changing a view or owner interface.

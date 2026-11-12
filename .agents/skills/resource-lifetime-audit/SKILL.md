@@ -1,6 +1,6 @@
 ---
 name: resource-lifetime-audit
-description: Audit resource ownership across reopen, replace, process, and cleanup transitions for file loss, false terminal outcomes, residue, or stuck cancel. Routine file I/O follows its owner's AGENTS.md.
+description: Audit resource ownership across reopen, replace, worker-abort, and cleanup transitions for file loss, false terminal outcomes, residue, or stuck cancel. Routine file I/O follows its owner's AGENTS.md.
 ---
 
 # Resource Lifetime Audit
@@ -16,7 +16,10 @@ terminal outcomes:
 
 - probe/open/read → reopen the same path, including FFmpeg → mp4ameta;
 - write temporary artifact → rename/copy/replace final path;
-- spawn process → read pipes → cancel/kill/wait;
+- blocking worker → its task is aborted or its wait dropped (a polled cancel
+  joins it) → the worker still writes its partial → removal of that folder
+  (Audible decrypt and `purge_with_retries`:
+  `crates/abb-engine/src/remote_source/AGENTS.md`, Handoff);
 - register cleanup → transfer or drain ownership;
 - validate path → persist or write it;
 - metadata Save → a waiting write → the export that reads the same source
@@ -55,7 +58,7 @@ audio, processing, and output guidance supplies the applicable invariants;
 avoid adding a parallel lifecycle policy in callers.
 
 For authorized changes, use the focused proof routes in `scripts/AGENTS.md`.
-Prefer deterministic filesystem/process tests when they prove the transition;
+Prefer deterministic filesystem tests when they prove the transition;
 use real media or platform evidence when the failure depends on those systems.
 
 Report the boundary and code location, trigger, impact, evidence, and repair or

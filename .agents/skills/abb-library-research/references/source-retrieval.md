@@ -1,8 +1,7 @@
 # Exceptional Upstream Source Retrieval
 
 Read when the active question needs tests, examples, internals, or history
-omitted from the installed or registry package. Root `AGENTS.md` owns the
-policy on retaining upstream snapshots.
+omitted from the installed or registry package.
 
 Map the resolved package to its upstream revision using registry metadata,
 `.cargo_vcs_info.json`, or release evidence. A version string is not proof

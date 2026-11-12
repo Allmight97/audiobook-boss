@@ -2,8 +2,9 @@
 
 Read for command/event export, builder configuration, or Tauri/Specta integration.
 
-- Resolve `tauri-specta` from `Cargo.lock`; inspect selected features in
-  `src-tauri/Cargo.toml`.
+- Resolve `tauri-specta` from `Cargo.lock`. Root `Cargo.toml`
+  `[workspace.dependencies]` pins it with the Specta family; its features
+  are in `src-tauri/Cargo.toml`.
 - Prefer exact Cargo registry source and
   `docs.rs/tauri-specta/<exact-version>`. The packaged
   `.cargo_vcs_info.json`, when present, helps identify its source commit.

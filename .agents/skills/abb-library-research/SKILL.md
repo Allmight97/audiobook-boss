@@ -37,9 +37,8 @@ and search results to the resolved package before treating them as version
 proof.
 
 Read [source-retrieval.md](references/source-retrieval.md) when omitted tests,
-examples, codegen internals, or history require upstream retrieval. Root
-`AGENTS.md` owns the policy on upstream source snapshots; external research
-does not transfer product ownership out of ABB's local boundaries.
+examples, codegen internals, or history require upstream retrieval. External
+research does not transfer product ownership out of ABB's local boundaries.
 
 ## Finish
 
