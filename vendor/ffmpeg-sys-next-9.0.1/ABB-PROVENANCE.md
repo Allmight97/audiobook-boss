@@ -10,9 +10,10 @@ the generated bindings do not declare libc runtime symbols, and it parses
 because Native AAC's NMR coder is not in a release. The Rust build fetches
 that commit and checks the checkout. `scripts/setup.sh` names it again:
 `ffmpeg_cli_build` is the BtbN describe id, and its `g` suffix is that commit;
-`ffmpeg_cli_release` is the autobuild tag that publishes it. Those two move
-with `ffmpeg-revision`. `scripts/setup-pins.test.ts` fails when the suffix is
-not a prefix of the revision. On macOS the build links only AudioToolbox,
+`ffmpeg_cli_release` is the autobuild tag that publishes it.
+`bun run ffmpeg:pin <commit>` sets all three from one FFmpeg commit, and
+`scripts/setup-pins.test.ts` fails when the suffix is not a prefix of the
+revision. On macOS the build links only AudioToolbox,
 CoreAudio, and CoreFoundation; upstream's list adds video, OpenGL, OpenCL,
 and QTKit frameworks that the audio-only build never calls.
 
@@ -41,17 +42,12 @@ neither is a left-out source file that a built file includes directly.
 The scheduled workflow `.github/workflows/ffmpeg-upstream.yml` runs it with
 `--issue`: one open GitHub issue titled "FFmpeg upstream: changes since the
 pin" holds the list while any commit is relevant, and the run closes it when
-none is. The watcher does not read BtbN; step 1 below finds the autobuild.
+none is.
 
-1. Write the new commit to `ffmpeg-revision`, and move `ffmpeg_cli_release` and
-   `ffmpeg_cli_build` in `scripts/setup.sh` to the BtbN master autobuild of
-   that commit: the `autobuild-` release in `FFmpeg-Builds/FFmpeg-Builds`
-   whose `linux64-gpl` asset names the commit's short hash, so pick a commit
-   that has one. `scripts/setup-pins.test.ts` enforces the pairing: the build
-   id's `g` suffix must be a prefix of `ffmpeg-revision`, and the installer
-   must download `ffmpeg_cli_release` when the tools folder holds a different
-   FFmpeg 9. Then run `bash scripts/setup.sh rust` to fetch the source and
-   that CLI.
+1. Before moving, export the parity input with the current build (step 4).
+   Then run `bun run ffmpeg:pin <commit>`, which refuses a commit with no
+   BtbN master autobuild and lists the ones that have one, and
+   `bash scripts/setup.sh rust` to fetch the source and that CLI.
 2. Build the engine with its `bundled-ffmpeg` feature
    (`bash scripts/verify.sh engine`). `crates/abb-ffmpeg` is the only code
    that uses these bindings: an FFmpeg function or field it calls that
@@ -60,10 +56,10 @@ none is. The watcher does not read BtbN; step 1 below finds the autobuild.
    still apply.
 3. Recheck each item in the list above against the upstream diff, and update
    the FAAD3 trim table if `api-skip-samples` changed.
-4. Encode one fixed fixture with Native AAC at the old and the new pin, decode
-   both with the same FFmpeg CLI, and compare `ffmpeg -i out.m4b -map 0:a -f md5 -`.
-   Packet bytes can change while the decoded audio stays identical. A decoded
-   difference needs the real-media probe in `crates/abb-engine/src/audio/AGENTS.md`.
+4. Prove a Native AAC encode kept its decoded audio with `abb-dev parity`
+   (verify-abb skill, FFmpeg update). Packet bytes can change while the
+   decoded audio stays identical. A decoded difference needs the real-media
+   probe in `crates/abb-engine/src/audio/AGENTS.md`.
 5. Run `bash scripts/verify.sh engine media`.
 
 FFmpeg is configured with `--disable-autodetect`; its enabled external codec

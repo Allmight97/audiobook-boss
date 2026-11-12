@@ -57,5 +57,10 @@ Rules:
   update must keep. The command reads files with the `ffmpeg` and `ffprobe`
   commands, not with the engine. `features/parity.sh` proves two exports of
   one input agree.
+
+  FFmpeg update: on Linux the pin also moves the readback CLI, and a CLI
+  decoder change would read as an output change. So export `<before>` with
+  the old pin, move it, then run `parity record` on `<before>` and
+  `parity check` without `--bytes` on `<after>`, so one CLI reads both.
 - A new feature is a new `features/<name>.sh` added to `run.sh`'s list; check
   the result with ffprobe or the JSON, not with abb-dev's exit code alone.

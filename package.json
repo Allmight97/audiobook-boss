@@ -10,6 +10,7 @@
 		"typecheck": "tsc --noEmit && tsc --noEmit -p scripts",
 		"knip": "knip",
 		"ci:timing": "bun scripts/ci-timing.ts",
+		"ffmpeg:pin": "bun scripts/ffmpeg-upstream.ts --pin",
 		"ffmpeg:upstream": "bun scripts/ffmpeg-upstream.ts",
 		"fmt": "oxfmt",
 		"fmt:check": "oxfmt --check",

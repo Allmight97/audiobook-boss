@@ -1,12 +1,15 @@
-import { readFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
 	decideIssueAction,
 	type Gh,
 	ISSUE_TITLE,
 	issueBody,
+	masterAutobuilds,
+	movePin,
 	objectConditions,
 	parseCommits,
 	parseComponents,
@@ -16,6 +19,7 @@ import {
 	syncIssue,
 	unbuiltSources,
 	watchedPathspecs,
+	withCliPins,
 } from './ffmpeg-upstream';
 
 const sysCrate = path.resolve(import.meta.dirname, '../vendor/ffmpeg-sys-next-9.0.1');
@@ -333,5 +337,84 @@ describe('the issue', () => {
 				state_reason: 'completed',
 			});
 		});
+	});
+});
+
+describe('moving the pin', () => {
+	const repoRoot = path.resolve(import.meta.dirname, '..');
+	const setupSh = readFileSync(path.join(repoRoot, 'scripts/setup.sh'), 'utf8');
+	const revision = '49a3b1f259aa00bb11cc22dd33ee44ff55667788';
+	const releases = [
+		{ tag_name: 'latest', assets: ['checksums.sha256', 'ffmpeg-master-latest-linux64-gpl.tar.xz'] },
+		{
+			tag_name: 'autobuild-2026-11-10-12-39',
+			assets: [
+				'checksums.sha256',
+				'ffmpeg-N-128728-g49a3b1f259-linux64-gpl.tar.xz',
+				'ffmpeg-N-128728-g49a3b1f259-linuxarm64-gpl.tar.xz',
+				'ffmpeg-n8.0-12-gabcdef0123-linux64-gpl.tar.xz',
+			],
+		},
+		{
+			tag_name: 'autobuild-2026-11-09-12-42',
+			assets: ['checksums.sha256', 'ffmpeg-N-128718-gb2b543c079-linux64-gpl.tar.xz'],
+		},
+	];
+	const scratch: string[] = [];
+	afterEach(() => {
+		for (const dir of scratch.splice(0)) rmSync(dir, { recursive: true, force: true });
+	});
+
+	function fakeRepo() {
+		const root = mkdtempSync(path.join(os.tmpdir(), 'abb-ffmpeg-pin-'));
+		scratch.push(root);
+		for (const file of ['scripts/setup.sh', 'vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision']) {
+			cpSync(path.join(repoRoot, file), path.join(root, file));
+		}
+		return root;
+	}
+	const read = (root: string, file: string) => readFileSync(path.join(root, file), 'utf8');
+	const gh: Gh = (args) =>
+		args.includes('--paginate')
+			? releases.map((release) => JSON.stringify(release)).join('\n')
+			: args[1].endsWith('/49a3b1f259')
+				? revision
+				: 'ffffffffff00000000000000000000000000000';
+
+	it('keeps master autobuilds with both Linux archives and their checksums', () => {
+		expect(masterAutobuilds(releases)).toEqual([
+			{ release: 'autobuild-2026-11-10-12-39', build: 'N-128728-g49a3b1f259' },
+		]);
+	});
+
+	it('rewrites only the two CLI pin lines in setup.sh', () => {
+		const current = {
+			release: /^ffmpeg_cli_release=(\S+)$/m.exec(setupSh)?.[1] ?? '',
+			build: /^ffmpeg_cli_build=(\S+)$/m.exec(setupSh)?.[1] ?? '',
+		};
+		expect(withCliPins(setupSh, current)).toBe(setupSh);
+		const moved = withCliPins(setupSh, { release: 'autobuild-x', build: 'N-1-gabc' });
+		expect(moved).toContain('\nffmpeg_cli_release=autobuild-x\nffmpeg_cli_build=N-1-gabc\n');
+		expect(moved.split('\n').length).toBe(setupSh.split('\n').length);
+	});
+
+	it('sets the revision and both CLI pins from one commit', () => {
+		const root = fakeRepo();
+		expect(movePin(root, '49a3b1f259', gh)).toContain('ffmpeg_cli_build=N-128728-g49a3b1f259');
+		expect(read(root, 'vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision')).toBe(`${revision}\n`);
+		expect(read(root, 'scripts/setup.sh')).toContain(
+			'ffmpeg_cli_release=autobuild-2026-11-10-12-39\nffmpeg_cli_build=N-128728-g49a3b1f259\n',
+		);
+	});
+
+	it('changes nothing and names the commits that have an autobuild when none matches', () => {
+		const root = fakeRepo();
+		expect(() => movePin(root, 'ffffffffff', gh)).toThrow(
+			'No FFmpeg-Builds master autobuild names ffffffffff. Commits that have one: 49a3b1f259.',
+		);
+		expect(read(root, 'scripts/setup.sh')).toBe(setupSh);
+		expect(read(root, 'vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision')).toBe(
+			read(repoRoot, 'vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision'),
+		);
 	});
 });

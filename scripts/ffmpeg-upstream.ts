@@ -3,6 +3,7 @@
  * ABB's build can compile.
  *
  * Usage: bun run ffmpeg:upstream [--issue]
+ *        bun run ffmpeg:pin <commit>
  *
  * Reads the pin from `vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision` and the
  * built components (the lists in that crate's `build.rs`, `CONFIGURE_SELECTED`
@@ -16,9 +17,15 @@
  * relevant commits exist, and its body changes only when the pin or the
  * commit list changes. The scheduled workflow
  * `.github/workflows/ffmpeg-upstream.yml` runs it.
+ *
+ * `ffmpeg:pin` (`--pin <commit>`) moves every pin of the FFmpeg commit at
+ * once: the full hash into `ffmpeg-revision`, and `ffmpeg_cli_release` and
+ * `ffmpeg_cli_build` in `scripts/setup.sh` to the newest FFmpeg-Builds master
+ * autobuild of that commit. It changes nothing when no autobuild names the
+ * commit, and lists the commits that have one.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 const SYS_CRATE = 'vendor/ffmpeg-sys-next-9.0.1';
@@ -27,6 +34,8 @@ export const ISSUE_TITLE = 'FFmpeg upstream: changes since the pin';
 const NEXT_ACTION =
 	'Next action: decide whether to move the pin (procedure: vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md, Moving the pin).';
 const CACHE_DIRECTORY = 'target/abb-ffmpeg-upstream';
+const SETUP_SH = 'scripts/setup.sh';
+const AUTOBUILD_RELEASES = 'repos/FFmpeg-Builds/FFmpeg-Builds/releases?per_page=100';
 
 const WATCHED_ROOTS = ['configure', 'libavcodec', 'libavformat', 'libavutil', 'libswresample'];
 const COMPONENT_LIBRARIES = ['libavcodec', 'libavformat'];
@@ -352,17 +361,95 @@ function buildReport(repoRoot: string): Report {
 	return { pin, head, commits };
 }
 
+export interface Release {
+	tag_name: string;
+	assets: string[];
+}
+
+export interface Autobuild {
+	release: string;
+	build: string;
+}
+
+/**
+ * The master autobuilds setup can install, newest first: an `autobuild-`
+ * release with the checksums and both Linux GPL archives of one describe id
+ * (`N-<count>-g<short hash>`).
+ */
+export function masterAutobuilds(releases: Release[]): Autobuild[] {
+	return releases.flatMap(({ tag_name: release, assets }) => {
+		if (!release.startsWith('autobuild-') || !assets.includes('checksums.sha256')) return [];
+		return assets.flatMap((asset) => {
+			const build = /^ffmpeg-(N-\d+-g[0-9a-f]+)-linux64-gpl\.tar\.xz$/.exec(asset)?.[1];
+			return build && assets.includes(`ffmpeg-${build}-linuxarm64-gpl.tar.xz`)
+				? [{ release, build }]
+				: [];
+		});
+	});
+}
+
+function shortHash(build: string): string {
+	return build.slice(build.lastIndexOf('-g') + 2);
+}
+
+export function withCliPins(setupSh: string, autobuild: Autobuild): string {
+	let text = setupSh;
+	for (const [name, value] of [
+		['ffmpeg_cli_release', autobuild.release],
+		['ffmpeg_cli_build', autobuild.build],
+	]) {
+		const line = new RegExp(`^${name}=\\S*$`, 'm');
+		if (!line.test(text)) throw new Error(`${SETUP_SH} has no ${name}= line.`);
+		text = text.replace(line, `${name}=${value}`);
+	}
+	return text;
+}
+
+export function movePin(repoRoot: string, commitish: string, gh: Gh): string {
+	if (!/^[0-9a-f]{7,40}$/.test(commitish)) {
+		throw new Error(`ffmpeg:pin needs an FFmpeg commit hash, got '${commitish}'.`);
+	}
+	const commit = gh(['api', `repos/FFmpeg/FFmpeg/commits/${commitish}`, '--jq', '.sha']);
+	const autobuilds = masterAutobuilds(
+		gh([
+			'api',
+			'--paginate',
+			AUTOBUILD_RELEASES,
+			'--jq',
+			'.[] | {tag_name, assets: [.assets[].name]}',
+		])
+			.split('\n')
+			.filter((line) => line.length > 0)
+			.map((line) => JSON.parse(line) as Release),
+	);
+	const autobuild = autobuilds.find(({ build }) => commit.startsWith(shortHash(build)));
+	if (!autobuild) {
+		const built = autobuilds.map(({ build }) => shortHash(build)).join(', ');
+		throw new Error(
+			`No FFmpeg-Builds master autobuild names ${commit.slice(0, 10)}. Commits that have one: ${built}.`,
+		);
+	}
+	const setupSh = path.join(repoRoot, SETUP_SH);
+	const pinned = withCliPins(readFileSync(setupSh, 'utf8'), autobuild);
+	writeFileSync(path.join(repoRoot, SYS_CRATE, 'ffmpeg-revision'), `${commit}\n`);
+	writeFileSync(setupSh, pinned);
+	return `Pinned FFmpeg ${commit}: ffmpeg_cli_release=${autobuild.release} ffmpeg_cli_build=${autobuild.build}`;
+}
+
 if (import.meta.main) {
 	try {
-		const flags = process.argv.slice(2);
-		if (flags.some((flag) => flag !== '--issue'))
-			throw new Error(`Unknown argument: ${flags.join(' ')}`);
-		const report = buildReport(path.resolve(import.meta.dirname, '..'));
-		if (flags.includes('--issue')) {
-			const gh: Gh = (args, input) => run('gh', args, undefined, input);
-			console.log(syncIssue(report, gh, repoSlug(), new Date()));
+		const [flag, value, ...extra] = process.argv.slice(2);
+		const repoRoot = path.resolve(import.meta.dirname, '..');
+		const gh: Gh = (args, input) => run('gh', args, undefined, input);
+		if (flag === '--pin' && value !== undefined && extra.length === 0) {
+			console.log(movePin(repoRoot, value, gh));
+		} else if (flag === undefined || (flag === '--issue' && value === undefined)) {
+			const report = buildReport(repoRoot);
+			console.log(
+				flag === '--issue' ? syncIssue(report, gh, repoSlug(), new Date()) : renderReport(report),
+			);
 		} else {
-			console.log(renderReport(report));
+			throw new Error(`Unknown arguments: ${process.argv.slice(2).join(' ')}`);
 		}
 	} catch (error) {
 		console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
