@@ -140,7 +140,7 @@ async fn a_title_that_fails_reports_failed_before_a_later_title_ends() {
     let failing = tmp.path().join("failing.wav");
     let running = tmp.path().join("running.wav");
     write_sine_wav(&failing, 1.0, 440.0);
-    write_sine_wav(&running, 300.0, 440.0);
+    write_sine_wav(&running, 60.0, 440.0);
     let output_dir = tmp.path().join("out");
     fs::create_dir_all(&output_dir).expect("output dir");
     let workspace_root = tmp.path().join("workspace");
