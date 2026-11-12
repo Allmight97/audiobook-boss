@@ -161,7 +161,7 @@ const RULES: Rule[] = [
 		comment: /^\s*\/\//,
 		findIn: (line) => line.match(/\bcrate::audio::(?:\{[^}]*)?\bAudioFile\b/)?.[0] ?? null,
 		message:
-			'reads the audio import model from metadata. Fix: pass the paths or tag facts metadata needs (crates/abb-engine/src/metadata/AGENTS.md).',
+			'reads the audio import model from metadata. Fix: pass the paths or tag facts metadata needs (`PassthroughSource`).',
 	},
 	{
 		appliesTo: ENGINE_DIR('audio'),
@@ -175,7 +175,7 @@ const RULES: Rule[] = [
 		comment: /^\s*\/\//,
 		findIn: (line) => line.match(/\bcrate::remote_source\b/)?.[0] ?? null,
 		message:
-			'reaches into remote_source from an owner that takes provider-neutral facts. Fix: receive the fact through its caller (crates/abb-engine/src/remote_source/AGENTS.md).',
+			'reaches into remote_source from an owner that takes provider-neutral facts. Fix: receive the provider-neutral fact through its caller, so provider rules stay in remote_source.',
 	},
 	{
 		appliesTo: ENGINE_DIR('audio'),

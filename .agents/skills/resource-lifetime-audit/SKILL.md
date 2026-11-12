@@ -19,7 +19,7 @@ terminal outcomes:
 - blocking worker → its task is aborted or its wait dropped (a polled cancel
   joins it) → the worker still writes its partial → removal of that folder
   (Audible decrypt and `purge_with_retries`:
-  `crates/abb-engine/src/remote_source/AGENTS.md`, Handoff);
+  `crates/abb-engine/src/remote_source/session_lifecycle.rs`);
 - register cleanup → transfer or drain ownership;
 - validate path → persist or write it;
 - metadata Save → a waiting write → the export that reads the same source
