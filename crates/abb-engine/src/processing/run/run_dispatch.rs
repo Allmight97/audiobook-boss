@@ -10,7 +10,7 @@ use crate::processing::terminal_outcomes::{
     TitleOutcome,
 };
 use crate::processing::{JobIdentity, ProgressEventListener};
-use crate::processing::{OperationKind, ProcessCommandResult, ProcessPayload, ProcessResultEntry};
+use crate::processing::{ProcessCommandResult, ProcessPayload, ProcessResultEntry};
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -95,7 +95,6 @@ async fn dispatch_batch_plan(
             sample_rate: planned_job.audio_plan.sample_rate,
             aac_decoder: payload.accepted_aac_decoder()?,
             identity,
-            operation_kind: OperationKind::ProcessingBatch,
             title_cancel: run.mode.cancel(input_index),
             output_plan: planned_job.output.clone(),
             file_info: crate::processing::plan::title_file_info(

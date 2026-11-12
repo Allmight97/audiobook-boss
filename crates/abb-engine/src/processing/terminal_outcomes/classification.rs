@@ -1,8 +1,8 @@
 use super::entries::{skipped_entry, terminal_cancelled_result, terminal_failure_result};
 use crate::errors::{AppError, AppErrorEnvelope};
-use crate::execution::{EmitContext, ProgressEmitter};
+use crate::execution::ProgressEmitter;
 use crate::processing::{
-    JobIdentity, OperationKind, ProcessResultEntry, ProcessResultStatus, ProgressEventListener,
+    JobIdentity, ProcessResultEntry, ProcessResultStatus, ProgressEventListener,
 };
 
 const CANCELLED_EVENT_MESSAGE: &str = "Processing was cancelled";
@@ -51,12 +51,9 @@ impl TitleOutcome {
         let input_index = identity.input_index;
         let emitter = |job_id: Option<String>| {
             ProgressEmitter::new(
-                EmitContext {
-                    operation_kind: OperationKind::ProcessingBatch,
-                    identity: JobIdentity {
-                        job_id,
-                        ..identity.clone()
-                    },
+                JobIdentity {
+                    job_id,
+                    ..identity.clone()
                 },
                 listener.clone(),
             )
@@ -96,14 +93,7 @@ pub(in crate::processing) fn report_skipped(
     listener: &ProgressEventListener,
 ) -> ProcessResultEntry {
     let input_index = identity.input_index;
-    ProgressEmitter::new(
-        EmitContext {
-            operation_kind: OperationKind::ProcessingBatch,
-            identity,
-        },
-        listener.clone(),
-    )
-    .emit_terminal_skipped(&message);
+    ProgressEmitter::new(identity, listener.clone()).emit_terminal_skipped(&message);
     skipped_entry(input_index, message)
 }
 

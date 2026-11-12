@@ -18,7 +18,7 @@ pub(crate) use context::{OutputConfig, ProcessingContext};
 pub(crate) use job_identity::JobIdentity;
 pub(crate) use preview_config::PREVIEW_SECONDS;
 pub(crate) use progress::{
-    converting_percentage, converting_percentage_from_seconds, EmitContext, ProgressEmitter,
+    converting_percentage, converting_percentage_from_seconds, ProgressEmitter,
     ProgressEventListener,
 };
 pub use progress::{EventStage, ProgressEvent};

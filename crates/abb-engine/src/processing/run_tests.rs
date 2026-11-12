@@ -6,7 +6,6 @@ use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
 use crate::output_artifact::OutputKind;
 use crate::processing::job_registry::JobId;
 use crate::processing::terminal_outcomes::TitleOutcome;
-use crate::processing::OperationKind;
 use crate::processing::{ProcessPayload, SupplementalProcessingAsset};
 use crate::test_cases::media_fixtures::preflight_payload;
 use crate::test_cases::support::encoders::auto_encoder_settings;
@@ -524,7 +523,6 @@ async fn failed_output_validation_emits_started_and_failed_terminal_records() {
         crate::audio::AudiobookFormat::M4b,
         tokio_util::sync::CancellationToken::new(),
         batch_identity("log-proof"),
-        OperationKind::ProcessingBatch,
     )
     .await
     .is_ok()
@@ -580,7 +578,6 @@ async fn register_job_and_validate_output_cleans_up_failed_validation() {
         crate::audio::AudiobookFormat::M4b,
         tokio_util::sync::CancellationToken::new(),
         batch_identity("register-cleanup"),
-        OperationKind::ProcessingBatch,
     )
     .await
     {

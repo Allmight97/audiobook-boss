@@ -67,7 +67,6 @@ pub(super) fn write_run_identity(
         let _ = writeln!(output, "job_id={job_id}");
     }
     let _ = writeln!(output, "input_index={}", context.identity.input_index);
-    let _ = writeln!(output, "operation_kind={:?}", context.operation_kind);
 }
 
 #[expect(

@@ -10,13 +10,10 @@ fn emitter_with_events(job_id: Option<&str>) -> (ProgressEmitter, Arc<Mutex<Vec<
             .push(event.clone());
     });
     let emitter = ProgressEmitter::new(
-        EmitContext {
-            operation_kind: OperationKind::ProcessingBatch,
-            identity: JobIdentity {
-                operation_id: "operation".to_string(),
-                job_id: job_id.map(str::to_string),
-                input_index: 7,
-            },
+        JobIdentity {
+            operation_id: "operation".to_string(),
+            job_id: job_id.map(str::to_string),
+            input_index: 7,
         },
         listener,
     );
