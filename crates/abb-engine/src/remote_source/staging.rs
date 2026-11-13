@@ -14,10 +14,14 @@ pub(super) struct RemoteSourceStaging {
 }
 
 impl RemoteSourceStaging {
-    pub(super) fn new(cache_dir: PathBuf) -> Self {
-        Self {
-            root: cache_dir.join(REMOTE_SOURCE_DIR),
-        }
+    /// Creates the staging folder and keeps its canonical spelling, so every
+    /// path handed to the session is canonical.
+    pub(super) fn new(cache_dir: &Path) -> Result<Self> {
+        let root = cache_dir.join(REMOTE_SOURCE_DIR);
+        fs::create_dir_all(&root)?;
+        Ok(Self {
+            root: root.canonicalize()?,
+        })
     }
 
     pub(super) fn session_root(&self) -> PathBuf {

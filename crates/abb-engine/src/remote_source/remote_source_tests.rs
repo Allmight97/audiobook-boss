@@ -84,7 +84,7 @@ fn build_runtime(
             settings,
             vault: vault.unwrap_or_else(|| Box::<MemoryVault>::default()),
             lifecycle: RemoteAcquisitionLifecycle::new(
-                RemoteSourceStaging::new(root.path().to_path_buf()),
+                RemoteSourceStaging::new(root.path()).expect("staging"),
                 host,
                 ui,
                 acquire.unwrap_or_else(session_lifecycle::audible_acquire),

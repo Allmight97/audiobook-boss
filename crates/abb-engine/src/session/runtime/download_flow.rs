@@ -33,7 +33,7 @@ impl Session {
                 .iter()
                 .map(|file| &file.path)
                 .chain(job.supplemental_assets.iter().map(|asset| &asset.path))
-                .map(|path| std::fs::canonicalize(path).unwrap_or_else(|_| path.clone()))
+                .cloned()
                 .collect();
             self.transition(|state| state.staged.register_unimported(&job.job_id, paths));
         }
@@ -201,10 +201,7 @@ fn list_acquired(
 fn staged_titles(job: &AcquisitionJob) -> Vec<(String, PathBuf)> {
     job.materialized_files
         .iter()
-        .map(|file| {
-            let path = std::fs::canonicalize(&file.path).unwrap_or_else(|_| file.path.clone());
-            (file.title_id.clone(), path)
-        })
+        .map(|file| (file.title_id.clone(), file.path.clone()))
         .collect()
 }
 

@@ -103,13 +103,7 @@ impl Session {
 
     pub(super) fn begin_save(&self) -> Rest {
         let staged = &self.inner.deps.temporary_root;
-        let staged_canonical = std::fs::canonicalize(staged).ok();
-        let is_temporary = |path: &Path| {
-            path.starts_with(staged)
-                || staged_canonical
-                    .as_ref()
-                    .is_some_and(|root| path.starts_with(root))
-        };
+        let is_temporary = |path: &Path| path.starts_with(staged);
         let plan = self.transition(|state| {
             if state.working_set.files().is_empty() {
                 return None;

@@ -598,6 +598,9 @@ fn staged_wav(dir: &std::path::Path, name: &str) -> PathBuf {
 }
 
 fn acquired(job_id: &str, audio: &std::path::Path) -> crate::remote_source::AcquisitionJob {
+    let audio = audio
+        .canonicalize()
+        .expect("canonical audio, as remote_source hands over");
     let pdf = audio.with_extension("pdf");
     let pdf_bytes = b"%PDF-1.4 companion";
     std::fs::write(&pdf, pdf_bytes).expect("write companion PDF");
@@ -606,7 +609,7 @@ fn acquired(job_id: &str, audio: &std::path::Path) -> crate::remote_source::Acqu
         materialized_files: vec![MaterializedSourceFile {
             input_id: "remote-1".to_string(),
             title_id: "B0".to_string(),
-            path: audio.to_path_buf(),
+            path: audio.clone(),
             size_bytes: 0,
             sha256: String::new(),
         }],

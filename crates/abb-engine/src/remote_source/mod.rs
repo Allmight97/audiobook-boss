@@ -31,7 +31,9 @@ use staging::RemoteSourceStaging;
 
 #[cfg(test)]
 pub(crate) fn staging_session_root(cache_dir: &std::path::Path) -> PathBuf {
-    RemoteSourceStaging::new(cache_dir.to_path_buf()).session_root()
+    RemoteSourceStaging::new(cache_dir)
+        .expect("staging folder")
+        .session_root()
 }
 use types::{
     AcquisitionJob as RemoteAcquisitionJob, AcquisitionPlan as RemoteAcquisitionPlan,
@@ -93,7 +95,7 @@ impl RemoteSourceRuntime {
                     &config.app_identifier,
                 )),
                 lifecycle: RemoteAcquisitionLifecycle::new(
-                    RemoteSourceStaging::new(config.cache_dir),
+                    RemoteSourceStaging::new(&config.cache_dir)?,
                     config.host,
                     ui,
                     session_lifecycle::audible_acquire(),

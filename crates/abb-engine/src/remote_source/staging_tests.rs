@@ -2,7 +2,7 @@ use super::*;
 use tempfile::TempDir;
 
 fn staging(root: &TempDir) -> RemoteSourceStaging {
-    RemoteSourceStaging::new(root.path().to_path_buf())
+    RemoteSourceStaging::new(root.path()).expect("staging")
 }
 
 #[test]
@@ -87,4 +87,20 @@ fn startup_refuses_a_symlinked_sessions_root() {
         .expect("sessions root")
         .file_type()
         .is_symlink());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_job_folder_is_canonical_when_the_cache_is_reached_through_a_symlink() {
+    let real = TempDir::new().expect("cache");
+    let links = TempDir::new().expect("link folder");
+    let cache = links.path().join("cache-link");
+    std::os::unix::fs::symlink(real.path(), &cache).expect("symlink");
+
+    let job_dir = RemoteSourceStaging::new(&cache)
+        .expect("staging")
+        .create_job_dir("job-1")
+        .expect("job dir");
+
+    assert_eq!(job_dir, job_dir.canonicalize().expect("canonical"));
 }
