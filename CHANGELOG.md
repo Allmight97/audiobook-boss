@@ -4,6 +4,19 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.19.1] - 2026-11-13
+
+### Fixed
+
+- A chapter title longer than 255 bytes is no longer cut in the middle of a character in the
+  chapter list some players read (the Nero `chpl` list in M4B files).
+- Damaged cover art and rare AAC variants are handled more safely on import, from the updated
+  FFmpeg.
+
+### Changed
+
+- FFmpeg is updated to a newer upstream build. Encoded audio is unchanged.
+
 ## [1.19.0] - 2026-11-13
 
 ### Added
