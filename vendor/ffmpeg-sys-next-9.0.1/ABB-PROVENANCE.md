@@ -39,12 +39,16 @@ What ABB relies on in that source:
 
 ## Moving the pin
 
-`bun run ffmpeg:upstream` lists the commits after the pin that touch
-`configure`, libavcodec, libavformat, libavutil or libswresample, leaving out
-each source file that both the pin's and master's Makefiles compile only for
-components ABB does not build. Read it before choosing the new commit. Blind
-spot: `ffbuild/`, `compat/` and the top-level Makefile are not watched, and
-neither is a left-out source file that a built file includes directly.
+`ffmpeg-used-files.txt` lists every FFmpeg source and header ABB's build
+compiles, read from the compiler's dependency files and merged across macOS,
+Linux x86_64 and Linux arm64. The engine lane fails when a build compiles a
+file the list lacks or the list names a file the pinned source no longer has;
+`bun run ffmpeg:used update` on the platform that differs fixes it.
+
+`bun run ffmpeg:upstream` lists the commits after the pin that touch a listed
+file, or the file a rename moved it to. Read it before choosing the new
+commit. Blind spot: `configure`, `ffbuild/` and the Makefiles are not watched;
+a change there that matters shows when the pin moves (steps 2 and 5).
 The scheduled workflow `.github/workflows/ffmpeg-upstream.yml` runs it with
 `--issue`: one open GitHub issue titled "FFmpeg upstream: changes since the
 pin" holds the list while any commit is relevant, and the run closes it when
@@ -60,6 +64,8 @@ none is.
    upstream renamed or removed fails its build there, and a component set
    `configure` enables other than the lists in `build.rs` fails `build.rs`. The chapter patch must
    still apply.
+   Its list check fails until `bun run ffmpeg:used update` has run on macOS
+   and on Linux against the new source.
 3. Recheck each item in the list above against the upstream diff, and update
    the FAAD3 trim table if `api-skip-samples` changed.
 4. Prove a Native AAC encode kept its decoded audio with `abb-dev parity`

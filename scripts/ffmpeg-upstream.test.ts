@@ -4,60 +4,27 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+	compareUsedFiles,
 	decideIssueAction,
+	dependencyPaths,
 	type Gh,
 	ISSUE_TITLE,
 	issueBody,
 	masterAutobuilds,
 	movePin,
-	objectConditions,
 	parseCommits,
-	parseComponents,
-	registeredComponents,
+	parseUsedFiles,
 	renderReport,
+	renderUsedFiles,
 	type Report,
 	syncIssue,
-	unbuiltSources,
-	watchedPathspecs,
+	watchedPaths,
 	withCliPins,
 } from './ffmpeg-upstream';
 
 const sysCrate = path.resolve(import.meta.dirname, '../vendor/ffmpeg-sys-next-9.0.1');
 const buildRs = readFileSync(path.join(sysCrate, 'build.rs'), 'utf8');
 const provenance = readFileSync(path.join(sysCrate, 'ABB-PROVENANCE.md'), 'utf8');
-
-const codecMakefile = `
-OBJS = allcodecs.o
-OBJS-$(CONFIG_AAC_ENCODER)             += aacenc.o aaccoder.o \\
-                                          aacenctab.o
-OBJS-$(CONFIG_H264_DECODER)            += h264dec.o h264_mb.o
-OBJS-$(CONFIG_H264_PARSER)             += h264_parser.o h264_mb.o
-OBJS-$(CONFIG_HEVC_DECODER)            += hevcdec.o
-OBJS-$(CONFIG_HEVCPARSE)               += hevcdec.o
-OBJS-$(CONFIG_MPEGAUDIODSP)            += mpegaudiodsp.o
-OBJS-$(CONFIG_MP3_DECODER)             += mpegaudiodsp.o
-OBJS-$(CONFIG_FRAME_THREAD_ENCODER)    += frame_thread_encoder.o
-OBJS-$(CONFIG_AC3_PARSER)              += ac3_parser.o
-NEON-OBJS-$(CONFIG_H264_DECODER)       += aarch64/h264dsp_neon.o
-X86ASM-OBJS-$(CONFIG_AAC_ENCODER)      += x86/aacencdsp.o
-`;
-
-const codecFiles = [
-	'libavcodec/aac_parser.c',
-	'libavcodec/aacenc.c',
-	'libavcodec/aacenc.h',
-	'libavcodec/ac3_parser.c',
-	'libavcodec/aarch64/h264dsp_neon.S',
-	'libavcodec/allcodecs.c',
-	'libavcodec/frame_thread_encoder.c',
-	'libavcodec/h264_mb.c',
-	'libavcodec/h264_mb_template.c',
-	'libavcodec/h264dec.c',
-	'libavcodec/h264dec.h',
-	'libavcodec/hevcdec.c',
-	'libavcodec/mpegaudiodsp.c',
-	'libavcodec/x86/aacencdsp.asm',
-];
 
 function tableComponents(markdown: string): string[] {
 	const kinds: Record<string, string> = {
@@ -78,125 +45,80 @@ function tableComponents(markdown: string): string[] {
 		);
 }
 
+function buildRsComponents(text: string): string[] {
+	return [...text.matchAll(/\(\s*"([a-z]+)",\s*&\[([^\]]*)\]/g)].flatMap(([, kind, names]) =>
+		[...names.matchAll(/"([a-z0-9_]+)"/g)].map(([, name]) => `${kind} ${name}`),
+	);
+}
+
 describe('the component lists in build.rs', () => {
-	const named = (text: string) => parseComponents(text).map(({ kind, name }) => `${kind} ${name}`);
-
-	it('names every list, the optional and configure-selected ones included', () => {
-		const components = named(buildRs);
-		for (const expected of [
-			'demuxer mov',
-			'muxer mp4',
-			'decoder mp3float',
-			'encoder aac',
-			'parser opus',
-			'bsf aac_adtstoasc',
-			'protocol file',
-			'encoder libopus',
-			'decoder aac_at',
-			'muxer mov',
-			'bsf vp9_superframe',
-		]) {
-			expect(components).toContain(expected);
-		}
-		expect(components).not.toContain('protocol http');
-	});
-
 	it('match the provenance table, apart from what configure selects', () => {
 		const selected = /const CONFIGURE_SELECTED[\s\S]*?\n\];/.exec(buildRs)?.[0] ?? '';
 		const listed = new Set(
-			named(buildRs).filter((component) => !named(selected).includes(component)),
+			buildRsComponents(buildRs).filter(
+				(component) => !buildRsComponents(selected).includes(component),
+			),
 		);
+		expect(listed.size).toBeGreaterThan(0);
 		expect(new Set(tableComponents(provenance))).toEqual(listed);
 	});
-
-	it('fails when build.rs lists none', () => {
-		expect(() => parseComponents('fn main() {}')).toThrow('no components');
-	});
 });
 
-const allcodecs = `
-extern const FFCodec ff_aac_encoder;
-extern const FFCodec ff_h264_decoder;
-extern const FFCodec ff_hevc_decoder;
-extern const FFCodec ff_mp3_decoder;
-`;
-const parsers = `
-extern const FFCodecParser ff_ac3_parser;
-extern const FFCodecParser ff_h264_parser;
-`;
-
-describe('sources of unbuilt components', () => {
-	const registries = [allcodecs, parsers];
-	const built = [
-		{ kind: 'encoder', name: 'aac' },
-		{ kind: 'parser', name: 'ac3' },
-	];
-
-	it('records each condition an object is compiled under, continued lines included', () => {
-		const conditions = objectConditions([{ library: 'libavcodec', text: codecMakefile }]);
-		expect(conditions.get('libavcodec/aacenctab')).toEqual(new Set(['CONFIG_AAC_ENCODER']));
-		expect(conditions.get('libavcodec/allcodecs')).toEqual(new Set(['']));
-		expect(conditions.get('libavcodec/h264_mb')).toEqual(
-			new Set(['CONFIG_H264_DECODER', 'CONFIG_H264_PARSER']),
-		);
-		expect(conditions.get('libavcodec/x86/aacencdsp')).toEqual(new Set(['CONFIG_AAC_ENCODER']));
-	});
-
-	it('name the components FFmpeg registers', () => {
-		expect(registeredComponents(registries)).toEqual(
-			new Set([
-				'CONFIG_AAC_ENCODER',
-				'CONFIG_H264_DECODER',
-				'CONFIG_HEVC_DECODER',
-				'CONFIG_MP3_DECODER',
-				'CONFIG_AC3_PARSER',
-				'CONFIG_H264_PARSER',
-			]),
-		);
-	});
-
-	it('leave out only sources every line compiles for an unbuilt component', () => {
-		expect(
-			unbuiltSources(
-				built,
-				registries,
-				[{ library: 'libavcodec', text: codecMakefile }],
-				codecFiles,
-			),
-		).toEqual([
-			'libavcodec/aarch64/h264dsp_neon.S',
-			'libavcodec/h264_mb.c',
-			'libavcodec/h264dec.c',
+describe('the FFmpeg files a build compiled', () => {
+	it('reads every source and header a dependency file names, leaving out system headers', () => {
+		const dependencies = [
+			'libavformat/aacdec.o: \\',
+			'  /Applications/Xcode.app/SDKs/MacOSX.sdk/usr/include/stdio.h \\',
+			'  libavformat/aacdec.c ./libavutil/avassert.h config.h \\',
+			'  libavutil/aarch64/intreadwrite.h',
+			'libavutil/avassert.h:',
+		].join('\n');
+		expect(dependencyPaths(dependencies)).toEqual([
+			'libavformat/aacdec.c',
+			'libavutil/avassert.h',
+			'config.h',
+			'libavutil/aarch64/intreadwrite.h',
 		]);
 	});
 
-	it('keep a source another Makefile compiles for a built component', () => {
-		const master = 'OBJS-$(CONFIG_AAC_ENCODER) += h264dec.o\n';
+	it('names what a build compiled that the list lacks, and what the pinned source no longer has', () => {
+		const tracked = new Set([
+			'libavcodec/aacenc.c',
+			'libavcodec/x86/aacencdsp.asm',
+			'libavutil/log.h',
+		]);
 		expect(
-			unbuiltSources(
-				built,
-				registries,
-				[
-					{ library: 'libavcodec', text: codecMakefile },
-					{ library: 'libavcodec', text: master },
-				],
-				codecFiles,
+			compareUsedFiles(
+				['libavcodec/aacenc.c', 'libavformat/vorbiscomment.c'],
+				new Set(['libavcodec/aacenc.c', 'libavcodec/x86/aacencdsp.asm']),
+				tracked,
 			),
-		).not.toContain('libavcodec/h264dec.c');
+		).toEqual({
+			unlisted: ['libavcodec/x86/aacencdsp.asm'],
+			gone: ['libavformat/vorbiscomment.c'],
+		});
 	});
 
-	it('watch the libraries and configure whole, minus those sources', () => {
-		expect(watchedPathspecs(['libavcodec/h264dec.c'])).toEqual([
-			'configure',
-			'libavcodec',
-			'libavformat',
-			'libavutil',
-			'libswresample',
-			':(exclude)libavcodec/h264dec.c',
-		]);
+	it('writes the list sorted, once per file', () => {
+		expect(renderUsedFiles(['b.c', 'a.h', 'b.c'])).toBe('a.h\nb.c\n');
+		expect(parseUsedFiles('a.h\nb.c\n')).toEqual(['a.h', 'b.c']);
 	});
 });
 
+describe('the watched paths', () => {
+	it('follow a listed file to the name a rename gave it, and ignore renames of unlisted files', () => {
+		const renames = [
+			'R100\tlibavformat/vorbiscomment.c\tlibavformat/vorbis/comment/write.c',
+			'R097\tlibavcodec/x86/cabac.h\tlibavcodec/x86/cabac_new.h',
+		].join('\n');
+		expect(watchedPaths(['libavformat/vorbiscomment.c', 'libavformat/movenc.c'], renames)).toEqual([
+			':(literal)libavformat/vorbiscomment.c',
+			':(literal)libavformat/movenc.c',
+			':(literal)libavformat/vorbis/comment/write.c',
+		]);
+		expect(watchedPaths(['libavformat/movenc.c'], '')).toEqual([':(literal)libavformat/movenc.c']);
+	});
+});
 describe('commits', () => {
 	it('splits tab-separated log lines and keeps tabs in a subject', () => {
 		expect(

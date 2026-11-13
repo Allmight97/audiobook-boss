@@ -12,6 +12,7 @@
 		"ci:timing": "bun scripts/ci-timing.ts",
 		"ffmpeg:pin": "bun scripts/ffmpeg-upstream.ts --pin",
 		"ffmpeg:upstream": "bun scripts/ffmpeg-upstream.ts",
+		"ffmpeg:used": "bun scripts/ffmpeg-upstream.ts --used-files",
 		"fmt": "oxfmt",
 		"fmt:check": "oxfmt --check",
 		"lint:check": "oxlint --type-aware --deny-warnings --report-unused-disable-directives && biome lint --error-on-warnings --no-errors-on-unmatched . && bun scripts/check-known-mistakes.ts",

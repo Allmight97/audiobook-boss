@@ -6,17 +6,19 @@
  *        bun run ffmpeg:pin <commit>
  *
  * Reads the pin from `vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision` and the
- * built components (the lists in that crate's `build.rs`, `CONFIGURE_SELECTED`
- * included). Fetches master into a blobless clone under
- * `target/abb-ffmpeg-upstream/` (reused across runs) and lists the commits
- * after the pin that touch `configure`, libavcodec, libavformat, libavutil or
- * libswresample, leaving out a source file that the pin's and master's
- * Makefiles assign only to components ABB does not build. Prints a Markdown
- * report. With `--issue` it instead keeps one open issue current through
+ * FFmpeg files ABB's build compiles from `ffmpeg-used-files.txt` beside it.
+ * Fetches master into a blobless clone under `target/abb-ffmpeg-upstream/`
+ * (reused across runs) and lists the commits after the pin that touch one of
+ * those files, or the file it was renamed to. Prints a Markdown report. With `--issue` it instead keeps one open issue current through
  * `gh api` (REST only; cloud sessions block GraphQL): the issue exists while
  * relevant commits exist, and its body changes only when the pin or the
  * commit list changes. The scheduled workflow
  * `.github/workflows/ffmpeg-upstream.yml` runs it.
+ *
+ * `ffmpeg:used` (`--used-files check|update`) reads the compiler dependency
+ * files of this checkout's current FFmpeg build trees: `check` fails when a
+ * build compiled a file the list lacks or the list names a file the pinned
+ * source no longer has; `update` rewrites the list to match.
  *
  * `ffmpeg:pin` (`--pin <commit>`) moves every pin of the FFmpeg commit at
  * once: the full hash into `ffmpeg-revision`, and `ffmpeg_cli_release` and
@@ -25,7 +27,7 @@
  * commit, and lists the commits that have one.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 const SYS_CRATE = 'vendor/ffmpeg-sys-next-9.0.1';
@@ -37,32 +39,13 @@ const CACHE_DIRECTORY = 'target/abb-ffmpeg-upstream';
 const SETUP_SH = 'scripts/setup.sh';
 const AUTOBUILD_RELEASES = 'repos/FFmpeg-Builds/FFmpeg-Builds/releases?per_page=100';
 
-const WATCHED_ROOTS = ['configure', 'libavcodec', 'libavformat', 'libavutil', 'libswresample'];
-const COMPONENT_LIBRARIES = ['libavcodec', 'libavformat'];
-const REGISTRIES = [
-	'libavcodec/allcodecs.c',
-	'libavcodec/bitstream_filters.c',
-	'libavcodec/hwaccels.h',
-	'libavcodec/parsers.c',
-	'libavformat/allformats.c',
-	'libavformat/protocols.c',
-];
-const SOURCE_EXTENSIONS = new Set(['.c', '.S', '.asm']);
-
-export interface Component {
-	kind: string;
-	name: string;
-}
+const USED_FILES = `${SYS_CRATE}/ffmpeg-used-files.txt`;
+const RENAME_ROOTS = ['compat', 'libavcodec', 'libavformat', 'libavutil', 'libswresample'];
 
 export interface Commit {
 	hash: string;
 	date: string;
 	subject: string;
-}
-
-export interface Makefile {
-	library: string;
-	text: string;
 }
 
 export interface Report {
@@ -71,84 +54,36 @@ export interface Report {
 	commits: Commit[];
 }
 
-export function parseComponents(buildRs: string): Component[] {
-	const components = [...buildRs.matchAll(/\(\s*"([a-z]+)",\s*&\[([^\]]*)\]/g)].flatMap(
-		([, kind, names]) => [...names.matchAll(/"([a-z0-9_]+)"/g)].map(([, name]) => ({ kind, name })),
-	);
-	if (components.length === 0) throw new Error('build.rs lists no components.');
-	return components;
-}
-
 /**
- * The condition of every Makefile line that compiles each object:
- * `OBJS-$(CONFIG_<NAME>_<KIND>) += a.o`, its assembly and SIMD variants, and
- * `OBJS += a.o` (condition ''), with `\` continuations. Object paths are
- * relative to the library directory; keys are `<library>/<object without .o>`.
+ * The repository paths a compiler dependency file (`make`'s `.d`) names:
+ * every source and header after a target's colon, without absolute paths
+ * (system and SDK headers) or a leading `./`.
  */
-export function objectConditions(makefiles: Makefile[]): Map<string, Set<string>> {
-	const conditions = new Map<string, Set<string>>();
-	for (const { library, text } of makefiles) {
-		for (const line of text.replace(/\\\r?\n/g, ' ').split('\n')) {
-			const match = /^(?:[A-Z0-9]+-)?(?:SHLIB|STLIB)?OBJS(?:-\$\(([^)]*)\))?\s*\+?=(.*)$/.exec(
-				line,
-			);
-			if (!match) continue;
-			for (const object of match[2].split(/\s+/).filter((word) => word.endsWith('.o'))) {
-				const key = `${library}/${object.slice(0, -2)}`;
-				const set = conditions.get(key) ?? new Set<string>();
-				set.add(match[1] ?? '');
-				conditions.set(key, set);
-			}
-		}
-	}
-	return conditions;
+export function dependencyPaths(text: string): string[] {
+	return text
+		.replace(/\\\r?\n/g, ' ')
+		.split(/\s+/)
+		.filter((word) => word.length > 0 && !word.endsWith(':') && !word.startsWith('/'))
+		.map((word) => word.replace(/^\.\//, ''));
 }
 
-/**
- * The `CONFIG_` name of each component FFmpeg registers (`extern const FFCodec
- * ff_aac_decoder;` is `CONFIG_AAC_DECODER`), as `configure` finds them.
- */
-export function registeredComponents(registries: string[]): Set<string> {
-	return new Set(
-		registries.flatMap((text) =>
-			[
-				...text.matchAll(
-					/\bff_(\w+?_(?:bsf|decoder|demuxer|encoder|hwaccel|muxer|parser|protocol))\b/g,
-				),
-			].map(([, component]) => `CONFIG_${component.toUpperCase()}`),
-		),
-	);
+export function parseUsedFiles(text: string): string[] {
+	return text.split('\n').filter((line) => line.length > 0);
 }
 
-/**
- * Source files compiled only for registered components ABB does not build.
- * An object stays watched when any line compiles it unconditionally, for a
- * built component, or for a subsystem such as `CONFIG_FRAME_THREAD_ENCODER`.
- */
-export function unbuiltSources(
-	built: Component[],
-	registries: string[],
-	makefiles: Makefile[],
-	files: Iterable<string>,
-): string[] {
-	const components = registeredComponents(registries);
-	for (const { kind, name } of built) {
-		components.delete(`CONFIG_${name.toUpperCase()}_${kind.toUpperCase()}`);
-	}
-	const unbuilt = new Set<string>();
-	for (const [object, conditions] of objectConditions(makefiles)) {
-		if ([...conditions].every((when) => components.has(when))) unbuilt.add(object);
-	}
-	return [...files]
-		.filter((file) => {
-			const extension = path.extname(file);
-			return SOURCE_EXTENSIONS.has(extension) && unbuilt.has(file.slice(0, -extension.length));
-		})
-		.toSorted();
+export function renderUsedFiles(files: Iterable<string>): string {
+	return `${[...new Set(files)].toSorted().join('\n')}\n`;
 }
 
-export function watchedPathspecs(unbuilt: string[]): string[] {
-	return [...WATCHED_ROOTS, ...unbuilt.map((file) => `:(exclude)${file}`)];
+/** Each watched path, and the path a rename between the pin and master moved it to. */
+export function watchedPaths(used: string[], renames: string): string[] {
+	const listed = new Set(used);
+	const moved = renames
+		.split('\n')
+		.map((line) => line.split('\t'))
+		.filter(([status, from, to]) => status?.startsWith('R') && to && listed.has(from))
+		.map(([, , to]) => to);
+	return [...new Set([...used, ...moved])].map((file) => `:(literal)${file}`);
 }
 
 export function parseCommits(log: string): Commit[] {
@@ -210,35 +145,6 @@ function ensureClone(cache: string): void {
 		UPSTREAM_URL,
 		cache,
 	]);
-}
-
-function readMakefiles(
-	cache: string,
-	revisions: string[],
-): { registries: string[]; makefiles: Makefile[]; files: Set<string> } {
-	const registries: string[] = [];
-	const makefiles: Makefile[] = [];
-	const files = new Set<string>();
-	for (const revision of revisions) {
-		for (const registry of REGISTRIES) {
-			registries.push(run('git', ['show', `${revision}:${registry}`], cache));
-		}
-		const tree = run(
-			'git',
-			['ls-tree', '-r', '--name-only', revision, '--', ...COMPONENT_LIBRARIES],
-			cache,
-		)
-			.split('\n')
-			.filter((file) => file.length > 0);
-		for (const file of tree) files.add(file);
-		for (const file of tree.filter((name) => name.endsWith('/Makefile'))) {
-			makefiles.push({
-				library: file.split('/')[0],
-				text: run('git', ['show', `${revision}:${file}`], cache),
-			});
-		}
-	}
-	return { registries, makefiles, files };
 }
 
 export type Gh = (args: string[], input?: string) => string;
@@ -344,21 +250,146 @@ function repoSlug(): string {
 
 function buildReport(repoRoot: string): Report {
 	const pin = readFileSync(path.join(repoRoot, SYS_CRATE, 'ffmpeg-revision'), 'utf8').trim();
-	const buildRs = readFileSync(path.join(repoRoot, SYS_CRATE, 'build.rs'), 'utf8');
+	const used = parseUsedFiles(readFileSync(path.join(repoRoot, USED_FILES), 'utf8'));
 	const cache = path.join(repoRoot, CACHE_DIRECTORY, 'FFmpeg.git');
 	ensureClone(cache);
 
-	const { registries, makefiles, files } = readMakefiles(cache, [pin, 'master']);
-	const unbuilt = unbuiltSources(parseComponents(buildRs), registries, makefiles, files);
+	const renames = run(
+		'git',
+		[
+			'diff',
+			'--find-renames',
+			'--name-status',
+			'--diff-filter=R',
+			pin,
+			'master',
+			'--',
+			...RENAME_ROOTS,
+		],
+		cache,
+	);
 	const head = run('git', ['rev-parse', 'master'], cache);
 	const commits = parseCommits(
 		run(
 			'git',
-			['log', '--format=%H%x09%cs%x09%s', `${pin}..master`, '--', ...watchedPathspecs(unbuilt)],
+			['log', '--format=%H%x09%cs%x09%s', `${pin}..master`, '--', ...watchedPaths(used, renames)],
 			cache,
 		),
 	);
 	return { pin, head, commits };
+}
+
+function gitBlobHash(file: string): string {
+	return run('git', ['hash-object', '--no-filters', file]);
+}
+
+function targetDirectory(repoRoot: string): string {
+	return path.resolve(repoRoot, process.env.CARGO_TARGET_DIR ?? 'target');
+}
+
+/**
+ * The FFmpeg source trees this checkout's current builds compiled: each build
+ * script output whose identity names the current `build.rs`, mapped to the
+ * cache tree build.rs keys by that identity's blob hash, at the pinned source.
+ */
+function currentTrees(repoRoot: string, pin: string): string[] {
+	const target = targetDirectory(repoRoot);
+	const script = `build-script=${gitBlobHash(path.join(repoRoot, SYS_CRATE, 'build.rs'))}`;
+	const profiles = readdirSync(target, { withFileTypes: true })
+		.filter((entry) => entry.isDirectory())
+		.flatMap((entry) => {
+			const dir = path.join(target, entry.name);
+			return existsSync(path.join(dir, 'build'))
+				? [dir]
+				: readdirSync(dir, { withFileTypes: true })
+						.filter((child) => child.isDirectory())
+						.map((child) => path.join(dir, child.name))
+						.filter((child) => existsSync(path.join(child, 'build')));
+		});
+	const trees = new Set<string>();
+	for (const profile of profiles) {
+		for (const unit of readdirSync(path.join(profile, 'build'))) {
+			const identity = path.join(profile, 'build', unit, 'out', 'abb-build-identity.txt');
+			if (!unit.startsWith('ffmpeg-sys-next-') || !existsSync(identity)) continue;
+			if (readFileSync(identity, 'utf8').split('\n')[0] !== script) continue;
+			const tree = path.join(target, 'abb-ffmpeg-cache', gitBlobHash(identity));
+			const stamp = path.join(tree, 'dist', 'abb-source-commit');
+			if (existsSync(stamp) && readFileSync(stamp, 'utf8').startsWith(`${pin}:`)) {
+				trees.add(tree);
+			}
+		}
+	}
+	return [...trees].toSorted();
+}
+
+function dependencyFiles(directory: string): string[] {
+	return readdirSync(directory, { recursive: true, encoding: 'utf8' })
+		.filter((file) => file.endsWith('.d'))
+		.map((file) => path.join(directory, file));
+}
+
+/** Every tracked FFmpeg file a tree's build compiled or included. */
+function compiledFiles(tree: string): { used: Set<string>; tracked: Set<string> } {
+	const source = path.join(tree, 'ffmpeg-9.0');
+	const tracked = new Set(run('git', ['ls-files'], source).split('\n'));
+	const used = new Set(
+		dependencyFiles(source)
+			.flatMap((file) => dependencyPaths(readFileSync(file, 'utf8')))
+			.filter((file) => tracked.has(file)),
+	);
+	return { used, tracked };
+}
+
+export interface UsedFilesCheck {
+	unlisted: string[];
+	gone: string[];
+}
+
+export function compareUsedFiles(
+	listed: string[],
+	used: Set<string>,
+	tracked: Set<string>,
+): UsedFilesCheck {
+	const names = new Set(listed);
+	return {
+		unlisted: [...used].filter((file) => !names.has(file)).toSorted(),
+		gone: listed.filter((file) => !tracked.has(file)),
+	};
+}
+
+function usedFiles(repoRoot: string, mode: string): string {
+	const pin = readFileSync(path.join(repoRoot, SYS_CRATE, 'ffmpeg-revision'), 'utf8').trim();
+	const trees = currentTrees(repoRoot, pin);
+	if (trees.length === 0) {
+		throw new Error(
+			'No FFmpeg build of the current build.rs at the pin in this target directory. Build the engine first (bash scripts/verify.sh engine).',
+		);
+	}
+	const file = path.join(repoRoot, USED_FILES);
+	const listed = parseUsedFiles(readFileSync(file, 'utf8'));
+	const used = new Set<string>();
+	let tracked = new Set<string>();
+	for (const tree of trees) {
+		const compiled = compiledFiles(tree);
+		for (const name of compiled.used) used.add(name);
+		tracked = compiled.tracked;
+	}
+	const { unlisted, gone } = compareUsedFiles(listed, used, tracked);
+	if (mode === 'update') {
+		const kept = listed.filter((name) => tracked.has(name));
+		writeFileSync(file, renderUsedFiles([...kept, ...used]));
+		return `${USED_FILES}: added ${unlisted.length}, removed ${gone.length}.`;
+	}
+	if (unlisted.length === 0 && gone.length === 0) {
+		return `${USED_FILES} covers the ${used.size} FFmpeg files this build compiles.`;
+	}
+	throw new Error(
+		[
+			`${USED_FILES} is out of date. Run bun run ffmpeg:used update on each platform that differs.`,
+			...unlisted.map((name) => `  compiled, not listed: ${name}`),
+			...gone.map((name) => `  listed, not in the pinned source: ${name}`),
+		].join('\n'),
+	);
 }
 
 export interface Release {
@@ -443,6 +474,12 @@ if (import.meta.main) {
 		const gh: Gh = (args, input) => run('gh', args, undefined, input);
 		if (flag === '--pin' && value !== undefined && extra.length === 0) {
 			console.log(movePin(repoRoot, value, gh));
+		} else if (
+			flag === '--used-files' &&
+			(value === 'check' || value === 'update') &&
+			extra.length === 0
+		) {
+			console.log(usedFiles(repoRoot, value));
 		} else if (flag === undefined || (flag === '--issue' && value === undefined)) {
 			const report = buildReport(repoRoot);
 			console.log(
