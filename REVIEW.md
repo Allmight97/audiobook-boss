@@ -23,8 +23,8 @@ them.
 
 - **Important** must be fixed before the change lands, or at once if it has:
   the diff breaks a root Hard Invariant, a Golden Path line, or a nested
-  owner's rule, or changes behavior crossing a boundary without a focused test
-  at the owning tier.
+  owner's rule, or changes behavior crossing a boundary without a test that
+  proves it (root `AGENTS.md`, Testing And Proof).
 - **Nit**: Refactor Discipline targets, a test that does not earn keep,
   naming, or local clarity. Post at most five; fold the rest into the
   summary.

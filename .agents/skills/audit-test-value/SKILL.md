@@ -5,8 +5,9 @@ description: Audit or clean up ABB tests and test-only production seams for beha
 
 # Audit Test Value
 
-Recover useful regression protection at the lowest owning boundary, and remove
-complexity whose only purpose was supporting tests that do not earn keep.
+Keep the tests that protect something the user gets, favor end-to-end proof,
+and remove complexity whose only purpose was supporting tests that do not earn
+keep.
 
 ## Scope And Authority
 
@@ -14,18 +15,18 @@ Use the whole request to distinguish a report from authorized cleanup. An
 audit alone is read-only; an audit followed by requested fixes includes those
 edits. A repository-wide census does not by itself authorize production changes.
 
-Read applicable owner guidance (root test tiers, the surface `AGENTS.md`) for test placement and `scripts/AGENTS.md` for commands. Inspect the in-scope tests, fixtures, registries, configuration, and
+Read root `AGENTS.md` (Testing And Proof) and the surface `AGENTS.md` for where a test belongs, and `scripts/AGENTS.md` for commands. Inspect the in-scope tests, fixtures, registries, configuration, and
 production callers. Use baseline execution when it provides useful evidence;
 distinguish existing failures from regressions.
 
 ## Judge The Contract
 
-Root `AGENTS.md` owns tier selection. For each challenged test or shared
-group, establish:
+Root `AGENTS.md` says where a test belongs: end to end by default. For each
+challenged test or shared group, establish:
 
 - the plausible bug and observable contract it protects;
-- the stable owner, test tier, and any distinct risk that justifies a higher or
-  second tier;
+- whether an end-to-end test already proves it, or could after a refactor,
+  and the distinct risk that justifies a narrower test beside it;
 - what protection deletion would lose;
 - the disposition: `keep`, `move`, `consolidate`, `delete`, or `replace`;
 - any production seam kept alive by the test and its remaining production use.
@@ -48,8 +49,9 @@ uncertainty alone need not stop independent authorized cleanup.
 ## Apply Authorized Cleanup
 
 Choose an owner-coherent change set from the findings. Delete unsupported
-tests, consolidate duplicated contracts, and move proof to the lowest tier
-that can establish it. Add replacement coverage only for a meaningful gap.
+tests, consolidate duplicated contracts, and replace narrow tests with the
+end-to-end test that proves the same behavior. Where the code blocks that,
+propose the refactor. Add replacement coverage only for a meaningful gap.
 
 After test changes, recheck production callers. Remove exports, wrappers,
 factories, or indirection whose only remaining purpose was test access when

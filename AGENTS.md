@@ -118,14 +118,20 @@ runs; their commands live only in `verify.sh`.
 ## Testing And Proof
 
 - Slow, opaque, or false-green proof is a `fix` finding when measured.
-- A test names a plausible regression at its owning boundary.
-- Pick the lowest tier that proves the behavior deterministically:
-  1. pure domain logic: its `abb-*-core` crate;
-  2. session, settings, job lifecycle, file and network workflows, error
-     envelope: `abb-engine`;
-  3. intent ordering and TS↔Rust contract shape: the host crate
-     (`audiobook-boss`) and the binding tests;
-  4. DOM and UI state: Vitest under `src/`.
+- A test names a plausible regression in something the user gets.
+- Prove a behavior end to end: drive the engine as a host does (intents and
+  snapshots, or `abb-dev` on real files) and read the result from the output
+  file or the snapshot. Why: such a test survives a refactor and fails only
+  when the user's outcome changes.
+- Test a smaller piece by itself only where end to end cannot do the job:
+  - pure domain logic with many input cases: its `abb-*-core` crate;
+  - a run that cannot be made deterministic or fast end to end: the engine
+    owner's own tests;
+  - request ordering and the TS↔Rust contract shape: the host crate
+    (`audiobook-boss`) and the binding tests;
+  - DOM and UI state: Vitest under `src/`.
+- When code is hard to prove end to end, propose the refactor that makes it
+  possible before adding a narrower test.
 - Rust unit tests live in sibling `*_tests.rs` files, because an agent reads
   the implementation without the tests and tests do not spend the
   implementation's file-size budget.
