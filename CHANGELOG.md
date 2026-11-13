@@ -4,6 +4,25 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-11-13
+
+### Added
+
+- **Save PDF** for Audible titles that offer a companion PDF: it saves only the PDF, without
+  downloading the audiobook, into your output folder where that audiobook would go under your
+  naming layout (for example `Author/Series/Book 5 - Title/Book 5 - Title - Supplemental
+  PDF.pdf`). A second save of the same title gets a " (2)" name. It is refused, before anything
+  downloads, while another download runs, for a title you can't acquire, and when no output
+  folder is set.
+
+### Fixed
+
+- A failed Audible download no longer leaves its temporary files behind until the next launch.
+- An Audible download whose import finished just as its temporary files were cleaned up no
+  longer stays shown as running.
+- Downloaded files are matched to the session by one spelling of their path, so an import no
+  longer depends on how the cache folder was reached (for example through a symlink).
+
 ## [1.18.6] - 2026-11-12
 
 ### Fixed
