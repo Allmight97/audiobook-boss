@@ -1,5 +1,5 @@
 # untouched
-sha256: 0ec342ace99733e0ab6953c54b4f8907b17ebf321fbe909c7d1c0c9e11fe63ea
+sha256: 218158a28c691bcb92deb43d4d1c83711633d32f6cd0c8a3868d52bb0135ca41
 chapters: [(Some("One"), 0, 250), (Some("Two"), 250, 500)]
 container: mov,mp4,m4a,3gp,3g2,mj2
 format tags, in file order:
@@ -71,7 +71,7 @@ MP4 atoms, in file order:
   soal "Lower Series 01 - Seed Title"
 
 # set-all
-sha256: 5bb892f41d09ad84f09d3d451694af912ff7362207ff1f4625233393510e76ae
+sha256: 8399c4c2a5bb9df5542dc26c45c36cfc3c9508fe527aa81ad69fbfe0b56afff5
 chapters: [(Some("One"), 0, 250), (Some("Two"), 250, 500)]
 container: mov,mp4,m4a,3gp,3g2,mj2
 format tags, in file order:

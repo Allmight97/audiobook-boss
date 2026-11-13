@@ -474,9 +474,9 @@ libavformat/iamf_writer.c
 libavformat/iamf_writer.h
 libavformat/id3v1.c
 libavformat/id3v1.h
-libavformat/id3v2.c
 libavformat/id3v2.h
-libavformat/id3v2enc.c
+libavformat/id3v2/reader.c
+libavformat/id3v2/writer.c
 libavformat/img2.c
 libavformat/img2.h
 libavformat/internal.h
@@ -509,8 +509,6 @@ libavformat/mux.h
 libavformat/mux_utils.c
 libavformat/nal.c
 libavformat/nal.h
-libavformat/oggdec.h
-libavformat/oggparsevorbis.c
 libavformat/options.c
 libavformat/options_table.h
 libavformat/os_support.c
@@ -553,8 +551,9 @@ libavformat/utils.c
 libavformat/version.c
 libavformat/version.h
 libavformat/version_major.h
-libavformat/vorbiscomment.c
-libavformat/vorbiscomment.h
+libavformat/vorbis/comment.h
+libavformat/vorbis/comment/reader.c
+libavformat/vorbis/comment/writer.c
 libavformat/vpcc.c
 libavformat/vpcc.h
 libavformat/vvc.c

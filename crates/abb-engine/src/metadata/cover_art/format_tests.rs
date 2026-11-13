@@ -87,7 +87,7 @@ fn pictures_of(codec: &str) -> Option<Vec<Vec<u8>>> {
 
 const UNREAD_PICTURE_CODECS: [&str; 1] = ["JPEGXL"];
 
-/// `ff_id3v2_mime_tags` (`libavformat/id3v2.c`) maps an ID3 or FLAC
+/// `ff_id3v2_mime_tags` (`libavformat/id3v2/reader.c`) maps an ID3 or FLAC
 /// picture's MIME type to its codec.
 fn ffmpeg_id3_picture_codecs() -> Vec<String> {
     let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -122,12 +122,13 @@ fn ffmpeg_id3_picture_codecs() -> Vec<String> {
                 cache.display()
             )
         });
-    let id3v2 = std::fs::read_to_string(source.join("libavformat/id3v2.c")).expect("id3v2.c");
+    let id3v2 =
+        std::fs::read_to_string(source.join("libavformat/id3v2/reader.c")).expect("id3v2/reader.c");
     let table = id3v2
         .split("ff_id3v2_mime_tags[] = {")
         .nth(1)
         .and_then(|rest| rest.split("};").next())
-        .expect("ff_id3v2_mime_tags in id3v2.c");
+        .expect("ff_id3v2_mime_tags in id3v2/reader.c");
     let mut codecs: Vec<String> = table
         .split("AV_CODEC_ID_")
         .skip(1)
