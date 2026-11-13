@@ -14,7 +14,7 @@ staged=()
 while IFS= read -r -d '' file; do
 	staged+=("${file}")
 done <"${snapshot}/paths"
-[[ ${#staged[@]} -gt 0 ]] || exit 0
+git diff --cached --quiet && exit 0
 git diff --cached --check
 
 git_dir="$(git rev-parse --absolute-git-dir)"
@@ -32,7 +32,7 @@ eval "$(scripts/setup.sh --print-env)"
 
 has() {
 	local pattern="$1" file
-	for file in "${staged[@]}"; do
+	for file in ${staged[@]+"${staged[@]}"}; do
 		[[ "${file}" =~ ${pattern} ]] && return 0
 	done
 	return 1
@@ -61,7 +61,7 @@ if has '^\.github/workflows/'; then
 	bun scripts/check-pr-workflow-policy.ts
 fi
 shell_files=()
-for file in "${staged[@]}"; do
+for file in ${staged[@]+"${staged[@]}"}; do
 	if [[ "${file}" == *.sh || "${file}" == .githooks/* ]]; then
 		shell_files+=("${file}")
 	fi
@@ -72,4 +72,4 @@ if [[ ${#shell_files[@]} -gt 0 ]]; then
 fi
 require bun
 bun scripts/check-known-mistakes.ts
-bun scripts/check-file-size.mjs "${staged[@]}"
+[[ ${#staged[@]} -eq 0 ]] || bun scripts/check-file-size.mjs "${staged[@]}"

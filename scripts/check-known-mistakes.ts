@@ -558,21 +558,38 @@ function git(repoRoot: string, args: string[]): string {
 	return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
 }
 
-export function changedSampleFindings(repoRoot: string, against?: string): Finding[] {
-	if (against === undefined) {
-		return frozenSampleFindings(
-			git(repoRoot, ['diff', '--cached', '--find-renames', '--name-status']),
-		);
-	}
+function mergeBaseWith(repoRoot: string, ref: string): string {
 	const resolved = git(repoRoot, [
 		'rev-parse',
 		'--verify',
 		'--end-of-options',
-		`${against}^{commit}`,
+		`${ref}^{commit}`,
 	]).trim();
-	const mergeBase = git(repoRoot, ['merge-base', '--', resolved, 'HEAD']).trim();
+	return git(repoRoot, ['merge-base', '--', resolved, 'HEAD']).trim();
+}
+
+function stagedBase(repoRoot: string): string {
+	try {
+		return mergeBaseWith(repoRoot, 'origin/main');
+	} catch {
+		return 'HEAD';
+	}
+}
+
+export function changedSampleFindings(repoRoot: string, against?: string): Finding[] {
+	if (against === undefined) {
+		return frozenSampleFindings(
+			git(repoRoot, ['diff', '--cached', '--find-renames', '--name-status', stagedBase(repoRoot)]),
+		);
+	}
 	return frozenSampleFindings(
-		git(repoRoot, ['diff', '--find-renames', '--name-status', mergeBase, 'HEAD']),
+		git(repoRoot, [
+			'diff',
+			'--find-renames',
+			'--name-status',
+			mergeBaseWith(repoRoot, against),
+			'HEAD',
+		]),
 	);
 }
 

@@ -618,6 +618,36 @@ describe('frozen settings samples', () => {
 		});
 	});
 
+	it('allows editing a staged sample that an unpushed commit added', () => {
+		sampleRepo((root, git) => {
+			git('update-ref', 'refs/remotes/origin/main', 'HEAD');
+			const added = path.join(root, SAMPLES, 'added.toml');
+			writeFileSync(added, 'x = 1\n');
+			git('add', '-A');
+			git('commit', '-q', '-m', 'add', '--no-verify');
+			writeFileSync(added, 'x = 2\n');
+			git('add', '-A');
+			expect(changedSampleFindings(root)).toEqual([]);
+			writeFileSync(path.join(root, SAMPLES, 'first.toml'), 'x = 3\n');
+			git('add', '-A');
+			expect(changedSampleFindings(root).map((finding) => finding.file)).toEqual([
+				`${SAMPLES}/first.toml`,
+			]);
+		});
+	});
+
+	it('rejects staging a deletion of a sample released before an unpushed commit', () => {
+		sampleRepo((root, git) => {
+			git('update-ref', 'refs/remotes/origin/main', 'HEAD');
+			writeFileSync(path.join(root, 'other.txt'), 'x\n');
+			git('add', '-A');
+			git('commit', '-q', '-m', 'other', '--no-verify');
+			rmSync(path.join(root, SAMPLES, 'first.toml'));
+			git('add', '-A');
+			expect(changedSampleFindings(root)[0].message).toContain('was deleted');
+		});
+	});
+
 	it('compares a branch with the merge base when given a base', () => {
 		sampleRepo((root, git) => {
 			git('checkout', '-q', '-b', 'work');
