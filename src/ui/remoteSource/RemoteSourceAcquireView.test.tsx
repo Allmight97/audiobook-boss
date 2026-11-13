@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import type {
+	AcquisitionJobState,
 	AcquisitionSnapshot,
 	RemoteRelease,
 	RemoteSourceProviderCapabilities,
@@ -14,10 +15,18 @@ import type {
 } from '../../lib/generated/tauri';
 import { RemoteSourceAcquireView } from './RemoteSourceAcquireView';
 
-function acquisitionJob(percentage: number, terminal = false): AcquisitionSnapshot {
+const imported: AcquisitionJobState = {
+	kind: 'done',
+	ending: { kind: 'handoff', handoff: { job: 'titles', outcome: { kind: 'imported', count: 1 } } },
+};
+
+function acquisitionJob(
+	percentage: number,
+	state: AcquisitionJobState = { kind: 'running' },
+): AcquisitionSnapshot {
+	const terminal = state.kind !== 'running';
 	return {
-		settled: terminal,
-		terminal,
+		state,
 		jobId: 'remote-job-1',
 		providerId: 'audible',
 		progress: {
@@ -166,7 +175,13 @@ describe('RemoteSourceAcquireView', () => {
 			}),
 		);
 		fakeEngine().change((state) => {
-			state.remoteAcquisition.job = acquisitionJob(100, true);
+			state.remoteAcquisition.job = acquisitionJob(100, { kind: 'handingOver' });
+		});
+		flush();
+		expect(bar()).not.toHaveAttribute('data-active');
+		expect(screen.queryByRole('button', { name: 'Cancel Acquisition' })).not.toBeInTheDocument();
+		fakeEngine().change((state) => {
+			state.remoteAcquisition.job = acquisitionJob(100, imported);
 			state.remote.busy = false;
 		});
 		flush();

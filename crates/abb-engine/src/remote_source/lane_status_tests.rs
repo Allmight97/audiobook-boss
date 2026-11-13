@@ -128,7 +128,7 @@ fn a_job_settled_after_a_library_failure_outranks_it() {
 }
 
 #[test]
-fn a_new_sign_in_replaces_a_settled_job_line() {
+fn a_new_sign_in_replaces_a_job_ending_line() {
     let mut ui = settled_ui();
     ui.begin(RemoteUiIntent::StartAuth).expect("sign-in starts");
     assert_eq!(message(&ui), "Starting Audible authorization.");
@@ -161,7 +161,7 @@ fn republishing_a_settled_job_does_not_restore_its_replaced_line() {
 }
 
 #[test]
-fn disconnecting_clears_a_settled_job_line() {
+fn disconnecting_clears_a_job_ending_line() {
     let mut ui = settled_ui();
     ui.disconnected();
     assert_eq!(message(&ui), "");
@@ -220,36 +220,46 @@ fn a_failed_library_load_leaves_an_earlier_sign_in_or_account_failure() {
 #[test]
 fn settled_jobs_keep_their_outcome_wording() {
     assert_eq!(
-        settled_job_line(&imported(1).job),
-        "1 acquired title imported."
+        job_ending_line(&imported(1)).as_deref(),
+        Some("1 acquired title imported.")
     );
     assert_eq!(
-        settled_job_line(&imported(3).job),
-        "3 acquired titles imported."
+        job_ending_line(&imported(3)).as_deref(),
+        Some("3 acquired titles imported.")
     );
     assert_eq!(
-        settled_job_line(
-            &removed(
-                HandoffRefusal::ImportFailed {
-                    error: envelope("The disk is full."),
-                },
-                Vec::new()
-            )
-            .job
-        ),
-        "The disk is full. Staged remote files were removed."
+        job_ending_line(&removed(
+            HandoffRefusal::ImportFailed {
+                error: envelope("The disk is full."),
+            },
+            Vec::new()
+        ))
+        .as_deref(),
+        Some("The disk is full. Staged remote files were removed.")
     );
     assert_eq!(
-        settled_job_line(&removed(HandoffRefusal::NothingAdded, Vec::new()).job),
-        "Acquired titles were not added to the input session. Staged remote files were removed."
+        job_ending_line(&removed(HandoffRefusal::NothingAdded, Vec::new())).as_deref(),
+        Some("Acquired titles were not added to the input session. Staged remote files were removed.")
     );
 }
 
 #[test]
-fn a_failed_job_shows_its_reason_and_falls_back_to_the_stage_word() {
+fn a_job_that_is_still_working_leaves_no_line() {
     assert_eq!(
-        settled_job_line(&failed(Vec::new()).job),
-        "Acquisition failed."
+        job_ending_line(&running("job-1", AcquisitionStage::Download)),
+        None
+    );
+    assert_eq!(
+        job_ending_line(&job_state::tests::validated("job-1", Vec::new()).snapshot()),
+        None
+    );
+}
+
+#[test]
+fn a_failed_job_shows_its_reason_and_falls_back_to_the_ending_message() {
+    assert_eq!(
+        job_ending_line(&failed(Vec::new())).as_deref(),
+        Some("Acquisition failed.")
     );
     let explained = failed(vec![
         diagnostic(" Token expired. "),
@@ -257,7 +267,10 @@ fn a_failed_job_shows_its_reason_and_falls_back_to_the_stage_word() {
         diagnostic("  "),
         diagnostic("Retrying."),
     ]);
-    assert_eq!(settled_job_line(&explained.job), "Token expired. Retrying.");
+    assert_eq!(
+        job_ending_line(&explained).as_deref(),
+        Some("Token expired. Retrying.")
+    );
 }
 
 #[test]
@@ -270,16 +283,16 @@ fn a_settled_import_or_removal_names_the_titles_that_failed() {
         ],
     );
     assert_eq!(
-        settled_job_line(&partial.job),
-        "1 acquired title imported. One title failed."
+        job_ending_line(&partial).as_deref(),
+        Some("1 acquired title imported. One title failed.")
     );
     let nothing_added = removed(
         HandoffRefusal::NothingAdded,
         vec![diagnostic("One title failed.")],
     );
     assert_eq!(
-        settled_job_line(&nothing_added.job),
-        "Acquired titles were not added to the input session. Staged remote files were removed. One title failed."
+        job_ending_line(&nothing_added).as_deref(),
+        Some("Acquired titles were not added to the input session. Staged remote files were removed. One title failed.")
     );
 }
 

@@ -288,7 +288,12 @@ async fn cancelled_job_keeps_terminal_state_when_background_result_arrives() {
 
     let job = published_job(&runtime);
     assert!(!job_dir.exists());
-    assert_eq!(job.progress.stage, AcquisitionStage::Cancelled);
+    assert_eq!(
+        job.state,
+        types::AcquisitionJobState::Done {
+            ending: types::JobEnding::Cancelled
+        }
+    );
     assert!(job
         .diagnostics
         .iter()
@@ -320,7 +325,7 @@ fn cancelling_a_finished_acquisition_keeps_its_files_for_the_session() {
         .cancel_acquisition(job_id)
         .expect("cancel acquisition");
 
-    assert!(answered.terminal && !answered.settled);
+    assert_eq!(answered.state, types::AcquisitionJobState::HandingOver);
     let kept = handoff_job(&runtime, job_id).expect("the files still wait for the session");
     let types::AcquiredContent::Titles { files, assets } = kept.content else {
         panic!("a titles job hands over titles");
@@ -367,7 +372,7 @@ async fn a_finished_job_records_its_handoff() {
         runtime.inner.lifecycle.hand_off(&runtime, job_id).await;
 
         let stored = published_job(&runtime);
-        assert_eq!(stored.handoff, Some(answer));
+        assert_eq!(stored.state.handoff(), Some(&answer));
         assert!(audio.exists());
         let held = runtime
             .inner
@@ -423,8 +428,7 @@ async fn a_sweep_that_finishes_before_the_handoff_returns_still_lets_the_job_set
     runtime.inner.lifecycle.hand_off(&runtime, job_id).await;
 
     let job = published_job(&runtime);
-    assert!(job.settled);
-    assert_eq!(job.handoff, Some(saved));
+    assert_eq!(job.state.handoff(), Some(&saved));
     assert!(!job_dir.exists());
     assert!(!runtime.ui_snapshot().busy);
 }

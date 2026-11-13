@@ -22,7 +22,7 @@ export type RemoteSourceStateStore = {
 
 function laneMessage(remote: RemoteUiSnapshot, job: RemoteAcquisitionSnapshot['job']): string {
 	if (remote.lane === 'indexer') return remote.indexer.message;
-	return job && !job.settled ? job.progress.message : remote.audibleMessage;
+	return job && job.state.kind !== 'done' ? job.progress.message : remote.audibleMessage;
 }
 
 function setOf(): (ids: readonly string[]) => Set<string> {

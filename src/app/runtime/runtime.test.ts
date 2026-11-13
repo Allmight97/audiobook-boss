@@ -13,8 +13,7 @@ function createDeferred<T>() {
 
 function runningJob(): AcquisitionSnapshot {
 	return {
-		settled: false,
-		terminal: false,
+		state: { kind: 'running' },
 		jobId: 'remote-job-1',
 		providerId: 'audible',
 		progress: {

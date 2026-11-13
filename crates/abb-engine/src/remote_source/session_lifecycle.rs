@@ -223,7 +223,7 @@ impl RemoteAcquisitionLifecycle {
                 .jobs
                 .lock()
                 .map_err(|_| AppError::General("Remote acquisition job lock failed".into()))?;
-            if jobs.values().any(|job| !job.settled()) {
+            if jobs.values().any(|job| !job.is_done()) {
                 self.staging.purge_session(&job_id)?;
                 return Err(AppError::InvalidInput(
                     "An Audible acquisition is still running or handing off its files.".into(),

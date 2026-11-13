@@ -350,6 +350,15 @@ async fn disconnect_is_refused_while_an_acquisition_is_accepted_or_unsettled_wit
     );
 
     runtime.ui().acquisition_changed(
+        crate::remote_source::job_state::tests::validated("job-1", Vec::new()).snapshot(),
+    );
+    let handing_over = runtime.ui_begin(RemoteUiIntent::Disconnect).finish().await;
+    assert_eq!(
+        handing_over.err().expect("handing over").to_string(),
+        format!("Invalid input: {refusal}")
+    );
+
+    runtime.ui().acquisition_changed(
         crate::remote_source::job_state::tests::imported("job-1", 1, Vec::new()).snapshot(),
     );
     runtime

@@ -139,13 +139,15 @@ impl super::UiState {
             self.reject_sign_in();
             self.changed();
         }
-        let already_settled = self
+        let already_done = self
             .acquisition
             .job
             .as_ref()
-            .is_some_and(|known| known.settled && known.job_id == job.job_id);
-        if job.settled && !already_settled {
-            self.audible.settled_job_line = Some(lane_status::settled_job_line(&job));
+            .is_some_and(|known| known.state.is_done() && known.job_id == job.job_id);
+        if !already_done {
+            if let Some(line) = lane_status::job_ending_line(&job) {
+                self.audible.job_ending_line = Some(line);
+            }
         }
         self.set_acquisition(|acquisition| acquisition.job = Some(Box::new(job)));
         let remote_moved = self.snapshot.current() != remote_before;

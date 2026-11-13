@@ -1,6 +1,6 @@
 use super::super::{
-    AcquisitionHandoff, AcquisitionJob, HandoffRefusal, PdfHandoff, RemoteAccountStatus,
-    RemoteSourceDiagnostic, TitlesHandoff,
+    AcquisitionHandoff, AcquisitionJobState, AcquisitionSnapshot, HandoffRefusal, JobEnding,
+    PdfHandoff, RemoteAccountStatus, RemoteSourceDiagnostic, TitlesHandoff,
 };
 use super::audible_lane::AudibleLane;
 use super::audible_lane::AudibleSignIn;
@@ -8,7 +8,7 @@ use super::{RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiSnapshot};
 
 const STAGED_FILES_REMOVED: &str = "Staged remote files were removed.";
 
-/// `settled_job_line` is the last settled job's line, unless a later library
+/// `job_ending_line` is the last done job's line, unless a later library
 /// load or sign-in replaced it; only that fact orders a job against them.
 pub(super) fn audible_message(
     remote: &RemoteUiSnapshot,
@@ -21,7 +21,7 @@ pub(super) fn audible_message(
     if let RemoteDraftStatus::Failed { error } = &remote.account_status {
         return error.message.clone();
     }
-    if let Some(line) = &audible.settled_job_line {
+    if let Some(line) = &audible.job_ending_line {
         return with_connected_note(line.clone(), remote);
     }
     if let RemoteDraftStatus::Failed { error } = &audible.library_status {
@@ -74,32 +74,40 @@ pub(super) fn grab_batch_line(sent: usize, failed: usize, unconfirmed: usize) ->
     line
 }
 
-pub(super) fn settled_job_line(job: &AcquisitionJob) -> String {
+/// The line a done job leaves in the Audible lane; `None` while it works.
+pub(super) fn job_ending_line(job: &AcquisitionSnapshot) -> Option<String> {
+    let AcquisitionJobState::Done { ending } = &job.state else {
+        return None;
+    };
     let diagnostics = unique_diagnostic_message(&job.diagnostics);
-    let outcome = match &job.handoff {
-        Some(AcquisitionHandoff::Titles(TitlesHandoff::Imported { count })) => {
+    let JobEnding::Handoff { handoff } = ending else {
+        if diagnostics.is_empty() {
+            return Some(job.progress.message.clone());
+        }
+        return Some(diagnostics);
+    };
+    let outcome = match handoff {
+        AcquisitionHandoff::Titles(TitlesHandoff::Imported { count }) => {
             let plural = if *count == 1 { "" } else { "s" };
             format!("{count} acquired title{plural} imported.")
         }
-        Some(AcquisitionHandoff::Titles(TitlesHandoff::Removed {
+        AcquisitionHandoff::Titles(TitlesHandoff::Removed {
             reason: HandoffRefusal::ImportFailed { error },
-        })) => format!("{} {STAGED_FILES_REMOVED}", error.message),
-        Some(AcquisitionHandoff::Titles(TitlesHandoff::Removed {
+        }) => format!("{} {STAGED_FILES_REMOVED}", error.message),
+        AcquisitionHandoff::Titles(TitlesHandoff::Removed {
             reason: HandoffRefusal::NothingAdded,
-        })) => {
+        }) => {
             format!("Acquired titles were not added to the input session. {STAGED_FILES_REMOVED}")
         }
-        Some(AcquisitionHandoff::Pdf(PdfHandoff::Saved { path })) => {
+        AcquisitionHandoff::Pdf(PdfHandoff::Saved { path }) => {
             format!("Supplemental PDF saved to {}.", path.display())
         }
-        Some(AcquisitionHandoff::Pdf(PdfHandoff::NotSaved { error })) => error.message.clone(),
-        None if !diagnostics.is_empty() => return diagnostics,
-        None => return job.progress.message.clone(),
+        AcquisitionHandoff::Pdf(PdfHandoff::NotSaved { error }) => error.message.clone(),
     };
     if diagnostics.is_empty() || outcome.contains(&diagnostics) {
-        outcome
+        Some(outcome)
     } else {
-        format!("{outcome} {diagnostics}")
+        Some(format!("{outcome} {diagnostics}"))
     }
 }
 

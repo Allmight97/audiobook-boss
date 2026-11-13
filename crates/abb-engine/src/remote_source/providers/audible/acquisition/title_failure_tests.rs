@@ -124,8 +124,12 @@ async fn a_title_failing_mid_job_does_not_settle_the_job_while_later_titles_run(
     first_title_failed.await.expect("the first title failed");
 
     let running = published_job(&runtime);
-    assert!(!running.terminal, "{:?}", running.progress);
-    assert!(!running.settled);
+    assert_eq!(
+        running.state,
+        crate::remote_source::AcquisitionJobState::Running,
+        "{:?}",
+        running.progress
+    );
     assert!(runtime.ui_snapshot().busy);
 
     release_job.send(()).expect("resume the job");

@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use abb_remote_source_core::AcquisitionStage;
 use tempfile::TempDir;
 
 use super::integration_audible_handoff_tests::session_and_settings_acquiring;
@@ -14,9 +13,10 @@ use crate::remote_source::tests::{
     offer_library_title, offer_pdf_title, offer_unacquirable_pdf_title,
 };
 use crate::remote_source::{
-    AcquireTitles, AcquisitionHandoff, AcquisitionOutcome, AcquisitionSnapshot, AcquisitionWork,
-    PdfHandoff, PdfTitle, RemoteAcquisitionFailureKind, RemoteSourceDiagnostic,
-    RemoteSourceRuntime, RemoteUiIntent, StagedPdf,
+    AcquireTitles, AcquisitionHandoff, AcquisitionJobState, AcquisitionOutcome,
+    AcquisitionSnapshot, AcquisitionWork, JobEnding, PdfHandoff, PdfTitle,
+    RemoteAcquisitionFailureKind, RemoteSourceDiagnostic, RemoteSourceRuntime, RemoteUiIntent,
+    StagedPdf,
 };
 use crate::session::{Session, SessionIntent, SessionOutcome};
 
@@ -161,10 +161,10 @@ impl Rig {
         self.session.snapshot().remote_acquisition?.job
     }
 
-    async fn settled_after(&self, previous: Option<String>) -> Box<AcquisitionSnapshot> {
+    async fn done_after(&self, previous: Option<String>) -> Box<AcquisitionSnapshot> {
         until("the PDF job to settle", || {
             self.job()
-                .filter(|job| job.settled && Some(&job.job_id) != previous.as_ref())
+                .filter(|job| job.state.is_done() && Some(&job.job_id) != previous.as_ref())
         })
         .await
     }
@@ -182,7 +182,7 @@ impl Rig {
     async fn downloading(&self) -> Box<AcquisitionSnapshot> {
         until("the PDF download to start", || {
             self.job().filter(|job| {
-                !job.terminal
+                job.state == AcquisitionJobState::Running
                     && self
                         .remote
                         .staging_root()
@@ -211,7 +211,7 @@ fn refusal(outcome: SessionOutcome) -> String {
 }
 
 fn saved_path(job: &AcquisitionSnapshot) -> &Path {
-    match &job.handoff {
+    match job.state.handoff() {
         Some(AcquisitionHandoff::Pdf(PdfHandoff::Saved { path })) => path,
         other => panic!("expected a saved PDF, got {other:?}"),
     }
@@ -223,7 +223,7 @@ async fn a_saved_pdf_lands_where_its_audiobook_would_go_and_a_second_save_takes_
     rig.choose_output().await;
 
     assert_eq!(rig.save_pdf().await, SessionOutcome::Applied);
-    let first = rig.settled_after(None).await;
+    let first = rig.done_after(None).await;
     rig.staging_gone(&first.job_id).await;
 
     let folder = rig.output().join("Ann Author/Saga/Book 2 - Book Two");
@@ -244,7 +244,7 @@ async fn a_saved_pdf_lands_where_its_audiobook_would_go_and_a_second_save_takes_
     assert!(titles.files.is_empty(), "a PDF save imports no audiobook");
 
     assert_eq!(rig.save_pdf().await, SessionOutcome::Applied);
-    let second = rig.settled_after(Some(first.job_id.clone())).await;
+    let second = rig.done_after(Some(first.job_id.clone())).await;
     rig.staging_gone(&second.job_id).await;
 
     let renamed = folder.join("Book 2 - Book Two - Supplemental PDF (2).pdf");
@@ -261,7 +261,7 @@ async fn a_saved_pdf_follows_a_custom_naming_template() {
     rig.name_with_template("{series}/{year} - {title}").await;
 
     assert_eq!(rig.save_pdf().await, SessionOutcome::Applied);
-    let job = rig.settled_after(None).await;
+    let job = rig.done_after(None).await;
 
     let expected = rig
         .output()
@@ -276,11 +276,11 @@ async fn a_pdf_that_fails_its_publish_check_leaves_no_folder_in_the_library() {
     rig.choose_output().await;
 
     assert_eq!(rig.save_pdf().await, SessionOutcome::Applied);
-    let job = rig.settled_after(None).await;
+    let job = rig.done_after(None).await;
     rig.staging_gone(&job.job_id).await;
 
-    let Some(AcquisitionHandoff::Pdf(PdfHandoff::NotSaved { error })) = &job.handoff else {
-        panic!("expected an unsaved PDF, got {:?}", job.handoff);
+    let Some(AcquisitionHandoff::Pdf(PdfHandoff::NotSaved { error })) = job.state.handoff() else {
+        panic!("expected an unsaved PDF, got {:?}", job.state);
     };
     assert!(error.message.contains("hash changed"), "{}", error.message);
     let entries: Vec<_> = std::fs::read_dir(rig.output())
@@ -334,11 +334,16 @@ async fn a_failed_pdf_download_shows_why_saves_nothing_and_leaves_no_staged_file
     rig.choose_output().await;
 
     assert_eq!(rig.save_pdf().await, SessionOutcome::Applied);
-    let job = rig.settled_after(None).await;
+    let job = rig.done_after(None).await;
     rig.staging_gone(&job.job_id).await;
 
-    assert_eq!(job.progress.stage, AcquisitionStage::Failed);
-    assert_eq!(job.handoff, None);
+    assert_eq!(
+        job.state,
+        AcquisitionJobState::Done {
+            ending: JobEnding::Failed
+        }
+    );
+    assert_eq!(job.progress.message, "Acquisition failed.");
     assert!(rig.audible_message().contains(FAILURE));
     assert!(files_under(&rig.output()).is_empty());
     assert!(!rig.session.snapshot().remote.expect("remote part").busy);
@@ -353,11 +358,11 @@ async fn a_pdf_whose_output_folder_was_cleared_meanwhile_is_not_saved_and_its_do
     assert_eq!(rig.save_pdf().await, SessionOutcome::Applied);
     rig.set_output(String::new()).await;
     release.send(()).expect("the download waits");
-    let job = rig.settled_after(None).await;
+    let job = rig.done_after(None).await;
     rig.staging_gone(&job.job_id).await;
 
-    let Some(AcquisitionHandoff::Pdf(PdfHandoff::NotSaved { error })) = &job.handoff else {
-        panic!("expected an unsaved PDF, got {:?}", job.handoff);
+    let Some(AcquisitionHandoff::Pdf(PdfHandoff::NotSaved { error })) = job.state.handoff() else {
+        panic!("expected an unsaved PDF, got {:?}", job.state);
     };
     assert!(error.message.contains("output folder"), "{}", error.message);
     assert!(rig.audible_message().contains(&error.message));
@@ -391,7 +396,7 @@ async fn a_pdf_save_is_refused_while_an_acquisition_is_running() {
     assert!(message.contains("current Audible acquisition"), "{message}");
     assert_eq!(rig.calls.load(Ordering::SeqCst), 1);
     release.send(()).expect("the download waits");
-    let settled = rig.settled_after(None).await;
+    let settled = rig.done_after(None).await;
     assert_eq!(settled.job_id, running.job_id);
     assert_eq!(rig.calls.load(Ordering::SeqCst), 1);
 }
@@ -414,13 +419,18 @@ async fn a_pdf_save_cancelled_mid_download_saves_nothing_and_leaves_no_staged_fi
         .await;
     assert_eq!(reply.outcome, SessionOutcome::Applied);
     let job = until("the cancelled job to settle", || {
-        rig.job().filter(|job| job.settled)
+        rig.job().filter(|job| job.state.is_done())
     })
     .await;
     rig.staging_gone(&job.job_id).await;
 
-    assert_eq!(job.progress.stage, AcquisitionStage::Cancelled);
-    assert_eq!(job.handoff, None);
+    assert_eq!(
+        job.state,
+        AcquisitionJobState::Done {
+            ending: JobEnding::Cancelled
+        }
+    );
+    assert_eq!(job.progress.message, "Acquisition cancelled.");
     assert!(files_under(&rig.output()).is_empty());
     assert!(!rig.session.snapshot().remote.expect("remote part").busy);
 }

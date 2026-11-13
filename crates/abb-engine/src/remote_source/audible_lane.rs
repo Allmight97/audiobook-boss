@@ -39,7 +39,7 @@ pub(super) struct AudibleLane {
     pub(super) library_status: RemoteDraftStatus,
     pub(super) library_request: u64,
     pub(super) sign_in_rejected: bool,
-    pub(super) settled_job_line: Option<String>,
+    pub(super) job_ending_line: Option<String>,
 }
 
 impl AudibleLane {
@@ -120,7 +120,7 @@ impl UiState {
         self.account_change_allowed()?;
         self.expire_reads();
         self.audible.sign_in = AudibleSignIn::Starting;
-        self.audible.settled_job_line = None;
+        self.audible.job_ending_line = None;
         Ok(UiAction::StartAuth)
     }
 
@@ -247,7 +247,7 @@ impl UiState {
     pub(super) fn begin_library(&mut self) -> u64 {
         self.audible.supersede_library_read();
         self.audible.library_status = RemoteDraftStatus::Running;
-        self.audible.settled_job_line = None;
+        self.audible.job_ending_line = None;
         self.changed();
         self.audible.library_request
     }
@@ -264,7 +264,7 @@ impl UiState {
         self.audible.supersede_library_read();
         self.supersede_account_read();
         self.audible.sign_in_rejected = false;
-        self.audible.settled_job_line = None;
+        self.audible.job_ending_line = None;
         self.set_acquisition(|acquisition| acquisition.job = None);
         self.library_loaded(Vec::new());
     }
@@ -323,7 +323,7 @@ impl UiState {
         else {
             unreachable!("the sign-in was awaiting its handoff a moment ago")
         };
-        self.audible.settled_job_line = None;
+        self.audible.job_ending_line = None;
         Ok(UiAction::CompleteAuth {
             response_url_handoff_path,
             pending,

@@ -327,7 +327,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 							<Progress
 								value={job().progress.percentage}
 								label="Acquisition progress"
-								active={!job().terminal}
+								active={job().state.kind === 'running'}
 							/>
 							<div class="remote-progress-copy">
 								<span>{progressTitleLabel(job().progress, remoteSource.acquisitionTitle())}</span>
@@ -336,7 +336,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 							<Show when={bytesLabel(job().progress)}>
 								{(label) => <p class="remote-progress-bytes">{label()}</p>}
 							</Show>
-							<Show when={!job().terminal}>
+							<Show when={job().state.kind === 'running'}>
 								<Button
 									class="remote-progress-cancel"
 									onClick={() => void runAction({ type: 'cancelActiveAcquisition' })}

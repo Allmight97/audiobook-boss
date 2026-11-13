@@ -310,9 +310,6 @@ pub struct AcquisitionJob {
     pub provider_id: ProviderId,
     pub progress: AcquisitionProgress,
     pub diagnostics: Vec<RemoteSourceDiagnostic>,
-    /// Set once the engine has tried to import the job's files.
-    #[serde(default)]
-    pub handoff: Option<AcquisitionHandoff>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
@@ -320,8 +317,41 @@ pub struct AcquisitionJob {
 pub struct AcquisitionSnapshot {
     #[serde(flatten)]
     pub job: AcquisitionJob,
-    pub terminal: bool,
-    pub settled: bool,
+    pub state: AcquisitionJobState,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum AcquisitionJobState {
+    Running,
+    /// The files are acquired and the session is taking them over.
+    HandingOver,
+    Done {
+        ending: JobEnding,
+    },
+}
+
+impl AcquisitionJobState {
+    pub fn is_done(&self) -> bool {
+        matches!(self, Self::Done { .. })
+    }
+
+    pub fn handoff(&self) -> Option<&AcquisitionHandoff> {
+        match self {
+            Self::Done {
+                ending: JobEnding::Handoff { handoff },
+            } => Some(handoff),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum JobEnding {
+    Handoff { handoff: AcquisitionHandoff },
+    Failed,
+    Cancelled,
 }
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RemoteRevisions {
@@ -341,7 +371,7 @@ pub struct RemoteAcquisitionSnapshot {
 }
 impl RemoteAcquisitionSnapshot {
     pub(crate) fn busy(&self) -> bool {
-        self.acquiring || self.job.as_ref().is_some_and(|job| !job.settled)
+        self.acquiring || self.job.as_ref().is_some_and(|job| !job.state.is_done())
     }
 }
 impl AcquisitionJob {
@@ -356,7 +386,6 @@ impl AcquisitionJob {
             provider_id: ProviderId::Audible,
             progress,
             diagnostics: Vec::new(),
-            handoff: None,
         }
     }
 }

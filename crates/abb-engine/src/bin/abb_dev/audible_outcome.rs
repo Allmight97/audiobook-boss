@@ -81,7 +81,7 @@ pub(super) fn title_outcome(
         })
         .collect();
     let imported = matches!(
-        job.handoff,
+        job.state.handoff(),
         Some(AcquisitionHandoff::Titles(TitlesHandoff::Imported { .. }))
     ) && !imported_paths.is_empty();
     if imported {
@@ -96,7 +96,7 @@ pub(super) fn title_outcome(
         return outcome;
     }
     let blocking = own.iter().find(|diagnostic| diagnostic.kind.blocks_title());
-    let (kind, message) = match (blocking, &job.handoff) {
+    let (kind, message) = match (blocking, job.state.handoff()) {
         (Some(diagnostic), _) => (Some(diagnostic.kind.clone()), diagnostic.message.clone()),
         (None, Some(AcquisitionHandoff::Titles(TitlesHandoff::Removed { reason }))) => {
             (None, refusal_message(reason))
@@ -149,7 +149,7 @@ pub(super) fn pdf_outcome(title_id: &str, job: &AcquisitionSnapshot) -> PdfOutco
         failure_kind,
         message,
     };
-    if let Some(AcquisitionHandoff::Pdf(handoff)) = &job.handoff {
+    if let Some(AcquisitionHandoff::Pdf(handoff)) = job.state.handoff() {
         return match handoff {
             PdfHandoff::Saved { path } => PdfOutcome::Saved {
                 title_id: title_id.to_string(),

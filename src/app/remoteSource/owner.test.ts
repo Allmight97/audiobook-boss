@@ -10,8 +10,7 @@ afterEach(() => {
 const job: AcquisitionSnapshot = {
 	jobId: 'download-1',
 	providerId: 'audible',
-	terminal: false,
-	settled: false,
+	state: { kind: 'running' },
 	progress: {
 		stage: 'download',
 		percentage: 40,
@@ -61,9 +60,13 @@ it('shows the engine line for a settled job and keeps Indexer status independent
 	engine.change((state) => {
 		state.remoteAcquisition.job = {
 			...job,
-			settled: true,
-			terminal: true,
-			handoff: { job: 'titles', outcome: { kind: 'imported', count: 2 } },
+			state: {
+				kind: 'done',
+				ending: {
+					kind: 'handoff',
+					handoff: { job: 'titles', outcome: { kind: 'imported', count: 2 } },
+				},
+			},
 		};
 		state.remote.audibleMessage = '2 acquired titles imported.';
 	});
@@ -138,9 +141,8 @@ it('shows a new engine refusal instead of hiding it under an older acquisition r
 	engine.change((state) => {
 		state.remoteAcquisition.job = {
 			...job,
-			settled: true,
-			terminal: true,
-			progress: { ...job.progress, stage: 'failed', message: 'Old download failure' },
+			state: { kind: 'done', ending: { kind: 'failed' } },
+			progress: { ...job.progress, percentage: 100, message: 'Old download failure' },
 		};
 	});
 	engine.respond = (intent) =>

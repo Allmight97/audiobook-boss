@@ -90,7 +90,7 @@ async fn acquire(session: &Session) -> Box<AcquisitionSnapshot> {
         .await;
     until("the download to reach the list", || {
         let job = session.snapshot().remote_acquisition?.job?;
-        job.job.handoff.is_some().then_some(job)
+        job.state.handoff().is_some().then_some(job)
     })
     .await
 }
@@ -106,10 +106,9 @@ async fn an_acquired_title_reaches_the_list_and_its_download_leaves_with_it() {
     let (session, remote) = session_acquiring(&root, downloads_one_wav(1, None));
 
     let job = acquire(&session).await;
-    assert!(job.settled);
     assert_eq!(
-        job.job.handoff,
-        Some(AcquisitionHandoff::Titles(TitlesHandoff::Imported {
+        job.state.handoff(),
+        Some(&AcquisitionHandoff::Titles(TitlesHandoff::Imported {
             count: 1
         }))
     );

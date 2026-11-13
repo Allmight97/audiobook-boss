@@ -2,12 +2,15 @@ use abb_remote_source_core::{acquisition_progress, AcquisitionProgress, Acquisit
 
 use super::cancellation::remote_acquisition_cancelled;
 use super::types::{
-    AcquiredContent, AcquiredJob, AcquisitionHandoff, AcquisitionJob, AcquisitionSnapshot,
-    AcquisitionWork, MaterializedSourceFile, PdfTitle, RemoteAcquisitionFailureKind,
-    RemoteSourceDiagnostic, StagedPdf, SupplementalAsset, TitlesHandoff,
+    AcquiredContent, AcquiredJob, AcquisitionHandoff, AcquisitionJob, AcquisitionJobState,
+    AcquisitionSnapshot, AcquisitionWork, JobEnding, MaterializedSourceFile, PdfTitle,
+    RemoteAcquisitionFailureKind, RemoteSourceDiagnostic, StagedPdf, SupplementalAsset,
+    TitlesHandoff,
 };
 
 const PDF_SAVE_MESSAGE: &str = "Saving the Supplemental PDF.";
+const FAILED_MESSAGE: &str = "Acquisition failed.";
+const CANCELLED_MESSAGE: &str = "Acquisition cancelled.";
 
 /// What a provider hands back when it has worked through a job. The lifecycle
 /// applies it to the job it registered.
@@ -71,21 +74,14 @@ impl AcquisitionOutcome {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) enum Settlement {
-    Handoff(AcquisitionHandoff),
-    Failed,
-    Cancelled,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub(super) enum JobState {
     Running,
     Validated(AcquiredContent),
-    Settled(Settlement),
+    Done(JobEnding),
 }
 
 /// One registered acquisition job. State only moves forward: Running to
-/// Validated or Settled, Validated to Settled. Progress is a display value and
+/// Validated or Done, Validated to Done. Progress is a display value and
 /// never moves it.
 #[derive(Debug, Clone)]
 pub(super) struct Registered {
@@ -110,15 +106,11 @@ impl Registered {
     }
 
     pub(super) fn is_cancelled(&self) -> bool {
-        self.state == JobState::Settled(Settlement::Cancelled)
+        self.state == JobState::Done(JobEnding::Cancelled)
     }
 
-    pub(super) fn terminal(&self) -> bool {
-        !self.is_running()
-    }
-
-    pub(super) fn settled(&self) -> bool {
-        matches!(self.state, JobState::Settled(_))
+    pub(super) fn is_done(&self) -> bool {
+        matches!(self.state, JobState::Done(_))
     }
 
     /// The staged files are still wanted by the session: handed over and
@@ -127,9 +119,9 @@ impl Registered {
         matches!(
             self.state,
             JobState::Validated(_)
-                | JobState::Settled(Settlement::Handoff(AcquisitionHandoff::Titles(
-                    TitlesHandoff::Imported { .. }
-                )))
+                | JobState::Done(JobEnding::Handoff {
+                    handoff: AcquisitionHandoff::Titles(TitlesHandoff::Imported { .. })
+                })
         )
     }
 
@@ -150,9 +142,7 @@ impl Registered {
         let content = match outcome {
             AcquisitionOutcome::Failed { diagnostics } => {
                 self.job.diagnostics.extend(diagnostics);
-                self.job.progress =
-                    acquisition_progress(AcquisitionStage::Failed, Some(1.0), None, None);
-                self.state = JobState::Settled(Settlement::Failed);
+                self.end(JobEnding::Failed, FAILED_MESSAGE);
                 return true;
             }
             AcquisitionOutcome::Acquired {
@@ -178,8 +168,6 @@ impl Registered {
         if !self.is_running() {
             return false;
         }
-        self.job.progress =
-            acquisition_progress(AcquisitionStage::Cancelled, Some(1.0), None, None);
         if !self
             .job
             .diagnostics
@@ -192,8 +180,24 @@ impl Registered {
                 message: remote_acquisition_cancelled().to_string(),
             });
         }
-        self.state = JobState::Settled(Settlement::Cancelled);
+        self.end(JobEnding::Cancelled, CANCELLED_MESSAGE);
         true
+    }
+
+    /// Ends a running job. Its progress keeps the last working stage and
+    /// shows the ending at 100%.
+    fn end(&mut self, ending: JobEnding, message: &str) {
+        self.job.progress = AcquisitionProgress {
+            stage: self.job.progress.stage,
+            percentage: 100.0,
+            message: message.to_string(),
+            bytes_downloaded: None,
+            bytes_total: None,
+            current_title_id: None,
+            current_item_index: None,
+            total_items: None,
+        };
+        self.state = JobState::Done(ending);
     }
 
     pub(super) fn awaits_handoff(&self) -> bool {
@@ -204,8 +208,7 @@ impl Registered {
         if !self.awaits_handoff() {
             return false;
         }
-        self.job.handoff = Some(handoff.clone());
-        self.state = JobState::Settled(Settlement::Handoff(handoff));
+        self.state = JobState::Done(JobEnding::Handoff { handoff });
         true
     }
 
@@ -222,10 +225,16 @@ impl Registered {
     }
 
     pub(super) fn snapshot(&self) -> AcquisitionSnapshot {
+        let state = match &self.state {
+            JobState::Running => AcquisitionJobState::Running,
+            JobState::Validated(_) => AcquisitionJobState::HandingOver,
+            JobState::Done(ending) => AcquisitionJobState::Done {
+                ending: ending.clone(),
+            },
+        };
         AcquisitionSnapshot {
             job: self.job.clone(),
-            terminal: self.terminal(),
-            settled: self.settled(),
+            state,
         }
     }
 }

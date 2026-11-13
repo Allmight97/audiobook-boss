@@ -65,9 +65,11 @@ export type AcquisitionJob = {
 	providerId: ProviderId,
 	progress: AcquisitionProgress,
 	diagnostics: RemoteSourceDiagnostic[],
-	/**  Set once the engine has tried to import the job's files. */
-	handoff?: AcquisitionHandoff | null,
 };
+
+export type AcquisitionJobState = { kind: "running" } |
+/**  The files are acquired and the session is taking them over. */
+{ kind: "handingOver" } | { kind: "done"; ending: JobEnding };
 
 export type AcquisitionLane = "audible" | "indexer";
 
@@ -83,11 +85,10 @@ export type AcquisitionProgress = {
 };
 
 export type AcquisitionSnapshot = {
-	terminal: boolean,
-	settled: boolean,
+	state: AcquisitionJobState,
 } & AcquisitionJob;
 
-export type AcquisitionStage = "license" | "download" | "decryption" | "validation" | "importHandoff" | "failed" | "cancelled";
+export type AcquisitionStage = "license" | "download" | "decryption" | "validation" | "importHandoff";
 
 export type AppErrorCategory = "validation" | "cancellation" | "toolchain" | "processing" | "resource" | "io" | "internal";
 
@@ -506,6 +507,8 @@ export type InputNotice =
 { kind: "duplicatesOnly" } |
 /**  Paths that could not be read; the rest of the import was added. */
 { kind: "skippedPaths"; skipped: SkippedImportPath[] } | { kind: "analysisFailed"; error: AppErrorEnvelope };
+
+export type JobEnding = { kind: "handoff"; handoff: AcquisitionHandoff } | { kind: "failed" } | { kind: "cancelled" };
 
 export type LookupApplyMode =
 /**  Apply to the current title and stay on it. */

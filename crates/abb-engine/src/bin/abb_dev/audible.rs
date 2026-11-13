@@ -466,7 +466,7 @@ async fn save_one_pdf(engine: &Engine, ticks: &watch::Sender<u64>, title_id: &st
         title_id: title_id.to_string(),
     };
     let settled = match applied(remote(engine, intent).await) {
-        Ok(()) => await_settled(engine, ticks, previous_job, title_id).await,
+        Ok(()) => await_done(engine, ticks, previous_job, title_id).await,
         Err(message) => Err(message),
     };
     match settled {
@@ -548,7 +548,7 @@ async fn acquire_one(
     if let Err(message) = applied(remote(engine, RemoteUiIntent::AcquireSelected).await) {
         return TitleOutcome::failed(title_id, message);
     }
-    match await_settled(engine, ticks, previous_job, title_id).await {
+    match await_done(engine, ticks, previous_job, title_id).await {
         Ok(job) => title_outcome(title_id, &job, files_added_since(engine, &known)),
         Err(message) => TitleOutcome::failed(title_id, message),
     }
@@ -556,7 +556,7 @@ async fn acquire_one(
 
 /// Waits on the engine's session events until the job that replaced
 /// `previous_job` has settled, which is after its files reached the session.
-async fn await_settled(
+async fn await_done(
     engine: &Engine,
     ticks: &watch::Sender<u64>,
     previous_job: Option<String>,
@@ -571,7 +571,7 @@ async fn await_settled(
             current_job(engine).filter(|job| Some(&job.job_id) != previous_job.as_ref())
         {
             reporter.report(title_id, &job);
-            if job.settled {
+            if job.state.is_done() {
                 return Ok(job);
             }
         }

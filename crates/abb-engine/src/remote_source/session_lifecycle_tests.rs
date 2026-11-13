@@ -14,7 +14,7 @@ async fn settled_diagnostics(
     for _ in 0..500 {
         {
             let jobs = runtime.inner.lifecycle.jobs.lock().expect("jobs");
-            if let Some(job) = jobs.values().next().filter(|job| Registered::settled(job)) {
+            if let Some(job) = jobs.values().next().filter(|job| Registered::is_done(job)) {
                 return job
                     .snapshot()
                     .diagnostics

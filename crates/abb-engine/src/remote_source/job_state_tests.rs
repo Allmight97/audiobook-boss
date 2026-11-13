@@ -1,5 +1,33 @@
 use super::*;
 use crate::remote_source::HandoffRefusal;
+use abb_remote_source_core::acquisition_progress_for_current_title;
+
+fn done(ending: JobEnding) -> AcquisitionJobState {
+    AcquisitionJobState::Done { ending }
+}
+
+fn handed_off(handoff: AcquisitionHandoff) -> AcquisitionJobState {
+    done(JobEnding::Handoff { handoff })
+}
+
+fn show_title_download_tick(job: &mut Registered) {
+    job.show_progress(acquisition_progress_for_current_title(
+        acquisition_progress(AcquisitionStage::Download, Some(0.5), Some(1), Some(2)),
+        "B000000001",
+        1,
+        2,
+    ));
+}
+
+fn assert_shows_ending(progress: &AcquisitionProgress, message: &str) {
+    assert_eq!(progress.percentage, 100.0);
+    assert_eq!(progress.message, message);
+    assert_eq!(progress.bytes_downloaded, None);
+    assert_eq!(progress.bytes_total, None);
+    assert_eq!(progress.current_title_id, None);
+    assert_eq!(progress.current_item_index, None);
+    assert_eq!(progress.total_items, None);
+}
 
 pub(crate) fn titles_job(job_id: &str) -> Registered {
     Registered::new(
@@ -86,28 +114,16 @@ pub(crate) fn running(job_id: &str, stage: AcquisitionStage) -> Registered {
 }
 
 #[test]
-fn a_new_job_runs_and_is_neither_terminal_nor_settled() {
-    let job = titles_job("job-1");
-
-    assert!(job.is_running());
-    assert!(!job.terminal());
-    assert!(!job.settled());
-    let snapshot = job.snapshot();
-    assert!(!snapshot.terminal && !snapshot.settled);
-    assert_eq!(snapshot.job.handoff, None);
-}
-
-#[test]
 fn progress_is_shown_while_running_and_never_moves_the_state() {
     let mut job = titles_job("job-1");
+    assert_eq!(job.snapshot().state, AcquisitionJobState::Running);
 
-    let failed_tick = acquisition_progress(AcquisitionStage::Failed, Some(1.0), None, None);
-    assert_eq!(job.show_progress(failed_tick.clone()), Some(true));
+    let full_tick = acquisition_progress(AcquisitionStage::ImportHandoff, Some(1.0), None, None);
+    assert_eq!(job.show_progress(full_tick.clone()), Some(true));
 
-    assert_eq!(job.snapshot().job.progress, failed_tick);
-    assert!(job.is_running());
-    assert!(!job.terminal());
-    assert!(!job.settled());
+    let snapshot = job.snapshot();
+    assert_eq!(snapshot.job.progress, full_tick);
+    assert_eq!(snapshot.state, AcquisitionJobState::Running);
 }
 
 #[test]
@@ -125,12 +141,10 @@ fn progress_after_the_job_ended_is_ignored() {
 fn files_validate_the_job_but_leave_it_unsettled_until_the_handoff() {
     let job = validated("job-1", Vec::new());
 
-    assert!(job.terminal());
-    assert!(!job.settled());
+    assert!(!job.is_running());
+    assert!(!job.is_done());
     assert!(job.holds_staged_files());
-    let snapshot = job.snapshot();
-    assert!(snapshot.terminal && !snapshot.settled);
-    assert_eq!(snapshot.job.handoff, None);
+    assert_eq!(job.snapshot().state, AcquisitionJobState::HandingOver);
     let waiting = job.job_for_handoff().expect("files wait");
     assert!(matches!(
         waiting.content,
@@ -140,12 +154,19 @@ fn files_validate_the_job_but_leave_it_unsettled_until_the_handoff() {
 
 #[test]
 fn an_outcome_with_no_file_settles_the_job_as_failed_with_its_reasons() {
-    let job = failed("job-1", vec![diagnostic("not audio")]);
+    let mut job = titles_job("job-1");
+    show_title_download_tick(&mut job);
+    assert!(job.finish(
+        TitlesOutcome {
+            diagnostics: vec![diagnostic("not audio")],
+            ..TitlesOutcome::default()
+        }
+        .into()
+    ));
 
     let snapshot = job.snapshot();
-    assert!(snapshot.terminal && snapshot.settled);
-    assert_eq!(snapshot.job.progress.stage, AcquisitionStage::Failed);
-    assert_eq!(snapshot.job.handoff, None);
+    assert_eq!(snapshot.state, done(JobEnding::Failed));
+    assert_shows_ending(&snapshot.job.progress, "Acquisition failed.");
     assert_eq!(snapshot.job.diagnostics[0].message, "not audio");
     assert!(!job.holds_staged_files());
     assert!(job.job_for_handoff().is_none());
@@ -154,6 +175,7 @@ fn an_outcome_with_no_file_settles_the_job_as_failed_with_its_reasons() {
 #[test]
 fn a_finish_after_a_cancel_changes_nothing() {
     let mut job = titles_job("job-1");
+    show_title_download_tick(&mut job);
     assert!(job.cancel());
     let cancelled = job.snapshot();
 
@@ -161,9 +183,9 @@ fn a_finish_after_a_cancel_changes_nothing() {
 
     assert_eq!(job.snapshot(), cancelled);
     assert!(job.is_cancelled());
-    assert!(job.settled());
-    assert!(cancelled.terminal && cancelled.settled);
-    assert_eq!(cancelled.job.progress.stage, AcquisitionStage::Cancelled);
+    assert!(job.is_done());
+    assert_eq!(cancelled.state, done(JobEnding::Cancelled));
+    assert_shows_ending(&cancelled.job.progress, "Acquisition cancelled.");
 }
 
 #[test]
@@ -172,8 +194,7 @@ fn a_cancel_cannot_undo_a_finished_job() {
 
     assert!(!job.cancel());
 
-    let snapshot = job.snapshot();
-    assert!(snapshot.terminal && !snapshot.settled);
+    assert_eq!(job.snapshot().state, AcquisitionJobState::HandingOver);
     assert!(job.job_for_handoff().is_some());
 }
 
@@ -204,11 +225,9 @@ fn the_handoff_settles_a_validated_job_and_only_a_validated_job() {
     assert!(running.is_running());
 
     let job = imported("job-2", 1, Vec::new());
-    let snapshot = job.snapshot();
-    assert!(snapshot.settled);
     assert_eq!(
-        snapshot.job.handoff,
-        Some(AcquisitionHandoff::Titles(TitlesHandoff::Imported {
+        job.snapshot().state,
+        handed_off(AcquisitionHandoff::Titles(TitlesHandoff::Imported {
             count: 1
         }))
     );
@@ -220,10 +239,10 @@ fn the_handoff_settles_a_validated_job_and_only_a_validated_job() {
             reason: HandoffRefusal::NothingAdded,
         }))
     );
-    assert!(refused.settled());
+    assert!(refused.is_done());
     assert_eq!(
-        refused.snapshot().job.handoff,
-        Some(AcquisitionHandoff::Titles(TitlesHandoff::Removed {
+        refused.snapshot().state,
+        handed_off(AcquisitionHandoff::Titles(TitlesHandoff::Removed {
             reason: HandoffRefusal::NothingAdded,
         }))
     );

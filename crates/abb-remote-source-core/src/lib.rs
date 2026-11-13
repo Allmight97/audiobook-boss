@@ -8,8 +8,6 @@ pub enum AcquisitionStage {
     Decryption,
     Validation,
     ImportHandoff,
-    Failed,
-    Cancelled,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -42,8 +40,6 @@ pub fn acquisition_progress(
         AcquisitionStage::Decryption => (65.0, 90.0, "Decrypting audiobook."),
         AcquisitionStage::Validation => (90.0, 97.0, "Validating acquired audiobook."),
         AcquisitionStage::ImportHandoff => (97.0, 100.0, "Importing acquired audiobook."),
-        AcquisitionStage::Failed => (100.0, 100.0, "Acquisition failed."),
-        AcquisitionStage::Cancelled => (100.0, 100.0, "Acquisition cancelled."),
     };
 
     AcquisitionProgress {
@@ -66,11 +62,7 @@ pub fn acquisition_progress_for_current_title(
     item_index: u32,
     total_items: u32,
 ) -> AcquisitionProgress {
-    if !matches!(
-        progress.stage,
-        AcquisitionStage::Failed | AcquisitionStage::Cancelled
-    ) && total_items > 0
-    {
+    if total_items > 0 {
         let completed_titles = item_index.clamp(1, total_items) - 1;
         progress.percentage =
             (completed_titles as f32 * 100.0 + progress.percentage) / total_items as f32;
