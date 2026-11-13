@@ -199,7 +199,11 @@ lane_tooling() {
 	bun run test -- --project tooling scripts
 	bash scripts/check-workflows.sh
 	bun scripts/check-guidance.ts
-	local file_size_base="${ABB_FILE_SIZE_BASE:-HEAD}"
+	local file_size_base="${ABB_FILE_SIZE_BASE:-}"
+	if [[ -z "${file_size_base}" ]]; then
+		file_size_base=HEAD
+		git rev-parse -q --verify origin/main >/dev/null && file_size_base=origin/main
+	fi
 	bun scripts/check-known-mistakes.ts --against "${file_size_base}"
 	bun scripts/check-pr-workflow-policy.ts
 	local scripts
