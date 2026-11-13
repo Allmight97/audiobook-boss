@@ -14,7 +14,8 @@ use abb_engine::session::{SessionIntent, SessionOutcome, SessionReply};
 use abb_engine::{Engine, EngineConfig, EngineEvent, EventSink};
 
 use super::audible_outcome::{
-    print_library, print_outcomes, title_outcome, LibraryRow, OutcomeStatus, TitleOutcome,
+    pdf_outcome, print_library, print_outcomes, print_pdf_outcome, title_outcome, LibraryRow,
+    OutcomeStatus, PdfOutcome, TitleOutcome,
 };
 use super::{shut_down, AbbDevStatus, APP_IDENTIFIER};
 
@@ -35,14 +36,21 @@ Commands:
   acquire <title-id>...   Download and decrypt each title, one job per title
                           in the order given, and print where each landed or
                           why it failed. Exits nonzero if any title failed.
+  save-pdf <title-id>     Save only the title's Supplemental PDF into the
+                          output folder, where its audiobook would go under
+                          the naming layout, without downloading the
+                          audiobook. Prints where it landed or why it failed;
+                          exits nonzero on failure.
 
 Options:
   --state-dir <dir>       Engine state folder (required). Acquired files sit in
                           its cache after this run ends; the next abb-dev run
                           with the same folder removes them when it starts.
-  --json                  library and acquire: print JSON.
+  --json                  library, acquire, and save-pdf: print JSON.
   --pdf                   acquire: also download each title's PDF. Without it
                           no PDF is downloaded.
+  --output-dir <dir>      save-pdf (required): the output folder. It becomes
+                          the output folder setting of abb-dev's identity.
 
 Only sign-in needs a person. Progress lines (phase: ...) go to standard error.
 ";
@@ -54,7 +62,14 @@ const PROGRESS_STEP: u32 = 10;
 pub(super) enum Command {
     SignIn,
     Library,
-    Acquire { title_ids: Vec<String>, pdf: bool },
+    Acquire {
+        title_ids: Vec<String>,
+        pdf: bool,
+    },
+    SavePdf {
+        title_id: String,
+        output_dir: PathBuf,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -69,6 +84,7 @@ struct Flags {
     json: bool,
     pdf: bool,
     state_dir: Option<PathBuf>,
+    output_dir: Option<PathBuf>,
     positional: Vec<String>,
 }
 
@@ -83,6 +99,10 @@ fn collect_flags(args: impl Iterator<Item = String>) -> Result<Flags, String> {
                 let dir = args.next().ok_or("--state-dir needs a folder")?;
                 flags.state_dir = Some(dir.into());
             }
+            "--output-dir" => {
+                let dir = args.next().ok_or("--output-dir needs a folder")?;
+                flags.output_dir = Some(dir.into());
+            }
             flag if flag.starts_with("--") => return Err(format!("unknown option '{flag}'")),
             _ => flags.positional.push(arg),
         }
@@ -90,8 +110,18 @@ fn collect_flags(args: impl Iterator<Item = String>) -> Result<Flags, String> {
     Ok(flags)
 }
 
-fn refuse_unused(name: &str, flags: &Flags, json: bool, pdf: bool) -> Result<(), String> {
-    for (given, allowed, flag) in [(flags.json, json, "--json"), (flags.pdf, pdf, "--pdf")] {
+fn refuse_unused(
+    name: &str,
+    flags: &Flags,
+    json: bool,
+    pdf: bool,
+    output_dir: bool,
+) -> Result<(), String> {
+    for (given, allowed, flag) in [
+        (flags.json, json, "--json"),
+        (flags.pdf, pdf, "--pdf"),
+        (flags.output_dir.is_some(), output_dir, "--output-dir"),
+    ] {
         if given && !allowed {
             return Err(format!("{flag} does not apply to audible {name}"));
         }
@@ -102,7 +132,7 @@ fn refuse_unused(name: &str, flags: &Flags, json: bool, pdf: bool) -> Result<(),
 fn command_from(name: &str, flags: &mut Flags) -> Result<Command, String> {
     match name {
         "sign-in" | "library" => {
-            refuse_unused(name, flags, name == "library", false)?;
+            refuse_unused(name, flags, name == "library", false, false)?;
             if !flags.positional.is_empty() {
                 return Err(format!("audible {name} takes no title ids"));
             }
@@ -113,6 +143,7 @@ fn command_from(name: &str, flags: &mut Flags) -> Result<Command, String> {
             })
         }
         "acquire" => {
+            refuse_unused(name, flags, true, true, false)?;
             let title_ids = std::mem::take(&mut flags.positional);
             if title_ids.is_empty() {
                 return Err("audible acquire needs at least one title id".to_string());
@@ -126,8 +157,22 @@ fn command_from(name: &str, flags: &mut Flags) -> Result<Command, String> {
                 pdf: flags.pdf,
             })
         }
+        "save-pdf" => {
+            refuse_unused(name, flags, true, false, true)?;
+            let [title_id] = std::mem::take(&mut flags.positional)
+                .try_into()
+                .map_err(|_| "audible save-pdf needs exactly one title id".to_string())?;
+            let output_dir = flags
+                .output_dir
+                .take()
+                .ok_or("audible save-pdf needs --output-dir <dir>")?;
+            Ok(Command::SavePdf {
+                title_id,
+                output_dir,
+            })
+        }
         other => Err(format!(
-            "unknown audible command '{other}'; use sign-in, library, or acquire"
+            "unknown audible command '{other}'; use sign-in, library, acquire, or save-pdf"
         )),
     }
 }
@@ -137,7 +182,7 @@ pub(super) fn parse(args: impl Iterator<Item = String>) -> Result<Options, Strin
     let name = args
         .next()
         .filter(|name| !name.starts_with("--"))
-        .ok_or("audible needs a command: sign-in, library, or acquire")?;
+        .ok_or("audible needs a command: sign-in, library, acquire, or save-pdf")?;
     let mut flags = collect_flags(args)?;
     let state_dir = flags
         .state_dir
@@ -176,6 +221,10 @@ pub(super) async fn run(options: Options) -> Result<(), AbbDevStatus> {
         Command::Acquire { title_ids, pdf } => {
             acquire(&engine, &ticks.0, title_ids, *pdf, options.json).await
         }
+        Command::SavePdf {
+            title_id,
+            output_dir,
+        } => save_pdf(&engine, &ticks.0, title_id, output_dir, options.json).await,
     };
     shut_down(&engine).await;
     result
@@ -387,6 +436,49 @@ async fn acquire(
     Ok(())
 }
 
+async fn save_pdf(
+    engine: &Engine,
+    ticks: &watch::Sender<u64>,
+    title_id: &str,
+    output_dir: &std::path::Path,
+    json: bool,
+) -> Result<(), AbbDevStatus> {
+    applied(
+        engine
+            .session_dispatch(SessionIntent::SetOutputDirectory {
+                directory: output_dir.to_string_lossy().into_owned(),
+            })
+            .await,
+    )
+    .map_err(|reason| format!("the output folder was not set: {reason}"))?;
+    load_library(engine).await?;
+    let outcome = save_one_pdf(engine, ticks, title_id).await;
+    print_pdf_outcome(&outcome, json)?;
+    match outcome {
+        PdfOutcome::Saved { .. } => Ok(()),
+        PdfOutcome::Failed { .. } => Err(format!("the PDF for {title_id} was not saved").into()),
+    }
+}
+
+async fn save_one_pdf(engine: &Engine, ticks: &watch::Sender<u64>, title_id: &str) -> PdfOutcome {
+    let previous_job = current_job(engine).map(|job| job.job_id.clone());
+    let intent = RemoteUiIntent::SavePdf {
+        title_id: title_id.to_string(),
+    };
+    let settled = match applied(remote(engine, intent).await) {
+        Ok(()) => await_settled(engine, ticks, previous_job, title_id).await,
+        Err(message) => Err(message),
+    };
+    match settled {
+        Ok(job) => pdf_outcome(title_id, &job),
+        Err(message) => PdfOutcome::Failed {
+            title_id: title_id.to_string(),
+            failure_kind: None,
+            message,
+        },
+    }
+}
+
 async fn choose_title(engine: &Engine, title: &RemoteTitle, pdf: bool) -> Result<(), String> {
     applied(remote(engine, RemoteUiIntent::ClearTitles).await)?;
     let title_id = title.title_id.clone();
@@ -502,12 +594,12 @@ struct PhaseReporter {
 
 impl PhaseReporter {
     fn report(&mut self, title_id: &str, job: &AcquisitionSnapshot) {
-        let stage = format!("{:?}", job.progress.stage);
+        let message = job.progress.message.clone();
         let step = (job.progress.percentage.max(0.0) as u32) / PROGRESS_STEP;
-        let now = (stage.clone(), step);
+        let now = (message.clone(), step);
         if self.last.as_ref() != Some(&now) {
             eprintln!(
-                "phase: {title_id} {stage} {}%",
+                "phase: {title_id} {message} {}%",
                 job.progress.percentage.round()
             );
             self.last = Some(now);

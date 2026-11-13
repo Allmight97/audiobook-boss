@@ -80,7 +80,7 @@ fn acquisition_choices_enforce_availability_and_preserve_explicit_pdf_choice_on_
     })
     .expect("exclude PDF");
     ui.library_loaded(vec![title("available", true, true)]);
-    let UiAction::Acquire(plan) = ui
+    let UiAction::Acquire(AcquisitionWork::Titles(plan)) = ui
         .begin(RemoteUiIntent::AcquireSelected)
         .expect("acquire selection")
     else {
@@ -150,7 +150,7 @@ fn attaching_during_an_accepted_acquisition_retains_library_without_resending_it
     let since = runtime.ui_revisions();
     (runtime.inner.lifecycle.jobs.lock().expect("jobs")).insert(
         "progress-job".into(),
-        crate::remote_source::job_state::Registered::new("progress-job"),
+        crate::remote_source::job_state::tests::titles_job("progress-job"),
     );
     runtime.inner.lifecycle.apply_outcome(
         "progress-job",
@@ -244,7 +244,7 @@ fn download_update_bytes(count: usize) -> Vec<(bool, bool, bool, usize)> {
     let job_id = "job-1".to_string();
     (runtime.inner.lifecycle.jobs.lock().expect("jobs")).insert(
         job_id.clone(),
-        crate::remote_source::job_state::Registered::new(&job_id),
+        crate::remote_source::job_state::tests::titles_job(&job_id),
     );
     runtime
         .ui()

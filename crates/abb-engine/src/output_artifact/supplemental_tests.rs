@@ -10,7 +10,7 @@ fn supplemental_output_asset_commits_next_to_final_audio() {
 
     let committed = commit_supplemental_output_asset(SupplementalOutputAssetCommitRequest::new(
         &source,
-        &final_audio,
+        abb_output_artifact_core::supplemental_pdf_path(&final_audio),
     ))
     .expect("commit pdf");
 
@@ -38,7 +38,7 @@ fn supplemental_output_asset_renames_without_replacing_existing_pdf() {
 
     let committed = commit_supplemental_output_asset(SupplementalOutputAssetCommitRequest::new(
         &source,
-        &final_audio,
+        abb_output_artifact_core::supplemental_pdf_path(&final_audio),
     ))
     .expect("commit pdf");
 
@@ -61,7 +61,7 @@ fn supplemental_output_asset_rejects_non_pdf_magic() {
 
     let error = commit_supplemental_output_asset(SupplementalOutputAssetCommitRequest::new(
         &source,
-        &final_audio,
+        abb_output_artifact_core::supplemental_pdf_path(&final_audio),
     ))
     .expect_err("bad pdf should fail");
 
@@ -86,7 +86,7 @@ fn supplemental_output_asset_rejects_oversized_pdf() {
 
     let error = commit_supplemental_output_asset(SupplementalOutputAssetCommitRequest::new(
         &source,
-        &final_audio,
+        abb_output_artifact_core::supplemental_pdf_path(&final_audio),
     ))
     .expect_err("oversized pdf should fail");
 
@@ -108,7 +108,7 @@ fn supplemental_output_asset_accepts_a_pdf_of_exactly_100_mib() {
 
     commit_supplemental_output_asset(SupplementalOutputAssetCommitRequest::new(
         &source,
-        &final_audio,
+        abb_output_artifact_core::supplemental_pdf_path(&final_audio),
     ))
     .expect("the limit itself is allowed");
 }
@@ -125,8 +125,11 @@ fn supplemental_output_asset_rejects_stale_expected_hash() {
     let final_audio = root.path().join("Book One.m4b");
 
     let error = commit_supplemental_output_asset(
-        SupplementalOutputAssetCommitRequest::new(&source, &final_audio)
-            .with_expected_identity(changed_bytes.len() as u64, &request_hash),
+        SupplementalOutputAssetCommitRequest::new(
+            &source,
+            abb_output_artifact_core::supplemental_pdf_path(&final_audio),
+        )
+        .with_expected_identity(changed_bytes.len() as u64, &request_hash),
     )
     .expect_err("stale hash should fail");
 
@@ -135,4 +138,21 @@ fn supplemental_output_asset_rejects_stale_expected_hash() {
         !root.path().join("Book One - Supplemental PDF.pdf").exists(),
         "stale supplemental asset must not be committed"
     );
+}
+
+#[test]
+fn a_renamed_pdf_whose_suffix_would_overrun_the_name_limit_is_refused() {
+    let root = TempDir::new().expect("temp root");
+    let source = root.path().join("source.pdf");
+    std::fs::write(&source, b"%PDF-1.7\nbody").expect("write pdf");
+    let stem = "a".repeat(251);
+    let taken = root.path().join(format!("{stem}.pdf"));
+    std::fs::write(&taken, b"existing").expect("a name at the limit is taken");
+
+    let error =
+        commit_supplemental_output_asset(SupplementalOutputAssetCommitRequest::new(&source, taken))
+            .expect_err("the renamed name would be too long");
+
+    assert!(error.to_string().contains("can be at most"), "{error}");
+    assert_eq!(std::fs::read_dir(root.path()).expect("list").count(), 2);
 }

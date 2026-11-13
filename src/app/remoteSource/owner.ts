@@ -27,6 +27,7 @@ type RemoteSourceAction =
 	| { readonly type: 'grabSelectedReleases' }
 	| { readonly type: 'grabRelease'; readonly key: string }
 	| { readonly type: 'acquireSelected' }
+	| { readonly type: 'savePdf'; readonly titleId: string }
 	| { readonly type: 'cancelActiveAcquisition' };
 
 function accountIntent(
@@ -63,6 +64,8 @@ function actionIntent(
 			return { kind: 'grabRelease', key: action.key };
 		case 'acquireSelected':
 			return { kind: 'acquireSelected' };
+		case 'savePdf':
+			return { kind: 'savePdf', titleId: action.titleId };
 		case 'cancelActiveAcquisition':
 			return job ? { kind: 'cancelAcquisition', jobId: job.jobId } : null;
 		default:

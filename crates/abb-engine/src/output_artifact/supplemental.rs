@@ -16,7 +16,8 @@ pub(crate) struct SupplementalOutputAssetsCommitRequest<'a> {
 
 pub(crate) struct SupplementalOutputAssetCommitRequest<'a> {
     source_path: &'a Path,
-    final_audio_path: &'a Path,
+    /// The requested name; a taken name gets the next free ` (n)` suffix.
+    destination: PathBuf,
     expected_identity: Option<ExpectedSupplementalPdfIdentity<'a>>,
 }
 
@@ -26,10 +27,10 @@ struct ExpectedSupplementalPdfIdentity<'a> {
 }
 
 impl<'a> SupplementalOutputAssetCommitRequest<'a> {
-    pub(crate) fn new(source_path: &'a Path, final_audio_path: &'a Path) -> Self {
+    pub(crate) fn new(source_path: &'a Path, destination: PathBuf) -> Self {
         Self {
             source_path,
-            final_audio_path,
+            destination,
             expected_identity: None,
         }
     }
@@ -56,8 +57,11 @@ impl<'a> SupplementalOutputAssetsCommitRequest<'a> {
         sha256: &'a str,
     ) -> Self {
         self.assets.push(
-            SupplementalOutputAssetCommitRequest::new(source_path, self.final_audio_path)
-                .with_expected_identity(size_bytes, sha256),
+            SupplementalOutputAssetCommitRequest::new(
+                source_path,
+                abb_output_artifact_core::supplemental_pdf_path(self.final_audio_path),
+            )
+            .with_expected_identity(size_bytes, sha256),
         );
         self
     }
@@ -76,6 +80,7 @@ fn next_available_supplemental_path(candidate: &Path) -> Result<PathBuf> {
 
     for suffix in 2..=999 {
         let next = parent.join(format!("{stem} ({suffix}).pdf"));
+        abb_output_artifact_core::check_output_name_lengths(&next)?;
         if !path_entry_exists(&next)? {
             return Ok(next);
         }
@@ -198,7 +203,7 @@ pub(crate) fn commit_supplemental_output_asset(
 ) -> Result<PathBuf> {
     ensure_pdf_source(&request)?;
 
-    let requested = abb_output_artifact_core::supplemental_pdf_path(request.final_audio_path);
+    let requested = &request.destination;
     if let Some(parent) = requested.parent() {
         std::fs::create_dir_all(parent).map_err(|error| {
             AppError::FileValidation(format!(
@@ -208,8 +213,8 @@ pub(crate) fn commit_supplemental_output_asset(
             ))
         })?;
     }
-    let _file = super::lock_output_file(&requested);
-    let destination = next_available_supplemental_path(&requested)?;
+    let _file = super::lock_output_file(requested);
+    let destination = next_available_supplemental_path(requested)?;
     super::commit::remove_stale_replacement_temps(&destination);
     super::commit::publish_copy_without_replacing(request.source_path, &destination)?;
 
@@ -218,6 +223,26 @@ pub(crate) fn commit_supplemental_output_asset(
         .unwrap_or(0);
     log::info!("supplemental_pdf_commit status=ok bytes={committed_bytes}");
     Ok(destination)
+}
+
+/// Publishes a PDF with no audiobook commit beside it, so it owns the folders
+/// it creates and a failed publish removes them.
+pub(crate) fn publish_supplemental_pdf(
+    output_root: &Path,
+    request: SupplementalOutputAssetCommitRequest<'_>,
+) -> Result<PathBuf> {
+    let output = super::ResolvedOutputPlan {
+        kind: super::OutputKind::Final,
+        requested_path: request.destination.clone(),
+        resolved_path: request.destination.clone(),
+        rename_candidate: None,
+        collision: None,
+        action: super::PlannedOutputAction::Write,
+    };
+    let mut folders = super::ensure_output_parent_dirs(output_root, [&output])?;
+    let published = commit_supplemental_output_asset(request)?;
+    folders.release();
+    Ok(published)
 }
 
 fn supplemental_commit_failure(final_audio_path: &Path, error: AppError) -> AppError {

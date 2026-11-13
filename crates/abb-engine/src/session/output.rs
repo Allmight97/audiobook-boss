@@ -1,13 +1,17 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
 use super::submission::SubmissionStatus;
 use crate::app_settings::OutputDefaults;
 use crate::audio::AudiobookFormat;
-use crate::errors::AppError;
+use crate::errors::{AppError, Result};
 use crate::metadata::{AudiobookMetadata, NamingMetadata};
 use crate::output_artifact::{build_output_path_preview, NamingPreset, OutputNamingConfig};
+use crate::remote_source::PdfTitle;
+
+const NO_PDF_FOLDER: &str =
+    "Choose an output folder, then save the Supplemental PDF again. Nothing was saved.";
 
 /// A custom naming template left empty names files this way.
 pub const DEFAULT_CUSTOM_TEMPLATE: &str = "{author}/{title}";
@@ -61,6 +65,24 @@ pub(crate) struct OutputPlan {
     template: String,
 }
 
+pub(crate) struct PdfDestination {
+    pub(crate) output_root: PathBuf,
+    pub(crate) path: PathBuf,
+}
+
+fn pdf_naming(title: &PdfTitle) -> NamingMetadata {
+    let mut naming = NamingMetadata::from_metadata(&AudiobookMetadata {
+        title: Some(title.title.clone()),
+        artist: (!title.authors.is_empty()).then(|| title.authors.join(", ")),
+        series: title.series.clone(),
+        series_part: title.series_part.clone(),
+        date: title.release_date.clone(),
+        ..AudiobookMetadata::default()
+    });
+    naming.scrub_legacy_source_series_parts_for_naming();
+    naming
+}
+
 impl OutputPlan {
     pub(crate) fn from_defaults(defaults: &OutputDefaults) -> Self {
         Self {
@@ -80,6 +102,30 @@ impl OutputPlan {
 
     pub(crate) fn naming_directory(&self) -> Option<String> {
         self.directory.clone()
+    }
+
+    /// Where a title's Supplemental PDF goes when only the PDF is saved:
+    /// beside the audiobook the title would export to, in any format.
+    pub(crate) fn pdf_destination(&self, title: &PdfTitle) -> Result<PdfDestination> {
+        let directory = self
+            .directory
+            .as_deref()
+            .ok_or_else(|| AppError::InvalidInput(NO_PDF_FOLDER.to_string()))?;
+        let directory = Path::new(directory);
+        crate::audio::check_output_directory(directory, false)?;
+        let book = build_output_path_preview(
+            directory,
+            Some(&pdf_naming(title)),
+            self.naming(),
+            None,
+            "pdf",
+        )?;
+        let path = abb_output_artifact_core::supplemental_pdf_path(&book);
+        abb_output_artifact_core::check_output_name_lengths(&path)?;
+        Ok(PdfDestination {
+            output_root: directory.to_path_buf(),
+            path,
+        })
     }
 
     pub(crate) fn set_directory(&mut self, directory: String) {

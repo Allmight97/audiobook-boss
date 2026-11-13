@@ -24,7 +24,8 @@ pub(crate) use parent_dirs::{ensure_output_parent_dirs, OutputParentDirCleanup};
 pub(crate) use plan::OutputPlanLedger;
 pub(crate) use review::{enforce_output_plan_review, OutputPlanReview};
 pub(crate) use supplemental::{
-    commit_supplemental_output_assets_for_output, SupplementalOutputAssetsCommitRequest,
+    commit_supplemental_output_assets_for_output, publish_supplemental_pdf,
+    SupplementalOutputAssetCommitRequest, SupplementalOutputAssetsCommitRequest,
 };
 pub use types::{
     CollisionPolicy, NamingPreset, OutputCollisionInfo, OutputCollisionKind, OutputKind,

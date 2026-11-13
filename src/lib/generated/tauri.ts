@@ -57,9 +57,8 @@ export type AacDecoder =
  */
 "faad";
 
-export type AcquisitionHandoff = { kind: "imported"; count: number } |
-/**  Nothing was imported, so the engine removes the staged files. */
-{ kind: "removed"; reason: HandoffRefusal };
+/**  What the engine did with a finished job's content, by job kind. */
+export type AcquisitionHandoff = { job: "titles"; outcome: TitlesHandoff } | { job: "pdf"; outcome: PdfHandoff };
 
 export type AcquisitionJob = {
 	jobId: string,
@@ -764,6 +763,9 @@ export type OutputUpdateStatus =
 /**  The title ended without an output. */
 { kind: "notApplied" };
 
+/**  A PDF job's staged copy is removed either way. */
+export type PdfHandoff = { kind: "saved"; path: string } | { kind: "notSaved"; error: AppErrorEnvelope };
+
 export type PinnedDefaults = {
 	maxConcurrentJobs: ConcurrencyPreference,
 	encoderDefaults: EncoderDefaults,
@@ -965,7 +967,13 @@ export type RemoteUiIntent = { kind: "startAuth" } | { kind: "completeAuth"; res
  *  Disconnects the Audible sign-in; refused unless Audible is the lane on
  *  screen. The Indexer has no sign-in to remove.
  */
-{ kind: "disconnect" } | { kind: "refreshLibrary" } | { kind: "selectLane"; lane: ProviderId } | { kind: "toggleTitle"; titleId: string } | { kind: "clearTitles" } | { kind: "togglePdf"; titleId: string } | { kind: "acquireSelected" } | { kind: "cancelAcquisition"; jobId: string } | { kind: "searchReleases"; author: string; title: string } | { kind: "selectRelease"; key: string; multi: boolean } | { kind: "grabSelected" } | { kind: "grabRelease"; key: string } | { kind: "loadConnection" } | { kind: "editConnection"; baseUrl: string | null; categoryIds: number[] | null; apiKey: string | null } | { kind: "saveConnection" } | { kind: "testConnection" };
+{ kind: "disconnect" } | { kind: "refreshLibrary" } | { kind: "selectLane"; lane: ProviderId } | { kind: "toggleTitle"; titleId: string } | { kind: "clearTitles" } | { kind: "togglePdf"; titleId: string } | { kind: "acquireSelected" } |
+/**
+ *  Saves one title's Supplemental PDF into the output folder, where the
+ *  audiobook would go, without downloading the audiobook. The selection
+ *  and the PDF choices stay as they are.
+ */
+{ kind: "savePdf"; titleId: string } | { kind: "cancelAcquisition"; jobId: string } | { kind: "searchReleases"; author: string; title: string } | { kind: "selectRelease"; key: string; multi: boolean } | { kind: "grabSelected" } | { kind: "grabRelease"; key: string } | { kind: "loadConnection" } | { kind: "editConnection"; baseUrl: string | null; categoryIds: number[] | null; apiKey: string | null } | { kind: "saveConnection" } | { kind: "testConnection" };
 
 export type RemoteUiSnapshot = {
 	revision: number,
@@ -1330,6 +1338,10 @@ export type TitleTotals = {
 	durationSeconds: number | null,
 	sizeBytes: number | null,
 };
+
+export type TitlesHandoff = { kind: "imported"; count: number } |
+/**  Nothing was imported, so the engine removes the staged files. */
+{ kind: "removed"; reason: HandoffRefusal };
 
 /**
  *  The output titles as a host sees them. Selection travels separately

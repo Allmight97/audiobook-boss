@@ -1,7 +1,7 @@
 use super::auth::Auth;
 use abb_audible_core::{
-    find_first_string_for_key, license_facts_from_value, title_metadata_from_value, title_ref,
-    AudibleLicenseDecryptContext,
+    find_first_string_for_key, license_facts_from_value, title_metadata_from_value,
+    title_naming_facts_from_value, title_ref, AudibleLicenseDecryptContext, TitleNamingFacts,
 };
 use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage};
 use serde_json::{json, Value};
@@ -65,6 +65,28 @@ pub(super) async fn lookup_title_details(
         title: metadata.title,
         supplemental_pdf_url: metadata.supplemental_pdf_url.filter(|_| include_pdf),
     })
+}
+
+/// The product facts a PDF save names its folder from. It asks for the
+/// `series` group, which the audio lookup does not need.
+pub(super) async fn lookup_naming_facts(
+    api: &AudibleApi,
+    job_id: &str,
+    title_id: &str,
+    is_cancelled: &impl Fn() -> bool,
+) -> RequestResult<TitleNamingFacts> {
+    ensure_not_cancelled(is_cancelled)?;
+    let reply = api
+        .get(
+            &format!("/1.0/library/{title_id}"),
+            &json!({
+                "response_groups": "product_desc,product_attrs,contributors,series"
+            }),
+            ApiCall::for_job("title lookup", Scope::Account, job_id, title_id),
+        )
+        .await?;
+    ensure_not_cancelled(is_cancelled)?;
+    Ok(title_naming_facts_from_value(&reply))
 }
 
 pub(super) async fn request_license(

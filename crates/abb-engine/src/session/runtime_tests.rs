@@ -597,32 +597,36 @@ fn staged_wav(dir: &std::path::Path, name: &str) -> PathBuf {
     path
 }
 
-fn acquired(job_id: &str, audio: &std::path::Path) -> crate::remote_source::AcquisitionJob {
+fn acquired(job_id: &str, audio: &std::path::Path) -> crate::remote_source::AcquiredJob {
     let audio = audio
         .canonicalize()
         .expect("canonical audio, as remote_source hands over");
     let pdf = audio.with_extension("pdf");
     let pdf_bytes = b"%PDF-1.4 companion";
     std::fs::write(&pdf, pdf_bytes).expect("write companion PDF");
-    use crate::remote_source::{AcquisitionJob, MaterializedSourceFile, SupplementalAsset};
-    AcquisitionJob {
-        materialized_files: vec![MaterializedSourceFile {
-            input_id: "remote-1".to_string(),
-            title_id: "B0".to_string(),
-            path: audio.clone(),
-            size_bytes: 0,
-            sha256: String::new(),
-        }],
-        supplemental_assets: vec![SupplementalAsset {
-            asset_id: "pdf-1".to_string(),
-            input_id: "remote-1".to_string(),
-            title_id: "B0".to_string(),
-            path: pdf,
-            file_name: "Guide.pdf".to_string(),
-            size_bytes: pdf_bytes.len() as u64,
-            sha256: abb_media_core::sha256_hex(pdf_bytes),
-        }],
-        ..AcquisitionJob::new(job_id)
+    use crate::remote_source::{
+        AcquiredContent, AcquiredJob, MaterializedSourceFile, SupplementalAsset,
+    };
+    AcquiredJob {
+        job_id: job_id.to_string(),
+        content: AcquiredContent::Titles {
+            files: vec![MaterializedSourceFile {
+                input_id: "remote-1".to_string(),
+                title_id: "B0".to_string(),
+                path: audio.clone(),
+                size_bytes: 0,
+                sha256: String::new(),
+            }],
+            assets: vec![SupplementalAsset {
+                asset_id: "pdf-1".to_string(),
+                input_id: "remote-1".to_string(),
+                title_id: "B0".to_string(),
+                path: pdf,
+                file_name: "Guide.pdf".to_string(),
+                size_bytes: pdf_bytes.len() as u64,
+                sha256: abb_media_core::sha256_hex(pdf_bytes),
+            }],
+        },
     }
 }
 

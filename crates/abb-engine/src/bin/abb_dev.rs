@@ -5,9 +5,10 @@
 //! imported title, save, choose audio and output, export or preview, show
 //! progress, cancel one title, edit and re-import while an export reads its
 //! files, and read back the exported tags. `abb-dev audible ...` signs in to
-//! Audible, lists the library, and acquires titles through the same engine
-//! API. It runs under its own identity and state folder, so it never reads or
-//! changes the app's settings or stored credentials.
+//! Audible, lists the library, acquires titles, and saves a title's PDF
+//! through the same engine API. It runs under its own identity and state
+//! folder, so it never reads or changes the app's settings or stored
+//! credentials.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -40,7 +41,7 @@ use during_export::DuringExport;
 
 const USAGE: &str = "\
 Usage: abb-dev <file-or-folder>... [options]
-       abb-dev audible <sign-in|library|acquire> --state-dir <dir> [options]
+       abb-dev audible <sign-in|library|acquire|save-pdf> --state-dir <dir> [options]
        abb-dev parity <record|check> <file>... --reference <json> [--bytes]
 
 Imports audio into an engine session and prints the session. The audible

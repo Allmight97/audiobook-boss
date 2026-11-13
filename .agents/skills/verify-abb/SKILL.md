@@ -35,7 +35,9 @@ Rules:
   owner's account and time. Check each landed file with ffprobe, and delete
   the state folder after, because it holds decrypted audiobooks. With no
   sign-in, `library` and `acquire` fail and say so: report the download as
-  blocked on the owner's sign-in.
+  blocked on the owner's sign-in. `save-pdf <title-id>` saves one title's
+  Supplemental PDF into `--output-dir` and, like `acquire`, runs only when
+  the owner asks.
 - `corpus` is opt-in and not in `run.sh`'s default list: set
   `ABB_CORPUS_DIR=<folder of the owner's audiobooks>` and run `run.sh corpus`.
   It reads the owner's files but works only on copies, and compares title,

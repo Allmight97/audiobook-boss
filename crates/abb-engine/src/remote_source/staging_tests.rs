@@ -91,6 +91,23 @@ fn startup_refuses_a_symlinked_sessions_root() {
 
 #[cfg(unix)]
 #[test]
+fn no_job_folder_is_made_under_a_symlinked_sessions_folder() {
+    let cache = TempDir::new().expect("cache");
+    let staging = staging(&cache);
+    let target = cache.path().join("elsewhere");
+    std::fs::create_dir_all(&target).expect("target");
+    std::os::unix::fs::symlink(&target, staging.session_root()).expect("symlink");
+
+    let error = staging
+        .create_job_dir("job-1")
+        .expect_err("a symlinked sessions folder is refused");
+
+    assert!(error.to_string().contains("symlink"), "{error}");
+    assert!(!target.join("job-1").exists());
+}
+
+#[cfg(unix)]
+#[test]
 fn a_job_folder_is_canonical_when_the_cache_is_reached_through_a_symlink() {
     let real = TempDir::new().expect("cache");
     let links = TempDir::new().expect("link folder");

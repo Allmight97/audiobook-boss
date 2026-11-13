@@ -186,3 +186,25 @@ fn supplemental_pdf_hint_needs_a_request_and_either_pdf_url() {
         assert!(!hint_present_for_acquisition(false, &details, &license));
     }
 }
+
+#[test]
+fn a_companion_pdf_belongs_to_the_audio_file_it_was_downloaded_with() {
+    let file = materialized_source_file(std::path::PathBuf::from("/staged/Book.m4b"));
+    let pdf = StagedPdf {
+        path: std::path::PathBuf::from("/staged/companion.pdf"),
+        size_bytes: 8,
+        sha256: "digest".into(),
+    };
+
+    let asset = companion_asset(&file, Some("Being You: A New Science"), pdf);
+
+    assert_eq!(asset.input_id, file.input_id);
+    assert_eq!(asset.title_id, file.title_id);
+    assert_eq!(
+        asset.file_name,
+        "Being You - A New Science - Supplemental PDF.pdf"
+    );
+    assert_eq!(asset.path, std::path::Path::new("/staged/companion.pdf"));
+    assert_eq!(asset.size_bytes, 8);
+    assert_eq!(asset.sha256, "digest");
+}

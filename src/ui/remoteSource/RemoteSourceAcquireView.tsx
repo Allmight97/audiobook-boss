@@ -384,15 +384,28 @@ export function RemoteSourceAcquireView(): JSX.Element {
 										</Show>
 									</button>
 									<Show when={title().supplementalPdfAvailable}>
-										<label class="remote-pdf-toggle">
-											<input
-												type="checkbox"
-												disabled={!title().availability.acquirable}
-												checked={remoteSource.includesPdf(title().titleId)}
-												onChange={() => remoteSource.toggleSupplementalPdf(title().titleId)}
-											/>
-											PDF
-										</label>
+										<div class="remote-pdf-actions">
+											<label class="remote-pdf-toggle">
+												<input
+													type="checkbox"
+													disabled={!title().availability.acquirable}
+													checked={remoteSource.includesPdf(title().titleId)}
+													onChange={() => remoteSource.toggleSupplementalPdf(title().titleId)}
+												/>
+												PDF
+											</label>
+											<button
+												type="button"
+												class="remote-save-pdf"
+												aria-label={`Save PDF for ${title().title}`}
+												disabled={!title().availability.acquirable || remoteSource.isBusy()}
+												onClick={() =>
+													void runAction({ type: 'savePdf', titleId: title().titleId })
+												}
+											>
+												Save PDF
+											</button>
+										</div>
 									</Show>
 								</div>
 							)}

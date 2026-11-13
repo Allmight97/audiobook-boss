@@ -211,6 +211,85 @@ describe('RemoteSourceAcquireView', () => {
 		expect(screen.queryByText(remoteTitle().title)).not.toBeInTheDocument();
 	});
 
+	it('saves only the PDF of the pressed title, without changing the selection', async () => {
+		runtime = await createAppRuntime();
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		await openConnected(runtime, 'audible');
+		const withPdf: RemoteTitle = {
+			...remoteTitle(),
+			titleId: 'B000000002',
+			title: 'Book With Workbook',
+			supplementalPdfAvailable: true,
+		};
+		fakeEngine().change((state) => {
+			state.remoteLibrary.titles = [remoteTitle(), withPdf];
+		});
+		flush();
+		expect(screen.getAllByRole('button', { name: /^Save PDF for / })).toHaveLength(1);
+		expect(
+			screen.queryByRole('button', { name: `Save PDF for ${remoteTitle().title}` }),
+		).not.toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole('button', { name: 'Save PDF for Book With Workbook' }));
+		flush();
+		await vi.waitFor(() =>
+			expect(fakeEngine().sessionIntents).toContainEqual({
+				kind: 'remote',
+				intent: { kind: 'savePdf', titleId: 'B000000002' },
+			}),
+		);
+		expect(
+			fakeEngine().sessionIntents.some(
+				(sent) => sent.kind === 'remote' && sent.intent.kind === 'toggleTitle',
+			),
+		).toBe(false);
+	});
+
+	it('disables Save PDF while the lane is busy or the title cannot be acquired', async () => {
+		runtime = await createAppRuntime();
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		await openConnected(runtime, 'audible');
+		const withPdf: RemoteTitle = { ...remoteTitle(), supplementalPdfAvailable: true };
+		const savePdf = () =>
+			screen.getByRole('button', { name: `Save PDF for ${remoteTitle().title}` });
+		fakeEngine().change((state) => {
+			state.remoteLibrary.titles = [withPdf];
+		});
+		flush();
+		expect(savePdf()).toBeEnabled();
+
+		fakeEngine().change((state) => {
+			state.remote.busy = true;
+		});
+		flush();
+		expect(savePdf()).toBeDisabled();
+
+		fakeEngine().change((state) => {
+			state.remote.busy = false;
+			state.remoteLibrary.titles = [
+				{
+					...withPdf,
+					availability: {
+						status: 'catalogOnly',
+						acquirable: false,
+						label: 'Catalog only',
+						detail: null,
+					},
+				},
+			];
+		});
+		flush();
+		expect(savePdf()).toBeDisabled();
+	});
+
 	it('switches source lanes from the enabled provider control', async () => {
 		runtime = await createAppRuntime();
 		render(() => (

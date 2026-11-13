@@ -1,5 +1,6 @@
 use super::super::{
-    AcquisitionHandoff, AcquisitionJob, HandoffRefusal, RemoteAccountStatus, RemoteSourceDiagnostic,
+    AcquisitionHandoff, AcquisitionJob, HandoffRefusal, PdfHandoff, RemoteAccountStatus,
+    RemoteSourceDiagnostic, TitlesHandoff,
 };
 use super::audible_lane::AudibleLane;
 use super::audible_lane::AudibleSignIn;
@@ -76,18 +77,22 @@ pub(super) fn grab_batch_line(sent: usize, failed: usize, unconfirmed: usize) ->
 pub(super) fn settled_job_line(job: &AcquisitionJob) -> String {
     let diagnostics = unique_diagnostic_message(&job.diagnostics);
     let outcome = match &job.handoff {
-        Some(AcquisitionHandoff::Imported { count }) => {
+        Some(AcquisitionHandoff::Titles(TitlesHandoff::Imported { count })) => {
             let plural = if *count == 1 { "" } else { "s" };
             format!("{count} acquired title{plural} imported.")
         }
-        Some(AcquisitionHandoff::Removed {
+        Some(AcquisitionHandoff::Titles(TitlesHandoff::Removed {
             reason: HandoffRefusal::ImportFailed { error },
-        }) => format!("{} {STAGED_FILES_REMOVED}", error.message),
-        Some(AcquisitionHandoff::Removed {
+        })) => format!("{} {STAGED_FILES_REMOVED}", error.message),
+        Some(AcquisitionHandoff::Titles(TitlesHandoff::Removed {
             reason: HandoffRefusal::NothingAdded,
-        }) => {
+        })) => {
             format!("Acquired titles were not added to the input session. {STAGED_FILES_REMOVED}")
         }
+        Some(AcquisitionHandoff::Pdf(PdfHandoff::Saved { path })) => {
+            format!("Supplemental PDF saved to {}.", path.display())
+        }
+        Some(AcquisitionHandoff::Pdf(PdfHandoff::NotSaved { error })) => error.message.clone(),
         None if !diagnostics.is_empty() => return diagnostics,
         None => return job.progress.message.clone(),
     };

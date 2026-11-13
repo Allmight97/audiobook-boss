@@ -334,6 +334,10 @@ impl SettingsRuntime {
         self.current().indexer_connection.clone()
     }
 
+    pub(crate) fn output_defaults(&self) -> OutputDefaults {
+        self.current().output_defaults.clone()
+    }
+
     pub(crate) async fn snapshot(&self) -> SettingsSnapshot {
         self.snapshot_of(&*self.inner.state.lock().await)
     }

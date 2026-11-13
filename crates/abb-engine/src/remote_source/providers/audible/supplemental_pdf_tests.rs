@@ -98,20 +98,20 @@ async fn supplemental_pdf_get_download_succeeds_when_head_would_fail() {
         addr.port()
     ))
     .expect("url");
+    let mut heard = Vec::new();
 
-    let (asset, committed) = download_supplemental_pdf_with_client(
+    let (pdf, committed) = download_supplemental_pdf_with_client(
         &client,
         SupplementalPdfRequest {
             auth: &auth,
             title_id: "B000000001",
             job_id: "job-1",
-            input_id: "input-1",
-            file_name: "Being You - A New Science of Consciousness - Supplemental PDF.pdf",
             api_pdf_hint_present: true,
             job_dir: root.path(),
         },
         start_url,
         SupplementalPdfTransportPolicy::HttpForTests,
+        &mut |bytes, total| heard.push((bytes, total)),
         &|| false,
     )
     .await
@@ -134,15 +134,11 @@ async fn supplemental_pdf_get_download_succeeds_when_head_would_fail() {
         AUDIBLE_DOWNLOAD_USER_AGENT.to_ascii_lowercase()
     )));
     assert!(request_lower.contains("accept: application/pdf,*/*"));
-    assert_eq!(asset.input_id, "input-1");
-    assert_eq!(asset.title_id, "B000000001");
-    assert_eq!(
-        asset.file_name,
-        "Being You - A New Science of Consciousness - Supplemental PDF.pdf"
-    );
-    assert_eq!(asset.size_bytes, pdf_bytes.len() as u64);
-    assert_eq!(asset.sha256, abb_media_core::sha256_hex(pdf_bytes));
-    assert_eq!(std::fs::read(&asset.path).expect("read pdf"), pdf_bytes);
+    assert_eq!(pdf.size_bytes, pdf_bytes.len() as u64);
+    assert_eq!(pdf.sha256, abb_media_core::sha256_hex(pdf_bytes));
+    assert_eq!(std::fs::read(&pdf.path).expect("read pdf"), pdf_bytes);
+    let length = pdf_bytes.len() as u64;
+    assert_eq!(heard.last(), Some(&(length, Some(length))));
 }
 
 #[tokio::test]
@@ -178,13 +174,12 @@ async fn supplemental_pdf_redirect_does_not_send_cookies_to_non_audible_hosts() 
             auth: &auth,
             title_id: "B000000001",
             job_id: "job-1",
-            input_id: "input-1",
-            file_name: "Supplemental PDF.pdf",
             api_pdf_hint_present: true,
             job_dir: root.path(),
         },
         start_url,
         SupplementalPdfTransportPolicy::HttpForTests,
+        &mut |_, _| {},
         &|| false,
     )
     .await;
@@ -224,13 +219,12 @@ async fn supplemental_pdf_download_rejects_non_pdf_without_provider_details() {
             auth: &auth,
             title_id: "B000000001",
             job_id: "job-1",
-            input_id: "input-1",
-            file_name: "Supplemental PDF.pdf",
             api_pdf_hint_present: true,
             job_dir: root.path(),
         },
         start_url,
         SupplementalPdfTransportPolicy::HttpForTests,
+        &mut |_, _| {},
         &|| false,
     )
     .await
@@ -277,13 +271,12 @@ async fn fetch_with_one_reply(reply: Vec<u8>, extra_host: Option<&str>) -> Suppl
             auth: &auth,
             title_id: "B000000001",
             job_id: "job-1",
-            input_id: "input-1",
-            file_name: "Supplemental PDF.pdf",
             api_pdf_hint_present: true,
             job_dir: root.path(),
         },
         start_url,
         SupplementalPdfTransportPolicy::HttpForTests,
+        &mut |_, _| {},
         &|| false,
     )
     .await
@@ -368,13 +361,12 @@ async fn supplemental_pdf_download_rejects_oversized_content_length() {
             auth: &auth,
             title_id: "B000000001",
             job_id: "job-1",
-            input_id: "input-1",
-            file_name: "Supplemental PDF.pdf",
             api_pdf_hint_present: true,
             job_dir: root.path(),
         },
         start_url,
         SupplementalPdfTransportPolicy::HttpForTests,
+        &mut |_, _| {},
         &|| false,
     )
     .await
@@ -420,13 +412,12 @@ async fn supplemental_pdf_download_cleans_partial_on_cancelled_stream() {
             auth: &auth,
             title_id: "B000000001",
             job_id: "job-1",
-            input_id: "input-1",
-            file_name: "Supplemental PDF.pdf",
             api_pdf_hint_present: true,
             job_dir: root.path(),
         },
         start_url,
         SupplementalPdfTransportPolicy::HttpForTests,
+        &mut |_, _| {},
         &|| cancel_checks.fetch_add(1, Ordering::SeqCst) >= 3,
     )
     .await
@@ -466,13 +457,12 @@ async fn supplemental_pdf_download_maps_http_failure_without_provider_details() 
             auth: &auth,
             title_id: "B000000001",
             job_id: "job-1",
-            input_id: "input-1",
-            file_name: "Supplemental PDF.pdf",
             api_pdf_hint_present: true,
             job_dir: root.path(),
         },
         start_url,
         SupplementalPdfTransportPolicy::HttpForTests,
+        &mut |_, _| {},
         &|| false,
     )
     .await
@@ -500,7 +490,6 @@ fn failure_categories_log_under_their_snake_case_names() {
         (PdfFailure::Empty, "empty"),
         (PdfFailure::SignIn, "sign_in"),
         (PdfFailure::PdfMagic, "pdf_magic"),
-        (PdfFailure::Canonicalize, "canonicalize"),
         (PdfFailure::RedirectLimit, "redirect_limit"),
         (PdfFailure::Status, "status"),
         (PdfFailure::SizeLimit, "size_limit"),

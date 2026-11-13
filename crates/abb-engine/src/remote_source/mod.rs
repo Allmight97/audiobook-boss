@@ -21,13 +21,17 @@ pub use ui::{
 pub(crate) use ui::{RemoteUiResult, RemoteUiRun};
 mod vault;
 
-pub(crate) use job_state::AcquisitionOutcome;
+#[cfg(test)]
+pub(crate) use job_state::{AcquisitionOutcome, TitlesOutcome};
 use providers::audible::{AudibleProvider, PendingAudibleAuth};
 use providers::indexer::{IndexerProvider, ReqwestProwlarrAdapter};
 #[cfg(test)]
 pub(crate) use session_lifecycle::AcquireTitles;
 use session_lifecycle::RemoteAcquisitionLifecycle;
 use staging::RemoteSourceStaging;
+#[cfg(test)]
+pub(crate) use types::AcquisitionWork;
+pub(crate) use types::{AcquiredContent, AcquiredJob, PdfTitle, StagedPdf};
 
 #[cfg(test)]
 pub(crate) fn staging_session_root(cache_dir: &std::path::Path) -> PathBuf {
@@ -36,7 +40,6 @@ pub(crate) fn staging_session_root(cache_dir: &std::path::Path) -> PathBuf {
         .session_root()
 }
 use types::{
-    AcquisitionJob as RemoteAcquisitionJob, AcquisitionPlan as RemoteAcquisitionPlan,
     ProviderId as RemoteProviderId, RemoteAuthStartResponse as RemoteAuthStart,
     RemoteSourceAccountState as RemoteAccountState,
 };
@@ -54,7 +57,7 @@ pub(crate) struct RemoteSourceConfig {
 }
 
 pub(crate) type Handoff = Arc<
-    dyn Fn(RemoteAcquisitionJob) -> Pin<Box<dyn Future<Output = AcquisitionHandoff> + Send>>
+    dyn Fn(types::AcquiredJob) -> Pin<Box<dyn Future<Output = AcquisitionHandoff> + Send>>
         + Send
         + Sync,
 >;
@@ -334,10 +337,10 @@ impl RemoteSourceRuntime {
             .await
     }
 
-    pub(crate) async fn start_acquisition(&self, plan: RemoteAcquisitionPlan) -> Result<()> {
+    pub(crate) async fn start_acquisition(&self, work: types::AcquisitionWork) -> Result<()> {
         self.inner
             .lifecycle
-            .start_acquisition(self.clone(), plan)
+            .start_acquisition(self.clone(), work)
             .await
     }
 }

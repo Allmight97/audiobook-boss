@@ -63,7 +63,7 @@ it('shows the engine line for a settled job and keeps Indexer status independent
 			...job,
 			settled: true,
 			terminal: true,
-			handoff: { kind: 'imported', count: 2 },
+			handoff: { job: 'titles', outcome: { kind: 'imported', count: 2 } },
 		};
 		state.remote.audibleMessage = '2 acquired titles imported.';
 	});

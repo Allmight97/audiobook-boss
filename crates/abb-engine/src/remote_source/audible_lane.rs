@@ -1,9 +1,10 @@
-use super::super::{AcquisitionSelection, PendingAudibleAuth};
+use super::super::{AcquisitionPlan, AcquisitionSelection, PendingAudibleAuth};
 use super::{
-    AcquisitionPlan, AppError, AppErrorEnvelope, AudibleRequestError, ProviderId,
-    RemoteDraftStatus, RemoteSourceRuntime, RemoteTitle, RemoteUiResult, Result, UiAction, UiState,
+    AppError, AppErrorEnvelope, AudibleRequestError, ProviderId, RemoteDraftStatus,
+    RemoteSourceRuntime, RemoteTitle, RemoteUiResult, Result, UiAction, UiState,
     SIGN_IN_REJECTED_MESSAGE,
 };
+use crate::remote_source::types::AcquisitionWork;
 use std::collections::BTreeSet;
 
 const ACCOUNT_CHANGING: &str = "Wait for the current account change to finish.";
@@ -12,6 +13,9 @@ const DISCONNECT_DURING_ACQUISITION: &str =
 const REFRESH_WHILE_BUSY: &str = "Wait for the current Audible work before refreshing.";
 const ACQUIRE_DURING_ACQUISITION: &str = "Wait for the current Audible acquisition to finish.";
 const NOTHING_TO_ACQUIRE: &str = "Select Audible titles before acquiring.";
+const NO_PDF: &str = "This title has no supplemental PDF.";
+const NOT_ACQUIRABLE: &str = "This title is not available for acquisition.";
+const NO_OUTPUT_FOLDER: &str = "Choose an output folder before saving a Supplemental PDF.";
 
 /// Where the Audible account change stands. The pending sign-in lives only in
 /// `AwaitingHandoff`; leaving that state hands it out or drops it.
@@ -355,9 +359,7 @@ impl UiState {
             .iter()
             .any(|title| title.title_id == title_id && title.availability.acquirable)
         {
-            return Err(AppError::InvalidInput(
-                "This title is not available for acquisition.".into(),
-            ));
+            return Err(AppError::InvalidInput(NOT_ACQUIRABLE.into()));
         }
         if self.snapshot.selected_title_ids.contains(&title_id) {
             self.snapshot
@@ -377,9 +379,7 @@ impl UiState {
             .iter()
             .any(|title| title.title_id == title_id && title.supplemental_pdf_available)
         {
-            return Err(AppError::InvalidInput(
-                "This title has no supplemental PDF.".into(),
-            ));
+            return Err(AppError::InvalidInput(NO_PDF.into()));
         }
         let included = self
             .snapshot
@@ -401,22 +401,53 @@ impl UiState {
             return Err(AppError::InvalidInput(NOTHING_TO_ACQUIRE.into()));
         }
         self.set_acquisition(|acquisition| acquisition.acquiring = true);
-        Ok(UiAction::Acquire(AcquisitionPlan {
-            selections: self
-                .snapshot
-                .selected_title_ids
-                .iter()
-                .map(|id| AcquisitionSelection {
-                    title_id: id.clone(),
-                    include_supplemental_pdf: self
-                        .snapshot
-                        .include_pdf_by_title_id
-                        .get(id)
-                        .copied()
-                        .unwrap_or(false),
-                })
-                .collect(),
-        }))
+        Ok(UiAction::Acquire(AcquisitionWork::Titles(
+            AcquisitionPlan {
+                selections: self
+                    .snapshot
+                    .selected_title_ids
+                    .iter()
+                    .map(|id| AcquisitionSelection {
+                        title_id: id.clone(),
+                        include_supplemental_pdf: self
+                            .snapshot
+                            .include_pdf_by_title_id
+                            .get(id)
+                            .copied()
+                            .unwrap_or(false),
+                    })
+                    .collect(),
+            },
+        )))
+    }
+
+    pub(super) fn begin_save_pdf(
+        &mut self,
+        title_id: String,
+        output_folder_set: bool,
+    ) -> Result<UiAction> {
+        self.accept()?;
+        self.audible.refuse_while_changing()?;
+        if self.acquisition.busy() {
+            return Err(AppError::InvalidInput(ACQUIRE_DURING_ACQUISITION.into()));
+        }
+        let title = self
+            .library
+            .titles
+            .iter()
+            .find(|title| title.title_id == title_id)
+            .filter(|_| self.snapshot.lane == ProviderId::Audible);
+        if !title.is_some_and(|title| title.supplemental_pdf_available) {
+            return Err(AppError::InvalidInput(NO_PDF.into()));
+        }
+        if !title.is_some_and(|title| title.availability.acquirable) {
+            return Err(AppError::InvalidInput(NOT_ACQUIRABLE.into()));
+        }
+        if !output_folder_set {
+            return Err(AppError::InvalidInput(NO_OUTPUT_FOLDER.into()));
+        }
+        self.set_acquisition(|acquisition| acquisition.acquiring = true);
+        Ok(UiAction::Acquire(AcquisitionWork::Pdf { title_id }))
     }
 }
 

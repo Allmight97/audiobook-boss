@@ -1,8 +1,9 @@
 use super::providers::audible::{
     AudibleRequestError, PendingAudibleAuth, SIGN_IN_REJECTED_MESSAGE,
 };
+use super::types::AcquisitionWork;
 use super::{
-    AcquisitionPlan, ProviderId, RemoteAcquisitionSnapshot, RemoteIndexerConnectionTestResult,
+    ProviderId, RemoteAcquisitionSnapshot, RemoteIndexerConnectionTestResult,
     RemoteIndexerConnectionUpdate, RemoteRelease, RemoteReleaseGrabRequest,
     RemoteReleaseSearchRequest, RemoteReleaseSearchResponse, RemoteSourceRuntime, RemoteTitle,
 };
@@ -36,6 +37,13 @@ pub enum RemoteUiIntent {
         title_id: String,
     },
     AcquireSelected,
+    /// Saves one title's Supplemental PDF into the output folder, where the
+    /// audiobook would go, without downloading the audiobook. The selection
+    /// and the PDF choices stay as they are.
+    #[serde(rename_all = "camelCase")]
+    SavePdf {
+        title_id: String,
+    },
     #[serde(rename_all = "camelCase")]
     CancelAcquisition {
         job_id: String,
@@ -281,6 +289,9 @@ impl UiState {
                 return Ok(UiAction::CancelAcquisition(job_id))
             }
             RemoteUiIntent::AcquireSelected => return self.acquire_selected(),
+            RemoteUiIntent::SavePdf { .. } => {
+                unreachable!("ui_begin routes a PDF save through begin_save_pdf")
+            }
             RemoteUiIntent::LoadConnection => {
                 if self.indexer.load != ConnectionLoad::NotLoaded {
                     return Ok(UiAction::Done);
@@ -368,7 +379,7 @@ enum UiAction {
         revision: u64,
         update: RemoteIndexerConnectionUpdate,
     },
-    Acquire(AcquisitionPlan),
+    Acquire(AcquisitionWork),
     CancelAcquisition(String),
     Search {
         request: u64,
@@ -396,10 +407,18 @@ impl RemoteSourceRuntime {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
     pub(crate) fn ui_begin(&self, intent: RemoteUiIntent) -> RemoteUiRun {
-        let action = if matches!(intent, RemoteUiIntent::SaveConnection) {
-            self.begin_save()
-        } else {
-            self.ui().begin(intent)
+        let action = match intent {
+            RemoteUiIntent::SaveConnection => self.begin_save(),
+            RemoteUiIntent::SavePdf { title_id } => {
+                let output_folder_set = self
+                    .inner
+                    .settings
+                    .output_defaults()
+                    .output_directory
+                    .is_some();
+                self.ui().begin_save_pdf(title_id, output_folder_set)
+            }
+            intent => self.ui().begin(intent),
         };
         self.publish_ui();
         RemoteUiRun {
@@ -503,8 +522,8 @@ impl RemoteUiRun {
             UiAction::CancelAcquisition(job_id) => runtime
                 .cancel_acquisition(&job_id)
                 .map(|_| RemoteUiResult::Applied),
-            UiAction::Acquire(plan) => {
-                let result = runtime.start_acquisition(plan).await;
+            UiAction::Acquire(work) => {
+                let result = runtime.start_acquisition(work).await;
                 runtime
                     .ui()
                     .set_acquisition(|acquisition| acquisition.acquiring = false);

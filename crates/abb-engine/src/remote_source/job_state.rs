@@ -2,28 +2,70 @@ use abb_remote_source_core::{acquisition_progress, AcquisitionProgress, Acquisit
 
 use super::cancellation::remote_acquisition_cancelled;
 use super::types::{
-    AcquisitionHandoff, AcquisitionJob, AcquisitionSnapshot, MaterializedSourceFile,
-    RemoteAcquisitionFailureKind, RemoteSourceDiagnostic, SupplementalAsset,
+    AcquiredContent, AcquiredJob, AcquisitionHandoff, AcquisitionJob, AcquisitionSnapshot,
+    AcquisitionWork, MaterializedSourceFile, PdfTitle, RemoteAcquisitionFailureKind,
+    RemoteSourceDiagnostic, StagedPdf, SupplementalAsset, TitlesHandoff,
 };
 
-/// What a provider hands back when it has worked through a plan. The lifecycle
+const PDF_SAVE_MESSAGE: &str = "Saving the Supplemental PDF.";
+
+/// What a provider hands back when it has worked through a job. The lifecycle
 /// applies it to the job it registered.
+#[derive(Debug)]
+pub(crate) enum AcquisitionOutcome {
+    Acquired {
+        content: AcquiredContent,
+        diagnostics: Vec<RemoteSourceDiagnostic>,
+    },
+    Failed {
+        diagnostics: Vec<RemoteSourceDiagnostic>,
+    },
+}
+
+/// What a provider gathers while it works through titles.
 #[derive(Debug, Default)]
-pub(crate) struct AcquisitionOutcome {
+pub(crate) struct TitlesOutcome {
     pub(crate) files: Vec<MaterializedSourceFile>,
     pub(crate) assets: Vec<SupplementalAsset>,
     pub(crate) diagnostics: Vec<RemoteSourceDiagnostic>,
 }
 
+impl From<TitlesOutcome> for AcquisitionOutcome {
+    fn from(outcome: TitlesOutcome) -> Self {
+        let TitlesOutcome {
+            files,
+            assets,
+            diagnostics,
+        } = outcome;
+        if files.is_empty() {
+            return Self::Failed { diagnostics };
+        }
+        Self::Acquired {
+            content: AcquiredContent::Titles { files, assets },
+            diagnostics,
+        }
+    }
+}
+
 impl AcquisitionOutcome {
     pub(crate) fn failed(kind: RemoteAcquisitionFailureKind, message: String) -> Self {
-        Self {
-            diagnostics: vec![RemoteSourceDiagnostic {
-                kind,
-                title_id: None,
-                message,
-            }],
-            ..Self::default()
+        Self::refused(RemoteSourceDiagnostic {
+            kind,
+            title_id: None,
+            message,
+        })
+    }
+
+    pub(crate) fn refused(diagnostic: RemoteSourceDiagnostic) -> Self {
+        Self::Failed {
+            diagnostics: vec![diagnostic],
+        }
+    }
+
+    pub(crate) fn pdf(pdf: StagedPdf, title: PdfTitle) -> Self {
+        Self::Acquired {
+            content: AcquiredContent::Pdf { pdf, title },
+            diagnostics: Vec::new(),
         }
     }
 }
@@ -38,10 +80,7 @@ pub(super) enum Settlement {
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum JobState {
     Running,
-    Validated {
-        files: Vec<MaterializedSourceFile>,
-        assets: Vec<SupplementalAsset>,
-    },
+    Validated(AcquiredContent),
     Settled(Settlement),
 }
 
@@ -55,9 +94,9 @@ pub(super) struct Registered {
 }
 
 impl Registered {
-    pub(super) fn new(job_id: &str) -> Self {
+    pub(super) fn new(job_id: &str, work: &AcquisitionWork) -> Self {
         Self {
-            job: AcquisitionJob::new(job_id),
+            job: AcquisitionJob::new(job_id, work),
             state: JobState::Running,
         }
     }
@@ -87,8 +126,10 @@ impl Registered {
     pub(super) fn holds_staged_files(&self) -> bool {
         matches!(
             self.state,
-            JobState::Validated { .. }
-                | JobState::Settled(Settlement::Handoff(AcquisitionHandoff::Imported { .. }))
+            JobState::Validated(_)
+                | JobState::Settled(Settlement::Handoff(AcquisitionHandoff::Titles(
+                    TitlesHandoff::Imported { .. }
+                )))
         )
     }
 
@@ -106,19 +147,30 @@ impl Registered {
         if !self.is_running() {
             return false;
         }
-        self.job.diagnostics.extend(outcome.diagnostics);
-        if outcome.files.is_empty() {
-            self.job.progress =
-                acquisition_progress(AcquisitionStage::Failed, Some(1.0), None, None);
-            self.state = JobState::Settled(Settlement::Failed);
-        } else {
-            self.job.progress =
-                acquisition_progress(AcquisitionStage::ImportHandoff, Some(1.0), None, None);
-            self.state = JobState::Validated {
-                files: outcome.files,
-                assets: outcome.assets,
-            };
+        let content = match outcome {
+            AcquisitionOutcome::Failed { diagnostics } => {
+                self.job.diagnostics.extend(diagnostics);
+                self.job.progress =
+                    acquisition_progress(AcquisitionStage::Failed, Some(1.0), None, None);
+                self.state = JobState::Settled(Settlement::Failed);
+                return true;
+            }
+            AcquisitionOutcome::Acquired {
+                content,
+                diagnostics,
+            } => {
+                self.job.diagnostics.extend(diagnostics);
+                content
+            }
+        };
+        let mut progress =
+            acquisition_progress(AcquisitionStage::ImportHandoff, Some(1.0), None, None);
+        if let AcquiredContent::Pdf { .. } = content {
+            progress.message = PDF_SAVE_MESSAGE.to_string();
+            progress.current_title_id = self.job.progress.current_title_id.clone();
         }
+        self.job.progress = progress;
+        self.state = JobState::Validated(content);
         true
     }
 
@@ -144,8 +196,12 @@ impl Registered {
         true
     }
 
+    pub(super) fn awaits_handoff(&self) -> bool {
+        matches!(self.state, JobState::Validated(_))
+    }
+
     pub(super) fn handoff_done(&mut self, handoff: AcquisitionHandoff) -> bool {
-        if !matches!(self.state, JobState::Validated { .. }) {
+        if !self.awaits_handoff() {
             return false;
         }
         self.job.handoff = Some(handoff.clone());
@@ -153,16 +209,15 @@ impl Registered {
         true
     }
 
-    /// The job as the session's handoff receives it, with its files, while
-    /// the files wait for the handoff.
-    pub(super) fn job_for_handoff(&self) -> Option<AcquisitionJob> {
-        let JobState::Validated { files, assets } = &self.state else {
+    /// The job as the session's handoff receives it, while its content waits
+    /// for the handoff.
+    pub(super) fn job_for_handoff(&self) -> Option<AcquiredJob> {
+        let JobState::Validated(content) = &self.state else {
             return None;
         };
-        Some(AcquisitionJob {
-            materialized_files: files.clone(),
-            supplemental_assets: assets.clone(),
-            ..self.job.clone()
+        Some(AcquiredJob {
+            job_id: self.job.job_id.clone(),
+            content: content.clone(),
         })
     }
 

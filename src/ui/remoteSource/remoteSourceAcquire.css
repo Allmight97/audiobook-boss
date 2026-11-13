@@ -180,12 +180,35 @@
 	color: var(--text-secondary);
 }
 
+.remote-pdf-actions {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	padding-right: 0.75rem;
+}
+
 .remote-pdf-toggle {
 	display: flex;
 	align-items: center;
 	gap: 0.25rem;
-	padding-right: 0.75rem;
 	white-space: nowrap;
+}
+
+.remote-save-pdf {
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--accent-primary);
+	font: inherit;
+	font-size: 0.75rem;
+	font-weight: 600;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.remote-save-pdf:disabled {
+	color: var(--text-muted);
+	cursor: default;
 }
 
 .remote-indexer-settings-needed {

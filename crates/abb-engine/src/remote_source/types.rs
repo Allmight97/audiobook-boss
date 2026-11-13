@@ -3,6 +3,8 @@ use std::path::PathBuf;
 pub use abb_remote_source_core::AcquisitionProgress;
 use abb_remote_source_core::{acquisition_progress, AcquisitionStage};
 
+const PDF_LOOKUP_MESSAGE: &str = "Looking up the title for its Supplemental PDF.";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum ProviderId {
@@ -178,6 +180,54 @@ pub struct AcquisitionPlan {
     pub selections: Vec<AcquisitionSelection>,
 }
 
+/// What one acquisition job does. Every kind shares progress, cancel,
+/// staging, and purge.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum AcquisitionWork {
+    /// Download, decrypt, and import these titles.
+    Titles(AcquisitionPlan),
+    /// Save one title's companion PDF into the output folder, with no audio.
+    Pdf { title_id: String },
+}
+
+/// What a finished job holds for the session.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum AcquiredContent {
+    Titles {
+        files: Vec<MaterializedSourceFile>,
+        assets: Vec<SupplementalAsset>,
+    },
+    Pdf {
+        pdf: StagedPdf,
+        title: PdfTitle,
+    },
+}
+
+/// A downloaded companion PDF in the job's staging folder.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct StagedPdf {
+    pub(crate) path: PathBuf,
+    pub(crate) size_bytes: u64,
+    pub(crate) sha256: String,
+}
+
+/// The provider's facts that name where a title's output goes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PdfTitle {
+    pub(crate) title: String,
+    pub(crate) authors: Vec<String>,
+    pub(crate) series: Option<String>,
+    pub(crate) series_part: Option<String>,
+    pub(crate) release_date: Option<String>,
+}
+
+/// A finished job as the session's handoff receives it.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct AcquiredJob {
+    pub(crate) job_id: String,
+    pub(crate) content: AcquiredContent,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum RemoteAcquisitionFailureKind {
@@ -259,10 +309,6 @@ pub struct AcquisitionJob {
     pub job_id: String,
     pub provider_id: ProviderId,
     pub progress: AcquisitionProgress,
-    #[serde(skip)]
-    pub materialized_files: Vec<MaterializedSourceFile>,
-    #[serde(skip)]
-    pub supplemental_assets: Vec<SupplementalAsset>,
     pub diagnostics: Vec<RemoteSourceDiagnostic>,
     /// Set once the engine has tried to import the job's files.
     #[serde(default)]
@@ -299,13 +345,16 @@ impl RemoteAcquisitionSnapshot {
     }
 }
 impl AcquisitionJob {
-    pub(crate) fn new(job_id: &str) -> Self {
+    pub(crate) fn new(job_id: &str, work: &AcquisitionWork) -> Self {
+        let mut progress = acquisition_progress(AcquisitionStage::License, Some(0.0), None, None);
+        if let AcquisitionWork::Pdf { title_id } = work {
+            progress.message = PDF_LOOKUP_MESSAGE.to_string();
+            progress.current_title_id = Some(title_id.clone());
+        }
         Self {
             job_id: job_id.to_string(),
             provider_id: ProviderId::Audible,
-            progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
-            materialized_files: Vec::new(),
-            supplemental_assets: Vec::new(),
+            progress,
             diagnostics: Vec::new(),
             handoff: None,
         }
@@ -318,15 +367,35 @@ impl std::ops::Deref for AcquisitionSnapshot {
     }
 }
 
+/// What the engine did with a finished job's content, by job kind.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(tag = "job", content = "outcome", rename_all = "camelCase")]
+pub enum AcquisitionHandoff {
+    Titles(TitlesHandoff),
+    Pdf(PdfHandoff),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
-pub enum AcquisitionHandoff {
+pub enum TitlesHandoff {
     Imported {
         count: usize,
     },
     /// Nothing was imported, so the engine removes the staged files.
     Removed {
         reason: HandoffRefusal,
+    },
+}
+
+/// A PDF job's staged copy is removed either way.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum PdfHandoff {
+    Saved {
+        path: PathBuf,
+    },
+    NotSaved {
+        error: crate::errors::AppErrorEnvelope,
     },
 }
 

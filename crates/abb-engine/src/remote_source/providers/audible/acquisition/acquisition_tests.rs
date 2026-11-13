@@ -4,18 +4,18 @@ use abb_audible_core::{AcquisitionStrategy, DecryptKind};
 use secrecy::ExposeSecret;
 use serde_json::json;
 
-async fn job_after_license_reply(status: u16) -> AcquisitionOutcome {
+async fn job_after_license_reply(status: u16) -> TitlesOutcome {
     job_after_license_body(status, r#"{"message":"Refused"}"#).await
 }
 
-async fn job_after_license_body(status: u16, body: &str) -> AcquisitionOutcome {
+async fn job_after_license_body(status: u16, body: &str) -> TitlesOutcome {
     job_and_staging_after_license_body(status, body).await.0
 }
 
 async fn job_and_staging_after_license_body(
     status: u16,
     body: &str,
-) -> (AcquisitionOutcome, tempfile::TempDir) {
+) -> (TitlesOutcome, tempfile::TempDir) {
     use crate::remote_source::providers::audible::http::stub::{signing_auth, stub_api};
     let (api, server) = stub_api(vec![
         (200, r#"{"item":{"title":"Book"}}"#.to_string()),
@@ -23,7 +23,7 @@ async fn job_and_staging_after_license_body(
     ])
     .await;
     let root = tempfile::TempDir::new().expect("temp root");
-    let mut job = AcquisitionOutcome::default();
+    let mut job = TitlesOutcome::default();
 
     let outcome = acquire_one(
         &api,
@@ -170,7 +170,7 @@ async fn an_aaxc_license_with_no_usable_material_fails_before_any_download() {
 
 #[test]
 fn a_title_without_usable_audio_reports_exactly_its_own_diagnostic() {
-    let mut job = AcquisitionOutcome::default();
+    let mut job = TitlesOutcome::default();
     let specific = RemoteSourceDiagnostic {
         kind: RemoteAcquisitionFailureKind::ProtectedUnsupported,
         title_id: Some("B000000001".into()),
@@ -181,11 +181,7 @@ fn a_title_without_usable_audio_reports_exactly_its_own_diagnostic() {
         &mut job,
         "job-1",
         "B000000001",
-        Ok(AcquiredTitle {
-            file: None,
-            assets: Vec::new(),
-            diagnostics: vec![specific.clone()],
-        }),
+        Ok(AcquiredTitle::Refused(specific.clone())),
     )
     .expect("record outcome");
 
@@ -326,6 +322,7 @@ impl FinalizeFixture {
             FinalizeAcquisitionRequest {
                 auth: &self.auth,
                 materialized_path: self.audio.clone(),
+                purge_diagnostic: None,
                 include_pdf,
                 title_details: &self.title_details,
                 license: &self.license,
@@ -374,6 +371,6 @@ async fn a_title_without_a_requested_pdf_keeps_its_validated_audio() {
         Err(error) => panic!("{:?}", error.into_app_error()),
     };
 
-    assert!(acquired.file.is_some());
+    assert!(matches!(acquired, AcquiredTitle::Ready { .. }));
     assert!(fixture.audio.exists());
 }

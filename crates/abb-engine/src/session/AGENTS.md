@@ -38,3 +38,5 @@
 - A tag Save changes nothing a title plan reads, so a resolved plan stays
   resolved; any other plan is read again, because its fingerprint check may
   have seen the file mid-write.
+- A PDF-only save publishes under the output folder and naming that settings
+  hold, the same source its admission check read.

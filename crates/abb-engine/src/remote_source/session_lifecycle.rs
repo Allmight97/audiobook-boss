@@ -25,7 +25,7 @@ const PROGRESS_EVENT_INTERVAL: Duration = Duration::from_millis(100);
 /// never touches the network or the keychain.
 pub(crate) struct AcquireRequest {
     pub(crate) runtime: RemoteSourceRuntime,
-    pub(crate) plan: super::AcquisitionPlan,
+    pub(crate) work: types::AcquisitionWork,
     pub(crate) job_id: String,
     pub(crate) job_dir: PathBuf,
 }
@@ -41,7 +41,7 @@ pub(super) fn audible_acquire() -> AcquireTitles {
         Box::pin(async move {
             let AcquireRequest {
                 runtime,
-                plan,
+                work,
                 job_id,
                 job_dir,
             } = request;
@@ -64,7 +64,7 @@ pub(super) fn audible_acquire() -> AcquireTitles {
             };
             super::providers::audible::AudibleProvider::acquire(
                 auth,
-                &plan,
+                &work,
                 &job_id,
                 &job_dir,
                 &runtime.inner.tasks,
@@ -192,15 +192,17 @@ impl RemoteAcquisitionLifecycle {
     pub(super) async fn start_acquisition(
         &self,
         runtime: RemoteSourceRuntime,
-        plan: super::AcquisitionPlan,
+        work: types::AcquisitionWork,
     ) -> Result<()> {
-        if plan.selections.is_empty() {
-            return Err(AppError::InvalidInput(
-                "Select at least one remote title to acquire.".to_string(),
-            ));
+        if let types::AcquisitionWork::Titles(plan) = &work {
+            if plan.selections.is_empty() {
+                return Err(AppError::InvalidInput(
+                    "Select at least one remote title to acquire.".to_string(),
+                ));
+            }
         }
         let tasks = runtime.inner.tasks.clone();
-        let job_id = tasks.admit(|| self.register_acquisition(runtime, plan))??;
+        let job_id = tasks.admit(|| self.register_acquisition(runtime, work))??;
         self.publish(&job_id);
         Ok(())
     }
@@ -208,7 +210,7 @@ impl RemoteAcquisitionLifecycle {
     fn register_acquisition(
         &self,
         runtime: RemoteSourceRuntime,
-        plan: super::AcquisitionPlan,
+        work: types::AcquisitionWork,
     ) -> Result<String> {
         let mut registered = self
             .acquisition_tasks
@@ -227,7 +229,7 @@ impl RemoteAcquisitionLifecycle {
                     "An Audible acquisition is still running or handing off its files.".into(),
                 ));
             }
-            jobs.insert(job_id.clone(), Registered::new(&job_id));
+            jobs.insert(job_id.clone(), Registered::new(&job_id, &work));
         }
         let spawned_job_id = job_id.clone();
         let tasks = runtime.inner.tasks.clone();
@@ -236,7 +238,7 @@ impl RemoteAcquisitionLifecycle {
                 runtime
                     .inner
                     .lifecycle
-                    .run_acquisition_job(runtime.clone(), plan, spawned_job_id, job_dir)
+                    .run_acquisition_job(runtime.clone(), work, spawned_job_id, job_dir)
                     .await;
             })
             .abort_handle();
@@ -247,14 +249,14 @@ impl RemoteAcquisitionLifecycle {
     async fn run_acquisition_job(
         &self,
         runtime: RemoteSourceRuntime,
-        plan: super::AcquisitionPlan,
+        work: types::AcquisitionWork,
         job_id: String,
         job_dir: PathBuf,
     ) {
         let _active_work = runtime.inner.power.begin();
         let result = (self.acquire)(AcquireRequest {
             runtime: runtime.clone(),
-            plan,
+            work,
             job_id: job_id.clone(),
             job_dir,
         })
@@ -269,6 +271,10 @@ impl RemoteAcquisitionLifecycle {
                     "remote_source acquisition job_id={} status=cancelled_preserved",
                     job_id
                 );
+            }
+            Ok(outcome @ AcquisitionOutcome::Failed { .. }) => {
+                purge_cancelled_session(&self.staging, &job_id).await;
+                self.apply_outcome(&job_id, outcome);
             }
             Ok(outcome) => {
                 self.apply_outcome(&job_id, outcome);
@@ -448,7 +454,9 @@ impl RemoteAcquisitionLifecycle {
         self.abort_acquisition_task(job_id);
         self.staging.purge_session(job_id)?;
         if let Ok(mut jobs) = self.jobs.lock() {
-            jobs.remove(job_id);
+            if jobs.get(job_id).is_some_and(|job| !job.awaits_handoff()) {
+                jobs.remove(job_id);
+            }
         }
         if let Ok(mut sent) = self.progress_sent.lock() {
             sent.remove(job_id);

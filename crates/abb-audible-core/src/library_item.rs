@@ -54,7 +54,7 @@ fn library_item_from_value(value: &Value) -> Option<LibraryItem> {
     })
 }
 
-fn person_names(value: &Value, key: &str) -> Vec<String> {
+pub(crate) fn person_names(value: &Value, key: &str) -> Vec<String> {
     value
         .get(key)
         .and_then(Value::as_array)

@@ -1,8 +1,17 @@
 use super::*;
 use crate::remote_source::HandoffRefusal;
 
+pub(crate) fn titles_job(job_id: &str) -> Registered {
+    Registered::new(
+        job_id,
+        &AcquisitionWork::Titles(crate::remote_source::AcquisitionPlan {
+            selections: Vec::new(),
+        }),
+    )
+}
+
 fn one_file(diagnostics: Vec<RemoteSourceDiagnostic>) -> AcquisitionOutcome {
-    AcquisitionOutcome {
+    TitlesOutcome {
         files: vec![MaterializedSourceFile {
             input_id: "input-1".into(),
             title_id: "B000000001".into(),
@@ -11,8 +20,9 @@ fn one_file(diagnostics: Vec<RemoteSourceDiagnostic>) -> AcquisitionOutcome {
             sha256: String::new(),
         }],
         diagnostics,
-        ..AcquisitionOutcome::default()
+        ..TitlesOutcome::default()
     }
+    .into()
 }
 
 fn diagnostic(message: &str) -> RemoteSourceDiagnostic {
@@ -24,7 +34,7 @@ fn diagnostic(message: &str) -> RemoteSourceDiagnostic {
 }
 
 pub(crate) fn validated(job_id: &str, diagnostics: Vec<RemoteSourceDiagnostic>) -> Registered {
-    let mut job = Registered::new(job_id);
+    let mut job = titles_job(job_id);
     assert!(job.finish(one_file(diagnostics)));
     job
 }
@@ -35,7 +45,11 @@ pub(crate) fn imported(
     diagnostics: Vec<RemoteSourceDiagnostic>,
 ) -> Registered {
     let mut job = validated(job_id, diagnostics);
-    assert!(job.handoff_done(AcquisitionHandoff::Imported { count }));
+    assert!(
+        job.handoff_done(AcquisitionHandoff::Titles(TitlesHandoff::Imported {
+            count
+        }))
+    );
     job
 }
 
@@ -45,28 +59,35 @@ pub(crate) fn removed(
     diagnostics: Vec<RemoteSourceDiagnostic>,
 ) -> Registered {
     let mut job = validated(job_id, diagnostics);
-    assert!(job.handoff_done(AcquisitionHandoff::Removed { reason }));
+    assert!(
+        job.handoff_done(AcquisitionHandoff::Titles(TitlesHandoff::Removed {
+            reason
+        }))
+    );
     job
 }
 
 pub(crate) fn failed(job_id: &str, diagnostics: Vec<RemoteSourceDiagnostic>) -> Registered {
-    let mut job = Registered::new(job_id);
-    assert!(job.finish(AcquisitionOutcome {
-        diagnostics,
-        ..AcquisitionOutcome::default()
-    }));
+    let mut job = titles_job(job_id);
+    assert!(job.finish(
+        TitlesOutcome {
+            diagnostics,
+            ..TitlesOutcome::default()
+        }
+        .into()
+    ));
     job
 }
 
 pub(crate) fn running(job_id: &str, stage: AcquisitionStage) -> Registered {
-    let mut job = Registered::new(job_id);
+    let mut job = titles_job(job_id);
     job.show_progress(acquisition_progress(stage, Some(1.0), None, None));
     job
 }
 
 #[test]
 fn a_new_job_runs_and_is_neither_terminal_nor_settled() {
-    let job = Registered::new("job-1");
+    let job = titles_job("job-1");
 
     assert!(job.is_running());
     assert!(!job.terminal());
@@ -78,7 +99,7 @@ fn a_new_job_runs_and_is_neither_terminal_nor_settled() {
 
 #[test]
 fn progress_is_shown_while_running_and_never_moves_the_state() {
-    let mut job = Registered::new("job-1");
+    let mut job = titles_job("job-1");
 
     let failed_tick = acquisition_progress(AcquisitionStage::Failed, Some(1.0), None, None);
     assert_eq!(job.show_progress(failed_tick.clone()), Some(true));
@@ -110,13 +131,11 @@ fn files_validate_the_job_but_leave_it_unsettled_until_the_handoff() {
     let snapshot = job.snapshot();
     assert!(snapshot.terminal && !snapshot.settled);
     assert_eq!(snapshot.job.handoff, None);
-    assert_eq!(
-        job.job_for_handoff()
-            .expect("files wait")
-            .materialized_files
-            .len(),
-        1
-    );
+    let waiting = job.job_for_handoff().expect("files wait");
+    assert!(matches!(
+        waiting.content,
+        AcquiredContent::Titles { ref files, .. } if files.len() == 1
+    ));
 }
 
 #[test]
@@ -134,7 +153,7 @@ fn an_outcome_with_no_file_settles_the_job_as_failed_with_its_reasons() {
 
 #[test]
 fn a_finish_after_a_cancel_changes_nothing() {
-    let mut job = Registered::new("job-1");
+    let mut job = titles_job("job-1");
     assert!(job.cancel());
     let cancelled = job.snapshot();
 
@@ -160,7 +179,7 @@ fn a_cancel_cannot_undo_a_finished_job() {
 
 #[test]
 fn a_cancel_names_itself_once() {
-    let mut job = Registered::new("job-1");
+    let mut job = titles_job("job-1");
     assert!(job.cancel());
     assert!(!job.cancel());
 
@@ -176,8 +195,12 @@ fn a_cancel_names_itself_once() {
 
 #[test]
 fn the_handoff_settles_a_validated_job_and_only_a_validated_job() {
-    let mut running = Registered::new("job-1");
-    assert!(!running.handoff_done(AcquisitionHandoff::Imported { count: 1 }));
+    let mut running = titles_job("job-1");
+    assert!(
+        !running.handoff_done(AcquisitionHandoff::Titles(TitlesHandoff::Imported {
+            count: 1
+        }))
+    );
     assert!(running.is_running());
 
     let job = imported("job-2", 1, Vec::new());
@@ -185,21 +208,29 @@ fn the_handoff_settles_a_validated_job_and_only_a_validated_job() {
     assert!(snapshot.settled);
     assert_eq!(
         snapshot.job.handoff,
-        Some(AcquisitionHandoff::Imported { count: 1 })
+        Some(AcquisitionHandoff::Titles(TitlesHandoff::Imported {
+            count: 1
+        }))
     );
     assert!(job.holds_staged_files());
 
     let mut refused = validated("job-3", Vec::new());
-    assert!(refused.handoff_done(AcquisitionHandoff::Removed {
-        reason: HandoffRefusal::NothingAdded
-    }));
+    assert!(
+        refused.handoff_done(AcquisitionHandoff::Titles(TitlesHandoff::Removed {
+            reason: HandoffRefusal::NothingAdded,
+        }))
+    );
     assert!(refused.settled());
     assert_eq!(
         refused.snapshot().job.handoff,
-        Some(AcquisitionHandoff::Removed {
-            reason: HandoffRefusal::NothingAdded
-        })
+        Some(AcquisitionHandoff::Titles(TitlesHandoff::Removed {
+            reason: HandoffRefusal::NothingAdded,
+        }))
     );
     assert!(!refused.holds_staged_files());
-    assert!(!refused.handoff_done(AcquisitionHandoff::Imported { count: 1 }));
+    assert!(
+        !refused.handoff_done(AcquisitionHandoff::Titles(TitlesHandoff::Imported {
+            count: 1
+        }))
+    );
 }

@@ -43,7 +43,9 @@ async fn an_acquired_title_is_listed_with_its_companions_and_its_download_goes_w
 
     assert_eq!(
         handoff,
-        crate::remote_source::AcquisitionHandoff::Imported { count: 1 }
+        crate::remote_source::AcquisitionHandoff::Titles(
+            crate::remote_source::TitlesHandoff::Imported { count: 1 }
+        )
     );
     let titles = rig.session.snapshot().titles.expect("titles");
     let input_id = titles.files[0].input_id.clone();
@@ -67,18 +69,23 @@ async fn a_download_with_an_unreadable_file_is_not_listed_at_all() {
     let staging = tempfile::TempDir::new().expect("staging");
     let audio = staged_wav(staging.path(), "book");
     let mut job = acquired("job-1", &audio);
-    let mut missing = job.materialized_files[0].clone();
+    let crate::remote_source::AcquiredContent::Titles { files, .. } = &mut job.content else {
+        unreachable!("acquired builds a titles job");
+    };
+    let mut missing = files[0].clone();
     missing.path = staging.path().join("part 2.wav");
-    job.materialized_files.push(missing);
+    files.push(missing);
 
     let handoff = rig.session.import_acquired(job).await;
 
     assert!(
         matches!(
             handoff,
-            crate::remote_source::AcquisitionHandoff::Removed {
-                reason: crate::remote_source::HandoffRefusal::ImportFailed { .. }
-            }
+            crate::remote_source::AcquisitionHandoff::Titles(
+                crate::remote_source::TitlesHandoff::Removed {
+                    reason: crate::remote_source::HandoffRefusal::ImportFailed { .. }
+                }
+            )
         ),
         "{handoff:?}"
     );
@@ -221,7 +228,9 @@ async fn a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_u
         .end_submission(&draft, SubmissionStatus::Cancelled);
     assert_eq!(
         handoff.await.expect("handoff"),
-        crate::remote_source::AcquisitionHandoff::Imported { count: 1 }
+        crate::remote_source::AcquisitionHandoff::Titles(
+            crate::remote_source::TitlesHandoff::Imported { count: 1 }
+        )
     );
     assert!(rig.removed.lock().expect("removed").is_empty());
 }

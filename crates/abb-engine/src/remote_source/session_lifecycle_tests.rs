@@ -1,7 +1,7 @@
 use crate::remote_source::job_state::Registered;
 use crate::remote_source::tests::{recorded_job_ids, test_runtime, test_runtime_acquiring};
 use crate::remote_source::types::{
-    AcquisitionPlan, AcquisitionSelection, RemoteAcquisitionFailureKind,
+    AcquisitionPlan, AcquisitionSelection, AcquisitionWork, RemoteAcquisitionFailureKind,
 };
 use crate::remote_source::AcquireTitles;
 use std::sync::{Arc, Mutex};
@@ -34,12 +34,12 @@ async fn an_acquisition_with_no_stored_sign_in_fails_as_auth_required() {
     let runtime = test_runtime(&root);
 
     runtime
-        .start_acquisition(AcquisitionPlan {
+        .start_acquisition(AcquisitionWork::Titles(AcquisitionPlan {
             selections: vec![AcquisitionSelection {
                 title_id: "B000000001".to_string(),
                 include_supplemental_pdf: false,
             }],
-        })
+        }))
         .await
         .expect("the job starts");
 
@@ -81,12 +81,12 @@ async fn a_cancel_removes_the_staging_folder_even_when_the_first_purges_are_refu
     let (arrived, at_work) = tokio::sync::oneshot::channel();
     let runtime = test_runtime_acquiring(&root, settings, acquire_until_cancelled(arrived));
     runtime
-        .start_acquisition(AcquisitionPlan {
+        .start_acquisition(AcquisitionWork::Titles(AcquisitionPlan {
             selections: vec![AcquisitionSelection {
                 title_id: "B000000001".to_string(),
                 include_supplemental_pdf: false,
             }],
-        })
+        }))
         .await
         .expect("the job starts");
     at_work.await.expect("the job is running");

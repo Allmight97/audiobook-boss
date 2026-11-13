@@ -39,6 +39,25 @@ fn each_command_reads_its_own_flags() {
                 pdf: true
             },
             json: true,
+            state_dir: state.clone()
+        })
+    );
+    assert_eq!(
+        parsed(&[
+            "save-pdf",
+            "B0AAAAAAAA",
+            "--output-dir",
+            "library",
+            "--state-dir",
+            "state",
+            "--json"
+        ]),
+        Ok(Options {
+            command: Command::SavePdf {
+                title_id: "B0AAAAAAAA".into(),
+                output_dir: PathBuf::from("library")
+            },
+            json: true,
             state_dir: state
         })
     );
@@ -65,6 +84,26 @@ fn a_command_without_its_state_folder_or_title_ids_is_refused() {
             &["library", "--state-dir"][..],
             "--state-dir needs a folder",
         ),
+        (
+            &["save-pdf", "B0A", "--state-dir", "state"][..],
+            "needs --output-dir",
+        ),
+        (
+            &["save-pdf", "--output-dir", "out", "--state-dir", "state"][..],
+            "exactly one title id",
+        ),
+        (
+            &[
+                "save-pdf",
+                "B0A",
+                "B0B",
+                "--output-dir",
+                "out",
+                "--state-dir",
+                "state",
+            ][..],
+            "exactly one title id",
+        ),
     ] {
         let error = parsed(args).expect_err("must be refused");
         assert!(error.contains(reason), "{args:?}: {error}");
@@ -89,6 +128,29 @@ fn a_flag_or_id_a_command_does_not_use_is_refused() {
         (
             &["acquire", "B0A", "--bogus", "--state-dir", "state"][..],
             "unknown option",
+        ),
+        (
+            &[
+                "acquire",
+                "B0A",
+                "--output-dir",
+                "out",
+                "--state-dir",
+                "state",
+            ][..],
+            "--output-dir does not apply",
+        ),
+        (
+            &[
+                "save-pdf",
+                "B0A",
+                "--pdf",
+                "--output-dir",
+                "out",
+                "--state-dir",
+                "state",
+            ][..],
+            "--pdf does not apply",
         ),
     ] {
         let error = parsed(args).expect_err("must be refused");

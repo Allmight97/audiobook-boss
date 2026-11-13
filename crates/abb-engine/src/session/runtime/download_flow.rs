@@ -3,11 +3,18 @@ use std::sync::Arc;
 
 use super::{blocking, Bound, Session};
 use crate::audio;
-use crate::errors::AppErrorEnvelope;
+use crate::errors::{AppError, AppErrorEnvelope};
+use crate::output_artifact::{publish_supplemental_pdf, SupplementalOutputAssetCommitRequest};
 use crate::processing::SupplementalProcessingAsset;
-use crate::remote_source::{AcquisitionHandoff, AcquisitionJob, Handoff, HandoffRefusal};
+use crate::remote_source::{
+    AcquiredContent, AcquiredJob, AcquisitionHandoff, Handoff, HandoffRefusal,
+    MaterializedSourceFile, PdfHandoff, PdfTitle, StagedPdf, SupplementalAsset, TitlesHandoff,
+};
+use crate::session::output::OutputPlan;
 use crate::session::state::SessionState;
 use crate::work_runtime::OperationSnapshot;
+
+const SESSION_GONE: &str = "ABB was closing, so the Supplemental PDF was not saved.";
 
 impl Session {
     pub(crate) fn handoff(&self) -> Handoff {
@@ -15,39 +22,89 @@ impl Session {
         Arc::new(move |job| {
             let session = session.upgrade().map(|inner| Session { inner });
             Box::pin(async move {
-                match session {
-                    Some(session) => session.import_acquired(job).await,
-                    None => AcquisitionHandoff::Removed {
-                        reason: HandoffRefusal::NothingAdded,
-                    },
+                match (session, &job.content) {
+                    (Some(session), _) => session.import_acquired(job).await,
+                    (None, AcquiredContent::Titles { .. }) => {
+                        AcquisitionHandoff::Titles(TitlesHandoff::Removed {
+                            reason: HandoffRefusal::NothingAdded,
+                        })
+                    }
+                    (None, AcquiredContent::Pdf { .. }) => {
+                        AcquisitionHandoff::Pdf(PdfHandoff::NotSaved {
+                            error: AppErrorEnvelope::from(&AppError::General(
+                                SESSION_GONE.to_string(),
+                            )),
+                        })
+                    }
                 }
             })
         })
     }
 
-    pub(super) async fn import_acquired(&self, job: AcquisitionJob) -> AcquisitionHandoff {
-        let handoff = self.import_acquired_files(&job).await;
-        if matches!(handoff, AcquisitionHandoff::Removed { .. }) {
-            let paths = job
-                .materialized_files
-                .iter()
-                .map(|file| &file.path)
-                .chain(job.supplemental_assets.iter().map(|asset| &asset.path))
-                .cloned()
-                .collect();
-            self.transition(|state| state.staged.register_unimported(&job.job_id, paths));
+    pub(super) async fn import_acquired(&self, job: AcquiredJob) -> AcquisitionHandoff {
+        let (handoff, leftovers) = match &job.content {
+            AcquiredContent::Titles { files, assets } => {
+                let handoff = self.import_acquired_files(&job.job_id, files, assets).await;
+                let leftovers = match handoff {
+                    TitlesHandoff::Removed { .. } => files
+                        .iter()
+                        .map(|file| file.path.clone())
+                        .chain(assets.iter().map(|asset| asset.path.clone()))
+                        .collect(),
+                    TitlesHandoff::Imported { .. } => Vec::new(),
+                };
+                (AcquisitionHandoff::Titles(handoff), leftovers)
+            }
+            AcquiredContent::Pdf { pdf, title } => (
+                AcquisitionHandoff::Pdf(self.save_pdf(pdf, title).await),
+                vec![pdf.path.clone()],
+            ),
+        };
+        if !leftovers.is_empty() {
+            self.transition(|state| state.staged.register_leftovers(&job.job_id, leftovers));
         }
         handoff
     }
 
-    async fn import_acquired_files(&self, job: &AcquisitionJob) -> AcquisitionHandoff {
+    /// Publishes a downloaded PDF beside where the title's audiobook would
+    /// export, under the output folder and naming the settings hold now.
+    async fn save_pdf(&self, pdf: &StagedPdf, title: &PdfTitle) -> PdfHandoff {
+        let plan = OutputPlan::from_defaults(&self.inner.deps.settings.output_defaults());
+        let (source, title, size_bytes, sha256) = (
+            pdf.path.clone(),
+            title.clone(),
+            pdf.size_bytes,
+            pdf.sha256.clone(),
+        );
+        let saved = blocking(move || {
+            let destination = plan.pdf_destination(&title)?;
+            publish_supplemental_pdf(
+                &destination.output_root,
+                SupplementalOutputAssetCommitRequest::new(&source, destination.path)
+                    .with_expected_identity(size_bytes, &sha256),
+            )
+        })
+        .await;
+        match saved {
+            Ok(path) => PdfHandoff::Saved { path },
+            Err(error) => {
+                log::warn!("Supplemental PDF save failed: {error}");
+                PdfHandoff::NotSaved {
+                    error: AppErrorEnvelope::from(&error),
+                }
+            }
+        }
+    }
+
+    async fn import_acquired_files(
+        &self,
+        job_id: &str,
+        files: &[MaterializedSourceFile],
+        assets: &[SupplementalAsset],
+    ) -> TitlesHandoff {
         let _in_order = self.inner.imports.wait(self.inner.imports.take()).await;
-        let removed = |reason| AcquisitionHandoff::Removed { reason };
-        let paths: Vec<PathBuf> = job
-            .materialized_files
-            .iter()
-            .map(|file| file.path.clone())
-            .collect();
+        let removed = |reason| TitlesHandoff::Removed { reason };
+        let paths: Vec<PathBuf> = files.iter().map(|file| file.path.clone()).collect();
         let aac_decoder = self.inner.deps.settings.aac_decoder();
         let analyzed = blocking(move || {
             let discovery = audio::discover_audio_import_paths(&paths);
@@ -65,15 +122,16 @@ impl Session {
                 });
             }
         };
-        let titles = staged_titles(job);
         let listed = self
-            .when_list_unlocked(|state| list_acquired(state, job, analyzed.clone(), &titles))
+            .when_list_unlocked(|state| {
+                list_acquired(state, job_id, files, assets, analyzed.clone())
+            })
             .await;
         match listed {
             Ok((bound, count)) => {
                 self.complete_reads(bound).await;
                 self.publish();
-                AcquisitionHandoff::Imported { count }
+                TitlesHandoff::Imported { count }
             }
             Err(reason) => {
                 self.publish();
@@ -158,9 +216,10 @@ impl Session {
 
 fn list_acquired(
     state: &mut SessionState,
-    job: &AcquisitionJob,
+    job_id: &str,
+    files: &[MaterializedSourceFile],
+    assets: &[SupplementalAsset],
     analyzed: Vec<crate::audio::AudioFile>,
-    titles: &[(String, PathBuf)],
 ) -> std::result::Result<(Bound, usize), HandoffRefusal> {
     let before = state.working_set.source_paths();
     let default_audio = state.audio.request();
@@ -170,13 +229,12 @@ fn list_acquired(
         if before.contains(&file.path) {
             continue;
         }
-        let Some((title_id, _)) = titles.iter().find(|(_, path)| *path == file.path) else {
+        let Some(acquired) = files.iter().find(|acquired| acquired.path == file.path) else {
             continue;
         };
-        let assets = job
-            .supplemental_assets
+        let assets = assets
             .iter()
-            .filter(|asset| &asset.title_id == title_id)
+            .filter(|asset| asset.title_id == acquired.title_id)
             .map(|asset| SupplementalProcessingAsset {
                 asset_id: asset.asset_id.clone(),
                 input_id: file.input_id.clone(),
@@ -189,20 +247,13 @@ fn list_acquired(
             .collect();
         state
             .staged
-            .register(&job.job_id, &file.input_id, file.path.clone(), assets);
+            .register(job_id, &file.input_id, file.path.clone(), assets);
         count += 1;
     }
     if count == 0 {
         return Err(HandoffRefusal::NothingAdded);
     }
     Ok((Bound::rebind(state), count))
-}
-
-fn staged_titles(job: &AcquisitionJob) -> Vec<(String, PathBuf)> {
-    job.materialized_files
-        .iter()
-        .map(|file| (file.title_id.clone(), file.path.clone()))
-        .collect()
 }
 
 /// The time staged-download retries are measured in: tokio's clock, so a

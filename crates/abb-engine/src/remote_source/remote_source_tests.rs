@@ -45,6 +45,26 @@ pub(crate) fn recorded_job_ids(runtime: &RemoteSourceRuntime) -> Vec<String> {
 
 /// Offers one available Audible title in the library, as a loaded library does.
 pub(crate) fn offer_library_title(runtime: &RemoteSourceRuntime, title_id: &str) {
+    offer_title(runtime, title_id, false, true);
+}
+
+/// Offers one available Audible title that has a Supplemental PDF.
+pub(crate) fn offer_pdf_title(runtime: &RemoteSourceRuntime, title_id: &str) {
+    offer_title(runtime, title_id, true, true);
+}
+
+/// Offers one Audible title with a Supplemental PDF that the account cannot
+/// acquire, as a revoked title shows.
+pub(crate) fn offer_unacquirable_pdf_title(runtime: &RemoteSourceRuntime, title_id: &str) {
+    offer_title(runtime, title_id, true, false);
+}
+
+fn offer_title(
+    runtime: &RemoteSourceRuntime,
+    title_id: &str,
+    supplemental_pdf_available: bool,
+    acquirable: bool,
+) {
     runtime.ui().library_loaded(vec![RemoteTitle {
         provider_id: RemoteProviderId::Audible,
         title_id: title_id.into(),
@@ -52,10 +72,10 @@ pub(crate) fn offer_library_title(runtime: &RemoteSourceRuntime, title_id: &str)
         authors: Vec::new(),
         narrators: Vec::new(),
         cover: None,
-        supplemental_pdf_available: false,
+        supplemental_pdf_available,
         availability: RemoteTitleAvailability {
             status: RemoteTitleAvailabilityStatus::Available,
-            acquirable: true,
+            acquirable,
             label: "Available".into(),
             detail: None,
         },
@@ -105,11 +125,14 @@ fn register(runtime: &RemoteSourceRuntime, job_id: &str) {
         .jobs
         .lock()
         .expect("jobs lock")
-        .insert(job_id.to_string(), Registered::new(job_id));
+        .insert(
+            job_id.to_string(),
+            super::job_state::tests::titles_job(job_id),
+        );
 }
 
-fn one_file_outcome(path: PathBuf) -> AcquisitionOutcome {
-    AcquisitionOutcome {
+fn one_file_titles(path: PathBuf) -> TitlesOutcome {
+    TitlesOutcome {
         files: vec![types::MaterializedSourceFile {
             input_id: "input-1".to_string(),
             title_id: "B000000001".to_string(),
@@ -117,11 +140,15 @@ fn one_file_outcome(path: PathBuf) -> AcquisitionOutcome {
             size_bytes: 7,
             sha256: String::new(),
         }],
-        ..AcquisitionOutcome::default()
+        ..TitlesOutcome::default()
     }
 }
 
-fn handoff_job(runtime: &RemoteSourceRuntime, job_id: &str) -> Option<types::AcquisitionJob> {
+fn one_file_outcome(path: PathBuf) -> AcquisitionOutcome {
+    one_file_titles(path).into()
+}
+
+fn handoff_job(runtime: &RemoteSourceRuntime, job_id: &str) -> Option<types::AcquiredJob> {
     runtime
         .inner
         .lifecycle
@@ -199,7 +226,10 @@ async fn a_download_counts_as_running_until_its_job_ends() {
         .jobs
         .lock()
         .expect("jobs lock")
-        .insert(job_id.to_string(), Registered::new(job_id));
+        .insert(
+            job_id.to_string(),
+            super::job_state::tests::titles_job(job_id),
+        );
     assert_eq!(runtime.running_acquisitions().len(), 1);
 
     runtime.inner.lifecycle.apply_outcome(
@@ -230,7 +260,10 @@ async fn cancelled_job_keeps_terminal_state_when_background_result_arrives() {
         .jobs
         .lock()
         .expect("jobs lock")
-        .insert(job_id.to_string(), Registered::new(job_id));
+        .insert(
+            job_id.to_string(),
+            super::job_state::tests::titles_job(job_id),
+        );
 
     runtime
         .cancel_acquisition(job_id)
@@ -267,7 +300,7 @@ fn cancelling_a_finished_acquisition_keeps_its_files_for_the_session() {
     let root = TempDir::new().expect("temp root");
     let runtime = test_runtime(&root);
     let job_id = "remote-job-handoff";
-    let mut outcome = one_file_outcome(root.path().join("book.m4b"));
+    let mut outcome = one_file_titles(root.path().join("book.m4b"));
     outcome.assets.push(types::SupplementalAsset {
         asset_id: "asset-1".to_string(),
         input_id: "input-1".to_string(),
@@ -278,7 +311,10 @@ fn cancelling_a_finished_acquisition_keeps_its_files_for_the_session() {
         sha256: "def456".to_string(),
     });
     register(&runtime, job_id);
-    runtime.inner.lifecycle.apply_outcome(job_id, outcome);
+    runtime
+        .inner
+        .lifecycle
+        .apply_outcome(job_id, outcome.into());
 
     let answered = runtime
         .cancel_acquisition(job_id)
@@ -286,18 +322,23 @@ fn cancelling_a_finished_acquisition_keeps_its_files_for_the_session() {
 
     assert!(answered.terminal && !answered.settled);
     let kept = handoff_job(&runtime, job_id).expect("the files still wait for the session");
-    assert_eq!(kept.materialized_files.len(), 1);
-    assert_eq!(kept.supplemental_assets.len(), 1);
+    let types::AcquiredContent::Titles { files, assets } = kept.content else {
+        panic!("a titles job hands over titles");
+    };
+    assert_eq!((files.len(), assets.len()), (1, 1));
 }
 
 #[tokio::test]
 async fn a_finished_job_records_its_handoff() {
     for (answer, kept) in [
-        (AcquisitionHandoff::Imported { count: 1 }, true),
         (
-            AcquisitionHandoff::Removed {
+            AcquisitionHandoff::Titles(TitlesHandoff::Imported { count: 1 }),
+            true,
+        ),
+        (
+            AcquisitionHandoff::Titles(TitlesHandoff::Removed {
                 reason: HandoffRefusal::NothingAdded,
-            },
+            }),
             false,
         ),
     ] {
@@ -338,6 +379,54 @@ async fn a_finished_job_records_its_handoff() {
             .is_some_and(Registered::holds_staged_files);
         assert_eq!(held, kept);
     }
+}
+
+#[tokio::test]
+async fn a_sweep_that_finishes_before_the_handoff_returns_still_lets_the_job_settle() {
+    let root = TempDir::new().expect("temp root");
+    let runtime = test_runtime(&root);
+    let job_id = "remote-job-swept";
+    let job_dir = runtime
+        .inner
+        .lifecycle
+        .staging
+        .create_job_dir(job_id)
+        .expect("job dir");
+    register(&runtime, job_id);
+    let staged = types::StagedPdf {
+        path: job_dir.join("companion.pdf"),
+        size_bytes: 0,
+        sha256: String::new(),
+    };
+    let title = types::PdfTitle {
+        title: "Book".into(),
+        authors: Vec::new(),
+        series: None,
+        series_part: None,
+        release_date: None,
+    };
+    runtime
+        .inner
+        .lifecycle
+        .apply_outcome(job_id, AcquisitionOutcome::pdf(staged, title));
+    let saved = AcquisitionHandoff::Pdf(PdfHandoff::Saved {
+        path: root.path().join("Book - Supplemental PDF.pdf"),
+    });
+    let sweeper = runtime.clone();
+    let answered = saved.clone();
+    runtime.set_handoff(Arc::new(move |job| {
+        sweeper.purge_session(&job.job_id).expect("sweep");
+        let answered = answered.clone();
+        Box::pin(async move { answered })
+    }));
+
+    runtime.inner.lifecycle.hand_off(&runtime, job_id).await;
+
+    let job = published_job(&runtime);
+    assert!(job.settled);
+    assert_eq!(job.handoff, Some(saved));
+    assert!(!job_dir.exists());
+    assert!(!runtime.ui_snapshot().busy);
 }
 
 fn release(guid: &str) -> types::RemoteReleaseGrabRequest {
@@ -495,9 +584,11 @@ async fn logout_keeps_materialized_handoff_sessions_but_purges_unmaterialized_se
     std::fs::write(unmaterialized_job_dir.join("source.aax"), b"protected")
         .expect("write protected source");
 
-    let mut materialized_job = Registered::new(materialized_job_id);
+    let mut materialized_job = super::job_state::tests::titles_job(materialized_job_id);
     materialized_job.finish(one_file_outcome(materialized_path.clone()));
-    materialized_job.handoff_done(AcquisitionHandoff::Imported { count: 1 });
+    materialized_job.handoff_done(AcquisitionHandoff::Titles(TitlesHandoff::Imported {
+        count: 1,
+    }));
     {
         let mut jobs = runtime.inner.lifecycle.jobs.lock().expect("jobs lock");
         jobs.insert(materialized_job_id.to_string(), materialized_job);
@@ -555,8 +646,14 @@ fn logout_cleanup_attempts_remaining_sessions_after_purge_failure() {
     .expect("create bad session symlink");
 
     let mut jobs = runtime.inner.lifecycle.jobs.lock().expect("jobs lock");
-    jobs.insert(bad_job_id.to_string(), Registered::new(bad_job_id));
-    jobs.insert(good_job_id.to_string(), Registered::new(good_job_id));
+    jobs.insert(
+        bad_job_id.to_string(),
+        super::job_state::tests::titles_job(bad_job_id),
+    );
+    jobs.insert(
+        good_job_id.to_string(),
+        super::job_state::tests::titles_job(good_job_id),
+    );
     drop(jobs);
 
     let error = runtime

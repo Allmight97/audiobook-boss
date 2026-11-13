@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use abb_audible_core::title_ref;
 use abb_engine::remote_source::{
-    AcquisitionHandoff, AcquisitionSnapshot, HandoffRefusal, RemoteAcquisitionFailureKind,
-    RemoteSourceDiagnostic, RemoteTitle,
+    AcquisitionHandoff, AcquisitionSnapshot, HandoffRefusal, PdfHandoff,
+    RemoteAcquisitionFailureKind, RemoteSourceDiagnostic, RemoteTitle, TitlesHandoff,
 };
 use serde::Serialize;
 
@@ -80,8 +80,10 @@ pub(super) fn title_outcome(
                 .is_none_or(|id| id == title_id)
         })
         .collect();
-    let imported = matches!(job.handoff, Some(AcquisitionHandoff::Imported { .. }))
-        && !imported_paths.is_empty();
+    let imported = matches!(
+        job.handoff,
+        Some(AcquisitionHandoff::Titles(TitlesHandoff::Imported { .. }))
+    ) && !imported_paths.is_empty();
     if imported {
         let mut outcome = TitleOutcome::new(
             title_id,
@@ -96,7 +98,9 @@ pub(super) fn title_outcome(
     let blocking = own.iter().find(|diagnostic| diagnostic.kind.blocks_title());
     let (kind, message) = match (blocking, &job.handoff) {
         (Some(diagnostic), _) => (Some(diagnostic.kind.clone()), diagnostic.message.clone()),
-        (None, Some(AcquisitionHandoff::Removed { reason })) => (None, refusal_message(reason)),
+        (None, Some(AcquisitionHandoff::Titles(TitlesHandoff::Removed { reason }))) => {
+            (None, refusal_message(reason))
+        }
         (None, _) => (
             None,
             "the acquisition ended with no imported file".to_string(),
@@ -123,6 +127,68 @@ fn refusal_message(reason: &HandoffRefusal) -> String {
         HandoffRefusal::ImportFailed { error } => error.message.clone(),
         HandoffRefusal::NothingAdded => "the session already listed these files".to_string(),
     }
+}
+
+/// Where one title's Supplemental PDF landed, or why it did not.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "status", rename_all = "camelCase")]
+pub(super) enum PdfOutcome {
+    #[serde(rename_all = "camelCase")]
+    Saved { title_id: String, path: PathBuf },
+    #[serde(rename_all = "camelCase")]
+    Failed {
+        title_id: String,
+        failure_kind: Option<RemoteAcquisitionFailureKind>,
+        message: String,
+    },
+}
+
+pub(super) fn pdf_outcome(title_id: &str, job: &AcquisitionSnapshot) -> PdfOutcome {
+    let failed = |failure_kind, message| PdfOutcome::Failed {
+        title_id: title_id.to_string(),
+        failure_kind,
+        message,
+    };
+    if let Some(AcquisitionHandoff::Pdf(handoff)) = &job.handoff {
+        return match handoff {
+            PdfHandoff::Saved { path } => PdfOutcome::Saved {
+                title_id: title_id.to_string(),
+                path: path.clone(),
+            },
+            PdfHandoff::NotSaved { error } => failed(None, error.message.clone()),
+        };
+    }
+    match job
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.kind.blocks_title())
+    {
+        Some(diagnostic) => failed(Some(diagnostic.kind.clone()), diagnostic.message.clone()),
+        None => failed(None, "the PDF job ended without saving a PDF".to_string()),
+    }
+}
+
+pub(super) fn print_pdf_outcome(outcome: &PdfOutcome, json: bool) -> Result<(), String> {
+    if json {
+        let text = serde_json::to_string_pretty(outcome)
+            .map_err(|error| format!("could not print the outcome: {error}"))?;
+        println!("{text}");
+        return Ok(());
+    }
+    match outcome {
+        PdfOutcome::Saved { title_id, path } => {
+            println!("{title_id}  saved\n  {}", path.display());
+        }
+        PdfOutcome::Failed {
+            title_id,
+            failure_kind,
+            message,
+        } => match failure_kind {
+            Some(kind) => println!("{title_id}  failed: {kind:?}\n  {message}"),
+            None => println!("{title_id}  failed\n  {message}"),
+        },
+    }
+    Ok(())
 }
 
 pub(super) fn print_outcomes(outcomes: &[TitleOutcome], json: bool) -> Result<(), String> {

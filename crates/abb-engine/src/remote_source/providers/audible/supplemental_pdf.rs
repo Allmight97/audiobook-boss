@@ -12,7 +12,7 @@ use super::acquisition::generated_staging_path;
 use super::http::no_redirect_client;
 use super::{AUDIBLE_DOWNLOAD_USER_AGENT, DOMAIN, MAX_DOWNLOAD_REDIRECTS};
 use crate::remote_source::scoped_output::{ProvisionalCommittedFile, StagedTempFile};
-use crate::remote_source::SupplementalAsset;
+use crate::remote_source::StagedPdf;
 
 const SIGN_IN_PATH: &str = "/ap/signin";
 const SIGN_IN_PAGE_SCAN_BYTES: u64 = 64 * 1024;
@@ -30,7 +30,6 @@ pub(super) enum PdfFailure {
     Empty,
     SignIn,
     PdfMagic,
-    Canonicalize,
     RedirectLimit,
     Status,
     SizeLimit,
@@ -51,7 +50,6 @@ impl std::fmt::Display for PdfFailure {
             Self::Empty => "empty",
             Self::SignIn => "sign_in",
             Self::PdfMagic => "pdf_magic",
-            Self::Canonicalize => "canonicalize",
             Self::RedirectLimit => "redirect_limit",
             Self::Status => "status",
             Self::SizeLimit => "size_limit",
@@ -182,8 +180,6 @@ pub(super) struct SupplementalPdfRequest<'a> {
     pub auth: &'a Auth,
     pub title_id: &'a str,
     pub job_id: &'a str,
-    pub input_id: &'a str,
-    pub file_name: &'a str,
     pub api_pdf_hint_present: bool,
     pub job_dir: &'a Path,
 }
@@ -194,10 +190,12 @@ struct SupplementalPdfLog<'a> {
     title_id: &'a str,
 }
 
+/// `on_bytes` hears the bytes received so far and the reply's length.
 pub(super) async fn download_supplemental_pdf(
     request: SupplementalPdfRequest<'_>,
+    on_bytes: &mut impl FnMut(u64, Option<u64>),
     is_cancelled: &impl Fn() -> bool,
-) -> std::result::Result<(SupplementalAsset, ProvisionalCommittedFile), SupplementalPdfFailure> {
+) -> std::result::Result<(StagedPdf, ProvisionalCommittedFile), SupplementalPdfFailure> {
     let client =
         no_redirect_client().map_err(|_| SupplementalPdfFailure::new(PdfFailure::Request, None))?;
     let url = companion_file_url(request.title_id)?;
@@ -206,6 +204,7 @@ pub(super) async fn download_supplemental_pdf(
         request,
         url,
         SupplementalPdfTransportPolicy::HttpsOnly,
+        on_bytes,
         is_cancelled,
     )
     .await
@@ -216,8 +215,9 @@ async fn download_supplemental_pdf_with_client(
     request: SupplementalPdfRequest<'_>,
     start_url: reqwest::Url,
     transport_policy: SupplementalPdfTransportPolicy,
+    on_bytes: &mut impl FnMut(u64, Option<u64>),
     is_cancelled: &impl Fn() -> bool,
-) -> std::result::Result<(SupplementalAsset, ProvisionalCommittedFile), SupplementalPdfFailure> {
+) -> std::result::Result<(StagedPdf, ProvisionalCommittedFile), SupplementalPdfFailure> {
     if is_cancelled() {
         return Err(SupplementalPdfFailure::new(PdfFailure::Cancelled, None));
     }
@@ -244,13 +244,17 @@ async fn download_supplemental_pdf_with_client(
         job_id: request.job_id,
         title_id: request.title_id,
     };
-    let identity = fetch_pdf_to_partial(
+    let fetch = PdfFetch {
         client,
-        &cookie,
+        cookie: &cookie,
+        transport_policy,
+    };
+    let identity = fetch_pdf_to_partial(
+        fetch,
         log,
         start_url,
-        transport_policy,
         staged.partial_path(),
+        on_bytes,
         is_cancelled,
     )
     .await?;
@@ -275,25 +279,10 @@ async fn download_supplemental_pdf_with_client(
         SupplementalPdfFailure::new(PdfFailure::File, None)
     })?;
     let committed = ProvisionalCommittedFile::new(path.clone());
-    let canonical = match path.canonicalize() {
-        Ok(canonical) => canonical,
-        Err(error) => {
-            log::warn!(
-                "remote_source audible stage=supplemental_pdf_failed job_id={} title_ref={} category=canonicalize error={error}",
-                request.job_id,
-                title_ref(request.title_id),
-            );
-            return Err(SupplementalPdfFailure::new(PdfFailure::Canonicalize, None));
-        }
-    };
     log_supplemental_pdf_download_complete(request.job_id, request.title_id, identity.size_bytes);
     Ok((
-        SupplementalAsset {
-            asset_id: uuid::Uuid::new_v4().to_string(),
-            input_id: request.input_id.to_string(),
-            title_id: request.title_id.to_string(),
-            path: canonical,
-            file_name: request.file_name.to_string(),
+        StagedPdf {
+            path,
             size_bytes: identity.size_bytes,
             sha256: identity.sha256,
         },
@@ -301,13 +290,19 @@ async fn download_supplemental_pdf_with_client(
     ))
 }
 
+#[derive(Clone, Copy)]
+struct PdfFetch<'a> {
+    client: &'a reqwest::Client,
+    cookie: &'a HeaderValue,
+    transport_policy: SupplementalPdfTransportPolicy,
+}
+
 async fn fetch_pdf_to_partial(
-    client: &reqwest::Client,
-    cookie: &HeaderValue,
+    fetch: PdfFetch<'_>,
     log: SupplementalPdfLog<'_>,
     start_url: reqwest::Url,
-    transport_policy: SupplementalPdfTransportPolicy,
     partial_path: &Path,
+    on_bytes: &mut impl FnMut(u64, Option<u64>),
     is_cancelled: &impl Fn() -> bool,
 ) -> std::result::Result<SupplementalPdfIdentity, SupplementalPdfFailure> {
     let mut url = start_url;
@@ -316,13 +311,13 @@ async fn fetch_pdf_to_partial(
         if is_cancelled() {
             return Err(SupplementalPdfFailure::new(PdfFailure::Cancelled, None));
         }
-        if !transport_policy.allows(&url) {
+        if !fetch.transport_policy.allows(&url) {
             return Err(SupplementalPdfFailure::new(
                 PdfFailure::RedirectNonHttps,
                 None,
             ));
         }
-        let response = build_supplemental_pdf_get_request(client, url.clone(), cookie)
+        let response = build_supplemental_pdf_get_request(fetch.client, url.clone(), fetch.cookie)
             .send()
             .await
             .map_err(|_| SupplementalPdfFailure::new(PdfFailure::Request, None))?;
@@ -352,7 +347,7 @@ async fn fetch_pdf_to_partial(
             let next = supplemental_pdf_redirect_target(
                 &url,
                 response.headers().get(LOCATION),
-                transport_policy,
+                fetch.transport_policy,
             )?;
             if is_sign_in_url(&next) {
                 return Err(SupplementalPdfFailure::new(
@@ -365,7 +360,7 @@ async fn fetch_pdf_to_partial(
             continue;
         }
 
-        if !status.is_success() || !transport_policy.allows(&response_url) {
+        if !status.is_success() || !fetch.transport_policy.allows(&response_url) {
             log_supplemental_pdf_request_status(
                 log.job_id,
                 log.title_id,
@@ -396,7 +391,7 @@ async fn fetch_pdf_to_partial(
             return Err(SupplementalPdfFailure::new(PdfFailure::SizeLimit, None));
         }
 
-        let identity = stream_pdf_body(response, partial_path, is_cancelled).await?;
+        let identity = stream_pdf_body(response, partial_path, on_bytes, is_cancelled).await?;
         log_supplemental_pdf_request_status(
             log.job_id,
             log.title_id,
@@ -436,6 +431,7 @@ async fn is_sign_in_page(path: &Path) -> bool {
 async fn stream_pdf_body(
     mut response: reqwest::Response,
     partial_path: &Path,
+    on_bytes: &mut impl FnMut(u64, Option<u64>),
     is_cancelled: &impl Fn() -> bool,
 ) -> std::result::Result<SupplementalPdfIdentity, SupplementalPdfFailure> {
     let mut file = tokio::fs::OpenOptions::new()
@@ -445,6 +441,7 @@ async fn stream_pdf_body(
         .open(partial_path)
         .await
         .map_err(|_| SupplementalPdfFailure::new(PdfFailure::File, None))?;
+    let total = response.content_length();
     let mut identity = SupplementalPdfIdentityBuilder::new();
     while let Some(chunk) = response
         .chunk()
@@ -465,6 +462,7 @@ async fn stream_pdf_body(
             return Err(SupplementalPdfFailure::new(PdfFailure::SizeLimit, None));
         }
         identity.update(&chunk);
+        on_bytes(identity.size_bytes(), total);
         file.write_all(&chunk)
             .await
             .map_err(|_| SupplementalPdfFailure::new(PdfFailure::File, None))?;

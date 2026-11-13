@@ -1,6 +1,7 @@
 use std::path::Path;
 
 mod paths;
+mod pdf;
 mod progress;
 mod supplemental;
 mod validation;
@@ -16,20 +17,26 @@ use super::license_plan::{LicensePlan, LicenseReply};
 use super::materialization::materialize_protected_download;
 use crate::engine_tasks::EngineTasks;
 use crate::errors::Result;
+use crate::remote_source::job_state::{AcquisitionOutcome, TitlesOutcome};
 use crate::remote_source::scoped_output::ProvisionalCommittedFile;
 use crate::remote_source::staging;
+use crate::remote_source::types::AcquisitionWork;
 use crate::remote_source::{
-    AcquisitionOutcome, AcquisitionPlan, MaterializedSourceFile, RemoteAcquisitionFailureKind,
-    RemoteSourceDiagnostic, SupplementalAsset,
+    AcquisitionPlan, MaterializedSourceFile, RemoteAcquisitionFailureKind, RemoteSourceDiagnostic,
+    SupplementalAsset,
 };
 use abb_audible_core::AudibleDecryptionMaterial;
 use abb_audible_core::{title_ref, AudibleLicenseDecryptContext};
 use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage};
 
-pub(super) struct AcquiredTitle {
-    pub(super) file: Option<MaterializedSourceFile>,
-    pub(super) assets: Vec<SupplementalAsset>,
-    pub(super) diagnostics: Vec<RemoteSourceDiagnostic>,
+pub(super) enum AcquiredTitle {
+    Ready {
+        file: MaterializedSourceFile,
+        assets: Vec<SupplementalAsset>,
+        diagnostics: Vec<RemoteSourceDiagnostic>,
+    },
+    /// Audible refused the license; nothing was downloaded.
+    Refused(RemoteSourceDiagnostic),
 }
 
 type AudibleAcquisitionResult<T> = std::result::Result<T, AudibleAcquisitionError>;
@@ -54,6 +61,7 @@ struct TitleAcquisitionRequest<'a> {
 struct FinalizeAcquisitionRequest<'a> {
     auth: &'a Auth,
     materialized_path: std::path::PathBuf,
+    purge_diagnostic: Option<RemoteSourceDiagnostic>,
     include_pdf: bool,
     title_details: &'a AudibleTitleDetails,
     license: &'a LicenseReply,
@@ -70,17 +78,38 @@ pub(in crate::remote_source::providers::audible) struct TitleAcquisitionCtx<'a> 
 
 pub(super) async fn acquire(
     auth: Auth,
+    work: &AcquisitionWork,
+    job_id: &str,
+    job_dir: &Path,
+    tasks: &EngineTasks,
+    progress: impl FnMut(AcquisitionProgress),
+    is_cancelled: impl Fn() -> bool,
+) -> Result<AcquisitionOutcome> {
+    match work {
+        AcquisitionWork::Titles(plan) => {
+            acquire_titles(auth, plan, job_id, job_dir, tasks, progress, is_cancelled)
+                .await
+                .map(Into::into)
+        }
+        AcquisitionWork::Pdf { title_id } => {
+            pdf::acquire_pdf(&auth, title_id, job_id, job_dir, progress, is_cancelled).await
+        }
+    }
+}
+
+async fn acquire_titles(
+    auth: Auth,
     plan: &AcquisitionPlan,
     job_id: &str,
     job_dir: &Path,
     tasks: &EngineTasks,
     mut progress: impl FnMut(AcquisitionProgress),
     is_cancelled: impl Fn() -> bool,
-) -> Result<AcquisitionOutcome> {
+) -> Result<TitlesOutcome> {
     ensure_not_cancelled(&is_cancelled)?;
     let license_decrypt_context = license_decrypt_context_from_auth(&auth);
     let api = AudibleApi::new(&auth)?;
-    let mut outcome = AcquisitionOutcome::default();
+    let mut outcome = TitlesOutcome::default();
 
     let total_items = u32::try_from(plan.selections.len()).unwrap_or(u32::MAX);
     for (selection_index, selection) in plan.selections.iter().enumerate() {
@@ -105,21 +134,22 @@ pub(super) async fn acquire(
 }
 
 fn record_title_outcome(
-    outcome: &mut AcquisitionOutcome,
+    outcome: &mut TitlesOutcome,
     job_id: &str,
     title_id: &str,
     title: AudibleAcquisitionResult<AcquiredTitle>,
 ) -> Result<()> {
     match title {
-        Ok(AcquiredTitle {
+        Ok(AcquiredTitle::Ready {
             file,
             assets,
             diagnostics,
         }) => {
-            outcome.files.extend(file);
+            outcome.files.push(file);
             outcome.assets.extend(assets);
             outcome.diagnostics.extend(diagnostics);
         }
+        Ok(AcquiredTitle::Refused(diagnostic)) => outcome.diagnostics.push(diagnostic),
         Err(error) => {
             if error.is_cancellation() {
                 return Err(error.into_app_error());
@@ -227,10 +257,11 @@ async fn acquire_one(
         is_cancelled,
     )
     .await?;
-    let mut title = finalize_acquired_title(
+    finalize_acquired_title(
         FinalizeAcquisitionRequest {
             auth,
             materialized_path,
+            purge_diagnostic,
             include_pdf,
             title_details: &title_details,
             license: &license,
@@ -239,11 +270,7 @@ async fn acquire_one(
         progress,
         is_cancelled,
     )
-    .await?;
-    // Purge failure is housekeeping, not acquisition failure: the title stays
-    // import-ready and the diagnostic rides along non-blocking (#393).
-    title.diagnostics.extend(purge_diagnostic);
-    Ok(title)
+    .await
 }
 
 async fn importable_source(
@@ -280,6 +307,7 @@ async fn finalize_acquired_title(
     let FinalizeAcquisitionRequest {
         auth,
         materialized_path,
+        purge_diagnostic,
         include_pdf,
         title_details,
         license,
@@ -292,7 +320,7 @@ async fn finalize_acquired_title(
         .map_err(AudibleAcquisitionError::validation)?;
     let supplemental_pdf_hint_present =
         supplemental::hint_present_for_acquisition(include_pdf, title_details, license);
-    let (assets, diagnostics) = supplemental::download_if_requested(
+    let (assets, mut diagnostics) = supplemental::download_if_requested(
         supplemental::SupplementalPdfAcquisitionRequest {
             auth,
             file: &file,
@@ -305,8 +333,11 @@ async fn finalize_acquired_title(
     )
     .await?;
     committed_audio.permanent();
-    Ok(AcquiredTitle {
-        file: Some(file),
+    // Purge failure is housekeeping, not acquisition failure: the title stays
+    // import-ready and the diagnostic rides along non-blocking (#393).
+    diagnostics.extend(purge_diagnostic);
+    Ok(AcquiredTitle::Ready {
+        file,
         assets,
         diagnostics,
     })
@@ -317,15 +348,11 @@ fn refused_title(
     kind: RemoteAcquisitionFailureKind,
     message: String,
 ) -> AcquiredTitle {
-    AcquiredTitle {
-        file: None,
-        assets: Vec::new(),
-        diagnostics: vec![RemoteSourceDiagnostic {
-            kind,
-            title_id: Some(title_id.to_string()),
-            message,
-        }],
-    }
+    AcquiredTitle::Refused(RemoteSourceDiagnostic {
+        kind,
+        title_id: Some(title_id.to_string()),
+        message,
+    })
 }
 
 #[cfg(test)]

@@ -29,6 +29,8 @@
   with a `SupplementalPdfUnavailable` diagnostic; a hinted PDF stays required.
   An Amazon sign-in redirect or page in the reply means "Sign in to Audible
   again to get the PDF".
+- Saving only a PDF (`SavePdf`) is its own `AcquisitionWork::Pdf` job, not a
+  selection flag, so the selection and PDF choices stay as the user left them.
 - On a license request only 401 is `AuthRejected`, because a 403 there can
   refuse one title (entitlement, region) or be a rate limit with a working
   sign-in; it fails that title only. On library pages and title lookup, 401 or

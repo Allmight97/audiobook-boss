@@ -30,4 +30,6 @@ pub use protected_file::{
     MP4_BOX_HEADER_PROBE_LEN,
 };
 pub use strategy::AcquisitionStrategy;
-pub use title_metadata::{title_metadata_from_value, TitleMetadata};
+pub use title_metadata::{
+    title_metadata_from_value, title_naming_facts_from_value, TitleMetadata, TitleNamingFacts,
+};

@@ -10,8 +10,8 @@ use crate::audio::{AudioIntent, EncoderType};
 use crate::power::PowerManager;
 use crate::remote_source::tests::{offer_library_title, recorded_job_ids, test_runtime_acquiring};
 use crate::remote_source::{
-    AcquireTitles, AcquisitionHandoff, AcquisitionOutcome, AcquisitionSnapshot,
-    MaterializedSourceFile, RemoteSourceRuntime, RemoteUiIntent,
+    AcquireTitles, AcquisitionHandoff, AcquisitionSnapshot, MaterializedSourceFile,
+    RemoteSourceRuntime, RemoteUiIntent, TitlesHandoff, TitlesOutcome,
 };
 use crate::session::{AudioEdit, MetadataField, Session, SessionDeps, SessionIntent};
 use crate::work_runtime::WorkRuntime;
@@ -23,7 +23,7 @@ fn downloads_one_wav(seconds: u32, title: Option<&'static str>) -> AcquireTitles
         Box::pin(async move {
             let path = request.job_dir.join("book.wav");
             super::support::wav::write_wav(&path, seconds, title, None);
-            Ok(AcquisitionOutcome {
+            Ok(TitlesOutcome {
                 files: vec![MaterializedSourceFile {
                     input_id: "remote-1".into(),
                     title_id: TITLE_ID.into(),
@@ -31,15 +31,28 @@ fn downloads_one_wav(seconds: u32, title: Option<&'static str>) -> AcquireTitles
                     size_bytes: 0,
                     sha256: String::new(),
                 }],
-                ..AcquisitionOutcome::default()
-            })
+                ..TitlesOutcome::default()
+            }
+            .into())
         })
     })
 }
 
-fn session_acquiring(root: &TempDir, acquire: AcquireTitles) -> (Session, RemoteSourceRuntime) {
+pub(super) fn session_acquiring(
+    root: &TempDir,
+    acquire: AcquireTitles,
+) -> (Session, RemoteSourceRuntime) {
+    let (session, remote, _) = session_and_settings_acquiring(root, acquire);
+    (session, remote)
+}
+
+pub(super) fn session_and_settings_acquiring(
+    root: &TempDir,
+    acquire: AcquireTitles,
+) -> (Session, RemoteSourceRuntime, SettingsRuntime) {
     let (settings, jobs, _) =
         SettingsRuntime::start(root.path().join("config"), PowerManager::default());
+    let kept = settings.clone();
     let remote = test_runtime_acquiring(root, settings.clone(), acquire);
     let tasks = crate::engine_tasks::EngineTasks::default();
     let session = Session::new(SessionDeps {
@@ -59,7 +72,7 @@ fn session_acquiring(root: &TempDir, acquire: AcquireTitles) -> (Session, Remote
     remote.set_handoff(session.handoff());
     session.start_from_defaults(None, Some(crate::audio::encoder_settings_capabilities()));
     offer_library_title(&remote, TITLE_ID);
-    (session, remote)
+    (session, remote, kept)
 }
 
 async fn acquire(session: &Session) -> Box<AcquisitionSnapshot> {
@@ -96,7 +109,9 @@ async fn an_acquired_title_reaches_the_list_and_its_download_leaves_with_it() {
     assert!(job.settled);
     assert_eq!(
         job.job.handoff,
-        Some(AcquisitionHandoff::Imported { count: 1 })
+        Some(AcquisitionHandoff::Titles(TitlesHandoff::Imported {
+            count: 1
+        }))
     );
     let titles = session.snapshot().titles.expect("titles");
     assert_eq!(titles.files.len(), 1);

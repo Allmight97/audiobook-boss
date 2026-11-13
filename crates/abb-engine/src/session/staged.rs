@@ -38,6 +38,8 @@ impl Removal {
 struct StagedJob {
     /// By session input id.
     titles: BTreeMap<String, StagedTitle>,
+    /// Files the session never listed and holds no claim on.
+    leftovers: Vec<PathBuf>,
     removal: Removal,
     last_retry_delay: Option<Duration>,
 }
@@ -71,20 +73,14 @@ impl StagedSources {
             );
     }
 
-    /// Records a download nothing was imported from, so a sweep removes it
-    /// and retries if removal fails.
-    pub(crate) fn register_unimported(&mut self, job_id: &str, paths: Vec<PathBuf>) {
-        let job = self.jobs.entry(job_id.to_string()).or_default();
-        for (index, path) in paths.into_iter().enumerate() {
-            job.titles.insert(
-                format!("unimported:{index}"),
-                StagedTitle {
-                    path,
-                    assets: Vec::new(),
-                    finished: true,
-                },
-            );
-        }
+    /// Records downloaded files the session will not list, so a sweep
+    /// removes them and retries if removal fails.
+    pub(crate) fn register_leftovers(&mut self, job_id: &str, paths: Vec<PathBuf>) {
+        self.jobs
+            .entry(job_id.to_string())
+            .or_default()
+            .leftovers
+            .extend(paths);
     }
 
     fn title(&self, input_id: &str) -> Option<&StagedTitle> {
@@ -172,6 +168,7 @@ impl StagedSources {
                                 .iter()
                                 .any(|asset| in_use.contains(&asset.path))
                     })
+                    && !job.leftovers.iter().any(|path| in_use.contains(path))
             })
             .map(|(job_id, _)| job_id.clone())
             .collect()
@@ -181,10 +178,14 @@ impl StagedSources {
         self.jobs
             .get(job_id)
             .into_iter()
-            .flat_map(|job| job.titles.values())
-            .flat_map(|title| {
-                std::iter::once(title.path.clone())
-                    .chain(title.assets.iter().map(|asset| asset.path.clone()))
+            .flat_map(|job| {
+                job.titles
+                    .values()
+                    .flat_map(|title| {
+                        std::iter::once(title.path.clone())
+                            .chain(title.assets.iter().map(|asset| asset.path.clone()))
+                    })
+                    .chain(job.leftovers.iter().cloned())
             })
             .collect()
     }

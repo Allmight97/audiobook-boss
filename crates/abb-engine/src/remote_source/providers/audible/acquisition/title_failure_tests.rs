@@ -15,7 +15,7 @@ fn acquire_unreadable_titles(count: u32, pause_after_first: Option<Pause>) -> Ac
         let pause = pause.clone();
         Box::pin(async move {
             let lifecycle = &request.runtime.inner.lifecycle;
-            let mut job = AcquisitionOutcome::default();
+            let mut job = TitlesOutcome::default();
             for index in 0..count {
                 let title_id = format!("B0{index}");
                 let path = request.job_dir.join(format!("{title_id}.m4b"));
@@ -35,8 +35,8 @@ fn acquire_unreadable_titles(count: u32, pause_after_first: Option<Pause>) -> Ac
                         lifecycle.update_job_progress(&request.job_id, progress);
                     })
                     .await
-                    .map(|file| AcquiredTitle {
-                        file: Some(file),
+                    .map(|file| AcquiredTitle::Ready {
+                        file,
                         assets: Vec::new(),
                         diagnostics: Vec::new(),
                     })
@@ -48,7 +48,7 @@ fn acquire_unreadable_titles(count: u32, pause_after_first: Option<Pause>) -> Ac
                     release.await.expect("test releases the pause");
                 }
             }
-            Ok(job)
+            Ok(job.into())
         })
     })
 }
