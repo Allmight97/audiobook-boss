@@ -30,7 +30,7 @@ const SINGLE_OWNER_FACTS: { pattern: RegExp; owner: string }[] = [
 ];
 
 const MARKDOWN_HOMES =
-	/^(?:vendor|docs\/specs|docs\/agents|\.agents\/skills)\/|(^|\/)(AGENTS|CLAUDE|REVIEW)\.md$|^(README|CHANGELOG)\.md$|^docs\/(DECISIONS|claude-on-github)\.md$/;
+	/^(?:vendor|docs\/specs|\.agents\/skills)\/|(^|\/)(AGENTS|CLAUDE|REVIEW)\.md$|^(README|CHANGELOG)\.md$|^docs\/(DECISIONS|claude-on-github)\.md$/;
 
 export function markdownHomeFindings(tracked: string[]): Finding[] {
 	return tracked

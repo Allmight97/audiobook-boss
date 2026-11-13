@@ -138,8 +138,7 @@ runs; their commands live only in `verify.sh`.
 - Issue bodies, labels, publication, and closing follow the shared
   `issue-hygiene` skill (`/personal-skills:issue-hygiene`; Codex
   `$issue-hygiene`). Label meanings: `gh label list`. An issue that asks the
-  owner to choose what the user gets cites `docs/agents/observed-use.md` or
-  says "no observed case" (`.agents/skills/app-use-notes`).
+  owner to choose what the user gets says whether a real case was observed.
 - A plan file (`docs/specs/<task>.md`) enters the repo only when the owner
   asks, and leaves when the work lands.
 - An open issue is a candidate plan. Verify its claims against `main`, the

@@ -36,7 +36,6 @@ describe('check-guidance', () => {
 				'crates/abb-engine/src/session/NOTES.md',
 				'docs/specs/export-rework.md',
 				'docs/DECISIONS.md',
-				'docs/agents/observed-use.md',
 				'.agents/skills/release/references/execution.md',
 				'crates/abb-engine/AGENTS.md',
 				'CHANGELOG.md',
