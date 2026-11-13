@@ -15,3 +15,30 @@ describe('recorded session scenarios', () => {
 		},
 	);
 });
+
+const PLATFORM_SPECIFIC_VALUES: Record<string, RegExp> = {
+	'os error number': /os error \d+/,
+	'home directory': /\/(?:Users|home)\/[^/"\\\s]+\//,
+	'temp path': /\/tmp\/|\/var\/folders\/|\/private\/var\//,
+};
+
+const recordedFixtureFiles = import.meta.glob('../../lib/generated/fixtures/*.json', {
+	eager: true,
+	query: '?raw',
+	import: 'default',
+});
+
+describe('recorded fixtures', () => {
+	it('finds the committed fixture files', () => {
+		expect(Object.keys(recordedFixtureFiles).length).toBeGreaterThan(0);
+	});
+
+	it.each(Object.entries(recordedFixtureFiles))(
+		'%s holds no platform-specific value',
+		(_file, text) => {
+			for (const [name, pattern] of Object.entries(PLATFORM_SPECIFIC_VALUES)) {
+				expect(text.match(pattern)?.[0], name).toBeUndefined();
+			}
+		},
+	);
+});
