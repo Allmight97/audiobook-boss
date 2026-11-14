@@ -14,7 +14,8 @@
  * version files, and a non-empty `## [x.y.z] - <today>` changelog section.
  * The github lanes also need the tag and the GitHub Release to be absent; the
  * install lanes need the installed app to be closed. A rerun after a failure
- * resumes: the bump and commit are no-ops once done.
+ * resumes: the bump and commit are no-ops once done. The tag waits for CI
+ * because CI is the release's only Linux proof.
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';

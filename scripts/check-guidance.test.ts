@@ -21,7 +21,7 @@ function messages(text: string, file = 'scripts/AGENTS.md'): string[] {
 describe('check-guidance', () => {
 	it('selects agent guidance, not upstream or history files', () => {
 		expect(isGuidanceFile('crates/abb-engine/AGENTS.md')).toBe(true);
-		expect(isGuidanceFile('.agents/skills/release/references/execution.md')).toBe(true);
+		expect(isGuidanceFile('.agents/skills/release/SKILL.md')).toBe(true);
 		expect(isGuidanceFile('README.md')).toBe(true);
 		expect(isGuidanceFile('CHANGELOG.md')).toBe(false);
 		expect(isGuidanceFile('vendor/ffmpeg-sys-next-9.0.1/README.md')).toBe(false);
@@ -36,7 +36,7 @@ describe('check-guidance', () => {
 				'crates/abb-engine/src/session/NOTES.md',
 				'docs/specs/export-rework.md',
 				'docs/DECISIONS.md',
-				'.agents/skills/release/references/execution.md',
+				'.agents/skills/release/SKILL.md',
 				'crates/abb-engine/AGENTS.md',
 				'CHANGELOG.md',
 				'vendor/opus/README.md',

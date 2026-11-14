@@ -105,7 +105,7 @@ tooling:
   - vendor/ffmpeg-sys-next-*/build.rs
   - vendor/ffmpeg-sys-next-*/ABB-PROVENANCE.md
 no-lane:
-  - CHANGELOG.md # release history; the release skill writes it
+  - CHANGELOG.md # release history, written by hand before scripts/release.ts runs
   - LICENSE # legal text
   - .gitignore # read by git only
   - .cbmignore # read by an editor tool only
