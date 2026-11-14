@@ -8,8 +8,8 @@
   `src/lib/tauri/client.ts`, and the generated bindings.
 - Cargo commands run from the repository root. Verification:
   `scripts/AGENTS.md`.
-- Repository procedures (release and others) are skills in `.agents/skills/<name>/SKILL.md`; read the one whose description
-  fits the task.
+- Repository skills live in `.agents/skills/<name>/SKILL.md`; read the one
+  whose description fits the task.
 - "Public API Strip" means an owned module's allowed import/export surface;
   callers use it instead of private implementation files. `abb-*-core` crates
   are package boundaries, not further strips.
@@ -65,8 +65,9 @@ simpler design.
   native build; the plan is WSL, which #557 has yet to prove. No native UI is
   planned.
 - `src/`: Solid 2 is a prerelease baseline; for version-sensitive Solid
-  behavior use the `library-research` skill. UI behavior also needs a
-  visual review where tests cannot prove the UX.
+  behavior use the `library-research` skill
+  (`/personal-skills:library-research`; Codex `$library-research`). UI
+  behavior also needs a visual review where tests cannot prove the UX.
 - Greenfield: internal payloads and aliases change freely. Interoperability
   with real-world external audiobook files and tag variants is preserved.
 - External provider partial failure is handled at the owning engine module
