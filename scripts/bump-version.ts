@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const VERSION_RE = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?$/;
-const VERSION_SURFACES = [
+export const VERSION_SURFACES = [
 	'package.json',
 	'src-tauri/tauri.conf.json',
 	'src-tauri/Cargo.toml',
@@ -10,30 +10,36 @@ const VERSION_SURFACES = [
 
 type JsonObject = Record<string, unknown>;
 
-const newVersion = process.argv[2] ?? '';
+function main(): void {
+	const newVersion = process.argv[2] ?? '';
 
-if (!newVersion) {
-	console.log(`Current version: ${currentPackageVersion()}`);
-	console.log('');
-	console.log('Usage: bun scripts/bump-version.ts <new-version>');
-	console.log('Example: bun scripts/bump-version.ts 1.0.32');
-	process.exit(1);
+	if (!newVersion) {
+		console.log(`Current version: ${currentPackageVersion()}`);
+		console.log('');
+		console.log('Usage: bun scripts/bump-version.ts <new-version>');
+		console.log('Example: bun scripts/bump-version.ts 1.0.32');
+		process.exit(1);
+	}
+
+	if (!VERSION_RE.test(newVersion)) {
+		console.error('Error: Version must be semver format, for example 1.0.32 or 1.0.32-beta.1');
+		process.exit(1);
+	}
+
+	updateJsonVersion('package.json', newVersion);
+	updateJsonVersion('src-tauri/tauri.conf.json', newVersion);
+	updateCargoPackageVersion('src-tauri/Cargo.toml', 'audiobook-boss', newVersion);
+	updateCargoLockPackageVersion('Cargo.lock', 'audiobook-boss', newVersion);
+	verifyVersionSurfaces(newVersion);
+
+	console.log(`Bumped version to ${newVersion} in:`);
+	for (const surface of VERSION_SURFACES) {
+		console.log(`  - ${surface}`);
+	}
 }
 
-if (!VERSION_RE.test(newVersion)) {
-	console.error('Error: Version must be semver format, for example 1.0.32 or 1.0.32-beta.1');
-	process.exit(1);
-}
-
-updateJsonVersion('package.json', newVersion);
-updateJsonVersion('src-tauri/tauri.conf.json', newVersion);
-updateCargoPackageVersion('src-tauri/Cargo.toml', 'audiobook-boss', newVersion);
-updateCargoLockPackageVersion('Cargo.lock', 'audiobook-boss', newVersion);
-verifyVersionSurfaces(newVersion);
-
-console.log(`Bumped version to ${newVersion} in:`);
-for (const surface of VERSION_SURFACES) {
-	console.log(`  - ${surface}`);
+if (import.meta.main) {
+	main();
 }
 
 function currentPackageVersion(): string {
