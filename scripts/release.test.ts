@@ -10,6 +10,7 @@ import {
 	type CiRun,
 	ciFailure,
 	ciRunFor,
+	ffmpegNoticeProblem,
 	LANES,
 	parseArgs,
 	stepsFor,
@@ -186,6 +187,20 @@ describe('bundled licenses', () => {
 			'licenses/Lib.txt is missing (from ../vendor/lib/COPYING)',
 			'licenses/Lib-source.md differs from ../vendor/lib/NOTICE.md',
 		]);
+	});
+
+	it('names a shipped FFmpeg notice that lacks the pinned commit', () => {
+		const { resourcesDir } = layout();
+		const resources: [string, string][] = [
+			['../vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md', 'licenses/FFmpeg-source.md'],
+		];
+		const pinned = 'f'.repeat(40);
+		writeFileSync(path.join(resourcesDir, 'licenses/FFmpeg-source.md'), `commit \`${pinned}\``);
+		expect(ffmpegNoticeProblem(resources, resourcesDir, pinned)).toBeUndefined();
+		expect(ffmpegNoticeProblem(resources, resourcesDir, 'e'.repeat(40))).toBe(
+			`licenses/FFmpeg-source.md does not name the pinned FFmpeg commit ${'e'.repeat(40)}`,
+		);
+		expect(ffmpegNoticeProblem([], resourcesDir, pinned)).toContain('ships no');
 	});
 
 	it('refuses a resources list without targets', () => {

@@ -30,6 +30,7 @@ export type Lane = (typeof LANES)[number];
 
 const INSTALLED_APP = '/Applications/AudioBook Boss.app';
 const BUILT_APP = 'target/release/bundle/macos/AudioBook Boss.app';
+const FFMPEG_SYS = 'vendor/ffmpeg-sys-next-9.0.1';
 const RELEASE_FILES = ['CHANGELOG.md', ...VERSION_SURFACES];
 const CI_APPEAR_TIMEOUT_MS = 5 * 60_000;
 const CI_FINISH_TIMEOUT_MS = 120 * 60_000;
@@ -205,6 +206,21 @@ export function bundleResourceProblems(
 	});
 }
 
+/** Why the shipped FFmpeg notice fails to name the pinned commit, if it does. */
+export function ffmpegNoticeProblem(
+	resources: [string, string][],
+	resourcesDir: string,
+	revision: string,
+): string | undefined {
+	const target = resources.find(([source]) => source === `../${FFMPEG_SYS}/ABB-PROVENANCE.md`)?.[1];
+	if (!target) return `bundle.resources ships no ${FFMPEG_SYS}/ABB-PROVENANCE.md`;
+	const shipped = path.join(resourcesDir, target);
+	if (!existsSync(shipped)) return undefined;
+	return readFileSync(shipped, 'utf8').includes(revision)
+		? undefined
+		: `${target} does not name the pinned FFmpeg commit ${revision}`;
+}
+
 function run(command: string, args: string[]): void {
 	const result = spawnSync(command, args, { stdio: 'inherit' });
 	if (result.error) throw result.error;
@@ -320,15 +336,22 @@ function checkLicenses(context: Context, app: string): void {
 	const config = JSON.parse(
 		readFileSync(path.join(context.repoRoot, 'src-tauri/tauri.conf.json'), 'utf8'),
 	) as TauriBundle;
-	const problems = bundleResourceProblems(
-		bundleResources(config),
-		path.join(context.repoRoot, 'src-tauri'),
-		path.join(app, 'Contents/Resources'),
-	);
+	const resources = bundleResources(config);
+	const resourcesDir = path.join(app, 'Contents/Resources');
+	const revision = readFileSync(
+		path.join(context.repoRoot, FFMPEG_SYS, 'ffmpeg-revision'),
+		'utf8',
+	).trim();
+	const problems = [
+		...bundleResourceProblems(resources, path.join(context.repoRoot, 'src-tauri'), resourcesDir),
+		ffmpegNoticeProblem(resources, resourcesDir, revision),
+	].filter((problem) => problem !== undefined);
 	if (problems.length > 0) {
 		throw new Error(`${app} does not ship its license notices:\n- ${problems.join('\n- ')}`);
 	}
-	console.log(`Licenses in ${app} match tauri.conf.json bundle.resources.`);
+	console.log(
+		`Licenses in ${app} match tauri.conf.json bundle.resources and name FFmpeg ${revision}.`,
+	);
 }
 
 function waitForCi(sha: string): void {

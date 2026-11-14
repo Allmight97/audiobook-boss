@@ -2,9 +2,9 @@
 
 AudioBook Boss statically links FFmpeg's libraries under the LGPL 2.1 or
 later (`COPYING.LGPLv2.1` here; no `build-license-*` feature is enabled),
-built from the FFmpeg commit in `ffmpeg-revision` with the patches in
-`patches/` and the `configure` lists in `build.rs`. The app bundle ships
-this file and that license.
+built from FFmpeg commit `88c46fce27e311c73772d9b83db4047dd83b1294` with the
+patches in `patches/` and the `configure` lists in `build.rs`. The app bundle
+ships this file and that license.
 
 Base: crates.io `ffmpeg-sys-next` 9.0.1 archive, SHA-256
 `c6f932d8c1cede016c65d4f1435f323369c99c74df55143b18676aa10e7603f9`.
@@ -17,9 +17,10 @@ because Native AAC's NMR coder is not in a release. The Rust build fetches
 that commit and checks the checkout. `scripts/setup.sh` names it again:
 `ffmpeg_cli_build` is the BtbN describe id, and its `g` suffix is that commit;
 `ffmpeg_cli_release` is the autobuild tag that publishes it.
-`bun run ffmpeg:pin <commit>` sets all three from one FFmpeg commit, and
-`scripts/setup-pins.test.ts` fails when the suffix is not a prefix of the
-revision. On macOS the build links only AudioToolbox,
+`bun run ffmpeg:pin <commit>` sets all three from one FFmpeg commit, plus
+the commit this file names, because the bundle ships this file and not
+`ffmpeg-revision`. `scripts/setup-pins.test.ts` fails when the suffix is
+not a prefix of the revision. On macOS the build links only AudioToolbox,
 CoreAudio, and CoreFoundation; upstream's list adds video, OpenGL, OpenCL,
 and QTKit frameworks that the audio-only build never calls.
 

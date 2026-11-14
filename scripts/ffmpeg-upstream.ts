@@ -21,9 +21,10 @@
  * source no longer has; `update` rewrites the list to match.
  *
  * `ffmpeg:pin` (`--pin <commit>`) moves every pin of the FFmpeg commit at
- * once: the full hash into `ffmpeg-revision`, and `ffmpeg_cli_release` and
- * `ffmpeg_cli_build` in `scripts/setup.sh` to the newest FFmpeg-Builds master
- * autobuild of that commit. It changes nothing when no autobuild names the
+ * once: the full hash into `ffmpeg-revision` and into the shipped notice
+ * `ABB-PROVENANCE.md`, and `ffmpeg_cli_release` and `ffmpeg_cli_build` in
+ * `scripts/setup.sh` to the newest FFmpeg-Builds master autobuild of that
+ * commit. It changes nothing when no autobuild names the
  * commit, and lists the commits that have one.
  */
 import { execFileSync } from 'node:child_process';
@@ -469,6 +470,13 @@ export function withCliPins(setupSh: string, autobuild: Autobuild): string {
 	return text;
 }
 
+export function withNoticeCommit(notice: string, pinned: string, commit: string): string {
+	if (!notice.includes(pinned)) {
+		throw new Error(`${SYS_CRATE}/ABB-PROVENANCE.md does not name the pinned commit ${pinned}.`);
+	}
+	return notice.replaceAll(pinned, commit);
+}
+
 export function movePin(repoRoot: string, commitish: string, gh: Gh): string {
 	if (!/^[0-9a-f]{7,40}$/.test(commitish)) {
 		throw new Error(`ffmpeg:pin needs an FFmpeg commit hash, got '${commitish}'.`);
@@ -494,9 +502,17 @@ export function movePin(repoRoot: string, commitish: string, gh: Gh): string {
 		);
 	}
 	const setupSh = path.join(repoRoot, SETUP_SH);
+	const revision = path.join(repoRoot, SYS_CRATE, 'ffmpeg-revision');
+	const notice = path.join(repoRoot, SYS_CRATE, 'ABB-PROVENANCE.md');
 	const pinned = withCliPins(readFileSync(setupSh, 'utf8'), autobuild);
-	writeFileSync(path.join(repoRoot, SYS_CRATE, 'ffmpeg-revision'), `${commit}\n`);
+	const named = withNoticeCommit(
+		readFileSync(notice, 'utf8'),
+		readFileSync(revision, 'utf8').trim(),
+		commit,
+	);
+	writeFileSync(revision, `${commit}\n`);
 	writeFileSync(setupSh, pinned);
+	writeFileSync(notice, named);
 	return `Pinned FFmpeg ${commit}: ffmpeg_cli_release=${autobuild.release} ffmpeg_cli_build=${autobuild.build}`;
 }
 

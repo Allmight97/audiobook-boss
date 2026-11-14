@@ -21,6 +21,7 @@ import {
 	syncIssue,
 	watchedPaths,
 	withCliPins,
+	withNoticeCommit,
 } from './ffmpeg-upstream';
 
 const sysCrate = path.resolve(import.meta.dirname, '../vendor/ffmpeg-sys-next-9.0.1');
@@ -322,7 +323,11 @@ describe('moving the pin', () => {
 	function fakeRepo() {
 		const root = mkdtempSync(path.join(os.tmpdir(), 'abb-ffmpeg-pin-'));
 		scratch.push(root);
-		for (const file of ['scripts/setup.sh', 'vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision']) {
+		for (const file of [
+			'scripts/setup.sh',
+			'vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision',
+			'vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md',
+		]) {
 			cpSync(path.join(repoRoot, file), path.join(root, file));
 		}
 		return root;
@@ -359,6 +364,9 @@ describe('moving the pin', () => {
 		expect(read(root, 'scripts/setup.sh')).toContain(
 			'ffmpeg_cli_release=autobuild-2026-11-10-12-39\nffmpeg_cli_build=N-128728-g49a3b1f259\n',
 		);
+		expect(read(root, 'vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md')).toContain(
+			`built from FFmpeg commit \`${revision}\``,
+		);
 	});
 
 	it('changes nothing and names the commits that have an autobuild when none matches', () => {
@@ -369,6 +377,18 @@ describe('moving the pin', () => {
 		expect(read(root, 'scripts/setup.sh')).toBe(setupSh);
 		expect(read(root, 'vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision')).toBe(
 			read(repoRoot, 'vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision'),
+		);
+		expect(read(root, 'vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md')).toBe(provenance);
+	});
+
+	it('names the pinned commit in the notice the app bundle ships, since the bundle lacks ffmpeg-revision', () => {
+		const pinned = read(repoRoot, 'vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision').trim();
+		expect(provenance).toContain(`built from FFmpeg commit \`${pinned}\``);
+	});
+
+	it('refuses to move a notice that does not name the pinned commit', () => {
+		expect(() => withNoticeCommit('built from FFmpeg master', 'a'.repeat(40), revision)).toThrow(
+			`does not name the pinned commit ${'a'.repeat(40)}`,
 		);
 	});
 });
