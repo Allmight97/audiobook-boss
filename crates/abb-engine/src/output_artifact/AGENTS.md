@@ -23,5 +23,12 @@
   so a valid ReplaceExisting still plans.
 - Publication fixes final artifact truth: a staged-source cleanup failure
   afterward is a success warning, retried by the cleanup guard.
+- Audiobookshelf's folder parser is documented in its
+  [Book Library Structure](https://audiobookshelf.org/docs/documentation/libraries/book-library/directory-structure/)
+  guide: `Author/Series/Book`, sequence and year syntax, narrator braces. One
+  naming example does not prove a scanner supports a layout; check that
+  scanner's import. The
+  [Plex Audiobook Guide](https://github.com/seanap/Plex-Audiobook-Guide) is a
+  community recipe that applies only when that Plex setup is in use.
 - Audio resolves the output extension before collision review; naming and
   collision policy take that path, and codec choice stays with Audio.

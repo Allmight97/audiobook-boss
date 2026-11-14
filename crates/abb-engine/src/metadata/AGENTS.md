@@ -1,7 +1,20 @@
 # Metadata
 
-- For ABS, Plex, and Apple tag mapping, series-tag strategy, and folder
-  conventions, use the `audiobook-metadata` skill.
+- `ffprobe -show_format` merges freeform names that differ only in case, so
+  only atom-level readback shows both series families exist; one visible
+  series key does not.
+- Apple movement tags (`MVNM`/`MVIN`) are not ABB's series mechanism, by
+  product decision; adopting them needs player evidence and the owner's
+  decision.
+- Audiobookshelf reads the tags its
+  [File Metadata](https://audiobookshelf.org/docs/documentation/libraries/book-library/directory-structure/#file-metadata)
+  page lists, and its
+  [metadata priority](https://audiobookshelf.org/docs/documentation/libraries/book-library/book-metadata/#local-metadata-priority-order)
+  settings decide which source wins: folder names or a sidecar can override
+  the tags.
+- Report proof on the output file separately from proof that a player or
+  scanner imported it, because a correct file does not show a consumer
+  reads it.
 - Real file saves go through `save_metadata_intent`, so series validation can
   see the source's tags.
 - MP4-family tag truth never depends on a bare remux, because FFmpeg's mov
@@ -71,7 +84,9 @@
   (`libavformat/vorbiscomment.c`), so they read back joined.
 - `----:com.apple.iTunes:SERIES` and `SERIES-PART` are FFmpeg read and clear
   keys, never write keys, so a stray tag from an older ABB still reads and a
-  series clear removes it; the mp4ameta sink writes the MP4 mirrors.
+  series clear removes it; the mp4ameta sink writes them in MP4 beside the
+  lowercase keys as interoperability mirrors for readers of the uppercase
+  names.
 - MP4 artist and composer reads join repeated values with `;`, as FFmpeg's
   text projection does. A name list is one text value; nothing preserves its
   structure or a distinct album artist.
