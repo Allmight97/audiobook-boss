@@ -4,6 +4,8 @@
   claimant ends, so cancelling the run that created it cannot strand another
   run's empty folders. Cleanup removes only empty ABB-created paths below
   their existing anchor.
+- Each created folder also has a record in the cache
+  (`folder_records.rs`), because claims die with a killed process.
 - Publication and every tag save on a published output hold that file's lock
   (`file_lock.rs`), so an earlier export's tag save never overwrites a later
   export of the same file. The companion PDF commit holds the lock on its

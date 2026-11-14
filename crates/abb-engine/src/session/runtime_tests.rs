@@ -127,7 +127,9 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
             jobs: Arc::new(JobRegistry::new(2)),
             temporary_root: PathBuf::from("/staged"),
             tasks,
-            workspace_root: std::env::temp_dir().join("abb-session-tests"),
+            roots: crate::processing::run::ProcessingRoots::for_cache(
+                &std::env::temp_dir().join("abb-session-tests"),
+            ),
             settings,
             remove_staged: {
                 let removed = Arc::clone(&removed);

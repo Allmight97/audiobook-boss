@@ -70,6 +70,7 @@ impl Session {
     /// export, under the output folder and naming the settings hold now.
     async fn save_pdf(&self, pdf: &StagedPdf, title: &PdfTitle) -> PdfHandoff {
         let plan = OutputPlan::from_defaults(&self.inner.deps.settings.output_defaults());
+        let records = self.inner.deps.roots.output_folders.clone();
         let (source, title, size_bytes, sha256) = (
             pdf.path.clone(),
             title.clone(),
@@ -79,6 +80,7 @@ impl Session {
         let saved = blocking(move || {
             let destination = plan.pdf_destination(&title)?;
             publish_supplemental_pdf(
+                &records,
                 &destination.output_root,
                 SupplementalOutputAssetCommitRequest::new(&source, destination.path)
                     .with_expected_identity(size_bytes, &sha256),

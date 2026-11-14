@@ -228,6 +228,7 @@ pub(crate) fn commit_supplemental_output_asset(
 /// Publishes a PDF with no audiobook commit beside it, so it owns the folders
 /// it creates and a failed publish removes them.
 pub(crate) fn publish_supplemental_pdf(
+    records: &super::OutputFolderRecords,
     output_root: &Path,
     request: SupplementalOutputAssetCommitRequest<'_>,
 ) -> Result<PathBuf> {
@@ -239,7 +240,7 @@ pub(crate) fn publish_supplemental_pdf(
         collision: None,
         action: super::PlannedOutputAction::Write,
     };
-    let mut folders = super::ensure_output_parent_dirs(output_root, [&output])?;
+    let mut folders = super::ensure_output_parent_dirs(records, output_root, [&output])?;
     let published = commit_supplemental_output_asset(request)?;
     folders.release();
     Ok(published)

@@ -113,7 +113,7 @@ impl Session {
             .submit_processing_operation(
                 deps.host.clone(),
                 deps.jobs.clone(),
-                deps.workspace_root.clone(),
+                deps.roots.clone(),
                 SubmitProcessingOperationRequest {
                     operation_id: draft.operation_id.clone(),
                     payload: draft.payload.clone(),

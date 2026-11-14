@@ -7,7 +7,7 @@ use crate::host::Host;
 use crate::power::PowerManager;
 use crate::processing::run::{
     inspect_processing_plan, preflight_title_outputs, process_inspected_with_options, ExportTitle,
-    ProcessingRun, RunMode,
+    ProcessingRoots, ProcessingRun, RunMode,
 };
 use crate::processing::{EventStage, JobRegistry, ProcessPayload, ProgressEvent};
 use std::fs;
@@ -36,7 +36,8 @@ async fn a_cancel_during_the_encode_reports_one_cancelled_event_after_the_staged
     write_sine_wav(&source, 300.0, 440.0);
     let output_dir = tmp.path().join("out");
     fs::create_dir_all(&output_dir).expect("output dir");
-    let workspace_root = tmp.path().join("workspace");
+    let roots = ProcessingRoots::for_cache(&tmp.path().join("cache"));
+    let workspace_root = roots.workspace.clone();
     let payload = ProcessPayload {
         input_files: vec![source.to_string_lossy().into_owned()],
         title_sources: None,
@@ -81,7 +82,7 @@ async fn a_cancel_during_the_encode_reports_one_cancelled_event_after_the_staged
         &run,
         host,
         Arc::clone(&registry),
-        workspace_root.clone(),
+        roots,
         payload,
         inspected,
         ProcessingRun {
@@ -143,7 +144,8 @@ async fn a_title_that_fails_reports_failed_before_a_later_title_ends() {
     write_sine_wav(&running, 60.0, 440.0);
     let output_dir = tmp.path().join("out");
     fs::create_dir_all(&output_dir).expect("output dir");
-    let workspace_root = tmp.path().join("workspace");
+    let roots = ProcessingRoots::for_cache(&tmp.path().join("cache"));
+    let workspace_root = roots.workspace.clone();
     let payload = ProcessPayload {
         input_files: vec![
             failing.to_string_lossy().into_owned(),
@@ -187,7 +189,7 @@ async fn a_title_that_fails_reports_failed_before_a_later_title_ends() {
         &run,
         host,
         Arc::clone(&registry),
-        workspace_root.clone(),
+        roots,
         payload,
         inspected,
         ProcessingRun {

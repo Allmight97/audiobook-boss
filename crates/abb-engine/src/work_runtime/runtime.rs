@@ -8,7 +8,8 @@ use super::types::{
 use crate::errors::{AppError, Result};
 use crate::host::{EngineEvent, Host};
 use crate::processing::run::{
-    preflight_title_outputs, process_inspected_with_options, ExportTitle, ProcessingRun, RunMode,
+    preflight_title_outputs, process_inspected_with_options, ExportTitle, ProcessingRoots,
+    ProcessingRun, RunMode,
 };
 use crate::processing::ProgressEventListener;
 use crate::processing::TitleOutput;
@@ -79,7 +80,7 @@ impl WorkRuntime {
         &self,
         host: Host,
         registry: crate::ManagedJobRegistry,
-        workspace_root: PathBuf,
+        roots: ProcessingRoots,
         request: SubmitProcessingOperationRequest,
         on_finished: Option<OnFinished>,
         inspected: crate::processing::plan::InspectedProcessingPlan,
@@ -95,7 +96,7 @@ impl WorkRuntime {
             self.register_processing_operation(
                 host.clone(),
                 registry,
-                workspace_root,
+                roots,
                 request,
                 (titles, inspected),
                 on_finished,
@@ -110,7 +111,7 @@ impl WorkRuntime {
         &self,
         host: Host,
         registry: crate::ManagedJobRegistry,
-        workspace_root: PathBuf,
+        roots: ProcessingRoots,
         request: SubmitProcessingOperationRequest,
         planned: (
             Vec<Arc<TitleOutput>>,
@@ -184,7 +185,7 @@ impl WorkRuntime {
                     &active_run,
                     host,
                     registry,
-                    workspace_root,
+                    roots,
                     request.payload,
                     inspected,
                     ProcessingRun {

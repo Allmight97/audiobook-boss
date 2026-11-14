@@ -1,10 +1,15 @@
 use super::*;
 use crate::output_artifact::{
-    ensure_output_parent_dirs, OutputKind, PlannedOutputAction, ResolvedOutputPlan,
+    ensure_output_parent_dirs, OutputFolderRecords, OutputKind, PlannedOutputAction,
+    ResolvedOutputPlan,
 };
 use crate::processing::ProcessResultEntry;
 use std::path::PathBuf;
 use tempfile::TempDir;
+
+fn records(temp_dir: &TempDir) -> OutputFolderRecords {
+    OutputFolderRecords::for_cache(&temp_dir.path().join("cache"))
+}
 
 fn output_plan(path: impl Into<PathBuf>) -> ResolvedOutputPlan {
     let path = path.into();
@@ -36,7 +41,8 @@ fn successful_result_releases_output_parent_cleanup() {
     let temp_dir = TempDir::new().expect("temp dir");
     let parent = temp_dir.path().join("author").join("title");
     let output = output_plan(parent.join("book.m4b"));
-    let mut cleanup = ensure_output_parent_dirs(temp_dir.path(), [&output]).expect("parent dirs");
+    let mut cleanup = ensure_output_parent_dirs(&records(&temp_dir), temp_dir.path(), [&output])
+        .expect("parent dirs");
 
     finalize_output_parent_cleanup(Ok(result(ProcessResultStatus::Success)), &mut cleanup)
         .expect("finalize cleanup");
@@ -49,7 +55,8 @@ fn cancelled_result_cleans_empty_output_parent() {
     let temp_dir = TempDir::new().expect("temp dir");
     let parent = temp_dir.path().join("author").join("title");
     let output = output_plan(parent.join("book.m4b"));
-    let mut cleanup = ensure_output_parent_dirs(temp_dir.path(), [&output]).expect("parent dirs");
+    let mut cleanup = ensure_output_parent_dirs(&records(&temp_dir), temp_dir.path(), [&output])
+        .expect("parent dirs");
 
     finalize_output_parent_cleanup(Ok(result(ProcessResultStatus::Cancelled)), &mut cleanup)
         .expect("finalize cleanup");

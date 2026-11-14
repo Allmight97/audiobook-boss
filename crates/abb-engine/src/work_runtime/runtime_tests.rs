@@ -338,7 +338,7 @@ async fn export_on(runtime: &WorkRuntime, host: Host, operation_id: &OperationId
         .submit_processing_operation(
             host,
             Arc::clone(&registry),
-            tmp.path().join("workspace"),
+            crate::processing::run::ProcessingRoots::for_cache(tmp.path()),
             SubmitProcessingOperationRequest {
                 operation_id: operation_id.clone(),
                 payload,

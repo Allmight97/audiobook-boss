@@ -1,7 +1,13 @@
 use super::*;
-use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
+use crate::output_artifact::{
+    OutputFolderRecords, OutputKind, PlannedOutputAction, ResolvedOutputPlan,
+};
 use std::path::PathBuf;
 use tempfile::TempDir;
+
+fn records(temp_dir: &TempDir) -> OutputFolderRecords {
+    OutputFolderRecords::for_cache(&temp_dir.path().join("cache"))
+}
 
 fn output_plan(action: PlannedOutputAction, path: impl Into<PathBuf>) -> ResolvedOutputPlan {
     let path = path.into();
@@ -28,7 +34,8 @@ fn creates_parent_dirs_for_writable_outputs_only() {
     );
 
     let _cleanup =
-        ensure_output_parent_dirs(temp_dir.path(), [&writable, &skipped]).expect("parent dirs");
+        ensure_output_parent_dirs(&records(&temp_dir), temp_dir.path(), [&writable, &skipped])
+            .expect("parent dirs");
 
     assert!(temp_dir.path().join("created").exists());
     assert!(!temp_dir.path().join("skipped").exists());
@@ -46,7 +53,8 @@ fn cleanup_removes_newly_created_empty_output_parents() {
             .join("book.m4b"),
     );
 
-    let mut cleanup = ensure_output_parent_dirs(temp_dir.path(), [&output]).expect("parent dirs");
+    let mut cleanup = ensure_output_parent_dirs(&records(&temp_dir), temp_dir.path(), [&output])
+        .expect("parent dirs");
 
     assert!(temp_dir.path().join("author").join("title").exists());
 
@@ -64,7 +72,8 @@ fn cleanup_preserves_preexisting_empty_output_parents() {
     std::fs::create_dir_all(&parent).expect("precreate parent");
     let output = output_plan(PlannedOutputAction::Write, parent.join("book.m4b"));
 
-    let mut cleanup = ensure_output_parent_dirs(temp_dir.path(), [&output]).expect("parent dirs");
+    let mut cleanup = ensure_output_parent_dirs(&records(&temp_dir), temp_dir.path(), [&output])
+        .expect("parent dirs");
 
     cleanup.cleanup_now().expect("cleanup output parents");
 
@@ -76,7 +85,8 @@ fn cleanup_preserves_non_empty_output_parents() {
     let temp_dir = TempDir::new().expect("temp dir");
     let parent = temp_dir.path().join("author").join("title");
     let output = output_plan(PlannedOutputAction::Write, parent.join("book.m4b"));
-    let mut cleanup = ensure_output_parent_dirs(temp_dir.path(), [&output]).expect("parent dirs");
+    let mut cleanup = ensure_output_parent_dirs(&records(&temp_dir), temp_dir.path(), [&output])
+        .expect("parent dirs");
 
     std::fs::write(parent.join("marker.txt"), b"keep").expect("write marker");
 
@@ -102,8 +112,12 @@ fn cleanup_preserves_successful_sibling_and_removes_cancelled_empty_sibling() {
         PlannedOutputAction::Write,
         cancelled_parent.join("book.m4b"),
     );
-    let mut cleanup =
-        ensure_output_parent_dirs(temp_dir.path(), [&successful, &cancelled]).expect("parents");
+    let mut cleanup = ensure_output_parent_dirs(
+        &records(&temp_dir),
+        temp_dir.path(),
+        [&successful, &cancelled],
+    )
+    .expect("parents");
 
     std::fs::write(successful_parent.join("book.m4b"), b"committed")
         .expect("write committed output");
@@ -131,7 +145,7 @@ fn rejects_output_parent_escape_from_output_root() {
         .join("book.m4b");
     let output = output_plan(PlannedOutputAction::Write, escaped);
 
-    let err = ensure_output_parent_dirs(temp_dir.path(), [&output])
+    let err = ensure_output_parent_dirs(&records(&temp_dir), temp_dir.path(), [&output])
         .expect_err("escaped parent should fail");
 
     assert!(err
@@ -146,7 +160,8 @@ fn cleanup_refuses_symlinked_output_parent() {
     let outside = TempDir::new().expect("outside dir");
     let parent = temp_dir.path().join("author").join("title");
     let output = output_plan(PlannedOutputAction::Write, parent.join("book.m4b"));
-    let mut cleanup = ensure_output_parent_dirs(temp_dir.path(), [&output]).expect("parent dirs");
+    let mut cleanup = ensure_output_parent_dirs(&records(&temp_dir), temp_dir.path(), [&output])
+        .expect("parent dirs");
 
     std::fs::remove_dir(&parent).expect("remove created parent");
     std::os::unix::fs::symlink(outside.path(), &parent).expect("swap symlink parent");
@@ -168,7 +183,8 @@ fn creates_a_missing_output_root_and_cleanup_removes_it() {
         root.join("author").join("book.m4b"),
     );
 
-    let mut cleanup = ensure_output_parent_dirs(&root, [&output]).expect("output dirs");
+    let mut cleanup =
+        ensure_output_parent_dirs(&records(&temp_dir), &root, [&output]).expect("output dirs");
     assert!(root.join("author").is_dir());
 
     cleanup.cleanup_now().expect("cleanup output dirs");
@@ -189,7 +205,7 @@ fn a_failed_later_output_rolls_back_the_created_output_root() {
         temp_dir.path().join("elsewhere").join("book.m4b"),
     );
 
-    ensure_output_parent_dirs(&root, [&inside, &escaping])
+    ensure_output_parent_dirs(&records(&temp_dir), &root, [&inside, &escaping])
         .expect_err("an escaping output parent must fail");
 
     assert!(
@@ -216,7 +232,8 @@ fn a_title_ending_unpublished_removes_only_the_empty_folders_made_for_it_alone()
     let delta = book(&["existing"]);
 
     let mut cleanup =
-        ensure_output_parent_dirs(root, [&alpha, &beta, &gamma, &delta]).expect("parent dirs");
+        ensure_output_parent_dirs(&records(&temp_dir), root, [&alpha, &beta, &gamma, &delta])
+            .expect("parent dirs");
 
     cleanup.end_title(0, false).expect("alpha's folders");
     assert!(!root.join("author").join("alpha").exists());
@@ -244,8 +261,10 @@ fn no_cleanup_removes_a_folder_another_runs_output_will_write_into() {
     let first = output_plan(PlannedOutputAction::Write, folder.join("first.m4b"));
     let second = output_plan(PlannedOutputAction::Write, folder.join("second.m4b"));
 
-    let mut created = ensure_output_parent_dirs(root, [&first]).expect("first run");
-    let mut writing = ensure_output_parent_dirs(root, [&second]).expect("second run");
+    let mut created =
+        ensure_output_parent_dirs(&records(&temp_dir), root, [&first]).expect("first run");
+    let mut writing =
+        ensure_output_parent_dirs(&records(&temp_dir), root, [&second]).expect("second run");
 
     created.end_title(0, false).expect("first title ends");
     created.cleanup_now().expect("first run ends");
@@ -257,4 +276,24 @@ fn no_cleanup_removes_a_folder_another_runs_output_will_write_into() {
         !folder.exists(),
         "the last claimant removes empty folders even when an earlier run created them"
     );
+}
+
+#[test]
+fn a_run_that_ends_leaves_no_folder_record_for_the_next_start() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    let root = temp_dir.path().join("library");
+    let records_dir = temp_dir.path().join("cache").join("output-folders");
+    let published = output_plan(PlannedOutputAction::Write, root.join("a").join("book.m4b"));
+    let cancelled = output_plan(PlannedOutputAction::Write, root.join("b").join("book.m4b"));
+
+    let mut run = ensure_output_parent_dirs(&records(&temp_dir), &root, [&published, &cancelled])
+        .expect("parent dirs");
+    assert_eq!(std::fs::read_dir(&records_dir).expect("records").count(), 3);
+    std::fs::write(root.join("a").join("book.m4b"), b"").expect("published");
+    run.end_title(0, true).expect("published title ends");
+    run.end_title(1, false).expect("cancelled title ends");
+    run.release();
+
+    assert_eq!(std::fs::read_dir(&records_dir).expect("records").count(), 0);
+    assert!(root.join("a").exists() && !root.join("b").exists());
 }

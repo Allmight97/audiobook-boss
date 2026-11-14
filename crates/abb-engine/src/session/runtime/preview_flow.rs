@@ -30,7 +30,7 @@ impl Session {
             &_active_run,
             deps.host.clone(),
             deps.jobs.clone(),
-            deps.workspace_root.clone(),
+            deps.roots.clone(),
             draft.payload.clone(),
             inspected,
             ProcessingRun {

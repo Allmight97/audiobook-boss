@@ -3,7 +3,7 @@ use super::run_job::{
     title_outcome,
 };
 use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
-use crate::output_artifact::OutputKind;
+use crate::output_artifact::{OutputFolderRecords, OutputKind};
 use crate::processing::job_registry::JobId;
 use crate::processing::terminal_outcomes::TitleOutcome;
 use crate::processing::{ProcessPayload, SupplementalProcessingAsset};
@@ -208,7 +208,9 @@ fn execution_rejected_by_review_does_not_create_the_output_root() {
     let inspected = super::inspect_processing_plan(&payload, None, false).expect("review source");
     std::fs::remove_dir(&missing_root).expect("delete library root");
 
-    let Err(error) = crate::processing::plan::prepare_inspected_execution(&payload, inspected)
+    let records = OutputFolderRecords::for_cache(&temp.path().join("cache"));
+    let Err(error) =
+        crate::processing::plan::prepare_inspected_execution(&records, &payload, inspected)
     else {
         panic!("a stale review must reject execution");
     };
@@ -279,8 +281,10 @@ fn stacked_title_plan_keeps_source_order_metadata_and_separate_outputs() {
     let inspected =
         super::inspect_processing_plan(&payload, Some(&metadata), false).expect("review titles");
     payload.preflight_signature = Some(inspected.plan.plan_signature.clone());
-    let execution = crate::processing::plan::prepare_inspected_execution(&payload, inspected)
-        .expect("prepare reviewed execution");
+    let records = OutputFolderRecords::for_cache(&temp.path().join("cache"));
+    let execution =
+        crate::processing::plan::prepare_inspected_execution(&records, &payload, inspected)
+            .expect("prepare reviewed execution");
     let jobs = execution.plan.jobs;
     assert_eq!(jobs.len(), 2);
     assert_eq!(jobs[0].input_path, paths[0]);
@@ -308,8 +312,10 @@ async fn execute_reviewed_metadata_batch(
     let inspected = super::inspect_processing_plan(&payload, Some(metadata), false)
         .expect("review metadata batch");
     payload.preflight_signature = Some(inspected.plan.plan_signature.clone());
-    let execution = crate::processing::plan::prepare_inspected_execution(&payload, inspected)
-        .expect("plan metadata batch");
+    let records = OutputFolderRecords::for_cache(&workspace.join("cache"));
+    let execution =
+        crate::processing::plan::prepare_inspected_execution(&records, &payload, inspected)
+            .expect("plan metadata batch");
     let mut outputs = Vec::new();
     for job in execution.plan.jobs {
         let info =

@@ -1,12 +1,13 @@
 use crate::errors::{AppError, AppErrorCategory, AppErrorEnvelope, Result};
 use crate::host::Host;
+use crate::output_artifact::OutputFolderRecords;
 use crate::processing::plan::{
     prepare_inspected_execution, resolve_processing_plan, title_file_info, InspectedProcessingPlan,
 };
 use crate::processing::title_output::{TitleOutput, TitleOutputPlan};
 use crate::processing::{ProcessCommandResult, ProcessPayload};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 mod run_dispatch;
@@ -18,13 +19,28 @@ pub(crate) use run_job::supplemental_assets_for_input;
 pub(crate) use run_options::{ExportTitle, ProcessingRun, RunMode};
 use run_validation::inspect_and_validate_external_processing_contract;
 
+#[derive(Debug, Clone)]
+pub(crate) struct ProcessingRoots {
+    pub(crate) workspace: PathBuf,
+    pub(crate) output_folders: OutputFolderRecords,
+}
+
+impl ProcessingRoots {
+    pub(crate) fn for_cache(cache_dir: &Path) -> Self {
+        Self {
+            workspace: crate::audio::processing_workspace_root(cache_dir),
+            output_folders: OutputFolderRecords::for_cache(cache_dir),
+        }
+    }
+}
+
 /// Runs an inspected plan. `_run` is the caller's hold on the job registry,
 /// required so concurrency cannot change under the run.
 pub(crate) async fn process_inspected_with_options(
     _run: &crate::processing::job_registry::ActiveRun,
     host: Host,
     registry: crate::ManagedJobRegistry,
-    workspace_root: PathBuf,
+    roots: ProcessingRoots,
     payload: ProcessPayload,
     inspected: InspectedProcessingPlan,
     run: ProcessingRun,
@@ -35,14 +51,15 @@ pub(crate) async fn process_inspected_with_options(
             reason = "joined by process_inspected_with_options"
         )]
         let execution = tokio::task::spawn_blocking(move || {
-            prepare_inspected_execution(&payload, inspected).map(|plan| (payload, plan))
+            prepare_inspected_execution(&roots.output_folders, &payload, inspected)
+                .map(|plan| (payload, plan))
         })
         .await
         .map_err(|error| AppError::General(format!("Execution preparation failed: {error}")))??;
         run_dispatch::dispatch_title_jobs(
             host,
             registry,
-            workspace_root,
+            roots.workspace,
             &execution.0,
             execution.1,
             run,

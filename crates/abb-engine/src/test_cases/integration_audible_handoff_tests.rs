@@ -63,7 +63,7 @@ pub(super) fn session_and_settings_acquiring(
         temporary_root: remote.staging_root(),
         settings,
         tasks,
-        workspace_root: crate::audio::processing_workspace_root(root.path()),
+        roots: crate::processing::run::ProcessingRoots::for_cache(root.path()),
         remove_staged: {
             let remote = remote.clone();
             Arc::new(move |job_id| remote.purge_session(job_id))

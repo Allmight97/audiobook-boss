@@ -1,3 +1,4 @@
+use super::folder_records::{CreatedFolder, OutputFolderRecords};
 use super::types::ResolvedOutputPlan;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::io::ErrorKind;
@@ -8,7 +9,17 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 struct DirectoryOwnership {
     claims: Vec<PathBuf>,
     /// Kept across runs until the final claimant ends; failed removals retry.
-    created: Vec<(PathBuf, PathBuf)>,
+    created: Vec<CreatedFolder>,
+}
+
+fn forget_created(created: &mut Vec<CreatedFolder>, mut ends: impl FnMut(&CreatedFolder) -> bool) {
+    created.retain(|folder| {
+        if ends(folder) {
+            folder.forget();
+            return false;
+        }
+        true
+    });
 }
 
 static OWNERSHIP: LazyLock<Mutex<DirectoryOwnership>> = LazyLock::new(Mutex::default);
@@ -22,23 +33,24 @@ fn ownership() -> std::sync::MutexGuard<'static, DirectoryOwnership> {
 fn prune_unclaimed(owned: &mut DirectoryOwnership, parents: &[PathBuf]) -> Result<()> {
     owned
         .created
-        .sort_by_key(|(dir, _)| std::cmp::Reverse(dir.components().count()));
+        .sort_by_key(|folder| std::cmp::Reverse(folder.dir.components().count()));
     let mut first_error = None;
-    owned.created.retain(|(dir, anchor)| {
-        if !parents.iter().any(|parent| parent.starts_with(dir))
-            || claimed_under(&owned.claims, dir)
+    let claims = &owned.claims;
+    forget_created(&mut owned.created, |folder| {
+        if !parents.iter().any(|parent| parent.starts_with(&folder.dir))
+            || claimed_under(claims, &folder.dir)
         {
-            return true;
+            return false;
         }
-        if let Err(error) = remove_created_empty_dir(anchor, dir) {
+        if let Err(error) = remove_created_empty_dir(&folder.anchor, &folder.dir) {
             log::warn!(
                 "output_parent_cleanup status=err dir={} err={error}",
-                dir.display()
+                folder.dir.display()
             );
             first_error.get_or_insert(error);
-            return true;
+            return false;
         }
-        false
+        true
     });
     first_error.map_or(Ok(()), Err)
 }
@@ -71,11 +83,9 @@ impl OutputParentDirCleanup {
     }
 
     pub(crate) fn release(&mut self) {
-        let mut owned = ownership();
-        owned
-            .created
-            .retain(|(dir, _)| !self.created_dirs.contains(dir));
-        drop(owned);
+        forget_created(&mut ownership().created, |folder| {
+            self.created_dirs.contains(&folder.dir)
+        });
         self.release_claims();
         self.active = false;
         self.created_dirs.clear();
@@ -91,9 +101,9 @@ impl OutputParentDirCleanup {
         };
         release_claim(&parent);
         if published {
-            ownership()
-                .created
-                .retain(|(dir, _)| !parent.starts_with(dir));
+            forget_created(&mut ownership().created, |folder| {
+                parent.starts_with(&folder.dir)
+            });
             return Ok(());
         }
         if !self.active {
@@ -145,6 +155,7 @@ impl Drop for OutputParentDirCleanup {
 /// passed. Every directory is registered as soon as it exists, so an error part
 /// way through drops the returned guard and removes what this call created.
 pub(crate) fn ensure_output_parent_dirs<'a>(
+    records: &OutputFolderRecords,
     output_root: &Path,
     outputs: impl IntoIterator<Item = &'a ResolvedOutputPlan>,
 ) -> Result<OutputParentDirCleanup> {
@@ -158,7 +169,7 @@ pub(crate) fn ensure_output_parent_dirs<'a>(
         })?;
     let mut cleanup = OutputParentDirCleanup::new(existing_anchor);
     let mut owned = ownership();
-    create_missing_dirs(output_root, &mut cleanup, &mut owned)?;
+    create_missing_dirs(records, output_root, &mut cleanup, &mut owned)?;
     let output_root = output_root.canonicalize().map_err(|error| {
         AppError::FileValidation(format!(
             "Cannot validate output root '{}': {}",
@@ -176,7 +187,7 @@ pub(crate) fn ensure_output_parent_dirs<'a>(
         if let Some(parent) = parent {
             owned.claims.push(parent.to_path_buf());
             ensure_output_parent_under_root(&output_root, parent)?;
-            create_missing_dirs(parent, &mut cleanup, &mut owned)?;
+            create_missing_dirs(records, parent, &mut cleanup, &mut owned)?;
         }
     }
 
@@ -185,6 +196,7 @@ pub(crate) fn ensure_output_parent_dirs<'a>(
 }
 
 fn create_missing_dirs(
+    records: &OutputFolderRecords,
     target: &Path,
     cleanup: &mut OutputParentDirCleanup,
     owned: &mut DirectoryOwnership,
@@ -200,15 +212,17 @@ fn create_missing_dirs(
     }
 
     for dir in missing_dirs.into_iter().rev() {
+        let folder = records.record(&dir, &cleanup.existing_anchor)?;
         match std::fs::create_dir(&dir) {
             Ok(()) => {
-                owned
-                    .created
-                    .push((dir.clone(), cleanup.existing_anchor.clone()));
+                owned.created.push(folder);
                 cleanup.created_dirs.push(dir);
             }
-            Err(error) if error.kind() == ErrorKind::AlreadyExists && dir.is_dir() => {}
+            Err(error) if error.kind() == ErrorKind::AlreadyExists && dir.is_dir() => {
+                folder.forget();
+            }
             Err(error) => {
+                folder.forget();
                 return Err(AppError::FileValidation(format!(
                     "Cannot create output directory '{}': {}",
                     sanitize_path_for_display(&dir),
@@ -257,7 +271,7 @@ fn nearest_existing_ancestor(path: &Path) -> Result<Option<PathBuf>> {
     Ok(None)
 }
 
-fn remove_created_empty_dir(existing_anchor: &Path, dir: &Path) -> Result<()> {
+pub(super) fn remove_created_empty_dir(existing_anchor: &Path, dir: &Path) -> Result<()> {
     if !dir.try_exists().map_err(AppError::Io)? {
         return Ok(());
     }

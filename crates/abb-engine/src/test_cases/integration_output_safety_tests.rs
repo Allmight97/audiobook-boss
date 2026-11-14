@@ -3,14 +3,17 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::app_settings::{ConcurrencyPreference, SettingsIntent};
-use crate::output_artifact::{lock_output_file, CollisionPolicy};
+use crate::output_artifact::{
+    ensure_output_parent_dirs, lock_output_file, CollisionPolicy, OutputFolderRecords, OutputKind,
+    PlannedOutputAction, ResolvedOutputPlan,
+};
 use crate::session::{MetadataField, SelectionModifiers, SessionIntent, SubmissionStatus};
 use crate::work_runtime::{ChildJobStatus, OperationId, OperationSnapshot, WorkOperationStatus};
 use crate::ShutdownOutcome;
 
 use super::integration_session_desk::{
-    collision_review, genre_on_disk, processing_sessions_dir, remote_staging_sessions_dir,
-    submission, Desk,
+    collision_review, engine_config, genre_on_disk, processing_sessions_dir,
+    remote_staging_sessions_dir, submission, Desk,
 };
 use super::support::fs_listing::names_in;
 use super::support::poll::until_true;
@@ -224,5 +227,47 @@ async fn a_relaunch_sweeps_what_a_crash_left_in_the_cache() {
     let desk = desk.relaunch();
     assert!(!session.exists() && !download.exists());
     assert!(session.parent().expect("root").exists());
+    drop(desk);
+}
+
+fn written_at(path: PathBuf) -> ResolvedOutputPlan {
+    ResolvedOutputPlan {
+        kind: OutputKind::Final,
+        requested_path: path.clone(),
+        resolved_path: path,
+        rename_candidate: None,
+        collision: None,
+        action: PlannedOutputAction::Write,
+    }
+}
+
+#[tokio::test]
+async fn a_relaunch_removes_only_the_empty_output_folders_a_crash_left() {
+    let desk = Desk::new();
+    let exports = desk.root.path().join("exports");
+    let unfinished = exports.join("Crash Author/Crashed");
+    let published = exports.join("Kept Author/Kept");
+    let hand_made = exports.join("Hand Made");
+    let records = OutputFolderRecords::for_cache(&engine_config(desk.root.path()).cache_dir);
+    let killed_run = ensure_output_parent_dirs(
+        &records,
+        &exports,
+        [
+            &written_at(unfinished.join("Crashed.m4b")),
+            &written_at(published.join("Kept.m4b")),
+        ],
+    )
+    .expect("the run creates its folders");
+    std::mem::forget(killed_run);
+    fs::write(published.join("Kept.m4b"), b"audio").expect("published file");
+    fs::create_dir(&hand_made).expect("the user's empty folder");
+
+    let desk = desk.relaunch();
+
+    assert_eq!(
+        names_in(&exports),
+        vec!["Hand Made".to_string(), "Kept Author".to_string()]
+    );
+    assert!(published.join("Kept.m4b").exists());
     drop(desk);
 }

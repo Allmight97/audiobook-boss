@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Crash: killing abb-dev during an export publishes nothing, keeps the source,
-# and the next start empties its work folder.
+# and the next start removes the output folders it made and empties its work
+# folder.
 set -euo pipefail
 source "$(dirname "$0")/../lib.sh"
 
@@ -27,5 +28,8 @@ wait "${abb_dev_pid}" 2>/dev/null || true
 
 [[ -z "$(find "${out}" -type f)" ]] || fail "a killed export published a file"
 abb_dev crash "${INPUTS}/crash.wav" >"${EVIDENCE}/crash-relaunch.txt"
+[[ -d "${out}" ]] || fail "the export folder abb-dev made is missing"
+[[ -z "$(find "${out}" -mindepth 1)" ]] || fail "the next start left output folders: $(find "${out}" -mindepth 1)"
+[[ -d "${sessions}" ]] || fail "the work folder is missing"
 [[ -z "$(find "${sessions}" -mindepth 1)" ]] || fail "the next start left work files"
 [[ "$(cksum <"${INPUTS}/crash.wav")" == "${source_sum}" ]] || fail "the source changed"

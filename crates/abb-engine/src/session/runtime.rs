@@ -61,7 +61,7 @@ pub(crate) struct SessionDeps {
     pub(crate) temporary_root: PathBuf,
     pub(crate) settings: SettingsRuntime,
     pub(crate) tasks: crate::engine_tasks::EngineTasks,
-    pub(crate) workspace_root: PathBuf,
+    pub(crate) roots: crate::processing::run::ProcessingRoots,
     pub(crate) remove_staged: RemoveStaged,
 }
 

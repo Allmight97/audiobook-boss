@@ -12,7 +12,9 @@ use crate::engine_tasks::EngineTasks;
 use crate::errors::{AppError, Result};
 use crate::host::{EventSink, Host};
 use crate::metadata::AudiobookMetadata;
+use crate::output_artifact::OutputFolderRecords;
 use crate::power::PowerManager;
+use crate::processing::run::ProcessingRoots;
 use crate::quit_press::{QuitPress, QuitPresses, QUIT_PRESS_WINDOW};
 use crate::remote_source::{RemoteSourceConfig, RemoteSourceRuntime};
 use crate::session::{
@@ -113,8 +115,8 @@ enum StoppedWork {
 }
 
 impl Engine {
-    /// Starts the engine: locks `cache_dir`, clears working files abandoned
-    /// by a previous run, puts the saved settings in effect, then starts the
+    /// Starts the engine: locks `cache_dir`, removes empty output folders and
+    /// clears working files abandoned by a previous run, puts the saved settings in effect, then starts the
     /// remote sources, which read the Indexer connection from those settings.
     pub fn start(config: EngineConfig) -> Result<Self> {
         let cache_dir_lock = lock_cache_dir(&config.cache_dir)?;
@@ -122,6 +124,9 @@ impl Engine {
         let power = PowerManager::default();
         let host = Host::new(config.events, power.clone());
         let tasks = EngineTasks::default();
+        if let Err(error) = OutputFolderRecords::for_cache(&config.cache_dir).remove_abandoned() {
+            log::warn!("Abandoned output folders were left in place: {error}");
+        }
         if let Err(error) = audio::cleanup_abandoned_processing_workspaces(&config.cache_dir) {
             log::warn!("Abandoned processing files were left in place: {error}");
         }
@@ -148,7 +153,7 @@ impl Engine {
             temporary_root: remote_source.staging_root(),
             settings: settings.clone(),
             tasks: tasks.clone(),
-            workspace_root: audio::processing_workspace_root(&config.cache_dir),
+            roots: ProcessingRoots::for_cache(&config.cache_dir),
             remove_staged: {
                 let remote_source = remote_source.clone();
                 Arc::new(move |job_id| remote_source.purge_session(job_id))
