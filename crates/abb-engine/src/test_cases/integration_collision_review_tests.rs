@@ -58,11 +58,13 @@ async fn submit_exports_the_session_reviews_a_collision_and_previews() {
         policy: CollisionPolicy::RenameNew,
     })
     .await;
-    assert!(
-        matches!(submission(&desk), Some(SubmissionStatus::Submitted { .. })),
-        "{:?}",
-        submission(&desk)
-    );
+    let renamed = desk.finish_submitted_export().await;
+    assert_eq!(desk.export_status(&renamed), WorkOperationStatus::Completed);
+    let names: Vec<_> = files_under(&library)
+        .iter()
+        .filter_map(|path| path.file_name()?.to_str().map(str::to_string))
+        .collect();
+    assert_eq!(names, ["Alpha-1.m4b", "Alpha.m4b"], "rename keeps both");
 
     desk.send(SessionIntent::Preview).await;
     let preview = desk

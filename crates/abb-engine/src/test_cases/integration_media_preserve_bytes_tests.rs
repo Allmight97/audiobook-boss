@@ -4,6 +4,8 @@
 //! container). Sources are the committed untagged M4B plus tags and chapters
 //! written by mp4ameta, so the bytes do not depend on the FFmpeg that is
 //! installed. `ABB_BLESS_TAG_SNAPSHOTS=1` rewrites the snapshots on purpose.
+//! An encode is not snapshotted, because its bytes follow the linked FFmpeg;
+//! two encodes of one source must still agree.
 
 use super::media_fixtures::{
     chapters_of, preflight_payload, run_planned_title, single_title_payload,
@@ -141,4 +143,37 @@ async fn the_same_preserve_twice_writes_the_same_bytes() {
     std::thread::sleep(Duration::from_millis(1100));
     let second = [snapshot_of(&remux).await, snapshot_of(&copy).await];
     assert_eq!(first, second, "a clock reading reached the output bytes");
+}
+
+async fn encoded_bytes(source: &Path, work: &Path) -> Vec<u8> {
+    let payload = single_title_payload(
+        source,
+        &work.join("out"),
+        TitleAudioRequest {
+            output: OutputAudio::M4b {
+                settings: native_encoder_settings(),
+            },
+            intent: AudioIntent::Encode,
+            sample_rate: SampleRateConfig::Auto,
+        },
+    );
+    let (output, _) = run_planned_title(payload, None, &work.join("work"))
+        .await
+        .expect("encode");
+    fs::read(output).expect("read output")
+}
+
+#[tokio::test]
+async fn the_same_encode_twice_writes_the_same_bytes() {
+    let dir = TempDir::new().expect("seed workspace");
+    let source = chaptered_seed(dir.path(), &[(0, "One"), (250, "Two")]);
+    let first = encoded_bytes(&source, &dir.path().join("first")).await;
+    std::thread::sleep(Duration::from_millis(1100));
+    let second = encoded_bytes(&source, &dir.path().join("second")).await;
+    assert!(
+        first == second,
+        "two encodes of one source differ: sha256 {} and {}",
+        sha256_hex(&first),
+        sha256_hex(&second)
+    );
 }

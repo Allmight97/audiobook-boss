@@ -10,7 +10,7 @@ use crate::work_runtime::WorkOperationStatus;
 use crate::ShutdownOutcome;
 
 use super::integration_session_desk::Desk;
-use super::media_fixtures::ffmpeg;
+use super::media_fixtures::{assert_ffprobe_tag, ffmpeg, ffprobe_format_tags};
 
 fn id_of(desk: &Desk, name: &str) -> String {
     desk.engine
@@ -81,6 +81,7 @@ async fn one_save_blanks_author_on_two_titles_and_writes_each_titles_own_edit() 
         SessionOutcome::Applied
     );
 
+    assert_ffprobe_tag(&ffprobe_format_tags(&alpha), "genre", "Mystery");
     let (alpha_tags, beta_tags) = (tags(&alpha), tags(&beta));
     assert_eq!(alpha_tags.artist, None, "alpha author is blanked");
     assert_eq!(beta_tags.artist, None, "beta author is blanked");
@@ -350,4 +351,56 @@ async fn a_save_on_raw_aac_fails_with_its_reason_and_keeps_the_edit_pending() {
         "{:?}",
         child.message
     );
+}
+
+#[tokio::test]
+async fn saves_before_and_after_a_reimport_during_an_export_both_reach_the_source() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 12.0)
+        .await;
+    desk.import(&book).await;
+    let export = desk.export().await;
+
+    let first = desk.edit_genre_and_save().await;
+    assert!(
+        matches!(
+            first.status,
+            Some(MetadataStatus::SaveComplete { waiting: 1, .. })
+        ),
+        "{:?}",
+        first.status
+    );
+    assert_eq!(
+        desk.send(SessionIntent::ClearAll).await,
+        SessionOutcome::Applied
+    );
+    desk.import(&book).await;
+    desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
+        field: MetadataField::Author,
+        value: "New Author".to_string(),
+    })
+    .await;
+    assert_eq!(
+        desk.send(SessionIntent::Save).await,
+        SessionOutcome::Applied
+    );
+    let second = desk.metadata().status;
+    assert!(
+        matches!(
+            second,
+            Some(MetadataStatus::SaveComplete { waiting: 1, .. })
+        ),
+        "{second:?}"
+    );
+
+    desk.wait_until("the export finishes and both saves land", |desk| {
+        desk.export_finished(&export) && desk.engine.running_work().waiting_writes == 0
+    })
+    .await;
+    assert_eq!(desk.export_status(&export), WorkOperationStatus::Completed);
+    let tags = ffprobe_format_tags(&book);
+    assert_ffprobe_tag(&tags, "genre", "Mystery");
+    assert_ffprobe_tag(&tags, "artist", "New Author");
 }

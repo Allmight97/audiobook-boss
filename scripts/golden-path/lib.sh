@@ -3,7 +3,7 @@
 # run.sh exports EVIDENCE, STATE, and INPUTS. A feature passes when its
 # script exits 0; any failing command fails it (set -euo pipefail).
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # tone <output> [ffmpeg output options...]: one second of sine, AAC unless overridden.
 tone() {
@@ -20,9 +20,14 @@ abb_dev() {
 	bash "${repo_root}/scripts/abb-dev.sh" --state-dir "${state}" "$@"
 }
 
-# abb_parity <record|check> <file>... --reference <json> [--bytes]: compares output files.
-abb_parity() {
-	bash "${repo_root}/scripts/abb-dev.sh" parity "$@"
+# refused <log> <message> <state-name> [abb-dev args...]: abb-dev must exit 1
+# and print the message; any other exit or message fails the feature.
+refused() {
+	local log="$1" message="$2" status=0
+	shift 2
+	abb_dev "$@" >"${log}" 2>&1 || status=$?
+	[[ "${status}" -eq 1 ]] || fail "expected exit 1, got ${status} (log: ${log})"
+	grep -qF -- "${message}" "${log}" || fail "expected '${message}' (log: ${log})"
 }
 
 # format_tag <file> <tag>: one format tag, read back with ffprobe.

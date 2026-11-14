@@ -8,8 +8,7 @@
   `src/lib/tauri/client.ts`, and the generated bindings.
 - Cargo commands run from the repository root. Verification:
   `scripts/AGENTS.md`.
-- Repository procedures (release, end-to-end verification, and others) are
-  skills in `.agents/skills/<name>/SKILL.md`; read the one whose description
+- Repository procedures (release and others) are skills in `.agents/skills/<name>/SKILL.md`; read the one whose description
   fits the task.
 - "Public API Strip" means an owned module's allowed import/export surface;
   callers use it instead of private implementation files. `abb-*-core` crates

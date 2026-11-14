@@ -13,8 +13,10 @@
 - Task admission and shutdown share one lock, so registering visible work and
   its cancellation handles finishes before shutdown enumerates work to stop.
 - `abb-dev` runs under its own identity and state folder; keep it away from
-  the app's settings and credentials. A real Audible download through
-  `abb-dev audible` is the owner's call (verify-abb skill).
+  the app's settings and credentials. A real Audible download
+  (`scripts/abb-dev.sh audible`) runs only when the owner asks, for the fewest
+  titles, because each spends the owner's account; then delete its state
+  folder, because it holds decrypted audiobooks.
 - Provider-private details stay out of other owners, logs, and host payloads.
 - Callers request a metadata outcome; the metadata owner picks MP4 or FFmpeg
   handling from the actual media, never the caller.

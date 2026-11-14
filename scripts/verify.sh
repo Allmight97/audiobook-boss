@@ -168,7 +168,7 @@ lane_media() {
 	require_rust
 	cargo fmt --all -- --check
 	engine_lib_tests_matching test_cases::integration_media
-	bash .agents/skills/verify-abb/run.sh
+	bash scripts/golden-path/run.sh
 }
 
 lane_host() {
@@ -208,7 +208,7 @@ lane_tooling() {
 	bun scripts/check-known-mistakes.ts --against "${file_size_base}"
 	bun scripts/check-pr-workflow-policy.ts
 	local scripts
-	scripts=(scripts/*.sh .claude/hooks/*.sh .githooks/* .agents/skills/verify-abb/*.sh .agents/skills/verify-abb/features/*.sh)
+	scripts=(scripts/*.sh .claude/hooks/*.sh .githooks/* scripts/golden-path/*.sh scripts/golden-path/features/*.sh)
 	shellcheck -S warning "${scripts[@]}"
 	if ! git rev-parse --verify --end-of-options "${file_size_base}^{commit}" >/dev/null; then
 		printf 'file-size ratchet: base %s is not in this checkout. Fetch it before the tooling lane; a missing base fails closed.\n' "${file_size_base}" >&2

@@ -49,7 +49,7 @@ media:
   - *shared
   - crates/**
   - scripts/abb-dev.sh
-  - .agents/skills/verify-abb/**
+  - scripts/golden-path/**
 apple:
   - *shared
   - crates/**
@@ -92,6 +92,7 @@ tooling:
   - scripts/fixtures/**
   - scripts/lane-paths.yml
   - scripts/*.sh
+  - scripts/golden-path/**
   - .githooks/**
   - .claude/**
   - .cursor/**

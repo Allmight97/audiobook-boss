@@ -27,18 +27,13 @@ hostile_export="${root}/hostile/_/_/.. .. Escape - Part One.m4b"
 [[ "$(format_tag "${hostile_export}" title)" == '../../Escape: Part/One' ]] ||
 	fail "sanitizing the path changed the title tag"
 
-if abb_dev layout-template --template '../{title}' --out "${root}/template" --export \
-	"${INPUTS}/layout-dune.m4b" >"${EVIDENCE}/layout-template.txt" 2>&1; then
-	fail "a template that climbs out of the output folder was accepted"
-fi
+refused "${EVIDENCE}/layout-template.txt" 'Custom template path traversal is not allowed' \
+	layout-template --template '../{title}' --out "${root}/template" --export "${INPUTS}/layout-dune.m4b"
 leaked="$(find "${root}" -mindepth 1 -maxdepth 1 -not -name series -not -name plain \
 	-not -name hostile -not -name template)"
 [[ -z "${leaked}" ]] || fail "an export escaped the output folder: ${leaked}"
-[[ -z "$(find "${root}/template" -type f)" ]] || fail "a refused template wrote a file"
+[[ -d "${root}/template" ]] || fail "the export folder abb-dev made is missing"
+[[ -z "$(find "${root}/template" -mindepth 1)" ]] || fail "a refused template left files or folders"
 
 ln -s "${INPUTS}/layout-dune.m4b" "${INPUTS}/layout-link.m4b"
-if abb_dev layout-link --json "${INPUTS}/layout-link.m4b" >"${EVIDENCE}/layout-link.json"; then
-	fail "a symlinked source was imported"
-fi
-grep -q 'Symlinks are not supported' "${EVIDENCE}/layout-link.json" ||
-	fail "the refused symlink is not reported"
+refused "${EVIDENCE}/layout-link.txt" 'Symlinks are not supported' layout-link "${INPUTS}/layout-link.m4b"

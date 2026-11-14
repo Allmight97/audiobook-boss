@@ -6,6 +6,8 @@
   needs; `bun scripts/verification.ts plan --explain <path>` says which lane
   and pattern select a path. For a narrower loop, run one command from the
   lane's function in `verify.sh` with a test-name filter.
+- `scripts/golden-path/run.sh corpus` runs only when `ABB_CORPUS_DIR` names
+  a folder, because it reads the owner's audiobooks; it works only on copies.
 - CI sets `ABB_FILE_SIZE_BASE` to the pull-request base, because a PR
   checkout makes the index and HEAD the same commit.
 - A change to CI or validation speed quotes before and after numbers from

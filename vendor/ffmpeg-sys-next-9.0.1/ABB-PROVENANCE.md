@@ -73,9 +73,11 @@ master. The workflow runs at 14:00 UTC on odd days of the month, about every
    and on Linux against the new source.
 3. Recheck each item in the list above against the upstream diff, and update
    the FAAD3 trim table if `api-skip-samples` changed.
-4. Prove a Native AAC encode kept its decoded audio with `abb-dev parity`
-   (verify-abb skill, FFmpeg update). Packet bytes can change while the
-   decoded audio stays identical. A decoded difference needs the real-media
+4. Prove a Native AAC encode kept its decoded audio with `abb-dev parity`:
+   export with the old pin (step 1), move the pin, and export again. Only
+   then `parity record` the old output and `parity check` the new one without
+   `--bytes`, because on Linux the pin also moves the ffmpeg CLI that reads
+   both. Packet bytes can change while the decoded audio stays identical. A decoded difference needs the real-media
    probe in `crates/abb-engine/src/audio/AGENTS.md`.
 5. Run `bash scripts/verify.sh engine media`.
 
