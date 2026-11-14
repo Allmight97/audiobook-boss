@@ -12,6 +12,7 @@ import {
 	issueBody,
 	masterAutobuilds,
 	movePin,
+	newestNmrRelease,
 	parseCommits,
 	parseUsedFiles,
 	renderReport,
@@ -136,6 +137,7 @@ describe('the report', () => {
 		pin: '49a3b1f259e1c34033bf6cca4091a4cb07ebf90d',
 		head: '1111111111111111111111111111111111111111',
 		commits: [],
+		nmrRelease: null,
 	};
 
 	it('says so when nothing relevant changed', () => {
@@ -153,6 +155,21 @@ describe('the report', () => {
 	});
 });
 
+describe('the first release with the NMR coder', () => {
+	const tags = (...names: string[]) =>
+		names.map((name, index) => `${index}${'0'.repeat(39)}\trefs/tags/${name}`).join('\n');
+
+	it('is none while only releases before 9.1 and dev tags exist', () => {
+		expect(newestNmrRelease(tags('n8.1.3', 'n9.0', 'n9.0.2', 'n9.1-dev', 'n9.2-dev'))).toBeNull();
+	});
+
+	it('is the newest release at or after 9.1, point releases and later majors included', () => {
+		expect(newestNmrRelease(tags('n9.0.2', 'n9.1', 'n9.1-dev'))).toBe('n9.1');
+		expect(newestNmrRelease(tags('n9.1', 'n9.1.2', 'n9.1.10', 'n9.1^{}'))).toBe('n9.1.10');
+		expect(newestNmrRelease(tags('n9.1.2', 'n10.0'))).toBe('n10.0');
+	});
+});
+
 describe('the issue', () => {
 	const checkedAt = new Date('2026-11-11T17:37:45Z');
 	const commit = { hash: 'abcdef0123456789', date: '2026-11-10', subject: 'aac: fix' };
@@ -160,6 +177,7 @@ describe('the issue', () => {
 		pin: '49a3b1f259e1c34033bf6cca4091a4cb07ebf90d',
 		head: '1111111111111111111111111111111111111111',
 		commits: [commit],
+		nmrRelease: null,
 	};
 	const open = (body: string) => ({ number: 634, title: ISSUE_TITLE, body });
 
@@ -200,6 +218,20 @@ describe('the issue', () => {
 		const clean = { ...report, commits: [] };
 		expect(decideIssueAction(clean, open('x'), checkedAt)).toEqual({ kind: 'close', number: 634 });
 		expect(decideIssueAction(clean, undefined, checkedAt)).toEqual({ kind: 'none' });
+	});
+
+	it('opens the issue once a release with the NMR coder exists, naming both changes the switch needs', () => {
+		const released = { ...report, commits: [], nmrRelease: 'n9.1' };
+		const action = decideIssueAction(released, undefined, checkedAt);
+		expect(action.kind).toBe('create');
+		const body = issueBody(released, checkedAt);
+		expect(body).toContain('Next action: FFmpeg n9.1 is released');
+		expect(body).toContain('BtbN build of n9.1');
+		expect(body).toContain('`release/9.1`');
+		expect(decideIssueAction(released, open(issueBody(report, checkedAt)), checkedAt).kind).toBe(
+			'update',
+		);
+		expect(decideIssueAction(released, open(body), checkedAt).kind).toBe('unchanged');
 	});
 
 	describe('through gh', () => {

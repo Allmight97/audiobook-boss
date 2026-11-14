@@ -52,7 +52,12 @@ a change there that matters shows when the pin moves (steps 2 and 5).
 The scheduled workflow `.github/workflows/ffmpeg-upstream.yml` runs it with
 `--issue`: one open GitHub issue titled "FFmpeg upstream: changes since the
 pin" holds the list while any commit is relevant, and the run closes it when
-none is.
+none is. Once FFmpeg tags a release at or after 9.1, the first with the NMR
+coder, the issue stays open and its next action is to pin that release: first
+`ffmpeg:pin` must accept a BtbN release build (it takes master autobuilds
+only), and the watch must compare the pin against that release branch, not
+master. The workflow runs at 14:00 UTC on odd days of the month, about every
+48 hours.
 
 1. Before moving, export the parity input with the current build (step 4).
    Then run `bun run ffmpeg:pin <commit>`, which refuses a commit with no

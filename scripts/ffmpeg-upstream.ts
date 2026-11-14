@@ -35,6 +35,7 @@ const UPSTREAM_URL = 'https://github.com/FFmpeg/FFmpeg.git';
 export const ISSUE_TITLE = 'FFmpeg upstream: changes since the pin';
 const NEXT_ACTION =
 	'Next action: decide whether to move the pin (procedure: vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md, Moving the pin).';
+const FIRST_RELEASE_WITH_NMR = [9, 1];
 const CACHE_DIRECTORY = 'target/abb-ffmpeg-upstream';
 const SETUP_SH = 'scripts/setup.sh';
 const AUTOBUILD_RELEASES = 'repos/FFmpeg-Builds/FFmpeg-Builds/releases?per_page=100';
@@ -52,6 +53,8 @@ export interface Report {
 	pin: string;
 	head: string;
 	commits: Commit[];
+	/** The newest FFmpeg release tag that carries the NMR coder ABB needs, once one exists. */
+	nmrRelease: string | null;
 }
 
 /**
@@ -94,6 +97,29 @@ export function parseCommits(log: string): Commit[] {
 			const [hash = '', date = '', ...subject] = line.split('\t');
 			return { hash, date, subject: subject.join('\t') };
 		});
+}
+
+/** The newest `nX.Y` or `nX.Y.Z` tag at or after the first release with the NMR coder. */
+export function newestNmrRelease(lsRemoteTags: string): string | null {
+	const releases = [...lsRemoteTags.matchAll(/refs\/tags\/(n(\d+)\.(\d+)(?:\.(\d+))?)$/gm)]
+		.map(([, tag, major, minor, patch]) => ({
+			tag,
+			version: [Number(major), Number(minor), Number(patch ?? 0)],
+		}))
+		.filter(({ version: [major, minor] }) => {
+			const [nmrMajor, nmrMinor] = FIRST_RELEASE_WITH_NMR;
+			return major > nmrMajor || (major === nmrMajor && minor >= nmrMinor);
+		})
+		.toSorted(
+			(a, b) =>
+				b.version[0] - a.version[0] || b.version[1] - a.version[1] || b.version[2] - a.version[2],
+		);
+	return releases[0]?.tag ?? null;
+}
+
+function switchAction(release: string): string {
+	const branch = `release/${release.slice(1).split('.').slice(0, 2).join('.')}`;
+	return `Next action: FFmpeg ${release} is released and carries the NMR coder, so ABB can pin the release instead of master. Two changes come first: \`ffmpeg:pin\` accepts only a BtbN master autobuild today and must accept the BtbN build of ${release}; the watch compares the pin against master and must compare it against \`${branch}\`.`;
 }
 
 export function renderReport(report: Report): string {
@@ -166,14 +192,19 @@ export function issueBody(report: Report, checkedAt: Date): string {
 	const stamp = checkedAt.toISOString().slice(0, 16).replace('T', ' ');
 	return [
 		`Checked ${stamp} UTC against pin ${report.pin.slice(0, 10)}.`,
-		NEXT_ACTION,
+		report.nmrRelease ? switchAction(report.nmrRelease) : NEXT_ACTION,
 		renderReport(report),
 	].join('\n\n');
 }
 
-function listedState(body: string): { pin: string | undefined; commits: string[] } {
+function listedState(body: string): {
+	pin: string | undefined;
+	release: string | undefined;
+	commits: string[];
+} {
 	return {
 		pin: /^Checked .* against pin (\w+)\./.exec(body)?.[1],
+		release: /^Next action: FFmpeg (\S+) is released/m.exec(body)?.[1],
 		commits: [...body.matchAll(/^\| `(\w+)` \|/gm)].map(([, hash]) => hash),
 	};
 }
@@ -183,7 +214,7 @@ export function decideIssueAction(
 	issue: OpenIssue | undefined,
 	checkedAt: Date,
 ): IssueAction {
-	if (report.commits.length === 0) {
+	if (report.commits.length === 0 && !report.nmrRelease) {
 		return issue ? { kind: 'close', number: issue.number } : { kind: 'none' };
 	}
 	const body = issueBody(report, checkedAt);
@@ -192,6 +223,7 @@ export function decideIssueAction(
 	const current = listedState(body);
 	const same =
 		listed.pin === current.pin &&
+		listed.release === current.release &&
 		listed.commits.length === current.commits.length &&
 		listed.commits.every((hash, index) => hash === current.commits[index]);
 	return same
@@ -276,7 +308,8 @@ function buildReport(repoRoot: string): Report {
 			cache,
 		),
 	);
-	return { pin, head, commits };
+	const nmrRelease = newestNmrRelease(run('git', ['ls-remote', '--tags', 'origin'], cache));
+	return { pin, head, commits, nmrRelease };
 }
 
 function gitBlobHash(file: string): string {
