@@ -6,6 +6,14 @@ built from FFmpeg commit `88c46fce27e311c73772d9b83db4047dd83b1294` with the
 patches in `patches/` and the `configure` lists in `build.rs`. The app bundle
 ships this file and that license.
 
+FFmpeg's source at that commit is on
+[GitHub](https://github.com/FFmpeg/FFmpeg), where the build fetches it. Each
+ABB release's source archive on
+[GitHub Releases](https://github.com/Allmight97/audiobook-boss/releases)
+contains ABB's patch, `build.rs`, and build scripts. To use a modified FFmpeg,
+add your change to `patches/mov-chapter-start.patch`, the patch `build.rs`
+applies to the fetched source, and rebuild ABB as its README describes.
+
 Base: crates.io `ffmpeg-sys-next` 9.0.1 archive, SHA-256
 `c6f932d8c1cede016c65d4f1435f323369c99c74df55143b18676aa10e7603f9`.
 The upstream manifest declares WTFPL. 9.0.1 adds `-fno-builtin` to bindgen so
