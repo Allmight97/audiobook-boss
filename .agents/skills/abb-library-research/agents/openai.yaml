@@ -1,4 +1,0 @@
-interface:
-  display_name: "ABB Library Research"
-  short_description: "Resolve ABB library behavior from exact sources"
-  default_prompt: "Use $abb-library-research to resolve this library question against ABB's selected package version."

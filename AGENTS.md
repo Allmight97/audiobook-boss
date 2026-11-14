@@ -65,7 +65,7 @@ simpler design.
   native build; the plan is WSL, which #557 has yet to prove. No native UI is
   planned.
 - `src/`: Solid 2 is a prerelease baseline; for version-sensitive Solid
-  behavior use the `abb-library-research` skill. UI behavior also needs a
+  behavior use the `library-research` skill. UI behavior also needs a
   visual review where tests cannot prove the UX.
 - Greenfield: internal payloads and aliases change freely. Interoperability
   with real-world external audiobook files and tag variants is preserved.
