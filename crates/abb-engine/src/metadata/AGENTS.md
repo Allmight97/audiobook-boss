@@ -87,6 +87,9 @@
   series clear removes it; the mp4ameta sink writes them in MP4 beside the
   lowercase keys as interoperability mirrors for readers of the uppercase
   names.
+- mp4ameta's `set_year` writes its argument to `©day` unchanged, so the MP4
+  sink stores the full normalized date there (`2001-02-03`); the name does
+  not mean year-only storage.
 - MP4 artist and composer reads join repeated values with `;`, as FFmpeg's
   text projection does. A name list is one text value; nothing preserves its
   structure or a distinct album artist.

@@ -5,12 +5,14 @@
 //! written by mp4ameta, so the bytes do not depend on the FFmpeg that is
 //! installed. `ABB_BLESS_TAG_SNAPSHOTS=1` rewrites the snapshots on purpose.
 //! An encode is not snapshotted, because its bytes follow the linked FFmpeg;
-//! two encodes of one source must still agree.
+//! two encodes of one source must still agree: in bytes for M4B, and in
+//! decoded audio, tags, and chapters for Matroska, whose muxer writes a random
+//! segment identifier.
 
 use super::media_fixtures::{
-    chapters_of, preflight_payload, run_planned_title, single_title_payload,
+    chapters_of, decode_pcm_f32, preflight_payload, run_planned_title, single_title_payload,
 };
-use super::support::encoders::native_encoder_settings;
+use super::support::encoders::{native_encoder_settings, opus_encoder_settings};
 use super::tag_interop_dump::{assert_snapshot, dump_tags, sha256_hex};
 use super::tag_interop_seed::{seed_m4b, Edit};
 use crate::audio::{
@@ -145,35 +147,77 @@ async fn the_same_preserve_twice_writes_the_same_bytes() {
     assert_eq!(first, second, "a clock reading reached the output bytes");
 }
 
-async fn encoded_bytes(source: &Path, work: &Path) -> Vec<u8> {
+async fn encoded(source: &Path, output: OutputAudio, edit: Edit, work: &Path) -> PathBuf {
     let payload = single_title_payload(
         source,
         &work.join("out"),
         TitleAudioRequest {
-            output: OutputAudio::M4b {
-                settings: native_encoder_settings(),
-            },
+            output,
             intent: AudioIntent::Encode,
             sample_rate: SampleRateConfig::Auto,
         },
     );
-    let (output, _) = run_planned_title(payload, None, &work.join("work"))
+    let metadata = (edit != Edit::Untouched)
+        .then(|| HashMap::from([(source.to_string_lossy().into_owned(), edit.patch())]));
+    let (output, _) = run_planned_title(payload, metadata, &work.join("work"))
         .await
         .expect("encode");
-    fs::read(output).expect("read output")
+    output
 }
 
 #[tokio::test]
 async fn the_same_encode_twice_writes_the_same_bytes() {
     let dir = TempDir::new().expect("seed workspace");
     let source = chaptered_seed(dir.path(), &[(0, "One"), (250, "Two")]);
-    let first = encoded_bytes(&source, &dir.path().join("first")).await;
+    let m4b = || OutputAudio::M4b {
+        settings: native_encoder_settings(),
+    };
+    let first = fs::read(encoded(&source, m4b(), Edit::Untouched, &dir.path().join("first")).await)
+        .expect("read output");
     std::thread::sleep(Duration::from_millis(1100));
-    let second = encoded_bytes(&source, &dir.path().join("second")).await;
+    let second =
+        fs::read(encoded(&source, m4b(), Edit::Untouched, &dir.path().join("second")).await)
+            .expect("read output");
     assert!(
         first == second,
         "two encodes of one source differ: sha256 {} and {}",
         sha256_hex(&first),
         sha256_hex(&second)
+    );
+}
+
+fn held_content(path: &Path) -> String {
+    let audio: Vec<u8> = decode_pcm_f32(path)
+        .iter()
+        .flat_map(|sample| sample.to_le_bytes())
+        .collect();
+    format!(
+        "decoded audio: {} samples, sha256 {}\nchapters: {:?}\n{}",
+        audio.len() / 4,
+        sha256_hex(&audio),
+        chapters_of(path),
+        dump_tags(path)
+    )
+}
+
+#[tokio::test]
+async fn the_same_mka_opus_encode_twice_holds_the_same_content() {
+    let dir = TempDir::new().expect("seed workspace");
+    let source = chaptered_seed(dir.path(), &[(0, "One"), (250, "Two")]);
+    let mka = || OutputAudio::MkaOpus {
+        settings: opus_encoder_settings(),
+    };
+    let first = encoded(&source, mka(), Edit::SetAll, &dir.path().join("first")).await;
+    std::thread::sleep(Duration::from_millis(1100));
+    let second = encoded(&source, mka(), Edit::SetAll, &dir.path().join("second")).await;
+    let first_content = held_content(&first);
+    assert!(
+        first_content.contains(r#"title="Set Title""#) && !chapters_of(&first).is_empty(),
+        "premise: the export carries the set tags and the chapters"
+    );
+    assert_eq!(
+        first_content,
+        held_content(&second),
+        "two Matroska Opus encodes of one source hold different content"
     );
 }
