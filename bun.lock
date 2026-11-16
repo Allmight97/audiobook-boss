@@ -9,7 +9,7 @@
         "@tauri-apps/api": "^2.12.4",
         "@tauri-apps/plugin-dialog": "^2.8.4",
         "@tauri-apps/plugin-opener": "^2.7.2",
-        "solid-js": "2.0.0-rc.18",
+        "solid-js": "2.0.0-rc.21",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.6.5",
@@ -382,7 +382,7 @@
 
     "@solidjs/compiler-win32-x64-msvc": ["@solidjs/compiler-win32-x64-msvc@2.0.0-rc.21", "", { "os": "win32", "cpu": "x64" }, "sha512-cGNQL/7MF/CudNo1j2C9TEG/wTKZtFuSAQRPhU/UKzlq61oO5tKWLRugGWY4qGZ+K+4iw6CpSAuj4/s0z0POww=="],
 
-    "@solidjs/signals": ["@solidjs/signals@2.0.0-rc.18", "", {}, "sha512-pzYahnM93EpDN4xZF1EefdjPE6Buuu/90/kiaLOjUFhPd3H0W6J9R8lIF+kkD1Z78LW1OTHciRY5MCqpYj5iSQ=="],
+    "@solidjs/signals": ["@solidjs/signals@2.0.0-rc.22", "", {}, "sha512-A+yy1+g8V/YAz9TiRwO+zMZ4+SAUTkYUQBobXBUSk1nFQ9SymDcMghl/VcdZWchx+ITh2RkxL8ePpF6dCXgCSg=="],
 
     "@solidjs/testing-library": ["@solidjs/testing-library@1.0.0-rc.2", "", { "dependencies": { "@testing-library/dom": "^10.4.2" }, "peerDependencies": { "@solidjs/web": ">=2.0.0-0", "solid-js": ">=2.0.0-0" } }, "sha512-QZqIVoyDAqaGgSsWQ3gnYGaG1peFkNF0/n5uM+393g5plZlcvgxmUgdjsQtwrRLVZCrh0K1lp7YHxsAlN5XPkA=="],
 
@@ -672,7 +672,7 @@
 
     "smol-toml": ["smol-toml@1.9.0", "", {}, "sha512-hpd+HLON7HdZXqYchMM/+LaTTbdK0AU3NngIJ4KVyWbY9bfQqdL9cD+4yf6dUoU2Ap4VsU0JkQi6FxAI1B2mXQ=="],
 
-    "solid-js": ["solid-js@2.0.0-rc.18", "", { "dependencies": { "@solidjs/signals": "^2.0.0-rc.18", "csstype": "^3.1.0", "seroval": "1.7.0", "seroval-plugins": "1.7.0" } }, "sha512-g4KjUQUjfqvqHYnBddN5nVAF7DFcDjtuH+NeDu/26vx6SlSDiqBJS8jsNag6VpdKAnfK8oLfphogEhXtM4UOyw=="],
+    "solid-js": ["solid-js@2.0.0-rc.21", "", { "dependencies": { "@solidjs/signals": "^2.0.0-rc.21", "csstype": "^3.1.0", "seroval": "1.7.0", "seroval-plugins": "1.7.0" } }, "sha512-0Z8/qiJKnK6A2g8QspGthwxR0W8WauMOD2/LQtNmxBT8gpZkKaXmo/fdek/+cB+84w4HYejWJixSAn4fcAI0Uw=="],
 
     "source-map-js": ["source-map-js@1.2.2", "", {}, "sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw=="],
 
