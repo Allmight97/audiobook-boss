@@ -39,7 +39,7 @@ export function markdownHomeFindings(tracked: string[]): Finding[] {
 			file,
 			line: 1,
 			message:
-				'is Markdown outside the document homes. Fix: a plan goes in `docs/specs/<task>.md` and leaves when its work lands; a lasting document adds its home to MARKDOWN_HOMES in scripts/check-guidance.ts.',
+				'is a Markdown file outside the allowlist. Fix: put an owner-requested plan in `docs/specs/<task>.md` and delete it when the work lands, or add the path to MARKDOWN_HOMES in scripts/check-guidance.ts only when a tool reads that file. Root cause: an unrequested document becomes a second copy of a rule a check should own.',
 		}));
 }
 

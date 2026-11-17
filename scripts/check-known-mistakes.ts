@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
+import { commentFindings, isPolicyFile } from './comment-policy';
 
 export interface Finding {
 	file: string;
@@ -609,15 +610,20 @@ function main(): number {
 	const repoRoot = path.resolve(import.meta.dirname, '..');
 	const tracked = execFileSync('git', ['ls-files'], { cwd: repoRoot, encoding: 'utf8' })
 		.split('\n')
-		.filter(
-			(file) =>
-				file &&
-				(OWNED_RUST(file) ||
-					path.basename(file) === 'Cargo.toml' ||
-					RULES.some((rule) => rule.appliesTo(file))),
-		);
+		.filter(Boolean);
+	const ruleFiles = tracked.filter(
+		(file) =>
+			OWNED_RUST(file) ||
+			path.basename(file) === 'Cargo.toml' ||
+			RULES.some((rule) => rule.appliesTo(file)),
+	);
 	const findings = [
-		...tracked.flatMap((file) => checkFile(file, readFileSync(path.join(repoRoot, file), 'utf8'))),
+		...ruleFiles.flatMap((file) =>
+			checkFile(file, readFileSync(path.join(repoRoot, file), 'utf8')),
+		),
+		...tracked
+			.filter(isPolicyFile)
+			.flatMap((file) => commentFindings(file, readFileSync(path.join(repoRoot, file), 'utf8'))),
 		...packagePinFindings(
 			readFileSync(path.join(repoRoot, 'package.json'), 'utf8'),
 			readFileSync(path.join(repoRoot, 'scripts/AGENTS.md'), 'utf8'),

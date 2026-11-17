@@ -13,20 +13,25 @@
 - "Public API Strip" means an owned module's allowed import/export surface;
   callers use it instead of private implementation files. `abb-*-core` crates
   are package boundaries, not further strips.
-- One rule decides every guidance line and every code comment. Ask in order:
-  can a check, type, or test decide it? Then that owns it, and its failure
-  message is the guidance. Can a reader learn it from the code and its tests?
-  Then write nothing. Otherwise write one line: the reason, or the outside
-  fact (what a platform, protocol, tool, or provider does; an accepted risk;
-  a product decision; an owner-approval boundary). Why: a line that restates
-  the code goes stale when the code moves, and agents copy a comment that
-  excuses a workaround.
+- One rule decides every guidance line and every code comment. Encode a
+  constraint in the strongest layer that can carry it: the API or the
+  architecture, then a type, then a lint or CI check, then a test. Prose is
+  for a judgment no check can make. A correction becomes one of those checks.
+  It does not become a new line here, and this file does not gain a one-off
+  rule for a single miss. No unrequested Markdown, docs, or comments.
+- A code comment may stay only when `scripts/comment-policy.ts` allowlists
+  its shape, and that entry states the reason: a required license header, a
+  lint or shell directive that carries its reason, a `// SAFETY:` comment on
+  unsafe, an upstream bug link, a `# pin:` tag, a rustdoc test, or
+  `@ratchet-files-ignore` with a reason. Any other comment fails the check.
+  The failure says to delete it or encode the constraint, and why a comment
+  cannot hold it.
 - Root holds repo-wide rules, a nested `AGENTS.md` its path's reasons, a skill
   a reusable procedure; each meaning lives in one place. `README.md` is for
-  people. A code comment that passes the rule is a license, behavior forced
-  by an outside dependency, platform, or protocol, a lint's required text or
-  a suppression's reason, a public API contract the signature cannot show,
-  or an issue or RFC link.
+  people. An outside fact that needs judgment (what a platform, protocol,
+  tool, or provider does; an accepted risk; a product decision; an
+  owner-approval boundary) goes in the owning `AGENTS.md`, not in a code
+  comment.
 - Third-party source under MIT, Apache-2.0, BSD, ISC, or Zlib may be ported
   or vendored without asking; the ported file opens with a header naming the
   source, its version or commit, its license (a license stated only in
