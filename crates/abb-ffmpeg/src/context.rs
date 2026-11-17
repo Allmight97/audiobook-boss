@@ -21,7 +21,6 @@ impl Rational {
         }
     }
 
-    /// `value` in `from` units, rescaled to `to` units with rounding to nearest.
     pub fn rescale(value: i64, from: Self, to: Self) -> i64 {
         // SAFETY: av_rescale_q is a pure arithmetic function.
         unsafe { sys::av_rescale_q(value, from.to_sys(), to.to_sys()) }
@@ -100,19 +99,13 @@ pub struct StreamFacts {
     pub time_base: Rational,
     pub disposition: Disposition,
     pub codec: CodecId,
-    /// One of `profile`'s numbers.
     pub profile: i32,
     pub sample_rate: i32,
     pub channels: u16,
-    /// Bits per second as the container states it, or 0 when it does not.
     pub bit_rate: i64,
-    /// The stream's length in its time base, or `None` when unknown.
     pub duration: Option<i64>,
-    /// The first timestamp in the stream's time base, or `None` when unknown.
     pub start_time: Option<i64>,
-    /// Samples a decoder drops before the first audible one.
     pub initial_padding: i32,
-    /// A picture's size in pixels; 0 when the demuxer could not tell.
     pub width: i32,
     pub height: i32,
     pub tags: Tags,
@@ -133,8 +126,6 @@ impl Chapter {
     }
 }
 
-/// # Safety
-/// `ctx` is a live format context that nobody changes while the slice lives.
 pub(crate) unsafe fn streams<'a>(ctx: *const sys::AVFormatContext) -> &'a [*mut sys::AVStream] {
     // SAFETY: the caller guarantees `ctx`; FFmpeg keeps `nb_streams` entries.
     unsafe {
@@ -145,8 +136,6 @@ pub(crate) unsafe fn streams<'a>(ctx: *const sys::AVFormatContext) -> &'a [*mut 
     }
 }
 
-/// # Safety
-/// `ctx` is a live format context.
 pub(crate) unsafe fn stream(
     ctx: *const sys::AVFormatContext,
     index: usize,
@@ -171,8 +160,6 @@ fn medium(kind: sys::AVMediaType) -> Medium {
     }
 }
 
-/// # Safety
-/// `ctx` is a live format context.
 pub(crate) unsafe fn stream_facts(ctx: *const sys::AVFormatContext) -> Vec<StreamFacts> {
     // SAFETY: the caller guarantees `ctx`; each stream and its `codecpar`
     // stay valid for the context's life.
@@ -206,8 +193,6 @@ pub(crate) unsafe fn stream_facts(ctx: *const sys::AVFormatContext) -> Vec<Strea
     }
 }
 
-/// # Safety
-/// `ctx` is a live format context.
 pub(crate) unsafe fn chapters(ctx: *const sys::AVFormatContext) -> Vec<Chapter> {
     // SAFETY: the caller guarantees `ctx`; FFmpeg keeps `nb_chapters` live
     // chapter pointers.

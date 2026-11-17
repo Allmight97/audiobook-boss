@@ -1,8 +1,3 @@
-//! The `processing_job` records a real export writes, byte for byte.
-//! `scripts/dev-log-analysis.ts` parses them to count a session's jobs and
-//! failures, so a wording or field-order change breaks that tool without
-//! failing any engine test that builds the line from the same code.
-
 use std::fs;
 use std::path::{Path, PathBuf};
 

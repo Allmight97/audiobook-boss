@@ -7,13 +7,10 @@ use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy, MetadataInte
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
-/// What a preserve route writes once its audio is staged.
 pub(super) enum MetadataStrategy {
-    /// One staged source: move it to the target container and apply the
-    /// planned patch onto its own tags.
-    PatchStagedCopy { patch: Option<MetadataIntentPatch> },
-    /// A join of several sources: write the full effective metadata onto the
-    /// new file.
+    PatchStagedCopy {
+        patch: Option<MetadataIntentPatch>,
+    },
     WriteFreshMux {
         metadata: Option<AudiobookMetadata>,
         cover_policy: CoverArtPassthroughPolicy,

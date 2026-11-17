@@ -1,7 +1,3 @@
-//! Failure paths of the decode, resample, and encode operations, on a WAV
-//! written here. Each returns a typed error and frees what it allocated;
-//! `leaks --atExit` on this test binary checks the second part.
-
 use std::path::{Path, PathBuf};
 
 use abb_ffmpeg::{
@@ -325,8 +321,6 @@ fn skip_samples_side_data_round_trips_and_replaces_itself() {
     assert_eq!(packet.skip_samples().expect("read"), Some(second));
 }
 
-/// Decode, convert, encode, and mux the WAV, then stop: every value is
-/// dropped mid-stream, and the muxer removes its file.
 #[test]
 fn an_encode_stopped_part_way_removes_its_file() {
     let dir = TempDir::new().expect("dir");

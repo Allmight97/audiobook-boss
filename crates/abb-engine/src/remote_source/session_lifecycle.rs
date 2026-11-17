@@ -20,9 +20,6 @@ use super::{RemoteProviderId, RemoteSourceRuntime};
 
 const PROGRESS_EVENT_INTERVAL: Duration = Duration::from_millis(100);
 
-/// Everything one acquisition needs. Reaching the provider and the stored
-/// sign-in happens only behind [`AcquireTitles`], so a test that replaces it
-/// never touches the network or the keychain.
 pub(crate) struct AcquireRequest {
     pub(crate) runtime: RemoteSourceRuntime,
     pub(crate) work: types::AcquisitionWork,
@@ -78,9 +75,6 @@ pub(super) fn audible_acquire() -> AcquireTitles {
     })
 }
 
-/// Removes a cancelled or failed job's staging folder. An aborted acquisition
-/// only signals its blocking worker to stop, so the worker may still touch
-/// its partial while the first attempt runs.
 async fn purge_cancelled_session(staging: &RemoteSourceStaging, job_id: &str) {
     if let Err(error) = purge_with_retries(|| staging.purge_session(job_id)).await {
         log::warn!(
@@ -119,9 +113,6 @@ impl RemoteAcquisitionLifecycle {
         }
     }
 
-    /// Tells hosts what the job looks like now. It reads the registered job
-    /// under the UI guard, so a progress clone taken before a terminal change
-    /// can never be published after it.
     fn publish(&self, job_id: &str) {
         let update = {
             let mut ui = self
@@ -400,8 +391,6 @@ impl RemoteAcquisitionLifecycle {
         }
     }
 
-    /// Downloads still in progress, by job state: a task handle can outlive
-    /// a job that failed before its handle was stored.
     pub(super) fn running_acquisitions(&self) -> Vec<String> {
         self.jobs.lock().map_or_else(
             |_| Vec::new(),

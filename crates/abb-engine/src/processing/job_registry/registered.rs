@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use super::{JobId, JobRegistry};
 
-/// A job counted as active work. It leaves the registry when settled, or when
-/// dropped unsettled, so the concurrency lock cannot outlive its work.
 pub(crate) struct RegisteredJob {
     registry: Arc<JobRegistry>,
     id: JobId,

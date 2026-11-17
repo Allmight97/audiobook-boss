@@ -23,6 +23,10 @@ describe('comment policy', () => {
 			'pin',
 			'ratchet',
 			'rustdoc-test',
+			'no-lane',
+			'audit-crate',
+			'oxlint-reason',
+			'shellcheck',
 		]);
 		for (const entry of ALLOWLIST) {
 			expect(entry.reason.trim().length).toBeGreaterThan(20);
@@ -52,9 +56,10 @@ describe('comment policy', () => {
 		const kept =
 			'// oxlint-disable-next-line typescript/no-explicit-any -- the fixture is untyped\n';
 		expect(messages('src/app/x.ts', kept)).toEqual([]);
-		expect(
-			messages('src/app/x.ts', '// oxlint-disable-next-line typescript/no-explicit-any\n'),
-		).toEqual([expect.stringContaining('directive with no reason')]);
+		const bareDirective = ['// oxlint', '-disable-next-line typescript/no-explicit-any\n'].join('');
+		expect(messages('src/app/x.ts', bareDirective)).toEqual([
+			expect.stringContaining('directive with no reason'),
+		]);
 		expect(messages('vite.config.ts', '// @ts-expect-error process is a nodejs global\n')).toEqual(
 			[],
 		);
@@ -171,6 +176,38 @@ describe('comment policy', () => {
 				'',
 			].join('\n'),
 		);
+	});
+
+	it('keeps the crate on an audit ignore and the reason before an oxlint rule', () => {
+		const audit = '"RUSTSEC-2024-0415", # gtk\n';
+		expect(stripComments('.cargo/audit.toml', audit)).toBe(audit);
+		expect(
+			messages('.cargo/audit.toml', '"RUSTSEC-2024-0415", # gtk waiting on a migration\n'),
+		).toEqual([expect.stringContaining('Fix: delete it')]);
+		const rule =
+			'\t\t// Solid ignores an event handler return value.\n\t\t"typescript/no-misused-promises": ["error"],\n';
+		expect(stripComments('.oxlintrc.json', rule)).toBe(rule);
+		expect(messages('.oxlintrc.json', '\t\t// just because\n\t\t"name": "ok",\n')).toEqual([
+			expect.stringContaining('Fix: delete it'),
+		]);
+	});
+
+	it('keeps the reason on a no-lane path and drops the same shape elsewhere', () => {
+		const lane = 'no-lane:\n  - CHANGELOG.md # release history, written by hand\n';
+		expect(stripComments('scripts/lane-paths.yml', lane)).toBe(lane);
+		expect(
+			messages('.github/workflows/ci.yml', '      - uses: actions/checkout@abc # v6\n'),
+		).toEqual([expect.stringContaining('Fix: delete it')]);
+	});
+
+	it('keeps a shellcheck directive that names its reason', () => {
+		const disable = '# shellcheck disable=SC2261 # restores stdout, then stderr, on purpose\n';
+		expect(stripComments('scripts/dev-tauri-log.sh', disable)).toBe(disable);
+		expect(messages('scripts/dev-tauri-log.sh', '# shellcheck disable=SC2261\n')).toEqual([
+			expect.stringContaining('directive with no reason'),
+		]);
+		const sourced = '# shellcheck shell=bash\n';
+		expect(stripComments('scripts/golden-path/lib.sh', sourced)).toBe(sourced);
 	});
 
 	it('keeps a license header', () => {

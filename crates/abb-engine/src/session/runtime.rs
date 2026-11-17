@@ -57,7 +57,6 @@ pub(crate) struct SessionDeps {
     pub(crate) remote: crate::remote_source::RemoteSourceRuntime,
     pub(crate) work: WorkRuntime,
     pub(crate) jobs: ManagedJobRegistry,
-    /// Source files under this root are temporary downloads.
     pub(crate) temporary_root: PathBuf,
     pub(crate) settings: SettingsRuntime,
     pub(crate) tasks: crate::engine_tasks::EngineTasks,
@@ -97,7 +96,6 @@ impl Bound {
     }
 }
 
-/// A disposable reply to work the engine has already accepted and started.
 pub struct SessionRun {
     session: Session,
     since: u64,
@@ -153,7 +151,6 @@ enum Rest {
 }
 
 impl SessionRun {
-    /// Waits for accepted work; dropping this wait does not cancel the work.
     pub async fn finish(self) -> SessionReply {
         let session = self.session;
         let outcome = self
@@ -523,8 +520,6 @@ impl Session {
         }
     }
 
-    /// Reads the tags a new selection asked for. The selection is published
-    /// first so it shows while the reads run.
     async fn complete_reads(&self, bound: Bound) {
         if bound.reads.is_empty() {
             return;

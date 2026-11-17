@@ -4,9 +4,6 @@ use super::{AudiobookMetadata, MetadataWritePlan};
 use crate::metadata::metadata_sinks::{tag_pairs_for_ops, ExistingKeyRemoval};
 use abb_metadata_core::PatchOp;
 
-/// The container tags a save writes: the file's own tags without the ones
-/// the plan replaces or clears, then the plan's values. Kept tags keep their
-/// bytes.
 pub(crate) fn merge_metadata_with_plan(
     existing: &abb_ffmpeg::Tags,
     plan: &MetadataWritePlan,
@@ -40,7 +37,6 @@ pub(crate) fn merge_metadata_with_plan(
     Ok(merged)
 }
 
-/// Sets the container tags an encode writes for `metadata`.
 pub(crate) fn set_container_metadata(
     output: &mut abb_ffmpeg::Output,
     metadata: &AudiobookMetadata,

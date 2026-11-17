@@ -25,8 +25,6 @@ pub(super) fn account_message(base: Option<&str>, survives_restart: bool) -> Opt
     }
 }
 
-/// `UntilDelete` is on-disk storage. Anything shorter, including keyutils'
-/// `UntilReboot`, is gone after a restart, so the account view must say so.
 fn sign_in_survives_restart(persistence: keyring_core::CredentialPersistence) -> bool {
     matches!(
         persistence,
@@ -53,12 +51,6 @@ impl KeyringSecretVault {
     }
 }
 
-/// Registers the platform credential store as keyring-core's default, once per
-/// process. macOS uses the login Keychain and Windows uses Credential Manager.
-/// Linux uses the Secret Service when one answers on the session bus, and
-/// kernel keyutils otherwise. Keyutils keeps secrets only until restart, so the
-/// account view says they will not be remembered. No plaintext file, and no
-/// copy of an old keyutils secret.
 fn ensure_native_store() -> Result<()> {
     static REGISTERED: OnceLock<()> = OnceLock::new();
     if REGISTERED.get().is_some() {
@@ -73,9 +65,6 @@ fn ensure_native_store() -> Result<()> {
     Ok(())
 }
 
-/// The legacy file Keychain: the Data Protection Keychain needs Developer ID
-/// signing and a `keychain-access-groups` entitlement the unsigned build lacks.
-/// A vault error stays a typed error, never `NeedsAuth` or an empty result.
 #[cfg(target_os = "macos")]
 fn register_native_store() -> Result<()> {
     let store = apple_native_keyring_store::keychain::Store::new().map_err(store_unavailable)?;
@@ -92,7 +81,6 @@ fn register_native_store() -> Result<()> {
 
 #[cfg(target_os = "linux")]
 fn open_secret_service() -> Option<std::sync::Arc<zbus_secret_service_keyring_store::Store>> {
-    // `Store::new` connects to the session bus. No answer means keyutils.
     zbus_secret_service_keyring_store::Store::new().ok()
 }
 
@@ -128,8 +116,6 @@ fn delete_entry(entry: keyring_core::Entry) -> Result<()> {
     }
 }
 
-/// A launch that finds no Secret Service falls back to keyutils, so a
-/// Disconnect also removes any keyutils copy left from such a launch.
 #[cfg(target_os = "linux")]
 fn keyutils_entry(service: &str, key: &str) -> Result<keyring_core::Entry> {
     use keyring_core::api::CredentialStoreApi;

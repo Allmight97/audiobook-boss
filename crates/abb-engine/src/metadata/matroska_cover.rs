@@ -21,7 +21,6 @@ struct Element {
     end: u64,
 }
 
-/// Where an attachment's bytes sit in the file.
 type Payload = (u64, u64);
 
 struct Scan<'a> {
@@ -64,8 +63,6 @@ impl Scan<'_> {
         let (id, _) = self.vint(offset, end, true)?;
         let (size, unknown) = self.vint(offset, end, false)?;
         let start = *offset;
-        // A streaming Segment can extend to EOF. Other unknown-size elements
-        // cannot be skipped safely by this bounded metadata reader.
         let stop = if unknown && id == 0x18538067 {
             end
         } else if unknown {
@@ -98,8 +95,6 @@ impl Scan<'_> {
             .to_owned())
     }
 
-    /// An image attachment: whether its name marks it as the cover, and where
-    /// its bytes are.
     fn attached_file(&mut self, parent: Element) -> Result<Option<(bool, Payload)>> {
         let mut offset = parent.start;
         let mut name = String::new();
@@ -156,7 +151,6 @@ impl Scan<'_> {
     }
 }
 
-/// The cover attachment, else the first image attachment.
 pub(super) fn read(file: &mut File, length: u64) -> Result<Option<Vec<u8>>> {
     let mut scan = Scan {
         file,

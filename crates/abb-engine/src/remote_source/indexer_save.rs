@@ -7,16 +7,12 @@ use crate::app_settings::{IndexerConnection, SettingsOutcome, SettingsRun};
 use crate::errors::{AppError, Result};
 use crate::remote_source::{IndexerProvider, ProviderId, RemoteSourceRuntime};
 
-/// The validated connection and the key typed with it, as a Save was
-/// accepted against the draft.
 pub(super) struct AcceptedSave {
     pub(super) revision: u64,
     pub(super) connection: IndexerConnection,
     pub(super) api_key: Option<String>,
 }
 
-/// An accepted Save and what it holds until it finishes: the previous
-/// connection, the reserved settings turn, and the Indexer write guard.
 pub(super) struct IndexerSave {
     pub(super) accepted: AcceptedSave,
     previous: IndexerConnection,
@@ -24,8 +20,6 @@ pub(super) struct IndexerSave {
     write: tokio::sync::OwnedRwLockWriteGuard<()>,
 }
 
-/// An admitted Reset: the Indexer write lease, and the fact on the UI state
-/// that refuses a new Search or Grab until it is dropped.
 pub(crate) struct ResetReservation {
     ui: Arc<Mutex<UiState>>,
     _lease: tokio::sync::OwnedRwLockWriteGuard<()>,
@@ -100,9 +94,6 @@ impl RemoteSourceRuntime {
         }))
     }
 
-    /// The Indexer connection changes only while no search, grab, or Save
-    /// holds the lease, so a batch never sees a connection change between two
-    /// releases. A Save and a Reset take it through here.
     fn indexer_write_lease(&self, action: &str) -> Result<tokio::sync::OwnedRwLockWriteGuard<()>> {
         self.inner
             .indexer_turn
@@ -111,11 +102,6 @@ impl RemoteSourceRuntime {
             .map_err(|_| indexer_lane::busy_refusal(Some(action)))
     }
 
-    /// Reset replaces the saved connection, so it is refused while the Indexer
-    /// works or saves, as a Save is, and once admitted it refuses a new Search
-    /// or Grab. Hold the returned reservation until
-    /// [`Self::saved_connection_replaced`] has run; dropping it, however the
-    /// Reset ends, admits Search and Grab again.
     pub(crate) fn reset_lease(&self) -> Result<ResetReservation> {
         let lease = self.indexer_write_lease("resetting settings")?;
         let mut state = self.ui();
@@ -205,9 +191,6 @@ impl RemoteSourceRuntime {
         })
     }
 
-    /// An applied Reset put the default connection in effect; the draft, the
-    /// entered key, the key fact, results, and old failures follow it, and
-    /// the account is read again.
     pub(crate) async fn saved_connection_replaced(&self) {
         let refresh = {
             let saved = self.inner.settings.indexer_connection();

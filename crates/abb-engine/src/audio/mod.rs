@@ -22,44 +22,29 @@ mod settings_encoder;
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioFile {
-    /// Stable workbench/session identity for joins that must survive reorder/remove operations.
     pub input_id: String,
     pub path: PathBuf,
-    /// Bytes.
     pub size: Option<f64>,
-    /// Seconds.
     pub duration: Option<f64>,
     pub format: Option<String>,
-    /// Bits per second.
     pub bitrate: Option<u32>,
-    /// Hz.
     pub sample_rate: Option<u32>,
     pub channels: Option<u32>,
     pub codec_label: Option<String>,
-    /// Whether this source can be copied without re-encoding and whether the
-    /// source meets the automatic low-bitrate recommendation.
     #[serde(skip)]
     pub preservation: Option<AudioPreservation>,
-    /// Display only.
     pub selected_decoder: Option<String>,
-    /// What the title list calls this source: the title tag, else the file name.
     pub label: String,
     pub artist: Option<String>,
     #[serde(skip)]
     pub(crate) tag_title: Option<String>,
-    /// Chapters embedded in this individual source file, normalized to milliseconds.
     pub chapters: Vec<AudioChapter>,
     pub chapter_plan: Option<crate::metadata::ChapterPlan>,
     pub cue_source: Option<crate::metadata::CueSource>,
     pub is_valid: bool,
-    /// An exported download that ABB removed. The title is finished, not failed.
     pub source_removed: bool,
-    /// Whether this entry can be exported, set by the session on the titles
-    /// and sources it lists: a title takes its sources' combined status.
     pub status: TitleStatus,
     pub error: Option<String>,
-    /// The address of this source's embedded cover, set by the session on
-    /// the sources it lists; absent when the source is not valid.
     pub cover: Option<String>,
 }
 
@@ -68,13 +53,9 @@ pub struct AudioFile {
 pub enum TitleStatus {
     Ready,
     Failed,
-    /// An exported download that ABB removed. The title is finished, not failed.
     RemovedFinished,
 }
 
-/// What inspection learned about copying a source: whether its container and
-/// codec can be copied unchanged, and the codec family a format must share to
-/// keep it. `None` is a codec no output format holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AudioPreservation {
     pub can_preserve: bool,
@@ -86,9 +67,7 @@ pub type AudioChapter = crate::metadata::ChapterSpec;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DecoderSelection {
-    /// Stable decoder identifier used for routing and comparisons.
     pub decoder_id: String,
-    /// Friendly decoder label used for display only.
     pub decoder_label: String,
 }
 
@@ -167,9 +146,7 @@ impl AudioFile {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum SampleRateConfig {
-    /// Automatically detect from input files
     Auto,
-    /// Explicit sample rate in Hz
     Explicit(u32),
 }
 

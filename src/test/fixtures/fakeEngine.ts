@@ -115,33 +115,21 @@ export type FakeEngine = EngineCapability & {
 	readonly claimedPreviews: string[];
 	readonly openedPreviews: string[];
 	readonly cancelledWork: { operationId: OperationId; childJobId?: string }[];
-	/** Answers a cancel; a rejection fails it. */
 	respondCancel?: () => Promise<void>;
-	/** Tells every listener the Quit shortcut was pressed once. */
 	pressQuitOnce(windowMs: number): void;
-	/** Adds or replaces an operation and tells every listener. */
 	publishOperation(operation: OperationSnapshot): void;
 	publishConcurrencyLock(locked: boolean): void;
 	analyze: (paths: readonly string[]) => AudioFile[];
-	/**
-	 * Answers a session intent. A reply of `undefined`, at once or later, is
-	 * `applied`.
-	 */
 	respond?: (
 		intent: SessionIntent,
 	) => SessionOutcome | Promise<SessionOutcome | undefined> | undefined;
-	/** Answers a preview-output claim with the path to open; `undefined` is no path. */
 	respondPreviewOutput?: (runId: string) => string | Promise<string | undefined> | undefined;
-	/** Answers a settings intent; `undefined` is `applied`. */
 	respondSettings?: (
 		intent: SettingsIntent,
 	) => SettingsOutcome | Promise<SettingsOutcome | undefined> | undefined;
-	/** Replaces parts of the settings snapshot and tells every listener. */
 	seedSettings(patch: Partial<SettingsSnapshot>): void;
-	/** Changes saved settings, with the reason they are not on disk, if any. */
 	seedAppSettings(patch: Partial<AppSettings>, saveError?: SettingsSnapshot['saveError']): void;
 	seedGroup(sources: AudioFile[], options?: { readonly choiceRequired?: boolean }): void;
-	/** Sets the metadata form to these values, every field unchanged and shared. */
 	seedForm(
 		values: Partial<Record<MetadataField, string>>,
 		options?: {

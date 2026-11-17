@@ -1,8 +1,5 @@
 #!/usr/bin/env node
 /**
- * Size budget for source files, so an agent can read any file whole.
- * Tokens are estimated as bytes / 4. Run with --help for modes.
- *
  * Upstream: https://github.com/dzhng/skills/tree/main/skills/engineering/ratchet-files
  * Copyright (c) 2026 David Zhang
  * SPDX-License-Identifier: MIT
@@ -24,9 +21,6 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- *
- * ABB runs this copy with bun. `--against <rev>` ratchets HEAD against the
- * merge-base of that rev and HEAD.
  */
 import { execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
@@ -231,7 +225,6 @@ function reportFailures(failures, compared) {
 	return 1;
 }
 
-// Git reports the root with symlinks resolved (macOS /tmp is /private/tmp).
 const inRepo = (filePath) => {
 	try {
 		return relative(root, realpathSync(filePath));

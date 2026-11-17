@@ -1,8 +1,3 @@
-//! Every collision kind under every policy: what the plan does, what review
-//! lets through, and that publishing it never changes a file it was not
-//! planned to replace. A slip in a source-overlap row replaces the user's
-//! source book.
-
 use super::{
     commit_output_artifact, enforce_output_plan_review, CollisionPolicy, OutputCollisionKind,
     OutputCommitRequest, OutputKind, OutputPlanLedger, OutputPlanReview, PlannedOutputAction,

@@ -148,8 +148,8 @@ export function createFileListPointerReorder(options: {
 					};
 					capture = { grip, listener };
 					grip.addEventListener('lostpointercapture', listener, { once: true });
-				} catch {
-					// Window listeners still carry the gesture when capture is unavailable.
+				} catch (captureError) {
+					void captureError;
 				}
 			}
 			window.addEventListener('pointermove', handlePointerMove);

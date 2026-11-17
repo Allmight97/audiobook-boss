@@ -1,7 +1,6 @@
 const HTTP_OK: u16 = 200;
 const HTTP_PARTIAL_CONTENT: u16 = 206;
 
-/// Parsed `Content-Range` response header (`bytes start-end/total`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParsedContentRange {
     pub start: u64,
@@ -30,8 +29,6 @@ pub fn parse_content_range(header: &str) -> Option<ParsedContentRange> {
     Some(ParsedContentRange { start, end, total })
 }
 
-/// Classify a licensed-audio (range-resumable) download response, returning the
-/// known total size when derivable.
 pub fn classify_download_response(
     status: u16,
     final_url_is_https: bool,

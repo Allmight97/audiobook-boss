@@ -21,8 +21,6 @@ impl From<PathStep<'_>> for OwnedPathStep {
     }
 }
 
-/// The one tree walk: offers each object to `probe` before descending into its
-/// values, depth first, so every reader shares one traversal order.
 pub(crate) fn find_in_tree<'a, T>(
     value: &'a Value,
     probe: &mut impl FnMut(&'a Map<String, Value>, &[PathStep<'a>]) -> Option<T>,
@@ -63,7 +61,6 @@ fn descend<'a, T>(
     found
 }
 
-/// First string stored under `key` anywhere in the tree, empty or not.
 pub fn find_first_string_for_key(value: &Value, key: &str) -> Option<String> {
     find_in_tree(value, &mut |map, _| {
         map.get(key).and_then(Value::as_str).map(str::to_string)
@@ -78,9 +75,6 @@ pub(crate) fn find_array_for_key<'a>(value: &'a Value, key: &str) -> Option<&'a 
     find_in_tree(value, &mut |map, _| map.get(key).and_then(Value::as_array))
 }
 
-/// Tries every key at an object before descending, skipping empty strings.
-/// Sibling traversal order wins across subtrees; callers needing global key
-/// priority search one key at a time.
 pub(crate) fn find_nearest_non_empty_string_for_keys(
     value: &Value,
     keys: &[&str],

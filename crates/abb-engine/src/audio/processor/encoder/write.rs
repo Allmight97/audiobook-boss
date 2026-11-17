@@ -113,10 +113,6 @@ fn write_encoded_packets(
     }
 }
 
-/// Writes one encoded packet. With `retain_postroll` (HE-AAC from FAAC) a
-/// packet past the audio is kept and marked discard, and the packet that
-/// crosses the end keeps its full duration with its padding as skip
-/// metadata, so the HE decoder's postroll stays available.
 #[expect(
     clippy::too_many_arguments,
     reason = "Private mux handoff; callers outside encoder use EncoderSession"
@@ -172,8 +168,6 @@ pub(super) fn write_packet(
     Ok(())
 }
 
-/// libopus counts trims at its input rate; Opus containers count decoded
-/// samples at 48 kHz.
 fn rescale_opus_skip_samples(packet: &mut Packet, input_rate: u32) -> Result<()> {
     let Some(skip) = packet
         .skip_samples()

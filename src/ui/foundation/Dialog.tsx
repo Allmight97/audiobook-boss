@@ -10,7 +10,6 @@ export type DialogProps = {
 	readonly id?: string;
 	readonly testId?: string;
 	readonly restoreFocus?: boolean;
-	/** Mount the content only while open or fading out, so a closed dialog does no work. */
 	readonly unmountWhenClosed?: boolean;
 	readonly children: JSX.Element;
 };

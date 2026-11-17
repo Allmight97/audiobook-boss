@@ -12,13 +12,6 @@ use super::cover_art::embedding::{add_cover_stream, write_cover_packet};
 use super::cover_art::ResolvedCover;
 use crate::file_replace::SiblingTemp;
 
-/// Rewrite metadata and optional passthrough state by remux (stream copy).
-/// - Copies all streams except data streams; attached pictures stay unless a
-///   cover is written
-/// - Preserves or replaces chapters depending on provided passthrough data
-/// - An explicit or passthrough cover replaces the source pictures
-/// - Sets container metadata when provided
-/// - Writes to a sibling temp and replaces the original only when complete
 pub fn rewrite_metadata_with_ffmpeg(
     input_path: &std::path::Path,
     metadata: Option<&AudiobookMetadata>,
@@ -53,8 +46,6 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     })
 }
 
-/// The sibling `.abb_meta_<uuid>.<ext>` a rewrite of `input_path` is written
-/// into.
 pub(super) fn meta_temp(input_path: &std::path::Path) -> Result<SiblingTemp> {
     let ext = input_path
         .extension()
@@ -157,7 +148,6 @@ pub(super) fn remux_into(
     Ok(())
 }
 
-/// The containers a remux reads and writes.
 struct Route {
     input: Container,
     output: Container,
@@ -167,8 +157,6 @@ fn stream_tag(stream: &StreamFacts, key: &str) -> String {
     stream.tags.get(key).map(Text::display).unwrap_or_default()
 }
 
-/// Maps each input stream to its output stream, or `None` for one the remux
-/// leaves out.
 fn copy_streams(
     ictx: &Input,
     octx: &mut Output,
@@ -198,8 +186,6 @@ fn copy_streams(
             continue;
         }
         if is_attached_pic && route.output == Container::Matroska {
-            // The Matroska muxer drops attached-picture streams; its demuxer
-            // turned the source's picture attachments into them.
             if let Some(bytes) = ictx.attached_picture(istream.index) {
                 octx.add_attachment_stream(istream.codec, &bytes, &istream.tags)?;
             }
@@ -211,7 +197,6 @@ fn copy_streams(
     Ok(stream_mapping)
 }
 
-/// Adds the output stream that copies `istream` and returns its index.
 fn copy_stream(
     ictx: &Input,
     istream: &StreamFacts,
@@ -221,8 +206,6 @@ fn copy_stream(
     let index = octx.add_stream_copied_from(ictx, istream.index)?;
     octx.set_stream_time_base(index, istream.time_base)?;
     if istream.codec == CodecId::OPUS && octx_is_mp4 {
-        // FFmpeg MOV needs a frame size to honor final discard padding.
-        // Opus packets can vary in duration; use its smallest legal frame.
         octx.set_stream_frame_size(index, 120)?;
         octx.set_stream_time_base(index, Rational::new(1, 48_000))?;
     }
@@ -234,9 +217,6 @@ fn copy_stream(
     Ok(index)
 }
 
-/// The bundled FFmpeg has no PNG, GIF, BMP or WebP decoder, so such a picture
-/// probes without dimensions and every muxer but FLAC's refuses to copy it;
-/// the image header supplies them.
 fn set_missing_picture_dimensions(
     ictx: &Input,
     input_index: usize,
@@ -300,8 +280,6 @@ fn copy_container_metadata(
     Ok(())
 }
 
-/// The last audio access unit the edit-aware read delivered for a stream: its
-/// byte position and the timestamp after it, in the input time base.
 #[derive(Clone, Copy)]
 struct LastUnit {
     position: i64,
@@ -333,8 +311,6 @@ fn stream_copy_packets(
             .map_err(|_| AppError::General("Remux audio stream is missing.".into()))?;
         packet.set_stream_index(out_index);
         if exact_opus_clock && input_stream.codec == CodecId::OPUS {
-            // Matroska timestamps round to milliseconds. Recover the sample clock
-            // from packet framing, preserving priming and final discard padding.
             let position =
                 opus_positions[in_index].get_or_insert(-i64::from(input_stream.initial_padding));
             let pts = packet.pts().ok_or_else(|| {
@@ -369,10 +345,6 @@ fn stream_copy_packets(
     Ok(delivered)
 }
 
-/// An MP4 edit list can end before the last access units, and the edit-aware
-/// read drops them. They are copied after the delivered units, flagged
-/// discard, so the new edit list keeps the playable length and a decoder
-/// that reads every unit still finds them.
 fn copy_hidden_trailing_units(
     input_path: &std::path::Path,
     muxer: &mut Muxer,
@@ -426,8 +398,6 @@ fn copy_hidden_trailing_units(
     Ok(())
 }
 
-// RFC 6716 §3.1–3.2: TOC configuration gives frame duration; the packing
-// code gives frame count. This reads framing only, without decoding audio.
 fn opus_packet_samples(data: &[u8]) -> Result<i64> {
     let invalid = || crate::errors::AppError::InvalidInput("Invalid Opus packet framing.".into());
     let toc = *data.first().ok_or_else(invalid)?;
@@ -449,8 +419,6 @@ fn opus_packet_samples(data: &[u8]) -> Result<i64> {
     Ok(samples)
 }
 
-/// A new Xing header would invent decoder-delay trimming for a source that
-/// has none; existing gapless timing stays when it is present.
 fn write_container_header(ictx: &Input, octx: Output, route: &Route) -> Result<Muxer> {
     let mut options = Tags::default();
     let starts_at_zero = ictx

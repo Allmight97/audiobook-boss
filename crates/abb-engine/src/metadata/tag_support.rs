@@ -74,10 +74,6 @@ fn join_labels(labels: &[&str]) -> String {
     }
 }
 
-/// Refuses a Save that edits a tag the file's container cannot store: its
-/// muxer would drop the edit and the Save would still report success. Only
-/// raw AAC (ADTS, no tags at all) and WAV (a short list of RIFF INFO tags)
-/// drop tags; MP4, Matroska, MP3 and FLAC hold every field a plan writes.
 pub(super) fn refuse_unholdable_edits(
     container: &Container,
     plan: &MetadataWritePlan,

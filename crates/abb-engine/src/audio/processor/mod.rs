@@ -47,8 +47,6 @@ pub(crate) use streams::assess_preservation;
 pub(in crate::audio) use streams::inspect_audio_decoder;
 pub(crate) use streams::probe_builtin_audio_decoder;
 
-/// A finished title: its success message and display-only warnings, such as a
-/// source cover that was left off.
 #[derive(Debug)]
 pub struct AudioRunOutcome {
     pub message: String,
@@ -221,7 +219,6 @@ pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<Audi
 
 struct ProcessingWorkflow {
     workspace: workspace::Workspace,
-    /// Seconds, summed over the valid inputs.
     total_duration: f64,
 }
 

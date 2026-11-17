@@ -12,28 +12,22 @@ use crate::input::{path_text, Input};
 use crate::packet::Packet;
 use crate::text::{Dictionary, Tags, Text};
 
-/// An AAC stream whose packets come from outside FFmpeg's encoders.
 pub struct AacStream<'a> {
     pub high_efficiency: bool,
     pub rate: u32,
     pub channels: u16,
     pub bit_rate: i64,
     pub frame_samples: u32,
-    /// Samples the decoder drops before the first audible one.
     pub priming_samples: u32,
-    /// The AudioSpecificConfig.
     pub config: &'a [u8],
 }
 
-/// The image format of an attached picture.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PictureKind {
     Jpeg,
     Png,
 }
 
-/// The output file the layer created. Until `keep`, dropping it closes the
-/// file, frees the context, and removes the file.
 struct OutputFile {
     ctx: NonNull<sys::AVFormatContext>,
     path: PathBuf,
@@ -62,10 +56,8 @@ impl Drop for OutputFile {
     }
 }
 
-/// An output file before its header: streams, chapters, and tags are set here.
 pub struct Output(OutputFile);
 
-/// An output file after its header: packets are written here, then `finish`.
 pub struct Muxer(OutputFile);
 
 impl Output {
@@ -113,8 +105,6 @@ impl Output {
         unsafe { context::chapters(self.ctx()) }
     }
 
-    /// Adds a stream with the input stream's codec parameters, as a stream
-    /// copy needs them, and returns the new stream's index.
     pub fn add_stream_copied_from(&mut self, input: &Input, input_index: usize) -> Result<usize> {
         // SAFETY: `input` owns a live context.
         let source = unsafe { context::stream(input.as_ptr(), input_index, Step::AddStream)? };
@@ -125,16 +115,12 @@ impl Output {
         Ok(self.last_stream_index())
     }
 
-    /// Whether the muxer keeps codec setup data in its header, which an
-    /// encoder must then be opened for.
     pub fn wants_global_header(&self) -> bool {
         // SAFETY: an output context always has an output format.
         let flags = unsafe { (*(*self.ctx()).oformat).flags };
         flags & sys::AVFMT_GLOBALHEADER != 0
     }
 
-    /// Adds an audio stream with the opened encoder's parameters and returns
-    /// its index.
     pub fn add_stream_for_encoder(&mut self, encoder: &AudioEncoder) -> Result<usize> {
         let stream = self.new_stream()?;
         // SAFETY: the new stream owns its `codecpar`; the encoder is live.
@@ -144,8 +130,6 @@ impl Output {
         Ok(self.last_stream_index())
     }
 
-    /// Adds the stream of one attached picture, ticking once a second, and
-    /// returns its index.
     pub fn add_attached_picture_stream(
         &mut self,
         kind: PictureKind,
@@ -177,7 +161,6 @@ impl Output {
         Ok(self.last_stream_index())
     }
 
-    /// Adds the audio stream `aac` describes and returns its index.
     pub fn add_aac_stream(&mut self, aac: &AacStream<'_>) -> Result<usize> {
         let step = Step::AddStream;
         let number = |value: u32| c_int::try_from(value).map_err(|_| Error::OutOfRange { step });
@@ -208,8 +191,6 @@ impl Output {
         Ok(self.last_stream_index())
     }
 
-    /// Adds a Matroska attachment holding `bytes` and returns its stream
-    /// index. The muxer writes it with the header.
     pub fn add_attachment_stream(
         &mut self,
         codec: CodecId,
@@ -231,7 +212,6 @@ impl Output {
         Ok(self.last_stream_index())
     }
 
-    /// Sets the samples per packet a muxer assumes for an audio stream.
     pub fn set_stream_frame_size(&mut self, index: usize, samples: u32) -> Result<()> {
         let step = Step::AddStream;
         let samples = c_int::try_from(samples).map_err(|_| Error::OutOfRange { step })?;
@@ -242,7 +222,6 @@ impl Output {
         Ok(())
     }
 
-    /// Sets a picture stream's size in pixels.
     pub fn set_stream_picture_size(&mut self, index: usize, width: u32, height: u32) -> Result<()> {
         let step = Step::AddStream;
         let size = |value: u32| c_int::try_from(value).map_err(|_| Error::OutOfRange { step });
@@ -257,8 +236,6 @@ impl Output {
         Ok(())
     }
 
-    /// Restates an audio stream's sample rate, frame size, and initial
-    /// padding on a clock of `rate` ticks a second.
     pub fn restate_stream_sample_clock(&mut self, index: usize, rate: u32) -> Result<()> {
         let step = Step::AddStream;
         let rate = c_int::try_from(rate).map_err(|_| Error::OutOfRange { step })?;
@@ -309,8 +286,6 @@ impl Output {
         Ok(())
     }
 
-    /// Sets the stream's disposition and clears its codec tag, so the muxer
-    /// picks the tag its container uses.
     pub fn set_stream_disposition_and_clear_codec_tag(
         &mut self,
         index: usize,
@@ -371,8 +346,6 @@ impl Output {
         Ok(())
     }
 
-    /// Writes the header and returns the muxer with the names of the options
-    /// the muxer did not take. Values are never listed.
     pub fn write_header(self, options: &Tags) -> Result<(Muxer, Vec<String>)> {
         let mut dictionary = options.to_dictionary(Step::WriteHeader)?;
         // SAFETY: `self` owns a live context with an open file; FFmpeg replaces
@@ -394,7 +367,6 @@ impl Output {
 }
 
 impl Muxer {
-    /// The stream's time base as the muxer chose it in the header.
     pub fn stream_time_base(&self, index: usize) -> Result<Rational> {
         // SAFETY: `self` owns a live context.
         let stream = unsafe { context::stream(self.0.ctx.as_ptr(), index, Step::WritePacket)? };
@@ -402,8 +374,6 @@ impl Muxer {
         Ok(Rational::from_sys(unsafe { (*stream).time_base }))
     }
 
-    /// Sets one container tag. A muxer that writes its tags in the trailer,
-    /// as MP4 does, still takes it.
     pub fn set_tag(&mut self, key: &str, value: &str) -> Result<()> {
         let step = Step::SetTags;
         let key = Text::new(key, step)?;
@@ -421,7 +391,6 @@ impl Muxer {
         Error::check(step, code).map(drop)
     }
 
-    /// Writes the packet in interleaved order; the packet is blank afterwards.
     pub fn write_interleaved(&mut self, packet: &mut Packet) -> Result<()> {
         if packet.lacks_payload_and_side_data() {
             return Err(Error::EmptyPacket);
@@ -433,8 +402,6 @@ impl Muxer {
         Error::check(Step::WritePacket, code).map(drop)
     }
 
-    /// Writes the trailer and closes the file, keeping it only when both
-    /// succeed.
     pub fn finish(mut self) -> Result<()> {
         // SAFETY: `self` owns a live context after its header.
         let trailer = unsafe { sys::av_write_trailer(self.0.ctx.as_ptr()) };
@@ -446,10 +413,6 @@ impl Muxer {
     }
 }
 
-/// Gives `parameters` an owned, padded copy of `bytes` as its extradata.
-///
-/// # Safety
-/// `parameters` is live and holds no extradata.
 unsafe fn set_extradata(
     parameters: *mut sys::AVCodecParameters,
     bytes: &[u8],
@@ -472,8 +435,6 @@ unsafe fn set_extradata(
     Ok(())
 }
 
-/// # Safety
-/// `slot` is a live context's dictionary field.
 unsafe fn replace_dictionary(slot: &mut *mut sys::AVDictionary, dictionary: Dictionary) {
     // SAFETY: the caller guarantees `slot`; the old dictionary is freed before
     // the new one takes its place.

@@ -4,7 +4,6 @@ use std::io::Cursor;
 use std::path::Path;
 
 const COVER_ART_MAX_DIMENSION: u32 = 800;
-/// Twice the 64 px a thumbnail is shown at, so it stays sharp on Retina.
 const THUMBNAIL_MAX_DIMENSION: u32 = 128;
 const COVER_ART_JPEG_QUALITY: u8 = 85;
 const COVER_ART_MAX_INPUT_DIMENSION: u32 = 4096;
@@ -24,8 +23,6 @@ fn read_embedded_cover_bytes(path: &Path) -> Result<Option<Vec<u8>>> {
         )));
     }
 
-    // MP4-family: bound artwork via atom walk without opening FFmpeg (which can
-    // materialize a full attached-pic / covr packet during demuxer open).
     if super::mp4_covr::looks_like_mp4_family_file(path)? {
         return super::mp4_covr::read_bounded_mp4_cover_art(path, THUMBNAIL_MAX_ENCODED_BYTES);
     }

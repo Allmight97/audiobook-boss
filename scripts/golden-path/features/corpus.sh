@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Corpus: the owner's real audiobooks, copied, go through import, encode,
-# Preserve, and re-import, and keep their title, chapters, length, and tags. Opt in
-# with ABB_CORPUS_DIR=<folder>; run it by name (run.sh corpus). Never part of
-# the default run, and never writes into the corpus folder.
 set -euo pipefail
 source "$(dirname "$0")/../lib.sh"
 
@@ -13,8 +9,6 @@ corpus_listing() {
 	find "${ABB_CORPUS_DIR}" -type f -exec ls -l {} + | LC_ALL=C sort
 }
 
-# A raw ADTS stream has no length header; ffprobe estimates it from the bit
-# rate and was 1.1% short on a 5-minute probe, so that one is measured by decoding.
 duration_of() {
 	if [[ "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" == *.aac ]]; then
 		ffmpeg -hide_banner -nostats -i "$1" -f null - 2>&1 |
@@ -29,19 +23,14 @@ chapter_lines() {
 		-show_entries chapter=start_time:chapter_tags=title -of csv=p=0 "$1"
 }
 
-# Every format tag as "lowercased-key=value", sorted: ffprobe -show_format
-# reads the whole tag dictionary, so a tag ABB lost or rewrote shows here.
 tag_lines() {
 	ffprobe -hide_banner -loglevel error -show_entries format_tags -of default=nw=0 "$1" |
 		awk -F= '/^TAG:/ { key = tolower(substr($1, 5)); sub(/^[^=]*=/, ""); print key "=" $0 }' |
 		LC_ALL=C sort
 }
 
-# The muxer and the container stamp these themselves.
 STAMPED_TAG_KEYS='^(encoder|major_brand|minor_version|compatible_brands|creation_time|media_type)='
 
-# lost_tags <source-lines> <output-lines>: source tags whose key the output no
-# longer carries; changed_tags lists a rewritten value, which never fails.
 lost_tags() {
 	local kept
 	kept="$(cut -d= -f1 "$2")"
@@ -54,8 +43,6 @@ changed_tags() {
 	LC_ALL=C comm -23 "$1" "$2" | grep -Ev "${STAMPED_TAG_KEYS}" || true
 }
 
-# 0.25 s allows 2112 AAC priming samples at 22.05 kHz (0.1 s) with margin, and
-# does not grow with the book.
 LENGTH_TOLERANCE_SECONDS=0.25
 
 same_length() {
@@ -77,9 +64,6 @@ same_chapters() {
 		END { exit bad }'
 }
 
-# compare_output <label> <source-copy> <output> <expected-title> <keep-all-tags>
-# An encode builds its tags from the fields ABB models, so a tag it drops is a
-# note; Preserve keeps the file's tags, so a dropped tag fails.
 compare_output() {
 	local label="$1" source="$2" output="$3" title="$4" keep_all="$5" ok=0 lost changed
 	[[ "$(format_tag "${output}" title)" == "${title}" ]] || {
@@ -112,7 +96,6 @@ compare_output() {
 	return "${ok}"
 }
 
-# run_mode <n> <mode> <copy> <title> <abb-dev args...>: export, compare, re-import.
 run_mode() {
 	local n="$1" mode="$2" copy="$3" title="$4"
 	shift 4

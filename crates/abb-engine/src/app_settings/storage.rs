@@ -20,8 +20,6 @@ const SETTINGS_FILE_NAME: &str = "settings.toml";
 pub(super) struct Loaded {
     pub(super) settings: AppSettings,
     pub(super) reset: Vec<SettingsUnit>,
-    /// Present when the file could not be read or parsed: the name it was
-    /// kept under, or why it could not be kept.
     pub(super) set_aside: Option<io::Result<Option<String>>>,
 }
 
@@ -97,8 +95,6 @@ struct Loading<'a> {
 }
 
 impl Loading<'_> {
-    /// A value that is absent loads as `None`; one this release refuses is
-    /// logged, named in `reset`, and also loads as `None`.
     fn unit<S: DeserializeOwned, T>(
         &mut self,
         unit: SettingsUnit,
@@ -138,8 +134,6 @@ fn read<S: DeserializeOwned, T>(
     convert(saved).map(Some)
 }
 
-/// Keeps the settings file under a name no other file holds, so no later
-/// save can destroy it. `None` when there is no file to keep.
 pub(super) fn set_aside(config_dir: &Path) -> io::Result<Option<String>> {
     let path = settings_path(config_dir);
     let stamp = std::time::SystemTime::now()
@@ -147,7 +141,6 @@ pub(super) fn set_aside(config_dir: &Path) -> io::Result<Option<String>> {
         .unwrap_or_default()
         .as_nanos();
     let name = format!("{SETTINGS_FILE_NAME}.unusable-{stamp}");
-    // A hard link fails when the name exists; a rename would replace it.
     match std::fs::hard_link(&path, config_dir.join(&name)) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),

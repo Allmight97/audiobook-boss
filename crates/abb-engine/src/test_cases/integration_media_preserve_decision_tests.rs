@@ -1,7 +1,3 @@
-//! Real-media proofs for the copy-or-encode decision: which sources a format
-//! can keep unchanged, the reason shown when it cannot, and a source that was
-//! replaced after import.
-
 use super::support::encoders::{native_encoder_settings, opus_encoder_settings};
 use super::support::wav::SAMPLE_RATE;
 use crate::test_cases::support::session::idle_session;

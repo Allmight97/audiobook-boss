@@ -23,8 +23,6 @@ const DOWNLOAD_MESSAGE: &str = "Downloading the Supplemental PDF.";
 const NO_TITLE: &str = "Audible did not report this title's name, so ABB cannot name its folder. The Supplemental PDF was not saved.";
 const DOWNLOAD_SHARE: f32 = 95.0;
 
-/// Downloads one title's companion PDF with the facts that name its folder.
-/// It requests no license and downloads no audio.
 pub(super) async fn acquire_pdf(
     auth: &Auth,
     title_id: &str,
@@ -115,7 +113,6 @@ fn refusal(error: AudibleAcquisitionError, title_id: &str) -> Result<RemoteSourc
     Ok(error.into_diagnostic(Some(title_id.to_string())))
 }
 
-/// A PDF job has no audio stages, so the download spans its whole bar.
 fn download_progress(title_id: &str, bytes: u64, total: Option<u64>) -> AcquisitionProgress {
     let mut progress = title_progress(
         TitleProgressContext {

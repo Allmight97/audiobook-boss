@@ -101,10 +101,6 @@ pub(crate) fn create_audio_encoder(
     Ok(opened.encoder)
 }
 
-/// Sets up the output encoder context and stream with metadata support.
-/// The returned session owns the codec, output handle, and sample timeline.
-///
-/// Accepted chapters are written to the output context before the header (#66).
 #[expect(
     clippy::too_many_lines,
     reason = "Sequential codec/container/cover/chapter setup with fallible handoffs"
@@ -247,7 +243,6 @@ fn encoder_log(message: &str) {
 
 const AAC_FRAME_QUANTUM_SAMPLES: usize = 1024;
 
-/// Encoders reporting frame size 0 accept variable frames; AAC still takes 1024-sample quanta.
 fn samples_per_frame(frame_size: usize, resolved_encoder: EncoderType) -> Result<usize> {
     match (frame_size, resolved_encoder) {
         (0, EncoderType::AacAt | EncoderType::NativeAac) => Ok(AAC_FRAME_QUANTUM_SAMPLES),

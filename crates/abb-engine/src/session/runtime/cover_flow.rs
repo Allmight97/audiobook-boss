@@ -1,6 +1,3 @@
-//! Loads a chosen cover and serves the covers the session offers, by the
-//! request a host passes on unchanged (`cover_address.rs` owns the format).
-
 use super::{Rest, Session};
 use crate::cover_service::Cover;
 use crate::errors::{AppError, Result};

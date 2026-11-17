@@ -30,16 +30,13 @@ pub enum EventStage {
 pub struct ProgressEvent {
     pub operation_kind: OperationKind,
     pub stage: EventStage,
-    /// Progress percentage (0-100)
     #[specta(type = specta_typescript::Number)]
     pub percentage: f32,
     pub message: String,
     pub current_file: Option<String>,
     pub eta_seconds: Option<f64>,
-    /// Job identifier when this event is tied to a registered job
     #[serde(skip_serializing_if = "Option::is_none")]
     pub job_id: Option<String>,
-    /// Original input index when this event maps to one selected input
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input_index: Option<usize>,
 }

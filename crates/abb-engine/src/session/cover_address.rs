@@ -1,11 +1,3 @@
-//! The address of every cover the session offers, and the request it parses
-//! back to. A snapshot carries the address as an opaque string; the host
-//! passes it to its image scheme, so what reaches `parse` is the address
-//! percent-encoded as a whole: `<kind>/<revision>/<value>`, with `value`
-//! percent-encoded again inside it. Only covers the session handed out are
-//! served: a lookup result's or a library title's URL, a listed source's
-//! embedded cover, the cover on screen, and the running preview's artwork.
-
 use std::path::{Path, PathBuf};
 
 use percent_encoding::{percent_decode_str, utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
@@ -53,8 +45,6 @@ impl CoverRequest {
         }
     }
 
-    /// The request for a log line: its kind, and a remote cover's origin
-    /// only, never a file path or a full address.
     pub(super) fn describe(&self) -> String {
         match self {
             Self::Remote { url } => {
@@ -74,8 +64,6 @@ pub(crate) fn remote(url: &str) -> String {
     address("remote", 0, url)
 }
 
-/// `revision` advances whenever a Save writes a cover into the source, so
-/// the address of a source's cover names its current image.
 pub(crate) fn audio(path: &Path, revision: u64) -> String {
     address("audio", revision, &path.to_string_lossy())
 }

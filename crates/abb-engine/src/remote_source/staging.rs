@@ -16,9 +16,6 @@ pub(super) struct RemoteSourceStaging {
 }
 
 impl RemoteSourceStaging {
-    /// Keeps the staging folder's canonical spelling. The sessions folder
-    /// below it is created by ABB, so job folders are canonical too unless it
-    /// is a symlink, which `create_job_dir` refuses.
     pub(super) fn new(cache_dir: &Path) -> Result<Self> {
         let root = cache_dir.join(REMOTE_SOURCE_DIR);
         fs::create_dir_all(&root)?;

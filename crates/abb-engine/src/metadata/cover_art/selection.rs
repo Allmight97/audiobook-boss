@@ -22,8 +22,6 @@ impl<'a> ResolvedCover<'a> {
         }
     }
 
-    /// The selection for a native encode, which takes the cover as part of the
-    /// output's metadata: an empty cover there is a clear.
     pub(crate) fn select_for_encode(
         metadata: Option<&'a AudiobookMetadata>,
         passthrough: Option<&'a PassthroughMetadata>,

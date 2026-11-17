@@ -67,8 +67,6 @@ pub(super) async fn lookup_title_details(
     })
 }
 
-/// The product facts a PDF save names its folder from. It asks for the
-/// `series` group, which the audio lookup does not need.
 pub(super) async fn lookup_naming_facts(
     api: &AudibleApi,
     job_id: &str,

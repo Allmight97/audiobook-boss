@@ -1,10 +1,3 @@
-//! Every extension ABB imports, and every codec its containers are known to
-//! carry, probes as valid audio, decodes, and reaches an encoded book. The
-//! bundled FFmpeg is built from an explicit component list
-//! (`vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md`); a format added to the
-//! import list needs its recipe here and its components there. Fixtures are
-//! synthesized with the FFmpeg CLI at test time.
-
 use super::media_fixtures::{decode_pcm_f32, ffmpeg, MediaLane};
 use crate::audio::{get_file_list_info, supported_audio_import_extensions, AacDecoder};
 use std::path::{Path, PathBuf};

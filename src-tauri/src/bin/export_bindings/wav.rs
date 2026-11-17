@@ -34,7 +34,6 @@ fn info(tags: &Tags) -> Vec<u8> {
     chunk(b"LIST", &body)
 }
 
-/// A one-second mono 16-bit WAV of silence with RIFF INFO tags.
 pub fn write_tagged(path: &Path, tags: &Tags) {
     let mut format = Vec::new();
     format.extend_from_slice(&1u16.to_le_bytes());
@@ -50,7 +49,6 @@ pub fn write_tagged(path: &Path, tags: &Tags) {
     std::fs::write(path, chunk(b"RIFF", &body)).expect("failed to write a fixture WAV");
 }
 
-/// A file named like audio whose header stops before the format chunk ends.
 pub fn write_truncated(path: &Path) {
     std::fs::write(path, b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00")
         .expect("failed to write the broken fixture WAV");

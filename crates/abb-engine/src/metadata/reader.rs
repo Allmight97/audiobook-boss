@@ -92,7 +92,6 @@ where
     keys.iter().find_map(|key| lookup(key))
 }
 
-/// The title and artist a file's container tags show.
 pub(crate) fn display_tags(dict: &Tags) -> (Option<String>, Option<String>) {
     (
         read_text(dict, TextField::Title),
@@ -130,9 +129,6 @@ fn parse_total_value(value: &str) -> Option<u32> {
     value.trim().parse::<u32>().ok()
 }
 
-/// The file's cover by the shared choice (`cover_choice`): FFmpeg names an
-/// ID3 or FLAC front cover in the picture's `comment` tag, and a Matroska
-/// attachment's name and MIME type say whether it is a cover.
 pub(super) fn extract_attached_pic(ictx: &Input) -> Option<Vec<u8>> {
     let mut choice = CoverChoice::default();
     for stream in ictx.streams() {

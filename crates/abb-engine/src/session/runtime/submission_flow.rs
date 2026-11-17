@@ -153,8 +153,6 @@ impl Session {
         self.end_submission(&draft, status)
     }
 
-    /// Ends a submission; its sources stay reserved until WorkRuntime has
-    /// registered them.
     pub(super) fn end_submission(&self, draft: &Draft, status: SubmissionStatus) -> SessionOutcome {
         self.transition(|state| state.finish_submission(draft, status));
         self.sources_released();

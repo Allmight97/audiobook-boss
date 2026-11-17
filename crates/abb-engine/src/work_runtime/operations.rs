@@ -49,7 +49,6 @@ impl Operations {
         Ok(snapshot)
     }
 
-    /// Returns the snapshot and whether this call newly cancelled the title.
     pub(super) fn cancel_title(
         &mut self,
         operation_id: &OperationId,
@@ -111,9 +110,6 @@ impl Operations {
     }
 }
 
-/// One operation's cancel tokens: a child token per output title for
-/// processing, all children of one parent that whole-operation cancel
-/// cancels; an inline metadata save uses a single child for all its files.
 pub(super) struct CancelTokens {
     parent: CancellationToken,
     titles: Vec<CancellationToken>,

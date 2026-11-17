@@ -31,7 +31,6 @@ fn attachment_read_bounds_payload_and_truncated_elements() {
         Some(b"image".to_vec())
     );
     assert!(read(file.as_file_mut(), length - 1).is_err());
-    // Streaming writers commonly use an eight-byte unknown Segment size.
     let original = std::fs::read(file.path()).expect("read fixture");
     let streaming = [
         &original[..4],

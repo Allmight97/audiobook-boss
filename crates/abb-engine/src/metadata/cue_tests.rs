@@ -75,8 +75,6 @@ fn sibling_cue_association_diagnostics_and_accepted_plan_isolation() {
     std::fs::write(&one, b"changed audio").expect("mutate audio");
     assert!(validate_chapter_plan(&one, 2000, &first).is_err());
     std::fs::write(dir.join("two.CUE"), "duplicate").expect("ambiguous sidecar");
-    // On case-sensitive volumes these are two candidates; on insensitive
-    // volumes the second write changes the single candidate to invalid text.
     assert_eq!(
         inspect_chapter_source(&two, 2000, false, &mut Vec::new())
             .expect("ambiguous diagnostic")

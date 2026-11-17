@@ -100,7 +100,6 @@ pub struct ChildJobSnapshot {
     pub operation_id: OperationId,
     pub label: String,
     pub status: ChildJobStatus,
-    /// First active progress and final completion, authored by WorkRuntime.
     pub started_at_ms: Option<i64>,
     pub finished_at_ms: Option<i64>,
     pub progress: ProgressSnapshot,
@@ -113,21 +112,12 @@ pub struct ChildJobSnapshot {
     pub cancellable: bool,
     pub cancel_requested: bool,
     pub message: Option<String>,
-    /// Published audiobook of a completed title, for revealing it.
     pub output_path: Option<String>,
-    /// The audiobook was published but its companion files were not; the
-    /// child's sources stay retained. See `ProcessResultEntry`.
     pub supplemental_warning: Option<String>,
-    /// Display-only notes on a finished title, such as a source cover that was
-    /// left off. See `ProcessResultEntry`.
     pub warnings: Vec<String>,
-    /// The latest metadata edit accepted for this title's output.
     pub output_update: Option<crate::processing::OutputUpdate>,
 }
 
-/// Bounded per-operation activity tail rendered by the Work Center's op-card
-/// log box. Authored only where snapshot state changes (progress application,
-/// lifecycle transitions) — the frontend never accumulates its own history.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OperationLogEntry {
@@ -154,7 +144,6 @@ pub struct OperationTerminalSummary {
 pub struct OperationSnapshot {
     pub operation_id: OperationId,
     pub sequence: u64,
-    /// Monotonic within this operation; authored under the state lock.
     pub revision: u64,
     pub kind: OperationKind,
     pub status: WorkOperationStatus,
@@ -182,25 +171,15 @@ impl OperationSnapshot {
     }
 }
 
-/// The operations a host shows, in display order. Active operations come
-/// first, then accepted ones, then finished ones; newest first within each.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkOperationsSnapshot {
-    /// Advances with every change to any operation, to the order, or to
-    /// `concurrency_locked`.
     pub revision: u64,
     pub order: Vec<OperationId>,
     pub operations: Vec<OperationSnapshot>,
-    /// The engine refuses a change of the job limit now: a job or an export
-    /// is active.
     pub concurrency_locked: bool,
 }
 
-/// One change. A host keeps the newest `changed` per operation (by its own
-/// `revision`) and the `order` and `concurrency_locked` of the highest
-/// `revision`, so updates may arrive in any order; an operation missing from
-/// that order is not shown. `changed` is absent when only the lock changed.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkOperationsUpdate {
@@ -219,8 +198,6 @@ pub struct WorkSubmissionAccepted {
 
 #[derive(Clone)]
 pub struct SubmitProcessingOperationRequest {
-    /// Chosen when the submission was accepted, so it names the same work
-    /// before and after the export registers.
     pub operation_id: OperationId,
     pub payload: ProcessPayload,
     pub metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,

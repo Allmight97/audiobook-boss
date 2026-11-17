@@ -21,7 +21,6 @@ type Link<'a> = tauri::State<'a, FrontendLink>;
 #[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FrontendAttachment {
-    /// Sent with every intent so intents from an earlier frontend are refused.
     pub client: u64,
     pub session: SessionUpdate,
     pub settings: SettingsSnapshot,
@@ -57,9 +56,6 @@ pub async fn attach_frontend(
     })
 }
 
-/// Applies one intent to the working session and returns what changed.
-/// `sequence` counts this frontend's session intents from zero; each takes
-/// effect after every earlier one, in whatever order they arrive.
 #[tauri::command]
 #[specta::specta]
 pub async fn session_dispatch(
@@ -76,8 +72,6 @@ pub async fn session_dispatch(
     Ok(run.finish().await)
 }
 
-/// Claims a finished preview's output, numbered with the session intents, and
-/// opens it with the user's default app. The path never comes from the webview.
 #[tauri::command]
 #[specta::specta]
 pub async fn open_preview_output<R: tauri::Runtime>(
@@ -118,8 +112,6 @@ fn open_preview_reply<E: std::fmt::Display>(
     reply
 }
 
-/// Applies one intent to the settings and returns the settings in effect.
-/// Settings intents run one at a time in `sequence` order.
 #[tauri::command]
 #[specta::specta]
 pub async fn settings_dispatch(

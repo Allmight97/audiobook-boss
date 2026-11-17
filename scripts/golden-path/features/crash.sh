@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Crash: killing abb-dev during an export publishes nothing, keeps the source,
-# and the next start removes the output folders it made and empties its work
-# folder.
 set -euo pipefail
 source "$(dirname "$0")/../lib.sh"
 

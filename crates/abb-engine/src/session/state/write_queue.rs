@@ -47,9 +47,6 @@ pub(super) struct Routing {
     pub(super) held: usize,
 }
 
-/// The files being written or waiting to be written. A file is never written
-/// by two writes at once, and a waiting write outlives the title it belongs
-/// to.
 #[derive(Debug, Default)]
 pub(super) struct WriteQueue {
     writing: Vec<PathBuf>,

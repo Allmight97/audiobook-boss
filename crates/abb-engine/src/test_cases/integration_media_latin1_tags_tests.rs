@@ -1,6 +1,3 @@
-//! A tag whose bytes are not UTF-8 reads as Latin-1. A save keeps those bytes
-//! unless the user edited that field; an export writes the tag as that text.
-
 use super::media_fixtures::{write_sine_mp3_with, MediaLane};
 use super::support::wav::{riff_inam_bytes, write_wav_with_raw_title};
 use crate::audio::{get_file_list_info, AacDecoder};

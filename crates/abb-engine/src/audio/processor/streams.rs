@@ -41,7 +41,6 @@ impl DecoderCandidate {
     }
 }
 
-/// Decoder presence for the current build; file compatibility requires trial decoding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct AacDecoderAvailability {
     default_aac: bool,
@@ -68,12 +67,10 @@ pub(crate) struct AudioDecoderInspection {
     pub codec_id: CodecId,
 }
 
-/// What the container states about the audio stream FFmpeg ranks best.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct AudioStreamParams {
     pub(super) index: usize,
     pub(super) codec: CodecId,
-    /// One of `abb_ffmpeg::profile`'s numbers.
     pub(super) profile: i32,
     pub(super) sample_rate: i32,
     pub(super) bit_rate: i64,
@@ -338,8 +335,6 @@ fn friendly_codec_label_from_id(codec_id: CodecId) -> Option<String> {
     Some(label)
 }
 
-/// A backward-compatible HE ASC starts with the LC core's object type; the
-/// demuxer's probed profile also accounts for its SBR/PS extension.
 fn aac_object_type_from_parameters(params: &AudioStreamParams) -> Option<u32> {
     if params.codec != CodecId::AAC {
         return None;
@@ -394,8 +389,6 @@ fn layer_failure(error: abb_ffmpeg::Error) -> AppError {
     AppError::General(error.to_string())
 }
 
-/// Counts the frames with samples the decoder holds ready. An
-/// operating-system error ends the count like a drained decoder does.
 fn count_ready_frames(
     decoder: &mut AudioDecoder,
     frame: &mut AudioFrame,
@@ -480,10 +473,6 @@ fn probe_decoder_candidate(path: &Path, candidate: DecoderCandidate) -> Result<(
     }
 }
 
-/// Trial-decode with FFmpeg's built-in decoder for this stream, never `aac_at`.
-///
-/// Audible materialization uses this so a wrong AAXC key fails on every host.
-/// Import may still fall back to `aac_at`.
 pub(crate) fn probe_builtin_audio_decoder(path: &Path) -> Result<()> {
     probe_decoder_candidate(path, DecoderCandidate::Default)
 }
@@ -712,8 +701,6 @@ pub(crate) fn setup_decoder_and_resampler(
     })
 }
 
-/// Float output otherwise skips swresample's integer-path normalization, so
-/// coherent channels can overflow and get clipped by the accumulator.
 fn resampler_options() -> std::result::Result<abb_ffmpeg::Tags, abb_ffmpeg::Error> {
     let mut options = abb_ffmpeg::Tags::default();
     options.push("rematrix_maxval", "1", abb_ffmpeg::Step::CreateResampler)?;

@@ -110,15 +110,11 @@ pub(crate) fn remove_logging_failure(path: &Path) {
     }
 }
 
-/// Waits between purge attempts; transient locks (AV scans, indexing) and a
-/// stopped worker's last write usually clear within this window.
 pub(crate) const PURGE_RETRY_DELAYS: [std::time::Duration; 2] = [
     std::time::Duration::from_millis(100),
     std::time::Duration::from_millis(400),
 ];
 
-/// Runs `purge` until it succeeds or the retry delays run out, and returns the
-/// last attempt's result.
 pub(crate) async fn purge_with_retries<E>(
     mut purge: impl FnMut() -> std::result::Result<(), E>,
 ) -> std::result::Result<(), E> {

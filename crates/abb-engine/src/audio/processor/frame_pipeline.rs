@@ -8,7 +8,6 @@ const PROGRESS_EMIT_INTERVAL_MS: u64 = 1000;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PreviewAction {
     Continue,
-    /// This file's preview excerpt is complete; read no more of it.
     ExcerptFull,
 }
 
@@ -24,7 +23,6 @@ pub(crate) struct FramePipelineCtx<'a> {
     pub(crate) current_file_index: usize,
     pub(crate) current_stream_index: usize,
     pub(crate) current_file_name: String,
-    /// Preview excerpt state; None outside a preview.
     pub(crate) preview_state: Option<&'a mut PreviewState>,
 }
 

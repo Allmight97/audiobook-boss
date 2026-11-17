@@ -17,11 +17,6 @@ struct BoxSpan {
     end: u64,
 }
 
-/// Reads the brands in the top-level `ftyp` box. Walks the box headers down to
-/// each track's sample description, seeking past every other payload, and reads
-/// only those small boxes. The walk is best effort: when it fails, the facts
-/// say the protection boxes are unknown and the AAXC lane, which needs only the
-/// brand, is unaffected.
 pub(super) fn read_protected_file_facts(path: &Path) -> std::io::Result<ProtectedFileFacts> {
     let mut file = File::open(path)?;
     let file_len = file.metadata()?.len();

@@ -59,10 +59,6 @@ fn a_key_of_the_wrong_shape_fails_at_open_and_leaves_no_partial() {
     }
 }
 
-/// FFmpeg's mov demuxer logs a short AAXC key as fatal but ignores the error
-/// (`mov_aaxc_crypto`'s result is dropped), so the file opens undecrypted.
-/// Only the engine's decodes-as-audio gate rejects it; `AudibleDecryptionMaterial`
-/// holds a 16-byte key, so production cannot pass one.
 #[test]
 fn a_short_aaxc_key_opens_undecrypted_because_ffmpeg_ignores_its_check() {
     let dir = TempDir::new().expect("dir");

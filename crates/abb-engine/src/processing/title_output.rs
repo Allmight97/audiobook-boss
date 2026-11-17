@@ -14,21 +14,15 @@ use crate::processing::plan::{output_path_for, NamingInputs};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum OutputUpdateStatus {
-    /// Accepted; written before publication or as soon as the file is free.
     Waiting,
     Applied,
-    /// The tags could not be written; the next Save tries again.
-    Failed {
-        message: String,
-    },
-    /// The title ended without an output.
+    Failed { message: String },
     NotApplied,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OutputUpdate {
-    /// The session edit revision this update carries.
     #[specta(type = specta_typescript::Number)]
     pub revision: u64,
     pub status: OutputUpdateStatus,
@@ -37,17 +31,8 @@ pub struct OutputUpdate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum UpdateReply {
     Unchanged,
-    /// Accepted. `published`: the file exists, and the caller writes it with
-    /// `apply_published`. `elsewhere`: the tags now name a location other
-    /// than where the output is.
-    Accepted {
-        published: bool,
-        elsewhere: bool,
-    },
-    MovesOutput {
-        from: PathBuf,
-        to: PathBuf,
-    },
+    Accepted { published: bool, elsewhere: bool },
+    MovesOutput { from: PathBuf, to: PathBuf },
     NoOutput,
 }
 
@@ -55,18 +40,14 @@ pub(crate) enum UpdateReply {
 pub(crate) struct TitleOutputPlan {
     pub(crate) anchor: PathBuf,
     pub(crate) sources: Vec<PassthroughSource>,
-    /// The anchor's own tags as read when the export was planned.
     pub(crate) base: AudiobookMetadata,
     pub(crate) accepted: Option<MetadataIntentPatch>,
     pub(crate) output_dir: PathBuf,
     pub(crate) naming: OutputNamingConfig,
     pub(crate) extension: String,
-    /// Where the accepted naming put the output, before collision handling.
     pub(crate) requested: PathBuf,
 }
 
-/// The tags an output carries or should carry: text fields from the planned
-/// metadata, and the cover as the edit asks for it (`None`: the sources').
 #[derive(Debug, Clone, PartialEq)]
 struct Tags {
     text: AudiobookMetadata,
@@ -99,7 +80,6 @@ type Listener = dyn Fn(Option<OutputUpdate>) + Send + Sync;
 pub struct TitleOutput {
     plan: TitleOutputPlan,
     state: Mutex<State>,
-    /// Held across every write to this title's output, publication included.
     writing: Mutex<()>,
     settled: tokio::sync::watch::Sender<Option<bool>>,
     on_change: OnceLock<Box<Listener>>,
@@ -151,8 +131,6 @@ impl TitleOutput {
         self.lock().update.clone()
     }
 
-    /// Accepts `intent` (the whole edit relative to the source's tags as read
-    /// for this export) as edit `revision`.
     pub(crate) fn update(
         &self,
         revision: u64,
@@ -270,7 +248,6 @@ impl TitleOutput {
         }
     }
 
-    /// Waits until the title published (`true`) or ended without an output.
     pub(crate) async fn settled(&self) -> bool {
         let mut settled = self.settled.subscribe();
         let published = match settled.wait_for(Option::is_some).await {

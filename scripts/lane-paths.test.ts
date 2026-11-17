@@ -9,7 +9,6 @@ import { isScalar, isSeq, parseDocument } from 'yaml';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const mapPath = path.join(repoRoot, 'scripts/lane-paths.yml');
 
-// Same matcher options as dorny/paths-filter, so a pass here means CI selects a lane.
 function unmappedPaths(mapYaml: string, files: string[]): string[] {
 	const filters = parseDocument(mapYaml).toJS() as Record<string, unknown[]>;
 	const patterns = Object.values(filters).flat(Number.POSITIVE_INFINITY) as string[];

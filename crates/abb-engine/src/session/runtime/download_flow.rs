@@ -66,8 +66,6 @@ impl Session {
         handoff
     }
 
-    /// Publishes a downloaded PDF beside where the title's audiobook would
-    /// export, under the output folder and naming the settings hold now.
     async fn save_pdf(&self, pdf: &StagedPdf, title: &PdfTitle) -> PdfHandoff {
         let plan = OutputPlan::from_defaults(&self.inner.deps.settings.output_defaults());
         let records = self.inner.deps.roots.output_folders.clone();
@@ -258,8 +256,6 @@ fn list_acquired(
     Ok((Bound::rebind(state), count))
 }
 
-/// The time staged-download retries are measured in: tokio's clock, so a
-/// paused test runtime can move it.
 fn now() -> std::time::Instant {
     tokio::time::Instant::now().into_std()
 }

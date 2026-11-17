@@ -13,7 +13,6 @@ export type RemoteLane = {
 	readonly id: ProviderId;
 	readonly label: string;
 	readonly selected: boolean;
-	/** Only the selected lane has an account state; the others read as not connected. */
 	readonly connected: boolean;
 	readonly accountMessage: string | null;
 	readonly controls: RemoteLaneControls;

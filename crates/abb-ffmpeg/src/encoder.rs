@@ -10,7 +10,6 @@ use crate::error::{Error, Result, Step};
 use crate::packet::Packet;
 use crate::text::Tags;
 
-/// Whether this FFmpeg build has the encoder `name`, such as `libopus`.
 pub fn has_encoder(name: &str) -> bool {
     let Ok(name) = CString::new(name) else {
         return false;
@@ -19,8 +18,6 @@ pub fn has_encoder(name: &str) -> bool {
     !unsafe { sys::avcodec_find_encoder_by_name(name.as_ptr()) }.is_null()
 }
 
-/// Whether the encoder `name` exists and its private options take every
-/// value in `options`, without opening it.
 pub fn encoder_takes_options(name: &str, options: &Tags) -> bool {
     let Ok(name) = CString::new(name) else {
         return false;
@@ -54,28 +51,22 @@ pub fn encoder_takes_options(name: &str, options: &Tags) -> bool {
     taken
 }
 
-/// What an audio encoder is opened with. The time base is one sample.
 pub struct EncoderRequest<'a> {
     pub codec_name: &'a str,
     pub rate: u32,
     pub layout: ChannelLayout,
     pub format: SampleFormat,
     pub bit_rate: i64,
-    /// The codec's effort setting, or `None` for its default.
     pub compression_level: Option<i32>,
-    /// Set when the muxer keeps codec setup data in its header.
     pub global_header: bool,
-    /// Private options of the codec, by name.
     pub options: &'a Tags,
 }
 
 pub struct OpenedEncoder {
     pub encoder: AudioEncoder,
-    /// Names of the options the encoder did not take. Values are never listed.
     pub unused_options: Vec<String>,
 }
 
-/// An open audio encoder. Freed on drop.
 pub struct AudioEncoder(CodecContext);
 
 impl AudioEncoder {
@@ -133,7 +124,6 @@ impl AudioEncoder {
         self.0.layout()
     }
 
-    /// Samples per frame, or 0 when the encoder takes any frame length.
     pub fn frame_size(&self) -> usize {
         // SAFETY: `self` owns a live context.
         usize::try_from(unsafe { (*self.0.as_ptr()).frame_size }).unwrap_or(0)
@@ -148,15 +138,12 @@ impl AudioEncoder {
         self.0.bit_rate()
     }
 
-    /// Whether the opened encoder runs at a fixed quality instead of a
-    /// target bit rate.
     pub fn uses_quality_scale(&self) -> bool {
         // SAFETY: `self` owns a live context.
         let flags = unsafe { (*self.0.as_ptr()).flags };
         flags & sys::AV_CODEC_FLAG_QSCALE as c_int != 0
     }
 
-    /// The value the opened encoder holds for a numeric option.
     pub fn option_int(&self, name: &str) -> Result<i64> {
         let step = Step::ReadEncoderOption;
         let name = CString::new(name).map_err(|_| Error::NulInText { step })?;
@@ -187,7 +174,6 @@ impl AudioEncoder {
         Error::check(Step::Encode, code).map(drop)
     }
 
-    /// Replaces the contents of `packet` with the next encoded packet.
     pub fn receive_packet(&mut self, packet: &mut Packet) -> Result<Progress> {
         // SAFETY: both values are live; FFmpeg unreferences `packet` first.
         let code = unsafe { sys::avcodec_receive_packet(self.0.as_ptr(), packet.as_mut_ptr()) };

@@ -87,8 +87,6 @@ fn pictures_of(codec: &str) -> Option<Vec<Vec<u8>>> {
 
 const UNREAD_PICTURE_CODECS: [&str; 1] = ["JPEGXL"];
 
-/// `ff_id3v2_mime_tags` (`libavformat/id3v2/reader.c`) maps an ID3 or FLAC
-/// picture's MIME type to its codec.
 fn ffmpeg_id3_picture_codecs() -> Vec<String> {
     let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let pin = std::fs::read_to_string(

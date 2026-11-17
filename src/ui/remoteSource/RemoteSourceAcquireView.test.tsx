@@ -576,7 +576,6 @@ describe('RemoteSourceAcquireView during a download', () => {
 			'55',
 		);
 		expect({ row: reads.row, list: reads.list }).toEqual({ row: 0, list: 0 });
-		// Only the dialog's own bindings read view(); a row reading it would add 1,000.
 		expect(reads.view).toBeLessThan(100);
 		const progress = screen.getByRole('progressbar', { name: 'Acquisition progress' });
 		expect(progress.closest('[aria-live]')).toBeNull();
@@ -693,7 +692,6 @@ describe('RemoteSourceAcquireView during a download', () => {
 
 		host.progress(60);
 
-		// Only the dialog's own bindings read view(); a release row reading it would add 40.
 		expect(views).toBeLessThan(40);
 	});
 });

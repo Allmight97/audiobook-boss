@@ -28,7 +28,6 @@ fn mp4ameta_sink_writes_string_fields_with_album_artist_fanout() {
 
     assert_eq!(tag.title(), Some("The Way of Kings"));
     assert_eq!(tag.artist(), Some("Brandon Sanderson"));
-    // Artist fans out to album-artist so ABS/Plex group by author.
     assert_eq!(tag.album_artist(), Some("Brandon Sanderson"));
     assert_eq!(tag.album(), Some("The Stormlight Archive"));
     assert_eq!(tag.composer(), Some("Michael Kramer"));

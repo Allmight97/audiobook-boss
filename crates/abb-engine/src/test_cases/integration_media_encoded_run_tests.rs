@@ -1,9 +1,3 @@
-//! Real-media proofs that an encoded run publishes a book whose length, audio
-//! and chapters match its sources, or publishes nothing. Fixtures are
-//! synthesized at test time (WAV in Rust, other formats through the FFmpeg
-//! CLI); no media is committed. Route-by-route library facts live in
-//! `integration_media_route_parity_tests.rs`.
-
 use super::media_fixtures::{
     assert_auto_merge_stereo, audio_duration_ts, audio_stream_timing, chapters_of, decode_pcm_f32,
     ffmpeg, ffprobe, find_atom, minimal_jpg_bytes, next_atom, parse_mdhd, timed_text_chapter_track,
@@ -108,11 +102,6 @@ fn decode_to_packed_float_wav(source: &Path, wav: &Path) {
     ]);
 }
 
-/// A stereo 44.1 kHz AAC M4B decodes to float planar stereo, which is exactly
-/// what the Native AAC encoder takes, so reprocessing it uses the
-/// decoder-format fast path. The same audio as a packed-float WAV differs in
-/// sample format, so it goes through the resampler. Both routes must hand the
-/// encoder the same audio, left and right channel included.
 #[tokio::test]
 async fn fast_path_and_resampler_route_produce_the_same_audio() {
     let tmp = TempDir::new().expect("stereo fixture tempdir");
@@ -248,10 +237,6 @@ fn assert_chapters_at_the_real_joins(chapters: &[(Option<String>, i64, i64)], ge
     }
 }
 
-/// Cover art is a second output stream. If its time_base stays 0/0, FFmpeg's
-/// MP4 muxer defaults it to 1/90000, LCMs with audio 1/44100 into movie
-/// timescale 4410000, and the QuickTime chapter packets overflow. Apple Books
-/// reads that broken timed-text track; Nero `chpl` stays correct.
 fn assert_quicktime_chapter_track_spans_the_book(path: &Path, generation: &str) {
     let (duration_secs, text_timescale, audio_timescale) = timed_text_chapter_track(path);
     assert_eq!(
@@ -397,10 +382,6 @@ async fn a_pre_cancelled_run_publishes_nothing_and_leaves_the_source_alone() {
     }
 }
 
-/// Apple AAC (AudioToolbox) is the second in-process encoder route and is
-/// present on every macOS machine, so it earns a deterministic lane test.
-/// macOS-only: `aac_at` does not exist elsewhere, so the lane skips it on
-/// Linux/Windows agents rather than failing.
 #[cfg(target_os = "macos")]
 #[tokio::test]
 async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {

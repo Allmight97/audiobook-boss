@@ -44,8 +44,6 @@ impl AudiobookMetadata {
         Self::default()
     }
 
-    /// Folds a fresh read into what is already known: every field the read
-    /// carries replaces the known value; fields it lacks keep theirs.
     pub fn fill_from(&mut self, read: AudiobookMetadata) {
         macro_rules! fill {
             ($($field:ident),+) => {$(
@@ -74,8 +72,6 @@ impl AudiobookMetadata {
         );
     }
 
-    /// Whether this read says anything about the file's text tags. A read
-    /// that carries nothing, or only a cover, is not a complete baseline.
     pub fn has_text_tags(&self) -> bool {
         let without_cover = Self {
             cover_art: None,
@@ -85,8 +81,6 @@ impl AudiobookMetadata {
     }
 }
 
-/// One requested field change. A field the user left alone is absent from
-/// [`MetadataIntentPatch`]; there is no in-band "no change" operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PatchOp<T> {
     Set(T),
@@ -127,7 +121,6 @@ pub struct MetadataIntentValidationResult {
     pub field_errors: Vec<MetadataIntentFieldError>,
 }
 
-/// The fields a user asked to change; absent fields keep their source value.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct MetadataIntentPatch {
     pub title: Option<PatchOp<String>>,
@@ -143,8 +136,6 @@ pub struct MetadataIntentPatch {
     pub subseries_part: Option<PatchOp<String>>,
     pub album_sort: Option<AlbumSortPatchOp>,
     pub cover_art: Option<PatchOp<Vec<u8>>>,
-    // Compatibility/provenance artifact fields (#281): preserved on normal
-    // saves, editable/clearable only through explicit intent.
     pub comment: Option<PatchOp<String>>,
     pub track: Option<PatchOp<(u32, Option<u32>)>>,
     pub disk: Option<PatchOp<(u32, Option<u32>)>>,
@@ -213,8 +204,6 @@ impl MetadataIntentPatch {
         self != &Self::default()
     }
 
-    /// Each field this patch names with its operation (`set` or `clear`), in
-    /// field-name order. The processing log records it; values never appear.
     pub fn requested_ops(&self) -> Vec<(&'static str, &'static str)> {
         fn name<T>(op: Option<&PatchOp<T>>) -> Option<&'static str> {
             op.map(|op| match op {
@@ -249,8 +238,6 @@ impl MetadataIntentPatch {
         .collect()
     }
 
-    /// Folds `next` over this patch: a later request for a field replaces the
-    /// earlier one; fields `next` omits keep theirs.
     pub fn merge(&mut self, next: &Self) {
         macro_rules! merge {
             ($($field:ident),+) => {$(
@@ -279,9 +266,6 @@ impl MetadataIntentPatch {
         );
     }
 
-    /// The patch that turns tags reading `from` into tags reading `to`: a set
-    /// for each field whose value changed, a clear for each that is now
-    /// absent, and nothing for a field that is the same.
     pub fn between(from: &AudiobookMetadata, to: &AudiobookMetadata) -> Self {
         fn op<T: Clone + PartialEq>(from: &Option<T>, to: &Option<T>) -> Option<PatchOp<T>> {
             match (from, to) {
@@ -313,8 +297,6 @@ impl MetadataIntentPatch {
         }
     }
 
-    /// What `base` shows with this patch applied, without validating it. Used
-    /// to project pending edits over known tags.
     pub fn overlay(&self, base: &AudiobookMetadata) -> AudiobookMetadata {
         let mut metadata = base.clone();
         apply_shared_metadata_patch_fields(self, &mut metadata);
@@ -538,8 +520,6 @@ fn validate_series_family_if_touched(metadata: &AudiobookMetadata, touched: bool
     Ok(())
 }
 
-/// `Series 03 - Title`; a fractional book number keeps its fraction
-/// (`Series 01.5 - Title`) so novellas sort between whole books.
 pub fn compute_album_sort(series: &str, series_part: Option<&str>, title: &str) -> Option<String> {
     let part = series_part?.trim();
     let (whole, fraction) = match part.split_once('.') {
@@ -568,9 +548,6 @@ pub fn compute_album_sort(series: &str, series_part: Option<&str>, title: &str) 
     Some(format!("{} {part} - {}", series.trim(), title.trim()))
 }
 
-/// The album sort (TSOA) a processed output carries: the key derived from its
-/// series, book number and title when they allow one, otherwise the value it
-/// already has. An explicit album-sort intent is applied by the patch instead.
 pub fn processing_album_sort(metadata: &AudiobookMetadata) -> Option<String> {
     recompute_album_sort(metadata).or_else(|| metadata.album_sort.clone())
 }

@@ -240,9 +240,6 @@ impl Desk {
     }
 }
 
-/// A child process another test thread spawns copies this process's
-/// descriptor table, so it holds the folder's flock until its exec, about a
-/// millisecond.
 pub(super) fn start_once_the_lock_frees(config: impl Fn() -> EngineConfig) -> Engine {
     let deadline = std::time::Instant::now() + Duration::from_secs(1);
     loop {

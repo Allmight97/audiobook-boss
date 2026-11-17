@@ -77,9 +77,7 @@ struct RemoteSourceRuntimeInner {
     indexer_adapter: ReqwestProwlarrAdapter,
     tasks: crate::engine_tasks::EngineTasks,
     handoff: OnceLock<Handoff>,
-    /// A connection Save or Reset holds this exclusively; searches and grabs share it.
     indexer_turn: Arc<tokio::sync::RwLock<()>>,
-    /// Releases sent since the last search, by `RemoteRelease::key`.
     sent_releases: Mutex<std::collections::HashSet<String>>,
 }
 
@@ -112,8 +110,6 @@ impl RemoteSourceRuntime {
         })
     }
 
-    /// Sets where finished acquisitions hand their files. Set once, by the
-    /// engine, after the session exists.
     pub(crate) fn set_handoff(&self, handoff: Handoff) {
         #[expect(
             clippy::let_underscore_must_use,
@@ -126,8 +122,6 @@ impl RemoteSourceRuntime {
         self.inner.lifecycle.staging.session_root()
     }
 
-    /// Stops every acquisition; their staged files are removed at the next
-    /// start.
     pub(crate) fn abort_acquisitions(&self) {
         self.inner.lifecycle.abort_all_acquisition_tasks();
     }
@@ -301,9 +295,6 @@ impl RemoteSourceRuntime {
         .await
     }
 
-    /// Runs vault reads or writes on a blocking thread and waits for them, so
-    /// an OS keyring prompt blocks that thread and not the executor. Callers
-    /// must not wrap this in `until_closing`: that would drop a started read.
     async fn vault_blocking<T: Send + 'static>(
         &self,
         work: impl FnOnce(&RemoteSourceRuntime) -> Result<T> + Send + 'static,

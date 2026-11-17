@@ -29,8 +29,6 @@ pub(crate) struct MetadataSaveResultEntry {
     pub input_index: usize,
     pub file_path: String,
     pub status: MetadataSaveResultStatus,
-    /// The file's fingerprint just before and just after this write, when
-    /// the write succeeded and both could be read.
     pub rewrite: Option<Rewrite>,
 }
 
@@ -279,7 +277,6 @@ fn save_metadata_item(
         }))
 }
 
-/// Progress for a metadata-save operation; children match by `input_index`.
 fn metadata_save_progress_event(progress: MetadataSaveProgress) -> ProgressEvent {
     ProgressEvent {
         operation_kind: OperationKind::MetadataSave,

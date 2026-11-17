@@ -1,7 +1,3 @@
-//! Online metadata search over Audnexus and Open Library. A failed source leaves
-//! the usable results plus a typed `MetadataLookupDiagnostic`; the search fails
-//! only when every selected source fails.
-
 use std::time::Duration;
 
 use crate::errors::{AppError, Result};

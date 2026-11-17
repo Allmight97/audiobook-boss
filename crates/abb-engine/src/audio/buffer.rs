@@ -95,7 +95,6 @@ impl SampleAccumulator {
             consumed_samples: 0,
         })
     }
-    /// Buffers the first `samples` of `frame` and returns every full encoder frame.
     pub fn push_frame(&mut self, frame: &AudioFrame, samples: usize) -> Result<Vec<AudioFrame>> {
         let mut ready = Vec::new();
         let in_samples = frame.samples().min(samples);
@@ -173,7 +172,6 @@ impl SampleAccumulator {
         }
     }
 
-    /// Return the real final samples; the encoder owns codec padding.
     pub fn flush_tail(&mut self) -> Result<Option<AudioFrame>> {
         self.drain_one(true)
     }
@@ -275,7 +273,6 @@ impl SampleAccumulator {
             take,
         )?;
 
-        // Packed samples share plane zero; byte copies preserve alignment and precision.
         let dst = &mut frame.packed_bytes_mut().map_err(frame_shape)?[..take_total];
         dst.copy_from_slice(&buffer[start..start + take_total]);
         if config.format == SampleFormat::F32 {
@@ -327,9 +324,6 @@ fn frame_shape(error: abb_ffmpeg::Error) -> AppError {
     AppError::General(format!("Audio frame does not match its format: {error}"))
 }
 
-/// Clamped peaks up to +1 dBFS are routine for lossy decodes and resampling
-/// of masters normalized near 0 dBFS, and the clamp is inaudible. Larger
-/// excursions suggest a gain, format, or layout mismatch worth investigating.
 const CLIP_WARN_PEAK: f32 = 1.122;
 
 #[derive(Default)]
@@ -352,7 +346,6 @@ impl SanitizeReport {
         value.clamp(-1.0, 1.0)
     }
 
-    /// NaN/Inf always warn; clipping warns only above `CLIP_WARN_PEAK`.
     fn level(&self) -> Option<log::Level> {
         if self.non_finite > 0 || self.clipped_peak > CLIP_WARN_PEAK {
             Some(log::Level::Warn)

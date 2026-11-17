@@ -225,7 +225,6 @@ fn format_in_process_run(
     output
 }
 
-/// Resolves sample rate after the shared Audio boundary has chosen output channels.
 pub(crate) fn resolve_target_audio_params(plan: &MediaProcessingPlan) -> Result<(u32, i32)> {
     let target_channels = plan
         .encoder_settings

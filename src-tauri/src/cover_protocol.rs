@@ -13,7 +13,6 @@ pub(crate) fn handle<R: tauri::Runtime>(
 ) {
     let app = ctx.app_handle().clone();
     let path = request.uri().path().to_string();
-    // The handler runs on the webview's thread; the cover loads elsewhere.
     tauri::async_runtime::spawn(async move {
         let answer = match app.try_state::<abb_engine::Engine>() {
             Some(engine) => engine.cover(&path).await,

@@ -1,6 +1,3 @@
-//! One seeded set of tags, a cover and drifting chapters go through the
-//! production planner on every output route and are read back from the file.
-
 use super::media_fixtures::{
     assert_ffprobe_tag, audio_duration_ts, chapters_of, decode_pcm_f32, ffprobe_format_tags,
     mux_chapters,

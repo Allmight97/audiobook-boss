@@ -39,16 +39,12 @@ pub struct AppSettingsPatch {
     pub encoder_defaults: Option<EncoderDefaults>,
     pub output_defaults: Option<OutputDefaults>,
     pub startup_behavior: Option<StartupBehavior>,
-    /// Set-only: pinning overwrites; reverting is switching `startup_behavior`
-    /// back to `RememberLastState`, never unpinning.
     pub pinned_defaults: Option<PinnedDefaults>,
     pub default_acquisition_lane: Option<AcquisitionLane>,
     pub aac_decoder: Option<AacDecoder>,
     pub indexer_connection: Option<IndexerConnection>,
 }
 
-/// The Indexer server and categories a search uses. The API key lives in the
-/// credential store, under the URL.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexerConnection {
@@ -56,8 +52,6 @@ pub struct IndexerConnection {
     pub category_ids: Vec<u32>,
 }
 
-/// A setting that loading recovers on its own: a saved value this release
-/// refuses resets only that setting.
 #[derive(Debug, Clone, Copy, serde::Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum SettingsUnit {
@@ -74,8 +68,6 @@ pub enum SettingsUnit {
 }
 
 impl SettingsUnit {
-    /// Where the unit sits in `settings.toml`: loading reads it from here and
-    /// names a reset by it.
     pub(super) fn path(self) -> &'static [&'static str] {
         match self {
             Self::KeepAwake => &["general", "keep_awake_while_working"],
@@ -91,8 +83,6 @@ impl SettingsUnit {
         }
     }
 
-    /// Part of the launch defaults, which a pinned launch replaces with the
-    /// pinned ones.
     pub(super) fn launch_default(self) -> bool {
         match self {
             Self::JobLimit | Self::EncoderDefaults | Self::OutputDefaults => true,
@@ -110,16 +100,10 @@ impl SettingsUnit {
 #[derive(Debug, Clone, Default, serde::Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsRecovery {
-    /// Settings whose saved value was refused; they took their defaults.
     pub reset: Vec<SettingsUnit>,
-    /// The name an unreadable settings file was kept under; every setting
-    /// took its default.
     pub set_aside_as: Option<String>,
 }
 
-/// What launch hydration restores into the panels. The panels always keep
-/// auto-persisting the top-level (last-used) values; this only chooses the
-/// hydration source.
 #[derive(
     Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type,
 )]
@@ -127,8 +111,6 @@ pub struct SettingsRecovery {
 pub enum StartupBehavior {
     #[default]
     RememberLastState,
-    /// Reopen with the user-pinned defaults; in-flight panel tweaks are
-    /// ephemeral across restarts.
     PinnedDefaults,
 }
 
@@ -247,8 +229,6 @@ impl AppSettings {
         Ok(self)
     }
 
-    /// The job limit and the encoder and output defaults a launch starts
-    /// from: the last used ones, or the pinned ones.
     pub(super) fn launch(&self) -> PinnedDefaults {
         PinnedDefaults {
             max_concurrent_jobs: self.max_concurrent_jobs,

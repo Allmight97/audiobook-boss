@@ -3,21 +3,15 @@ use crate::errors::{AppError, Result};
 use super::super::container::Container;
 use super::format::{detect_cover_art_format, detect_image_dimensions, CoverFormat};
 
-/// The `comment` tag value FFmpeg's ID3 and FLAC muxers write as picture type 3
-/// and its demuxers report for one.
 pub(crate) const FRONT_COVER_COMMENT: &str = "Cover (front)";
 
-/// A cover stream added to an output before its header.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CoverStream {
     pub(crate) index: usize,
     pub(crate) format: CoverFormat,
-    /// A Matroska attachment is written with the header and takes no packet.
     pub(crate) written_with_header: bool,
 }
 
-/// Adds the stream that carries `cover_data`: a Matroska attachment, or an
-/// attached picture whose packet `write_cover_packet` writes after the header.
 pub(crate) fn add_cover_stream(
     output: &mut abb_ffmpeg::Output,
     cover_data: &[u8],

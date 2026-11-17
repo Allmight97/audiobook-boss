@@ -164,9 +164,6 @@ pub fn supplemental_pdf_path(final_audio_path: &Path) -> PathBuf {
     parent.join(format!("{stem} - Supplemental PDF.pdf"))
 }
 
-/// A file or folder name holds at most 255 units: UTF-16 units on APFS,
-/// HFS+, exFAT, NTFS and SMB; bytes on Linux disks (ext4, btrfs). A name's
-/// UTF-8 bytes are never fewer than its UTF-16 units.
 const MAX_NAME_UNITS: usize = 255;
 const NAME_UNIT: &str = if cfg!(target_os = "linux") {
     "bytes"
@@ -186,8 +183,6 @@ pub fn name_fits(name: &std::ffi::OsStr) -> bool {
     name_length(name) <= MAX_NAME_UNITS
 }
 
-/// Refuses an artifact path whose folder or file name would be over the name
-/// limit, before any work starts.
 pub fn check_output_name_lengths(artifact_path: &Path) -> Result<()> {
     for component in artifact_path.components() {
         if let Component::Normal(name) = component {
@@ -197,8 +192,6 @@ pub fn check_output_name_lengths(artifact_path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Refuses a final audiobook path whose companion PDF name would be over the
-/// name limit. Only a title with a Supplemental PDF needs it.
 pub fn check_supplemental_pdf_name(final_audio_path: &Path) -> Result<()> {
     match supplemental_pdf_path(final_audio_path).file_name() {
         Some(name) => check_name_fits(name, "The Supplemental PDF name"),
@@ -238,7 +231,6 @@ pub fn action_requires_output_write(action: PlannedOutputAction) -> bool {
 }
 
 impl OutputCollisionKind {
-    /// A collision with an input source: no policy may write there.
     pub fn is_hard_block(self) -> bool {
         matches!(
             self,
@@ -247,8 +239,6 @@ impl OutputCollisionKind {
     }
 }
 
-/// What the collision policy does with one output. `claimed_conflict` says the
-/// path the collision names is one an earlier output of this batch claimed.
 pub fn resolve_action(
     kind: Option<OutputCollisionKind>,
     claimed_conflict: bool,
@@ -274,8 +264,6 @@ pub fn resolve_action(
     }
 }
 
-/// Whether an output may be written as planned, needs the owner's decision,
-/// or can never be written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputVerdict {
     Proceed,
@@ -328,8 +316,6 @@ impl ResolvedOutputPlan {
     }
 }
 
-/// Review message for an output that needs a collision decision. Callers
-/// choose how much of the destination to display.
 pub fn output_plan_review_message(output: &ResolvedOutputPlan, destination: &str) -> String {
     match output.collision.as_ref().map(|value| value.kind) {
         Some(OutputCollisionKind::SourceDestinationOverlap)
@@ -387,8 +373,6 @@ fn sanitize_component_with_commas(input: &str, replace_commas: bool) -> String {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
-    // A tag of only dots ("." or "..") would name the current or parent
-    // folder instead of one of its own.
     if !value.is_empty() && value.chars().all(|c| c == '.') {
         return "_".to_string();
     }

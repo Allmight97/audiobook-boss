@@ -104,8 +104,6 @@ fn genre_patch() -> MetadataIntentPatch {
     }
 }
 
-/// The session plus the files it works on. A missing disk entry is a file
-/// that cannot be read.
 struct Desk {
     state: SessionState,
     disk: HashMap<PathBuf, AudiobookMetadata>,
@@ -244,7 +242,6 @@ impl Desk {
         covers.into_iter().find(|(source, _)| *source == path)?.1
     }
 
-    /// Saves with no export running. `fail` names files whose write fails.
     fn save(&mut self, fail: &[&str]) -> Option<SavePlan> {
         self.save_during(&HashSet::new(), &[], fail)
     }
@@ -307,7 +304,6 @@ impl Desk {
         ready
     }
 
-    /// Finishes taken writes; `fail` names files whose write fails.
     fn end_deferred(&mut self, taken: Vec<SaveItem>, fail: &[&str]) {
         let failing: Vec<PathBuf> = fail.iter().map(|name| path(name)).collect();
         let results: Vec<WriteOutcome> = taken

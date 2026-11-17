@@ -5,7 +5,6 @@ import solid from '@solidjs/vite-plugin';
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
-// tauri://localhost serves assets without CORS headers; crossorigin module tags break WebKit.
 function removeCrossoriginPlugin(): Plugin {
 	return {
 		name: 'remove-crossorigin',
@@ -21,7 +20,6 @@ export default defineConfig(async () => ({
 	plugins: [solid({ include: ['/**/*.tsx'] }), removeCrossoriginPlugin()],
 
 	clearScreen: false,
-	// tauri expects a fixed port, fail if that port is not available
 	server: {
 		port: 1420,
 		strictPort: true,
@@ -38,8 +36,6 @@ export default defineConfig(async () => ({
 		},
 	},
 	build: {
-		// One bundle: WebKit under tauri://localhost rejects an import cycle between chunks.
-		// Dev mode serves source modules over http://localhost.
 		modulePreload: false,
 		rolldownOptions: {
 			output: {

@@ -35,14 +35,14 @@ fn map_openlibrary_doc(doc: OpenLibraryDoc) -> OnlineMetadataResult {
         source_id: doc.key.clone(),
         title: doc.title,
         authors: doc.author_name,
-        narrators: Vec::new(), // OpenLibrary doesn't have narrator data
+        narrators: Vec::new(),
         series: None,
         series_part: None,
         subseries: None,
         subseries_part: None,
         description: doc.description,
         published_date: doc.first_publish_year.map(|year| year.to_string()),
-        duration_seconds: None, // OpenLibrary doesn't have duration data
+        duration_seconds: None,
         cover_url,
         cover: None,
         audible_only: Some(false),

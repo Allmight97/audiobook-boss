@@ -32,9 +32,6 @@ enum Download {
     Fails,
 }
 
-/// Stands in for Audible's companion-file route: it counts its calls and
-/// answers a PDF job with a staged PDF, a staged PDF whose bytes no longer
-/// match the digest it reports, or the failure a real download reports.
 fn audible_pdf(calls: Arc<AtomicUsize>, download: Download) -> AcquireTitles {
     let download = Arc::new(Mutex::new(Some(download)));
     Arc::new(move |request| {
@@ -177,8 +174,6 @@ impl Rig {
         .await;
     }
 
-    /// Waits until the job's download is under way: its PDF is staged and the
-    /// fake waits to be released.
     async fn downloading(&self) -> Box<AcquisitionSnapshot> {
         until("the PDF download to start", || {
             self.job().filter(|job| {

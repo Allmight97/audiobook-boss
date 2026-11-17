@@ -324,9 +324,6 @@ async fn run_download_attempt(
     Ok(AttemptOutcome::Retry(RetryReason::Incomplete))
 }
 
-/// Stream one HTTP response body into the append-mode `file`, updating progress
-/// and the running byte counters. Returns `true` if the body read failed midway
-/// (a resumable condition handled by the caller's retry loop).
 async fn stream_download_chunks(
     response: &mut reqwest::Response,
     file: &mut tokio::fs::File,

@@ -1,14 +1,3 @@
-//! The two ways a single M4B is preserved, pinned down to the output file's
-//! bytes: the copy (chapters already match, so the staged copy only gets its
-//! tags written) and the remux (chapters differ, so FFmpeg rewrites the
-//! container). Sources are the committed untagged M4B plus tags and chapters
-//! written by mp4ameta, so the bytes do not depend on the FFmpeg that is
-//! installed. `ABB_BLESS_TAG_SNAPSHOTS=1` rewrites the snapshots on purpose.
-//! An encode is not snapshotted, because its bytes follow the linked FFmpeg;
-//! two encodes of one source must still agree: in bytes for M4B, and in
-//! decoded audio, tags, and chapters for Matroska, whose muxer writes a random
-//! segment identifier.
-
 use super::media_fixtures::{
     chapters_of, decode_pcm_f32, preflight_payload, run_planned_title, single_title_payload,
 };

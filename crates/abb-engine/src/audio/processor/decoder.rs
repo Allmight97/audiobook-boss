@@ -1,7 +1,3 @@
-//! The per-input audio decoder: FFmpeg's selected decoder, or bundled FAAD3
-//! for AAC when the `AacDecoder` setting chooses it. Both yield FFmpeg audio
-//! frames, so the resampler, accumulator, and encoder stay decoder-neutral.
-
 use super::faad_decoder::FaadDecoder;
 use crate::errors::{AppError, Result};
 use abb_ffmpeg::{
@@ -10,7 +6,6 @@ use abb_ffmpeg::{
 };
 use std::time::{Duration, Instant};
 
-/// FAAC and FAAD library versions, for a host's build-identity log line.
 pub(crate) fn codec_library_versions() -> String {
     format!(
         "faac={} faad={}",
@@ -60,7 +55,6 @@ impl AudioDecoder {
         }
     }
 
-    /// Logs `decode_open` now and one `decode_summary` line when the decoder drops.
     pub(super) fn log_open_and_summary(&mut self, label: String) {
         let faad = match &self.backend {
             Backend::Ffmpeg(_) => String::new(),
@@ -83,7 +77,6 @@ impl AudioDecoder {
         self.summary_label = Some(label);
     }
 
-    /// The decoder that produces PCM: FFmpeg's codec name (`aac`, `aac_at`, ...) or `faad3`.
     pub(crate) fn name(&self) -> String {
         match &self.backend {
             Backend::Ffmpeg(decoder) => decoder.name().unwrap_or_else(|| "unknown".into()),
@@ -119,8 +112,6 @@ impl AudioDecoder {
         }
     }
 
-    /// `None` for a channel order that is neither a speaker mask nor a bare
-    /// channel count; the resampler still converts it.
     pub(crate) fn channel_layout(&self) -> Option<ChannelLayout> {
         match &self.backend {
             Backend::Ffmpeg(decoder) => decoder.layout(),
@@ -128,10 +119,6 @@ impl AudioDecoder {
         }
     }
 
-    /// Containers without channel-layout semantics (e.g. WAV/PCM) open with an
-    /// unspecified layout while their decoded frames carry the default layout
-    /// for the channel count; swresample then rejects every frame with "Input
-    /// changed". Normalize so the decoder, its frames, and the resampler agree.
     fn normalize_channel_layout(&mut self) {
         let Backend::Ffmpeg(decoder) = &mut self.backend else {
             return;
@@ -145,8 +132,6 @@ impl AudioDecoder {
         }
     }
 
-    /// The converter from this decoder's frames to `output`, after
-    /// normalizing an undeclared input layout.
     pub(crate) fn resampler_to(
         &mut self,
         output: AudioShape,
@@ -171,7 +156,6 @@ impl AudioDecoder {
         self.bit_rate
     }
 
-    /// One of `abb_ffmpeg::profile`'s numbers.
     pub(crate) fn profile(&self) -> i32 {
         match &self.backend {
             Backend::Ffmpeg(decoder) => decoder.profile(),
@@ -212,7 +196,6 @@ impl AudioDecoder {
         }
     }
 
-    /// Replaces the contents of `frame` with the next decoded frame.
     pub(crate) fn receive_frame(
         &mut self,
         frame: &mut AudioFrame,

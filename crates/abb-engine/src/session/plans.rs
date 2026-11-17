@@ -17,17 +17,13 @@ pub enum TitlePlan {
     Resolved {
         plan: TitleAudioPlan,
     },
-    /// The title cannot be exported as chosen; `message` says why, and
-    /// `field` names the audio setting to change when one setting is the cause.
     Failed {
         message: String,
         field: Option<AudioPlanField>,
     },
-    /// Grouped sources disagree about their audio; the user must choose.
     ChoiceRequired,
 }
 
-/// A title's estimated output size. Absent when it cannot be estimated yet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SizeEstimate {
@@ -35,7 +31,6 @@ pub enum SizeEstimate {
         #[specta(type = specta_typescript::Number)]
         bytes: u64,
     },
-    /// A quality setting owns the bitrate, so size follows the audio.
     VariesWithAudio,
 }
 

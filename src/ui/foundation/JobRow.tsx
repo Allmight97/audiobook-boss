@@ -15,7 +15,6 @@ export type JobRowProps = {
 	readonly label: string;
 	readonly labelTitle?: string;
 	readonly statusText: string;
-	/** Each caller injects its own intents; a row keeps its buttons across a progress tick. */
 	readonly actions: ReadonlyArray<JobRowAction>;
 	readonly class?: string;
 };

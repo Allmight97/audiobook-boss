@@ -260,8 +260,6 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
     })
     .await;
 
-    // The write lands once the export stops reading the source, which can
-    // be just before the export reports finishing.
     desk.wait_until("the export finishes", |desk| desk.export_finished(&export))
         .await;
     assert_eq!(desk.export_status(&export), WorkOperationStatus::Completed);
@@ -725,8 +723,6 @@ async fn shutdown_closes_admission_before_an_accepted_submission_finishes_prefli
     })
     .await;
     let accepted = desk.engine.session_begin(SessionIntent::Submit);
-    // No yield between admission and shutdown: preflight has not registered
-    // its export when shutdown closes and enumerates running operations.
     assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
     accepted.finish().await;
     assert!(desk.engine.list_work_operations().operations.is_empty());

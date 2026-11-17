@@ -25,9 +25,7 @@ pub enum CueStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum CueChoice {
-    /// Accept a CUE whose timestamps need the hundredths interpretation.
     ConfirmHundredths,
-    /// Drop the CUE and fall back to the file's embedded chapters.
     Ignore,
 }
 
@@ -47,7 +45,6 @@ pub struct CueSource {
     pub file_name: String,
     pub status: CueStatus,
     pub message: String,
-    /// The choices `choose_cue` accepts while the status is as shown.
     pub actions: Vec<CueChoice>,
 }
 
@@ -89,9 +86,6 @@ pub(crate) fn validate_source_fingerprint(stat: &std::fs::Metadata, expected: &s
     Ok(())
 }
 
-/// Repairs `embedded` in place, once, so every route (an ignored CUE
-/// included) writes and verifies the same accepted chapters. A
-/// `length_estimated` duration is no audio end for that repair.
 pub(crate) fn inspect_chapter_source(
     path: &Path,
     duration_ms: i64,

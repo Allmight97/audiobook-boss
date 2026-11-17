@@ -5,9 +5,7 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum EncoderType {
-    /// Resolves to the Native NMR encoder.
     Auto,
-    /// Apple AAC (AudioToolbox), macOS-only
     AacAt,
     NativeAac,
     Faac,
@@ -27,7 +25,6 @@ impl fmt::Display for EncoderType {
     }
 }
 
-/// FAAC resolves Auto once from the requested output configuration.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum FaacProfile {
@@ -47,7 +44,6 @@ pub enum BitrateMode {
     Cvbr,
     Abr,
     Vbr(u16),
-    /// Variable bitrate driven by target kbps (Opus).
     VbrTarget,
 }
 
@@ -102,12 +98,9 @@ impl ChannelConfig {
 #[serde(rename_all = "camelCase")]
 pub struct EncoderSettings {
     pub encoder_type: EncoderType,
-    /// Target kbps. Native AAC additionally checks the resolved rate/channel ceiling.
-    /// Ignored in VBR mode, where the encoder's quality setting owns bitrate.
     pub bitrate_kbps: u16,
     pub bitrate_mode: BitrateMode,
     pub channels: ChannelConfig,
-    /// Native NMR search speed, upstream default 0.
     #[serde(default)]
     pub native_aac_speed: u8,
     #[serde(default)]
@@ -249,8 +242,6 @@ fn validate_encoder_mode_combo(encoder_type: EncoderType, mode: BitrateMode) -> 
     }
 }
 
-/// Probe the required NMR controls on the named encoder's private options.
-/// Opening each requested configuration still performs authoritative readback.
 fn is_native_nmr_available() -> bool {
     let mut options = abb_ffmpeg::Tags::default();
     let step = abb_ffmpeg::Step::OpenEncoder;

@@ -1,22 +1,3 @@
-/**
- * Runs one release lane to the first failure, printing `phase: <name>` lines.
- *
- * Usage: bun scripts/release.ts <x.y.z> <lane>
- *
- * Lanes:
- *   local         bump the version and install /Applications/AudioBook Boss.app
- *   dmg           bump the version and build, verify, and hash the portable DMG
- *   github        dmg, plus audit, commit, push, wait for CI, tag, and publish
- *   github+local  github, plus the local install after the DMG is verified
- *
- * Every lane first checks, without changing anything: macOS, branch `main`,
- * not behind `origin/main`, a tree clean apart from `CHANGELOG.md` and the
- * version files, and a non-empty `## [x.y.z] - <today>` changelog section.
- * The github lanes also need the tag and the GitHub Release to be absent; the
- * install lanes need the installed app to be closed. A rerun after a failure
- * resumes: the bump and commit are no-ops once done. The tag waits for CI
- * because CI is the release's only Linux proof.
- */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -107,7 +88,6 @@ function localDate(date: Date): string {
 	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-/** The notes under `## [version] - today`, or why they cannot be used. */
 export function changelogSection(changelog: string, version: string, today: string): string {
 	const lines = changelog.split('\n');
 	const heading = `## [${version}]`;
@@ -134,7 +114,6 @@ export function changelogSection(changelog: string, version: string, today: stri
 	return `${body}\n`;
 }
 
-/** Paths in `git status --porcelain` output that a release must not carry along. */
 export function unexpectedChanges(porcelain: string): string[] {
 	return porcelain
 		.split('\n')
@@ -152,10 +131,6 @@ export interface CiRun {
 	url: string;
 }
 
-/**
- * The push-triggered `ci` run of `sha`. `gh run list --commit` matches only a
- * full SHA, so a short one would find nothing.
- */
 export function ciRunFor(runs: CiRun[], sha: string): CiRun | undefined {
 	if (!/^[0-9a-f]{40}$/.test(sha)) {
 		throw new Error(`CI runs are found by the full 40-character commit SHA, got '${sha}'.`);
@@ -165,7 +140,6 @@ export function ciRunFor(runs: CiRun[], sha: string): CiRun | undefined {
 		.toSorted((left, right) => right.databaseId - left.databaseId)[0];
 }
 
-/** Why a finished CI run blocks the tag, or undefined when it passed. */
 export function ciFailure(ciRun: CiRun, remoteMain: string): string | undefined {
 	if (ciRun.conclusion === 'success') return undefined;
 	const where = `CI run ${ciRun.databaseId} for ${ciRun.headSha}`;
@@ -182,7 +156,6 @@ export interface TauriBundle {
 	bundle?: { resources?: unknown };
 }
 
-/** The bundle's `resources` map: source path (relative to `src-tauri/`) to shipped path. */
 export function bundleResources(config: TauriBundle): [string, string][] {
 	const resources = config.bundle?.resources;
 	if (!resources || typeof resources !== 'object' || Array.isArray(resources)) {
@@ -193,7 +166,6 @@ export function bundleResources(config: TauriBundle): [string, string][] {
 	return Object.entries(resources as Record<string, string>);
 }
 
-/** Each listed resource that the app's `Contents/Resources` lacks or holds changed. */
 export function bundleResourceProblems(
 	resources: [string, string][],
 	srcTauriDir: string,
@@ -207,7 +179,6 @@ export function bundleResourceProblems(
 	});
 }
 
-/** Why the shipped FFmpeg notice fails to name the pinned commit, if it does. */
 export function ffmpegNoticeProblem(
 	resources: [string, string][],
 	resourcesDir: string,

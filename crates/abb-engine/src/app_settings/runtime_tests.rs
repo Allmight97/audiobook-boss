@@ -92,8 +92,6 @@ impl Rig {
     }
 
     fn set_writable(&self, writable: bool) {
-        // chmod is not enough: root ignores a 0o555 directory. A regular file
-        // at the config path makes create_dir_all fail for every uid.
         let dir = config_dir(&self.root);
         if writable {
             if dir.is_file() {

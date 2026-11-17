@@ -264,9 +264,6 @@ impl WorkRuntime {
         })
     }
 
-    /// Cancels the title at `index` and waits until it has published or
-    /// ended without an output, its own empty folders removed. Returns whether
-    /// it published.
     pub(crate) async fn stop_title(
         &self,
         host: &Host,
@@ -283,9 +280,6 @@ impl WorkRuntime {
         title.settled().await
     }
 
-    /// Registers a metadata-save operation, emits it, and marks it running.
-    /// Returns the operation id and the cancel token `cancel_operation` cancels
-    /// for the save loop.
     pub(crate) fn begin_metadata_save_operation(
         &self,
         host: &Host,
@@ -312,8 +306,6 @@ impl WorkRuntime {
         Ok((operation_id, cancel_token))
     }
 
-    /// Applies a metadata-save progress event to its operation; events match
-    /// children by `input_index`.
     pub(crate) fn record_metadata_save_progress(
         &self,
         host: &Host,
@@ -323,11 +315,6 @@ impl WorkRuntime {
         self.apply_progress_and_emit(host, operation_id, event);
     }
 
-    /// Terminalize a metadata-save operation from its run outcome, then emit
-    /// and drop its cancel token. A finished run maps its summary through the
-    /// canonical classifier and terminalizes children by `input_index`; an
-    /// aborted run resolves to Cancelled for a cancellation and Failed
-    /// otherwise, exactly as a processing run does.
     pub(crate) fn finish_metadata_save_operation(
         &self,
         host: &Host,
@@ -371,8 +358,6 @@ impl WorkRuntime {
         self.operations().state.list()
     }
 
-    /// Accepted exports that have not finished. Metadata Saves are left out:
-    /// shutdown lets them finish rather than cancelling them.
     pub(crate) fn unfinished_exports(&self) -> Vec<OperationId> {
         self.operations()
             .state
@@ -387,8 +372,6 @@ impl WorkRuntime {
             .collect()
     }
 
-    /// Cancels a whole operation, or one of its titles when `child_job_id`
-    /// names a child. Repeating a cancel returns the current snapshot.
     pub(crate) fn cancel_operation(
         &self,
         host: &Host,
@@ -419,8 +402,6 @@ impl WorkRuntime {
         let (snapshot, cancelled) = self.operations().cancel_title(operation_id, child_job_id)?;
         if cancelled {
             log::info!(
-                // Not a `work_operation` lifecycle record: dev-log analysis validates
-                // those events; the job's own terminal record carries the outcome.
                 "title_cancel_requested operation_id={operation_id} child_job_id={child_job_id}"
             );
         }
@@ -470,9 +451,6 @@ impl WorkRuntime {
         self.operations().sources_in_use()
     }
 
-    /// Every source of every export that has not finished, including titles
-    /// already encoded: a title still copies its companion files after its
-    /// audio completes.
     pub(crate) fn sources_held(&self) -> HashSet<PathBuf> {
         self.operations().sources_held()
     }
@@ -481,8 +459,6 @@ impl WorkRuntime {
         self.inner.changes.subscribe()
     }
 
-    /// A panic under this lock ends only its own operation, as Failed; every
-    /// later call keeps working on the state it left.
     fn operations(&self) -> MutexGuard<'_, Operations> {
         self.inner
             .operations
@@ -490,9 +466,6 @@ impl WorkRuntime {
             .unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Publishes a change with the display order as of now. The revision is
-    /// taken under the state lock, so hosts can order updates however they
-    /// arrive.
     fn emit_snapshot(&self, host: &Host, snapshot: &OperationSnapshot) {
         self.inner.changes.send_modify(|change| *change += 1);
         let update = self.operations().state.publish(snapshot.clone());
@@ -508,8 +481,6 @@ struct ExportEnd {
     on_finished: Option<OnFinished>,
 }
 
-/// The source files each title reads, in the spelling import gives a file,
-/// so a session can compare its sources against them.
 fn title_source_paths(payload: &crate::processing::ProcessPayload) -> Vec<Vec<PathBuf>> {
     (0..payload.input_files.len())
         .map(|index| {

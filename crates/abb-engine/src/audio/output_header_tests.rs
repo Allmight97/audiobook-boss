@@ -72,9 +72,6 @@ fn inputs() -> Inputs {
     }
 }
 
-/// Writes an MP4 the way the decrypt copy does: the audio stream copied, a
-/// cover whose time base is the 1/90000 an Audible download carries, and the
-/// given chapters.
 fn write_book_with_cover(inputs: &Inputs, output_path: &Path, chapters: Chapters) {
     let mut input = abb_ffmpeg::Input::open(&inputs.audio, &abb_ffmpeg::SecretOptions::default())
         .expect("open audio")

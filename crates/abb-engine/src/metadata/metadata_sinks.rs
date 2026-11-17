@@ -117,9 +117,6 @@ pub fn apply_field_ops(sink: &mut Mp4ametaSink<'_>, ops: &[FieldOp]) {
     sink.set_media_type_audiobook();
 }
 
-/// The dictionary entries a write sets: each Set op's keys in op order, then
-/// the audiobook media type. A Clear writes nothing; the merge drops the
-/// cleared keys from the existing tags.
 pub(crate) fn tag_pairs_for_ops(ops: &[FieldOp]) -> Vec<(&'static str, String)> {
     let mut pairs = Vec::new();
     for op in ops {
@@ -151,9 +148,6 @@ pub(crate) fn tag_pairs_for_ops(ops: &[FieldOp]) -> Vec<(&'static str, String)> 
     pairs
 }
 
-/// Existing-dictionary keys a merge drops before a plan's values are written,
-/// from each op's row in the field table: a Set drops what its field's
-/// `drop_on_set` names, a Clear what `drop_on_clear` names.
 pub(crate) struct ExistingKeyRemoval {
     dropped: Vec<KeySet>,
 }

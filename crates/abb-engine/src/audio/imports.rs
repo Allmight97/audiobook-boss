@@ -60,8 +60,6 @@ impl ImportDiscovery {
     }
 }
 
-/// Finds the supported audio under the dropped paths. A path that cannot be
-/// read is listed in `skipped` and the rest of the import continues.
 pub(crate) fn discover_audio_import_paths(input_paths: &[PathBuf]) -> ImportDiscovery {
     let mut discovery = ImportDiscovery::default();
     let mut seen = HashSet::new();

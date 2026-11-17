@@ -25,7 +25,6 @@ pub struct TitleAudio {
     pub facts: AudioChoiceFacts,
     pub request: TitleAudioRequest,
     pub plan: TitlePlan,
-    /// Absent until the size can be estimated.
     pub estimate: Option<SizeEstimate>,
     pub auto_sample_rate: AutoReading,
     pub auto_channels: AutoReading,
@@ -56,23 +55,17 @@ impl TitleAudio {
 #[serde(rename_all = "camelCase")]
 pub struct AudioSnapshot {
     pub revision: u64,
-    /// `None` until the encoders have been detected.
     pub capabilities: Option<EncoderSettingsCapabilities>,
     pub defaults: AudioChoiceView,
-    /// Each title's audio, by title identity.
     pub titles: BTreeMap<String, TitleAudio>,
-    /// The selected titles' audio as one choice; absent with no selection.
     pub selection: Option<SelectionAudio>,
-    /// Why the latest title audio edit changed nothing.
     pub refusal: Option<AudioRefusal>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectionAudio {
-    /// The first title's choice; `mixed` names where the others differ.
     pub choice: AudioChoice,
-    /// Only what every selected title accepts is offered.
     pub facts: AudioChoiceFacts,
     pub mixed: Vec<AudioField>,
     pub auto_sample_rate: AutoReading,
@@ -127,10 +120,7 @@ audio_fields!(
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AudioRefusal {
-    /// A submission holds the list.
     Locked,
-    /// These titles cannot take the edit, so no title took it. `labels`
-    /// are what the title list shows for them, in the same order.
     #[serde(rename_all = "camelCase")]
     NotAccepted {
         title_ids: Vec<String>,

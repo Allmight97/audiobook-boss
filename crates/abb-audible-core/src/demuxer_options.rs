@@ -6,14 +6,11 @@ use crate::DecryptKind;
 
 const AAXC_MAJOR_BRAND: &str = "aaxc";
 
-/// One option for FFmpeg's MP4 demuxer. It carries a secret, so it has no
-/// `Debug`.
 pub struct DemuxerOption {
     pub name: &'static str,
     pub value: SecretString,
 }
 
-/// The demuxer options that decrypt a file with this material.
 pub fn demuxer_options(material: &AudibleDecryptionMaterial) -> Vec<DemuxerOption> {
     match material {
         AudibleDecryptionMaterial::Aax { activation_bytes } => {
@@ -37,9 +34,6 @@ fn option(name: &'static str, bytes: &[u8]) -> DemuxerOption {
     }
 }
 
-/// Whether the download is the kind of file the license's lane decrypts. FFmpeg
-/// applies AAXC keys only to major brand `aaxc` and AAX activation bytes only
-/// through an `adrm` box, and otherwise opens the file without decrypting it.
 pub fn file_matches_decrypt_kind(facts: &ProtectedFileFacts, kind: DecryptKind) -> bool {
     match kind {
         DecryptKind::Aaxc => facts.major_brand == AAXC_MAJOR_BRAND,

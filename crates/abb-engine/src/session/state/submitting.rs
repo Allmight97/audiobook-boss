@@ -15,8 +15,6 @@ use crate::processing::title_output::UpdateReply;
 use crate::processing::TitleOutput;
 use crate::work_runtime::OperationId;
 
-/// Where the one submission in flight stands. The list is locked and its
-/// sources are held in every state but `Idle`.
 pub(super) enum Submission {
     Idle,
     Preparing {

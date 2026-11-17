@@ -8,12 +8,9 @@ const BODY_LEN: usize = 1000;
 #[derive(Clone, Copy)]
 enum Serve {
     Full,
-    /// Send this many bytes of the requested range, then close the connection.
     Truncate(usize),
     Pause(usize),
-    /// Read the request, then close without a response.
     Close,
-    /// Send the requested range in full, claiming a different total size.
     Resized,
 }
 

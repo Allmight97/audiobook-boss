@@ -20,12 +20,9 @@
   It does not become a new line here, and this file does not gain a one-off
   rule for a single miss. No unrequested Markdown, docs, or comments.
 - A code comment may stay only when `scripts/comment-policy.ts` allowlists
-  its shape, and that entry states the reason: a required license header, a
-  lint or shell directive that carries its reason, a `// SAFETY:` comment on
-  unsafe, an upstream bug link, a `# pin:` tag, a rustdoc test, or
-  `@ratchet-files-ignore` with a reason. Any other comment fails the check.
-  The failure says to delete it or encode the constraint, and why a comment
-  cannot hold it.
+  its shape, and that entry states the reason. Any other comment fails the
+  check. The failure says to delete it or encode the constraint, and why a
+  comment cannot hold it.
 - Root holds repo-wide rules, a nested `AGENTS.md` its path's reasons, a skill
   a reusable procedure; each meaning lives in one place. `README.md` is for
   people. An outside fact that needs judgment (what a platform, protocol,

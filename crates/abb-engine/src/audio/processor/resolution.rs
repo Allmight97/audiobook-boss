@@ -37,8 +37,6 @@ pub(in crate::audio) fn resolve_output_channels(
     resolved.ok_or_else(|| AppError::InvalidInput("No valid audio files to process.".into()))
 }
 
-/// The linked encoder a request runs on. Auto takes its encoder's bitrate
-/// mode when the requested one does not apply.
 pub(in crate::audio) fn resolve_linked_encoder(settings: &EncoderSettings) -> Result<EncoderType> {
     let encoder = match settings.encoder_type {
         EncoderType::Auto => AUTO_ENCODER,

@@ -54,8 +54,6 @@ pub fn acquisition_progress(
     }
 }
 
-/// Scopes a title's stage progress to its batch. `item_index` is 1-based; the
-/// percentage covers the whole batch so a multi-title bar never restarts.
 pub fn acquisition_progress_for_current_title(
     mut progress: AcquisitionProgress,
     title_id: impl Into<String>,

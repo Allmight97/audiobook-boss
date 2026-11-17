@@ -1,7 +1,3 @@
-//! A preview is planned beside the finished book, never over it: its output
-//! is `<name>.preview.<ext>`, whatever the collision policy, and exporting it
-//! leaves the book that is already there alone.
-
 use super::support::encoders::native_encoder_settings;
 use std::fs;
 use std::path::{Path, PathBuf};

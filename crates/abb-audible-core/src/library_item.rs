@@ -23,8 +23,6 @@ pub struct LibraryItem {
     pub ayce: Option<bool>,
 }
 
-/// Reads every library item from a library page, wherever the page keeps its
-/// `items` or `products` array. Items without an `asin` or `sku` are dropped.
 pub fn library_items_from_page(page: &Value) -> Vec<LibraryItem> {
     find_array_for_key(page, "items")
         .or_else(|| find_array_for_key(page, "products"))

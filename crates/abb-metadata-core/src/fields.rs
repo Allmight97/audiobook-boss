@@ -72,9 +72,6 @@ impl std::fmt::Display for TagField {
 }
 
 impl AudiobookMetadata {
-    /// The field's own value. `Series` and `SeriesPart` give the primary
-    /// series and its number only; the tag value joins the sub-series
-    /// (`build_series_list`).
     pub fn text(&self, field: TextField) -> Option<&String> {
         match field {
             TextField::Title => self.title.as_ref(),

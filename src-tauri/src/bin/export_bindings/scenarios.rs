@@ -132,9 +132,6 @@ fn without_revision(part: &Value) -> Value {
     copy
 }
 
-/// Each reply carries only the parts that changed since the step before,
-/// stamped with the step's number plus one, which is above every revision in
-/// the fresh snapshot. Background timing never reaches the file.
 fn record_session(scenario: &Scenario) -> Value {
     let fixture = FixtureEngine::start(&scenario.name, scenario.settings_toml.as_deref());
     write_media(&fixture.root);

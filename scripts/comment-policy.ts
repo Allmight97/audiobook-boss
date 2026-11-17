@@ -57,13 +57,33 @@ export const ALLOWLIST: readonly AllowEntry[] = [
 		id: 'rustdoc-test',
 		reason: 'A fenced rustdoc example is a test `cargo test --doc` runs, not an explanation.',
 	},
+	{
+		id: 'no-lane',
+		reason:
+			'A `#` reason on a no-lane path in scripts/lane-paths.yml is the text verification.ts requires before a file can sit outside every lane.',
+	},
+	{
+		id: 'audit-crate',
+		reason:
+			'A `# <crate>` on a RUSTSEC id in .cargo/audit.toml is the crate name audit-ignores.test.ts matches against Cargo.lock.',
+	},
+	{
+		id: 'oxlint-reason',
+		reason:
+			'A `//` line before a tuned rule or files override in .oxlintrc.json is the reason lint-rules.test.ts requires on that line.',
+	},
+	{
+		id: 'shellcheck',
+		reason:
+			'`# shellcheck disable=SC<id> # <why>` and `# shellcheck shell=bash` are directives shellcheck reads; a disable has to say why.',
+	},
 ];
 
 const PLAIN =
 	'is a comment, and a comment does not hold a constraint. Fix: delete it. If it names a constraint, encode that constraint in the API, a type, a lint rule, or a test, and put the fix in the failure text. A comment may stay only when its shape is an entry in ALLOWLIST in scripts/comment-policy.ts. Root cause: prose in code goes stale and gets copied as an excuse.';
 
 const BARE =
-	'is a directive with no reason. Fix: add the reason its form requires (` -- why` on a lint suppression, text after `// SAFETY:`, text after `# allow-gnu:` or `# allow-silence:`, `# pin: <why>; unpin when <trigger>`), or delete it and satisfy the check. Root cause: a suppression without a reason hides the constraint.';
+	'is a directive with no reason. Fix: add the reason its form requires (` -- why` on a lint suppression, text after `// SAFETY:`, text after `# allow-gnu:` or `# allow-silence:`, `# pin: <why>; unpin when <trigger>`, `# shellcheck disable=SC<id> # why`), or delete it and satisfy the check. Root cause: a suppression without a reason hides the constraint.';
 
 const LICENSE =
 	/SPDX-License-Identifier:|Copyright\s+\(c\)|Permission is hereby granted|licensed under the/i;
@@ -75,7 +95,7 @@ const SHELL_DIRECTIVE = /#\s*allow-(?:gnu|silence):\s*\S/;
 const PERMISSION_FAKE = /\/\/\s*allow-permission-fake:\s*\S/;
 const RATCHET = /@ratchet-files-ignore:\s*\S/;
 const LINT_DIRECTIVE =
-	/\b(?:oxlint-disable(?:-next-line|-line)?|eslint-disable(?:-next-line|-line)?|biome-ignore)\b/;
+	/\b(?:oxlint-disable(?:-next-line|-line)?|eslint-disable(?:-next-line|-line)?|biome-ignore)\b(?:[\s\S]* -- )?/;
 const TS_DIRECTIVE = /@ts-(?:expect-error|ignore|nocheck|check)\b/;
 
 const SKIP_PREFIX = [
@@ -115,6 +135,11 @@ function classify(text: string): Mark {
 	if (SAFETY.test(text)) return entry('safety');
 	if (PIN.test(text)) return entry('pin');
 	if (SHELL_DIRECTIVE.test(text)) return entry('shell-directive');
+	if (/#\s*shellcheck\b/.test(text)) {
+		const reasoned = /#\s*shellcheck disable=SC\d+\s+#\s+\S/.test(text);
+		const sourced = /#\s*shellcheck shell=bash\s*$/.test(text);
+		return reasoned || sourced ? entry('shellcheck') : { keep: false, bare: true };
+	}
 	if (PERMISSION_FAKE.test(text)) return entry('permission-fake');
 	if (RATCHET.test(text)) return entry('ratchet');
 	if (LINT_DIRECTIVE.test(text)) {
@@ -488,7 +513,26 @@ function markDocGroup(group: Span[]): Decision[] {
 	});
 }
 
-function markPlainGroup(group: Span[]): Decision[] {
+function lineAt(source: string, index: number): string {
+	const start = source.lastIndexOf('\n', index - 1) + 1;
+	const end = source.indexOf('\n', index);
+	return source.slice(start, end === -1 ? source.length : end);
+}
+
+function machineReason(file: string, source: string, span: Span): string | null {
+	const line = lineAt(source, span.start);
+	if (file === 'scripts/lane-paths.yml' && /^\s*-\s+\S.*\s#\s+\S/.test(line)) return 'no-lane';
+	if (file === '.cargo/audit.toml' && /^\s*"RUSTSEC-\d{4}-\d{4}",\s*#\s+\S+\s*$/.test(line)) {
+		return 'audit-crate';
+	}
+	if (file !== '.oxlintrc.json') return null;
+	const next = source.slice(span.end).match(/^\n([^\n]*)/)?.[1] ?? '';
+	const tuned = /^\t\t"[^"]+": (?:"off"|\[)/.test(next);
+	const override = next.startsWith('\t\t\t"files":');
+	return tuned || override ? 'oxlint-reason' : null;
+}
+
+function markPlainGroup(file: string, source: string, group: Span[]): Decision[] {
 	const combined = group.map((span) => span.text).join('\n');
 	if (LICENSE.test(combined)) return group.map((span) => decideSpan(span, entry('license')));
 	if (UPSTREAM.test(combined) && group.length <= 8) {
@@ -497,10 +541,13 @@ function markPlainGroup(group: Span[]): Decision[] {
 	if (SAFETY.test(group[0].text)) {
 		return group.map((span) => decideSpan(span, entry('safety')));
 	}
-	return group.map((span) => decideSpan(span, classify(span.text)));
+	return group.map((span) => {
+		const machine = machineReason(file, source, span);
+		return decideSpan(span, machine === null ? classify(span.text) : entry(machine));
+	});
 }
 
-export function decisions(file: string, source: string): Decision[] {
+function decisions(file: string, source: string): Decision[] {
 	if (!isPolicyFile(file)) return [];
 	const spans = extract(file, source);
 	const claimed = new Set<Span>();
@@ -511,7 +558,7 @@ export function decisions(file: string, source: string): Decision[] {
 	}
 	const plain = spans.filter((span) => !claimed.has(span));
 	for (const group of groupSpans(source, plain, () => true)) {
-		marked.push(...markPlainGroup(group));
+		marked.push(...markPlainGroup(file, source, group));
 	}
 	return marked.toSorted((left, right) => left.start - right.start);
 }
@@ -560,7 +607,7 @@ export function stripComments(file: string, source: string): string {
 	return next;
 }
 
-export function commentLineCount(file: string, source: string): number {
+function commentLineCount(file: string, source: string): number {
 	const lines = new Set<number>();
 	for (const decision of decisions(file, source)) {
 		const covered = decision.text.split('\n').length;

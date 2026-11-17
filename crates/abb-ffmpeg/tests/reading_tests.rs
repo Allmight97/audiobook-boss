@@ -1,5 +1,3 @@
-//! What an opened file reports, and the facts FFmpeg does not know.
-
 use std::path::{Path, PathBuf};
 
 use abb_ffmpeg::{

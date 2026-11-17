@@ -1,5 +1,3 @@
-//! What each output title adds up to, from its sources.
-
 use std::collections::BTreeMap;
 
 use serde::Serialize;
@@ -12,13 +10,11 @@ use crate::processing::PREVIEW_SECONDS;
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TitleTotals {
-    /// The chapters ABB sends to the output for this title.
     pub chapter_count: usize,
     pub duration_seconds: f64,
     pub size_bytes: f64,
 }
 
-/// How long Preview Audio runs for the titles in the list, in whole seconds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PreviewLength {

@@ -1,10 +1,3 @@
-//! Bounded MP4 `covr` extraction for thumbnail reads.
-//!
-//! mp4ameta's `Tag::read_from_path` allocates the full artwork payload before
-//! downstream size checks can run. This module walks only the metadata tree,
-//! inspects the `data` atom length first, and rejects oversize covers without
-//! allocating them.
-
 use crate::errors::{AppError, Result};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -183,7 +176,6 @@ fn read_covr_item_cover(
             file.read_exact(&mut header).map_err(|error| {
                 AppError::General(format!("Failed to read covr data atom: {error}"))
             })?;
-            // Skip unsupported versions / non-image types; later data siblings may be valid.
             if header[0] != 0 {
                 parsed = parsed.saturating_add(head.size);
                 continue;
@@ -213,14 +205,9 @@ fn read_covr_item_cover(
 }
 
 fn is_container_atom(fourcc: &[u8; 4]) -> bool {
-    // Thumbnail art lives under moov → udta/meta → ilst → covr. Avoid walking media tables.
     matches!(fourcc, b"moov" | b"udta" | b"meta" | b"ilst")
 }
 
-/// True when a bounded top-level scan finds an MP4-family signature.
-///
-/// `ftyp` is normally first, but valid files may put padding before it and
-/// legacy QuickTime/MP4 files may identify themselves only by their `moov`.
 pub(crate) fn looks_like_mp4_family_file(path: &Path) -> Result<bool> {
     let mut file = File::open(path).map_err(|error| {
         AppError::General(format!("Failed to open file for MP4 probe: {error}"))

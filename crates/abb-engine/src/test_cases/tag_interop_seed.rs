@@ -1,7 +1,3 @@
-//! Source files seeded with every tag alias and several pictures, and the
-//! three edits (set everything, clear everything, touch nothing) the tag
-//! snapshots apply to them. Holds no tests.
-
 use super::media_fixtures::{ffmpeg, minimal_jpg_bytes, write_complete_frame_aac};
 use crate::metadata::{AlbumSortPatchOp, MetadataIntentPatch, PatchOp};
 use mp4ameta::{Data, FreeformIdent, Img, ImgFmt, Tag, WriteConfig};
@@ -122,8 +118,6 @@ pub(crate) fn seed_m4b(dir: &Path) -> PathBuf {
     path
 }
 
-/// An M4A of whole AAC frames, so that preserved merges accept it, seeded like
-/// the M4B.
 pub(crate) fn seed_mergeable_m4a(dir: &Path, stem: &str) -> PathBuf {
     fs::create_dir_all(dir).expect("source folder");
     let path = dir.join(format!("{stem}.m4a"));

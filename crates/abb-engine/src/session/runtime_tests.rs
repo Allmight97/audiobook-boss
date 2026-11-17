@@ -23,7 +23,6 @@ use crate::session::submission::SubmissionStatus;
 use crate::session::working_set::InputNotice;
 
 type SearchReply = Result<MetadataLookupResponse>;
-/// A search as the provider saw it: the query and the sources asked.
 type Search = (String, Vec<MetadataSource>);
 
 #[derive(Default)]
@@ -49,7 +48,6 @@ struct Rig {
     replies: Arc<StdMutex<VecDeque<tokio::sync::oneshot::Receiver<SearchReply>>>>,
     cover: Arc<StdMutex<Result<Vec<u8>>>>,
     removed: Arc<StdMutex<Vec<String>>>,
-    /// Removals that fail before one succeeds.
     failing_removals: Arc<std::sync::atomic::AtomicUsize>,
     _config: tempfile::TempDir,
 }

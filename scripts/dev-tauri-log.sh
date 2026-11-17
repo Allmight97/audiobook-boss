@@ -225,9 +225,6 @@ finish_run() {
 		# shellcheck disable=SC2261 # restores stdout, then stderr, on purpose
 		exec >&"$orig_stdout_fd" 2>&"$orig_stderr_fd"
 		wait_for_tee_exit_within_ten_seconds
-		# Later process substitutions make the pid unwaitable in bash, so
-		# liveness plus the exit-status sidecar is the drain signal: a tee
-		# that died from a write error must not pass as a clean drain.
 		if kill -0 "$tee_pid" 2>/dev/null; then
 			tee_drain_failed="true"
 		elif [[ "$(cat "$tee_status_file" 2>/dev/null)" != "0" ]]; then # allow-silence: a missing status file is not "0", so it counts as failed

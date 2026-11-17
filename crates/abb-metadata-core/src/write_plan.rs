@@ -34,9 +34,6 @@ impl FieldOp {
     }
 }
 
-/// What a tag write does to a file, in write order. A field with no op keeps
-/// the file's value. `ops` are projected already: the series fields hold the
-/// joined primary and sub-series value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetadataWritePlan {
     pub ops: Vec<FieldOp>,
@@ -46,7 +43,6 @@ pub struct MetadataWritePlan {
 }
 
 impl MetadataWritePlan {
-    /// The plan for a validated edit of a file whose tags read `source`.
     pub fn from_patch(patch: &MetadataIntentPatch, source: AudiobookMetadata) -> Result<Self> {
         let patch = patch.normalized_or_error()?;
         let series_touched = patch.touches_series_family();
@@ -97,10 +93,6 @@ impl MetadataWritePlan {
         })
     }
 
-    /// The plan for tags read off a real file or built by processing, where a
-    /// field is blank, zero or empty when it is cleared: blank text clears,
-    /// a date is trimmed (other text is written as found), a track or disc
-    /// number 0 clears, an empty cover clears.
     pub fn from_metadata(metadata: &AudiobookMetadata) -> Self {
         let mut ops = Vec::new();
         for field in plain_text_fields() {
@@ -132,8 +124,6 @@ impl MetadataWritePlan {
     }
 }
 
-/// The text fields whose tag value is the field itself; the series fields
-/// join the primary and sub-series (`series_ops`).
 fn plain_text_fields() -> impl Iterator<Item = TextField> {
     TextField::ALL
         .into_iter()

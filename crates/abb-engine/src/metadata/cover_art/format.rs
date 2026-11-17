@@ -46,8 +46,6 @@ pub(crate) fn detect_image_dimensions(data: &[u8], format: CoverFormat) -> Optio
     }
 }
 
-/// Width and height from the header of a JPEG, PNG, GIF, BMP, TIFF or WebP
-/// picture.
 pub(crate) fn picture_dimensions(data: &[u8]) -> Option<(u32, u32)> {
     let (width, height) = if let Some(format) = detect_cover_art_format(data) {
         let (width, height) = detect_image_dimensions(data, format)?;
@@ -82,7 +80,6 @@ fn gif_dimensions(data: &[u8]) -> Option<(u32, u32)> {
 
 const BMP_CORE_HEADER_SIZE: i32 = 12;
 
-/// A negative BMP height means rows run top-down.
 fn bmp_dimensions(data: &[u8]) -> Option<(u32, u32)> {
     if le_i32(data, 14)? == BMP_CORE_HEADER_SIZE {
         return Some((le_u16(data, 18)?, le_u16(data, 20)?));

@@ -23,9 +23,6 @@ const TERMINAL_CHILD_STATUSES: [ChildJobStatus; 4] = [
     ChildJobStatus::Failed,
 ];
 
-/// Consecutive identical entries collapse so progress spam does not rotate
-/// real history out; entries for another child or stage are kept even with the
-/// same wording.
 pub(super) fn push_operation_log(
     snapshot: &mut OperationSnapshot,
     message: &str,
@@ -263,9 +260,6 @@ impl WorkRuntimeState {
         Ok(snapshot.clone())
     }
 
-    /// Requests cancellation of one title. Returns its input index when this
-    /// call newly requested it; a repeated or already-finished request returns
-    /// the snapshot unchanged.
     pub(crate) fn request_child_cancel(
         &mut self,
         operation_id: &OperationId,
@@ -324,9 +318,6 @@ impl WorkRuntimeState {
         })
     }
 
-    /// Terminalizes an inline operation (a metadata save) from its raw result
-    /// summary and per-child terminal facts. Status maps through the same
-    /// classifier as processing; children match by `input_index`.
     pub(crate) fn complete_from_summary(
         &mut self,
         operation_id: &OperationId,

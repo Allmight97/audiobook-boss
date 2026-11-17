@@ -1,5 +1,3 @@
-/// One MP4 box: its four-character type, where its payload starts, and its
-/// total size (`None` when it runs to the end of its parent).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Mp4BoxHeader {
     pub kind: [u8; 4],
@@ -7,11 +5,8 @@ pub struct Mp4BoxHeader {
     pub size: Option<u64>,
 }
 
-/// Bytes a caller reads at a box's start before calling [`mp4_box_header`].
 pub const MP4_BOX_HEADER_PROBE_LEN: usize = 16;
 
-/// Parses a box header from the first bytes at a box's offset. Returns `None`
-/// when the bytes cannot start a box.
 pub fn mp4_box_header(bytes: &[u8]) -> Option<Mp4BoxHeader> {
     let size32 = u32::from_be_bytes(bytes.get(0..4)?.try_into().ok()?);
     let kind: [u8; 4] = bytes.get(4..8)?.try_into().ok()?;
@@ -33,18 +28,12 @@ pub fn mp4_box_header(bytes: &[u8]) -> Option<Mp4BoxHeader> {
     })
 }
 
-/// The DRM boxes found in a download's sample descriptions. FFmpeg's MP4
-/// demuxer needs `adrm` to apply AAX activation bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DrmBoxes {
     pub adrm_present: bool,
     pub aavd_entry_present: bool,
 }
 
-/// What an Audible download declares about its protection. None of it is
-/// secret: it decides whether FFmpeg's MP4 demuxer applies AAXC keys (only for
-/// major brand `aaxc`) or AAX activation bytes (when an `adrm` box exists).
-/// `drm_boxes` is `None` when the sample descriptions could not be read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProtectedFileFacts {
     pub major_brand: String,
@@ -52,9 +41,6 @@ pub struct ProtectedFileFacts {
     pub drm_boxes: Option<DrmBoxes>,
 }
 
-/// `ftyp` is the payload of the top-level `ftyp` box. `sample_descriptions`
-/// holds the payload of each `moov/trak/mdia/minf/stbl/stsd` box; `adrm` and
-/// `aavd` are found by their box type names inside them.
 pub fn protected_file_facts(
     ftyp: &[u8],
     sample_descriptions: Option<&[Vec<u8>]>,

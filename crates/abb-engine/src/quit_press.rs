@@ -9,7 +9,6 @@ pub enum QuitPress {
     PressAgain,
 }
 
-/// Remembers the first press of the Quit shortcut until the second one.
 #[derive(Default)]
 pub(crate) struct QuitPresses(Mutex<Option<Instant>>);
 

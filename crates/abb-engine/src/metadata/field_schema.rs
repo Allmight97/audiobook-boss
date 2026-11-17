@@ -10,15 +10,11 @@ pub(super) const ITUNES_MEAN: &str = "com.apple.iTunes";
 pub(super) const ID3_ALBUM_SORT_KEY: &str = "album-sort";
 pub(super) const MP4_ALBUM_SORT_KEY: &str = "sort_album";
 
-/// Both FFmpeg spellings of the album sort, in read precedence.
 pub(super) const ALBUM_SORT_KEYS: [&str; 2] = [ID3_ALBUM_SORT_KEY, MP4_ALBUM_SORT_KEY];
 
-/// A set of FFmpeg dictionary keys, compared ignoring case.
 #[derive(Debug, Clone, Copy)]
 pub(super) enum KeySet {
     Keys(&'static [&'static str]),
-    /// Every key `comment_key_rank` accepts: `comment`, language and
-    /// descriptor variants, but not the iTunes technical records.
     UserComments,
 }
 
@@ -31,13 +27,6 @@ impl KeySet {
     }
 }
 
-/// How one text field maps onto each tag backend.
-///
-/// FFmpeg backends (MP3, FLAC, Matroska and the MP4 remux): a Set replaces
-/// only the keys it writes and drops `drop_on_set`; a Clear drops
-/// `drop_on_clear` and writes nothing. mp4ameta writes its own atoms and uses
-/// only `mp4_freeform`: the iTunes freeform names a Set writes and a Clear
-/// removes, in order.
 #[derive(Debug)]
 pub(super) struct TextKeys {
     pub read: KeySet,
@@ -81,7 +70,6 @@ const ARTIST: TextKeys = TextKeys {
     mp4_freeform: &[],
 };
 
-/// A Set also writes `year` when the date starts with one (sink code).
 const DATE: TextKeys = TextKeys {
     read: KeySet::Keys(&["date", "year"]),
     write: &["date"],
@@ -98,8 +86,6 @@ const COMMENT: TextKeys = TextKeys {
     mp4_freeform: &[],
 };
 
-/// A stray `----:com.apple.iTunes:SERIES` is read and cleared on FFmpeg
-/// backends but never written; the mp4ameta sink writes both freeform atoms.
 const SERIES_KEYS: TextKeys = TextKeys {
     read: KeySet::Keys(&[SERIES, ITUNES_SERIES, "show"]),
     write: &[SERIES],
@@ -168,9 +154,6 @@ pub(super) fn position_keys(field: PositionField) -> &'static PositionKeys {
     }
 }
 
-/// FFmpeg exports COMM as comment[-descriptor][-language]. ABB displays one
-/// user comment; iTunes technical COMM records remain opaque passthrough data.
-/// Prefer the canonical key, then undescribed language variants, then descriptors.
 pub(super) fn comment_key_rank(key: &str) -> Option<u8> {
     let key = key.to_ascii_lowercase();
     if key == "comment" {

@@ -26,8 +26,6 @@ impl Backend {
             Self::Faac(_) => SampleFormat::F32_PLANAR,
         }
     }
-    /// The layout the encoder was opened with; every encoder ABB opens
-    /// takes a speaker-mask layout.
     pub fn channel_layout(&self) -> Result<ChannelLayout> {
         match self {
             Self::Ffmpeg(e) => e.layout().ok_or_else(|| {
@@ -45,9 +43,6 @@ impl Backend {
     pub fn time_base(&self) -> Rational {
         Rational::new(1, self.rate() as i32)
     }
-    /// Opus headers and decoded skip counts use the 48 kHz clock, even when
-    /// libopus consumes 24 kHz PCM. Mux timing stays on that same clock so
-    /// MP4 edit lists retain the full interval.
     pub fn add_stream_to(&self, output: &mut abb_ffmpeg::Output) -> Result<usize> {
         let added = match self {
             Self::Ffmpeg(e) => output.add_stream_for_encoder(e).and_then(|index| {
@@ -75,7 +70,6 @@ pub(super) struct PacketStats {
 pub(crate) struct EncoderSession {
     backend: Backend,
     layout: ChannelLayout,
-    /// `None` once the trailer is written.
     output: Option<Muxer>,
     stream_index: usize,
     time_base: Rational,

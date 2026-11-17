@@ -16,32 +16,20 @@ pub struct TitleSource {
 #[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessPayload {
-    /// One metadata anchor per output title. Source order never changes this identity.
     pub input_files: Vec<String>,
-    /// Ordered sources for multi-file titles, keyed by their metadata anchor.
     pub title_sources: Option<HashMap<String, Vec<TitleSource>>>,
     pub chapter_plans: Option<HashMap<String, crate::metadata::ChapterPlan>>,
-    /// Session/workbench identities aligned to `input_files`; used for acquired
-    /// source sidecars without replacing path as the filesystem source label.
     pub input_ids: Option<Vec<Option<String>>>,
     pub output_dir: String,
-    /// One audio request per output title.
     pub audio_requests: Vec<audio::TitleAudioRequest>,
-    /// Output naming configuration (defaults to ABS-compatible)
     pub output_naming: Option<OutputNamingConfig>,
     pub collision_policy: Option<CollisionPolicy>,
-    /// Signature returned by preflight so execution can reject stale destination assumptions.
     pub preflight_signature: Option<String>,
-    /// Supplemental assets keyed by input id. These are committed only after a
-    /// matching final batch audiobook succeeds.
     pub supplemental_assets_by_input_id: Option<HashMap<String, Vec<SupplementalProcessingAsset>>>,
-    /// The AAC decoder setting, recorded when the session accepts the run.
     pub aac_decoder: Option<audio::AacDecoder>,
 }
 
 impl ProcessPayload {
-    /// The decoder recorded at acceptance; a payload without one is refused,
-    /// never decoded with a default.
     pub(crate) fn accepted_aac_decoder(&self) -> crate::errors::Result<audio::AacDecoder> {
         self.aac_decoder.ok_or_else(|| {
             crate::errors::AppError::InvalidInput(
@@ -130,16 +118,9 @@ pub struct ProcessResultEntry {
     pub status: ProcessResultStatus,
     pub message: String,
     pub error: Option<AppErrorEnvelope>,
-    /// Published artifact of a successful title: the audiobook for final
-    /// processing, the excerpt for a preview.
     pub output_path: Option<String>,
     pub job_id: Option<String>,
-    /// Set on a successful title whose audiobook was published but whose
-    /// requested companion files (PDFs) were not. Its acquired sources stay
-    /// retained so reprocessing can publish the companions.
     pub supplemental_warning: Option<String>,
-    /// Display-only notes on a successful title, such as a source cover that
-    /// was left off. They change no outcome.
     pub warnings: Vec<String>,
 }
 
@@ -147,8 +128,6 @@ pub struct ProcessResultEntry {
 #[serde(rename_all = "camelCase")]
 pub struct ProcessCommandResult {
     pub summary: OperationResultSummary,
-    /// Backend-owned terminal classification of the run. The UI renders this
-    /// instead of re-deriving success/mixed/failed/skipped/cancelled precedence.
     pub terminal_class: abb_processing_core::RunTerminalClass,
     pub results: Vec<ProcessResultEntry>,
 }

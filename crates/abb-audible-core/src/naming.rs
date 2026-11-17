@@ -1,7 +1,5 @@
 const MAX_REMOTE_FILENAME_STEM_BYTES: usize = 180;
 
-/// Stable, non-reversible reference for a provider title id, safe to emit in
-/// logs and filenames. Never exposes the raw provider title id.
 pub fn title_ref(title_id: &str) -> String {
     abb_media_core::sha256_hex(title_id.as_bytes())
         .chars()
@@ -9,8 +7,6 @@ pub fn title_ref(title_id: &str) -> String {
         .collect()
 }
 
-/// Sanitized filename stem for a materialized remote title, falling back to a
-/// `title_ref`-derived name when the provider title is missing or unusable.
 pub fn remote_materialized_filename_stem(title_name: Option<&str>, title_id: &str) -> String {
     let fallback = format!("Audible {}", title_ref(title_id));
     let Some(title_name) = title_name else {

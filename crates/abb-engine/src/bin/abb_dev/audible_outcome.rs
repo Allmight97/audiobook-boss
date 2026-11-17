@@ -63,8 +63,6 @@ impl TitleOutcome {
     }
 }
 
-/// What one title's job left behind. A title is imported when the session
-/// gained its files; the job's diagnostics explain it either way.
 pub(super) fn title_outcome(
     title_id: &str,
     job: &AcquisitionSnapshot,
@@ -129,7 +127,6 @@ fn refusal_message(reason: &HandoffRefusal) -> String {
     }
 }
 
-/// Where one title's Supplemental PDF landed, or why it did not.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "status", rename_all = "camelCase")]
 pub(super) enum PdfOutcome {

@@ -1,22 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Agent and CI setup for ABB. Idempotent. Never edits shell profiles; sets
-# this repo's core.hooksPath so commits run .githooks/pre-commit, unless a
-# Cursor wrapper already points .cursor-original-hooks-path at those hooks.
-#   bash scripts/setup.sh                 # frontend, rust, and supply-chain
-#   bash scripts/setup.sh frontend        # locked Bun, Node, frozen install, actionlint, shellcheck, uv, zizmor
-#   bash scripts/setup.sh rust            # bundled FFmpeg build deps and source, pinned FFmpeg readback CLI, uv, cargo fetch
-#   bash scripts/setup.sh supply-chain    # pinned cargo-audit and cargo-deny
-#   bash scripts/setup.sh --check [mode]  # install nothing; exit nonzero if something is missing
-#                                         # (no mode checks frontend and rust, not supply-chain)
-#   bash scripts/setup.sh --print-env     # eval-able PATH and toolchain exports
-#
-# rust installs nasm and static libopus for the engine's bundled FFmpeg
-# (cargo compiles the vendored revision on first use and caches it in target/),
-# Tauri's GTK/WebKit packages on Linux, and the pinned FFmpeg command-line build
-# for media-lane fixture readback.
-
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tools_bin="${ABB_TOOLS_BIN:-$HOME/.local/share/audiobook-boss/bin}"
 export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
@@ -28,7 +12,23 @@ print_env_only=0
 mode="all"
 
 usage() {
-	awk 'NR > 3 && /^#/ { sub(/^# ?/, ""); print; next } NR > 3 { exit }' "$0"
+	cat <<'USAGE'
+Agent and CI setup for ABB. Idempotent. Never edits shell profiles; sets
+this repo's core.hooksPath so commits run .githooks/pre-commit, unless a
+Cursor wrapper already points .cursor-original-hooks-path at those hooks.
+  bash scripts/setup.sh                 # frontend, rust, and supply-chain
+  bash scripts/setup.sh frontend        # locked Bun, Node, frozen install, actionlint, shellcheck, uv, zizmor
+  bash scripts/setup.sh rust            # bundled FFmpeg build deps and source, pinned FFmpeg readback CLI, uv, cargo fetch
+  bash scripts/setup.sh supply-chain    # pinned cargo-audit and cargo-deny
+  bash scripts/setup.sh --check [mode]  # install nothing; exit nonzero if something is missing
+                                        # (no mode checks frontend and rust, not supply-chain)
+  bash scripts/setup.sh --print-env     # eval-able PATH and toolchain exports
+
+rust installs nasm and static libopus for the engine's bundled FFmpeg
+(cargo compiles the vendored revision on first use and caches it in target/),
+Tauri's GTK/WebKit packages on Linux, and the pinned FFmpeg command-line build
+for media-lane fixture readback.
+USAGE
 }
 
 while [[ $# -gt 0 ]]; do
@@ -173,8 +173,6 @@ node_meets_pinned_major() {
 	[[ "${major}" =~ ^[0-9]+$ && "${major}" -ge "$(pinned_node_major)" ]]
 }
 
-# Capture stdout and stderr: Homebrew prints `-version` on stderr.
-# Parse with awk, not sed `\?`: BSD sed reads it as a literal.
 ffmpeg_major() {
 	local bin="$1"
 	"${bin}" -version 2>&1 | awk '
@@ -188,7 +186,6 @@ ffmpeg_major() {
 	' || true
 }
 
-# Formula prefix, not PATH: Homebrew may leave ffmpeg unlinked from bin/.
 brew_ffmpeg_cli() {
 	local name="$1" prefix
 	is_darwin || return 1
@@ -198,7 +195,6 @@ brew_ffmpeg_cli() {
 	printf '%s\n' "${prefix}/bin/${name}"
 }
 
-# BtbN appends -YYYYMMDD to the git-describe id stored in ffmpeg_cli_build.
 ffmpeg_version_token() {
 	local bin="$1"
 	"${bin}" -version 2>&1 | awk '$2 == "version" { print $3; exit }' || true
@@ -209,8 +205,6 @@ ffmpeg_cli_matches_pin() {
 	[[ "${token}" == "${ffmpeg_cli_build}" || "${token}" == "${ffmpeg_cli_build}-"* ]]
 }
 
-# Major 9 is Homebrew and the previous release-branch CLI. A master autobuild's
-# version token is N-<count>-g<sha>, so the pinned build id counts as well.
 tools_readback_ok() {
 	local bin="$1"
 	[[ -x "${bin}" ]] || return 1
@@ -296,8 +290,6 @@ check_supply_chain() {
 	done
 }
 
-# True when commits run this repo's .githooks. Cursor cloud wraps
-# core.hooksPath and records the original path in .cursor-original-hooks-path.
 git_hooks_installed() {
 	local root="${1:-${repo_root}}"
 	local hooks original
@@ -461,10 +453,6 @@ print_path_line() {
 	fi
 }
 
-# Linux readback is the BtbN master autobuild of the commit in ffmpeg-revision.
-# Master assets are ffmpeg-<describe>-linux*-gpl.tar.xz. Distro FFmpeg 6.x
-# decodes edit lists and Opus pre-skip differently, so it stays refused.
-# Assigned before --print-env and --check, which both ask which binary this is.
 ffmpeg_cli_release=autobuild-2026-11-13-12-43
 ffmpeg_cli_build=N-128889-g88c46fce27
 
@@ -549,7 +537,6 @@ ensure_bun() {
 			;;
 	esac
 
-	# GitHub releases, not bun.sh: some agent network policies deny bun.sh.
 	tmp="$(mktemp -d)"
 	log "Installing Bun ${required_bun_version} (${asset})"
 	fetch_verified "https://github.com/oven-sh/bun/releases/download/bun-v${required_bun_version}" \
@@ -582,8 +569,6 @@ apt_install() {
 	run_as_root env DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install -y -q --no-install-recommends "$@"
 }
 
-# Node, Bun, and the FFmpeg CLI download with curl and unpack .tar.xz and .zip.
-# A minimal Ubuntu image has none of these, and frontend setup runs first.
 ensure_download_tools() {
 	is_linux || return 0
 	if have curl && have unzip && have xz && [[ -s /etc/ssl/certs/ca-certificates.crt ]] &&
@@ -846,9 +831,6 @@ ensure_cargo_deny() {
 		"${sha256}"
 }
 
-# The bundled FFmpeg build clones its pinned commit from this mirror when it
-# exists (vendor/ffmpeg-sys-next-*/build.rs, source_remote), so verify works
-# offline after setup.
 ensure_ffmpeg_source() {
 	if [[ -n "${CI:-}" ]]; then
 		log "Skipping the offline FFmpeg source: CI has the network and restores built FFmpeg trees"
@@ -911,7 +893,6 @@ if want_rust; then
 	ensure_readback_cli
 	ensure_bun
 	ensure_uv
-	# So verify.sh core still works if the network drops after setup (Codex cloud).
 	log "Prefetching lizard for the complexity check"
 	bash "${repo_root}/scripts/check-rust-complexity.sh" --prefetch
 	log "Fetching Cargo crates"

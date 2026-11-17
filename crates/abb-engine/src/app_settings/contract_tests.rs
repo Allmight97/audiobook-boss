@@ -7,8 +7,6 @@ use crate::output_artifact::{NamingPreset, OutputNamingConfig};
 use std::path::Path;
 use tempfile::TempDir;
 
-/// Every setting at a value other than its default, so a field that stops
-/// loading cannot hide behind a default.
 fn chosen_settings() -> AppSettings {
     AppSettings {
         keep_awake_while_working: false,

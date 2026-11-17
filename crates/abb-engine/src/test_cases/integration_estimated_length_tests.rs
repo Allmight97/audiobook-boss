@@ -129,8 +129,6 @@ fn remux_without_duration(source: &Path, path: &Path) {
     fs::write(path, remuxed).expect("write durationless Matroska");
 }
 
-/// A 1 s MP3 with its length header and a 2 s raw MP3 to append to it, which
-/// is what joining tools leave.
 fn write_mp3_parts(dir: &Path) -> (PathBuf, PathBuf) {
     let first = dir.join("part-1.mp3");
     let second = dir.join("part-2.mp3");

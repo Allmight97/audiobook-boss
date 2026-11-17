@@ -61,9 +61,6 @@ fn sine_samples(seconds: f64, tones_hz: &[f64]) -> Vec<u8> {
     pcm
 }
 
-/// A mono 16-bit 44.1 kHz WAV of silence, `seconds` long, with the RIFF INFO
-/// title and artist given. Tag text is written as the bytes of the `&str`, so
-/// a test can pick a Unicode normalization form.
 pub(crate) fn write_wav(path: &Path, seconds: u32, title: Option<&str>, artist: Option<&str>) {
     let info = (title.is_some() || artist.is_some()).then(|| info_chunk(title, artist));
     let pcm = vec![0u8; (SAMPLE_RATE * 2 * seconds) as usize];
@@ -71,7 +68,6 @@ pub(crate) fn write_wav(path: &Path, seconds: u32, title: Option<&str>, artist: 
     fs::write(path, wav_file(1, info, &pcm)).expect("write a fixture WAV");
 }
 
-/// A one-second silent WAV whose RIFF INFO `INAM` title holds exactly `title`.
 pub(crate) fn write_wav_with_raw_title(path: &Path, title: &[u8]) {
     let mut text = title.to_vec();
     text.push(0);
@@ -82,7 +78,6 @@ pub(crate) fn write_wav_with_raw_title(path: &Path, title: &[u8]) {
         .expect("write a fixture WAV");
 }
 
-/// The bytes of the first `INAM` chunk in a RIFF file, without the trailing NUL.
 pub(crate) fn riff_inam_bytes(path: &Path) -> Vec<u8> {
     let bytes = fs::read(path).expect("read the WAV");
     let at = bytes

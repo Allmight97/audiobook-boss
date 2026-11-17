@@ -10,21 +10,10 @@ import settingsScenarios from '../../lib/generated/fixtures/settings-scenarios.j
 type Scenario = { name: string; start?: unknown; steps: ReadonlyArray<Record<string, unknown>> };
 
 type Replay = {
-	/** Releases the reply held with `hold`. */
 	release: () => void;
-	/** Fails when an intent differed from the recording or a recorded one never came. */
 	finish: () => void;
 };
 
-/**
- * Answers the commands of one recorded scenario at the `invoke` boundary, so
- * the real client, link and owners run. It holds no state and no
- * rule: each dispatch must carry the next recorded intent and gets the
- * recorded reply unchanged.
- *
- * `through` stops the replay after that many intents. `hold` delays the reply
- * to that numbered intent until `release`.
- */
 export function replayInvoke(
 	engine: 'session' | 'settings',
 	name: string,

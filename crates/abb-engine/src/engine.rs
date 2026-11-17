@@ -22,8 +22,6 @@ use crate::session::{
 };
 use crate::work_runtime::{OperationId, OperationSnapshot, WorkOperationsSnapshot, WorkRuntime};
 
-/// Only another engine holding the lock stops a start; a folder that cannot
-/// be locked (a filesystem without `flock`) is used unlocked.
 fn lock_cache_dir(cache_dir: &Path) -> Result<Option<File>> {
     let unlocked = |error: std::io::Error| {
         log::warn!("The working folder is not locked against a second ABB: {error}");
@@ -48,21 +46,12 @@ fn lock_cache_dir(cache_dir: &Path) -> Result<Option<File>> {
 }
 
 pub struct EngineConfig {
-    /// Root for engine-owned working files: processing workspaces and staged
-    /// remote downloads. The engine locks it, then clears abandoned contents.
     pub cache_dir: PathBuf,
     pub config_dir: PathBuf,
-    /// Scopes stored credentials. Two identifiers never share a vault.
     pub app_identifier: String,
     pub events: Arc<dyn EventSink>,
 }
 
-/// One running ABB engine. Cloning shares the same engine.
-///
-/// One engine owns one storage namespace (`cache_dir`, `config_dir`,
-/// `app_identifier`): starting it removes working files a previous run left
-/// behind, so it holds an OS lock on `cache_dir` for its life and a second
-/// start on the same folder fails with [`AppError::AlreadyRunning`].
 #[derive(Clone)]
 pub struct Engine {
     inner: Arc<EngineInner>,
@@ -79,16 +68,11 @@ struct EngineInner {
     _cache_dir_lock: Option<File>,
 }
 
-/// Work still running that quitting would stop.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RunningWork {
-    /// Exports being prepared, awaiting collision review, or running.
     pub exports: usize,
-    /// Files with a Save waiting for an export to finish reading them.
     pub waiting_writes: usize,
-    /// Audible downloads in progress.
     pub acquisitions: usize,
-    /// Names exactly this work, for [`Engine::close_for_quit`].
     pub consent: QuitConsent,
 }
 
@@ -96,14 +80,9 @@ pub struct RunningWork {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ShutdownOutcome {
     Settled,
-    /// Accepted settings could not be written. Calling `shutdown` again
-    /// retries the write.
-    SettingsUnsaved {
-        error: crate::AppErrorEnvelope,
-    },
+    SettingsUnsaved { error: crate::AppErrorEnvelope },
 }
 
-/// The work a user agreed quitting may stop.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct QuitConsent(BTreeSet<StoppedWork>);
 
@@ -115,9 +94,6 @@ enum StoppedWork {
 }
 
 impl Engine {
-    /// Starts the engine: locks `cache_dir`, removes empty output folders and
-    /// clears working files abandoned by a previous run, puts the saved settings in effect, then starts the
-    /// remote sources, which read the Indexer connection from those settings.
     pub fn start(config: EngineConfig) -> Result<Self> {
         let cache_dir_lock = lock_cache_dir(&config.cache_dir)?;
         audio::limit_ffmpeg_logging();
@@ -206,8 +182,6 @@ impl Engine {
         }
     }
 
-    /// Decides what a press of the Quit shortcut does. Running work skips the
-    /// second press, because quitting asks about that work anyway.
     pub fn quit_pressed(&self) -> QuitPress {
         let second_press_required =
             self.inner.settings.press_quit_twice() && self.running_work().consent.0.is_empty();
@@ -223,11 +197,6 @@ impl Engine {
         press
     }
 
-    /// Refuses new work when quitting would stop only what `consent` names;
-    /// work that finished since does not matter. Otherwise nothing closes and
-    /// the error is what quitting would stop now, to ask about again. The
-    /// check and the close share one admission turn, so no work starts
-    /// between them. A host then calls [`Engine::shutdown`].
     pub fn close_for_quit(&self, consent: &QuitConsent) -> std::result::Result<(), RunningWork> {
         self.inner.tasks.close_if(|| {
             let running = self.running_work();
@@ -239,11 +208,6 @@ impl Engine {
         })
     }
 
-    /// Stops the engine: refuses new exports and acquisitions, cancels the
-    /// running ones, and waits for every background task to settle, so the
-    /// engine's folders can be reused or removed. Saves that were waiting for
-    /// a cancelled export are written once it stops reading their files.
-    /// Repeating it after it settled only retries an unsaved settings write.
     pub async fn shutdown(&self) -> ShutdownOutcome {
         self.inner.tasks.close();
         self.inner.session.cancel_review();
@@ -321,27 +285,18 @@ impl Engine {
         self.inner.settings.snapshot().await
     }
 
-    /// Applies one intent to the working session and returns what changed.
-    /// Changes the engine makes on its own arrive as [`crate::EngineEvent::Session`].
     pub async fn session_dispatch(&self, intent: SessionIntent) -> SessionReply {
         self.inner.session.dispatch(intent).await
     }
 
-    /// Applies an intent's immediate effect and returns the rest of its work.
-    /// A host whose transport may reorder or overlap requests begins intents
-    /// in the order the user made them and finishes each one afterward.
     pub fn session_begin(&self, intent: SessionIntent) -> SessionRun {
         self.inner.session.begin(intent)
     }
 
-    /// The whole working session, for a host that is starting or resyncing.
     pub fn session_snapshot(&self) -> SessionUpdate {
         self.inner.session.snapshot()
     }
 
-    /// A cover a view shows, named by the request path of its cover address
-    /// (`session/runtime/cover_flow.rs`); `None` when its source has no cover.
-    /// Only covers the session handed out are served. Stops at closing.
     pub async fn cover(&self, request: &str) -> Result<Option<std::sync::Arc<[u8]>>> {
         self.inner
             .tasks
@@ -349,10 +304,6 @@ impl Engine {
             .await
     }
 
-    /// Imports files the operating system asked ABB to open; no window has
-    /// to ask. Unsupported paths get the notice a normal import gives. While
-    /// the list is locked the import waits and appends once it unlocks.
-    /// Refused once ABB is closing.
     pub async fn open_audio_files(&self, paths: Vec<PathBuf>) -> Result<()> {
         self.inner.session.import_opened(paths)
     }
@@ -374,7 +325,6 @@ impl Engine {
         self.inner.work.list_operations()
     }
 
-    /// Cancels a whole operation, or one of its titles when `child_job_id` is given.
     pub fn cancel_work_operation(
         &self,
         operation_id: OperationId,

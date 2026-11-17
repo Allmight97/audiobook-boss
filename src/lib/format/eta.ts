@@ -1,4 +1,3 @@
-/** Formats backend-authored remaining time as MM:SS, or H:MM:SS past the hour. */
 export function formatEtaRemaining(etaSeconds: number): string {
 	const total = Math.max(0, Math.round(etaSeconds));
 	const hours = Math.floor(total / 3600);

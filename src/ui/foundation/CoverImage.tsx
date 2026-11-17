@@ -2,23 +2,15 @@ import { createSignal } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 export type CoverImageProps = {
-	/** The cover's address; absent when the source has no cover. */
 	readonly src: string | null | undefined;
 	readonly alt: string;
 	readonly class?: string;
 	readonly testId?: string;
-	/** Load at once; otherwise the cover loads as it nears the screen. */
 	readonly eager?: boolean;
-	/** Shown when there is no cover, or it could not be loaded. */
 	readonly missing?: JSX.Element;
-	/** Shown when the cover could not be loaded; defaults to `missing`. */
 	readonly failed?: JSX.Element;
 };
 
-/**
- * One cover image: its container shows while it loads, it fades in once
- * loaded, and a failed load shows a state instead of a broken image.
- */
 export function CoverImage(props: CoverImageProps): JSX.Element {
 	const [settled, setSettled] = createSignal<{ src: string; ok: boolean } | null>(null);
 	const state = () => {

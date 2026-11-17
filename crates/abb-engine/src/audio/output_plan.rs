@@ -106,11 +106,9 @@ pub struct TitleAudioPlan {
     pub sample_rate: u32,
     pub channels: u8,
     pub source_codec: String,
-    /// Why Auto needs encoding even though the output codec matches.
     pub reason: Option<String>,
 }
 
-/// The audio setting a title's plan failed on, when one setting is the cause.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum AudioPlanField {
@@ -118,8 +116,6 @@ pub enum AudioPlanField {
     Channels,
 }
 
-/// Why a title's audio cannot be planned, and the setting to change when one
-/// setting is the cause.
 #[derive(Debug)]
 pub struct TitleAudioError {
     pub error: AppError,
@@ -134,7 +130,6 @@ impl TitleAudioError {
         }
     }
 
-    /// The reason in the user's terms.
     pub fn message(&self) -> String {
         match &self.error {
             AppError::InvalidInput(message) => message.clone(),

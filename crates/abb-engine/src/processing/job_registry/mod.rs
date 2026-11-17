@@ -52,9 +52,6 @@ impl Drop for ActiveRun {
 }
 
 impl JobRegistry {
-    /// Runs the futures `max_concurrent` at a time, in order. A queued future
-    /// whose token is cancelled starts at once, so it fails fast instead of
-    /// waiting behind the futures ahead of it.
     pub async fn run_batch<R, Fut>(
         &self,
         tasks: Vec<(Fut, Option<CancellationToken>)>,
@@ -185,8 +182,6 @@ impl JobRegistry {
         max.clamp(MIN_CONCURRENT_JOBS, MAX_CONCURRENT_JOBS)
     }
 
-    /// Logical cores the process may use; respects cgroup/affinity limits and
-    /// falls back to 1 on platforms that can't report it.
     fn detected_cores() -> usize {
         std::thread::available_parallelism()
             .map(|n| n.get())
@@ -241,14 +236,10 @@ impl JobRegistry {
         removed
     }
 
-    /// Whether the concurrency limit is refused right now: a job or a run is
-    /// active.
     pub(crate) fn concurrency_locked(&self) -> bool {
         self.admission().locked()
     }
 
-    /// Calls `observer` after every change of `concurrency_locked`, with no
-    /// registry lock held.
     pub(crate) fn observe_concurrency_lock(&self, observer: LockObserver) {
         *self
             .lock_observer

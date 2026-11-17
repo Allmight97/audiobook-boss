@@ -48,8 +48,6 @@ pub(crate) fn new_processing_snapshot(
     }
 }
 
-/// Builds a metadata-save operation snapshot: one child per file, matched by
-/// `input_index`.
 pub(crate) fn new_metadata_save_snapshot(
     operation_id: OperationId,
     sequence: u64,

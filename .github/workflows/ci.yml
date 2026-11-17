@@ -38,11 +38,10 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       plan: ${{ steps.plan.outputs.plan }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           fetch-depth: 2
           persist-credentials: false
-      # Depth 2 includes the test-merge parents. A stacked base is not one of them.
       - if: env.BASE != ''
         run: git fetch --no-tags --depth=1 origin "$BASE"
       - run: bash scripts/setup.sh frontend
@@ -68,12 +67,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           persist-credentials: false
       - run: bash scripts/setup.sh frontend
       - run: bash scripts/verify.sh frontend
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
           name: proof-frontend
@@ -90,14 +89,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           persist-credentials: false
       - run: bash scripts/setup.sh frontend
-      # rust-toolchain.toml pins the compiler; rustup installs it on first use.
       - run: sudo apt-get install -y -q --no-install-recommends mold
       - run: bash scripts/verify.sh core
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
           name: proof-core
@@ -117,10 +115,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           persist-credentials: false
-      # rust-cache keys on every installed toolchain, so an image's extra stable would change the key.
       - name: Keep only the pinned Rust toolchain
         run: |
           rustup toolchain install
@@ -130,7 +127,7 @@ jobs:
             [ "$toolchain" = "$pinned" ] || rustup toolchain uninstall "$toolchain"
           done
           [ "$(rustup toolchain list --quiet)" = "$pinned" ]
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
         with:
           cache-workspace-crates: true
           cache-on-failure: true
@@ -147,7 +144,7 @@ jobs:
           fi
       - if: matrix.native
         run: touch "$RUNNER_TEMP/ffmpeg-job-start"
-      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         id: ffmpeg
         if: matrix.native
         with:
@@ -161,7 +158,6 @@ jobs:
         run: |
           read -r -a lanes <<< "$LANES"
           bash scripts/verify.sh "${lanes[@]}"
-      # A cache key cannot be overwritten, so every restore is a prefix match and a job that compiled a tree saves under its own run key.
       - id: ffmpeg-trees
         if: always() && matrix.native
         run: |
@@ -172,15 +168,14 @@ jobs:
           compiled=$(find target/abb-ffmpeg-cache -path '*/dist/abb-build-inputs' -newer "$RUNNER_TEMP/ffmpeg-job-start" 2>/dev/null | wc -l | tr -d " ")
           echo "abb-ffmpeg-cache: compiled $compiled tree(s)"
           echo "compiled=$compiled" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         if: always() && matrix.native && steps.ffmpeg-trees.outputs.compiled != '0' && steps.ffmpeg-trees.outputs.compiled != '' && steps.ffmpeg.outputs.cache-primary-key != ''
         with:
           path: target/abb-ffmpeg-cache
           key: ${{ steps.ffmpeg.outputs.cache-primary-key }}
-      # rust-cache's post step cleans every unknown directory under target/; the FFmpeg tree has its own cache.
       - if: always() && matrix.native
         run: rm -rf target/abb-ffmpeg-cache
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
           name: proof-${{ matrix.os }}
@@ -199,9 +194,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      # Full history so the file-size ratchet can merge-base a stacked pull
-      # request. A depth-1 base object has no ancestry, and a missing base fails.
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -219,7 +212,7 @@ jobs:
       - env:
           ABB_FILE_SIZE_BASE: ${{ github.event.pull_request.base.sha || '' }}
         run: bash scripts/verify.sh tooling
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
           name: proof-tooling
@@ -236,13 +229,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           persist-credentials: false
       - run: bash scripts/setup.sh frontend
       - run: bash scripts/setup.sh supply-chain
       - run: bash scripts/verify.sh supply-chain
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
           name: proof-supply-chain
@@ -259,7 +252,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           persist-credentials: false
       - run: bash scripts/setup.sh frontend

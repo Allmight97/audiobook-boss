@@ -32,8 +32,6 @@ describe('frontend toolchain layout', () => {
 		expect(version).toMatch(/^\d+\.\d+\.\d+$/);
 	});
 
-	// Dependabot's Bun updater rejects lockfiles newer than v1; a lockfile
-	// regenerated from scratch by Bun 1.4+ is v2 and silently stops Bun updates.
 	it('keeps bun.lock at lockfileVersion 1 so Dependabot can update it', () => {
 		const lock = readFileSync(path.join(repoRoot, 'bun.lock'), 'utf8');
 		expect(lock).toMatch(/^\{\s*"lockfileVersion": 1,/);

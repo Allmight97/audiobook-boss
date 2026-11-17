@@ -82,12 +82,8 @@ pub fn container_is_import_ready_audio(container: MediaContainerKind) -> bool {
     matches!(container, MediaContainerKind::M4b | MediaContainerKind::M4a)
 }
 
-/// Maximum accepted size for a Supplemental PDF asset (100 MiB). This is the
-/// single canonical policy value shared by the acquisition downloader, the
-/// processing handoff, and the output-artifact commit boundary.
 pub const MAX_SUPPLEMENTAL_PDF_BYTES: u64 = 100 * 1024 * 1024;
 
-/// True when the bytes begin with the PDF magic header (`%PDF-`).
 pub fn has_pdf_magic(bytes: &[u8]) -> bool {
     bytes.starts_with(b"%PDF-")
 }
@@ -147,7 +143,6 @@ impl SupplementalPdfIdentityBuilder {
     }
 }
 
-/// Lowercase hex SHA-256 digest of `bytes`.
 pub fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);

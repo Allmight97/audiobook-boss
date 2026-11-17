@@ -6,8 +6,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-/// Captures both clocks because process timing and user-visible elapsed time
-/// answer different questions. A wall-clock failure stays unknown.
 pub(crate) struct RunTiming {
     monotonic: Instant,
     wallclock: SystemTime,
@@ -26,7 +24,6 @@ impl RunTiming {
     }
 }
 
-/// Opens an adapter run record; `adapter` names the matching `--- end {adapter} run ---` footer.
 #[expect(
     clippy::let_underscore_must_use,
     reason = "writing to a String cannot fail"
@@ -131,8 +128,6 @@ pub(super) fn log_output_observation(context: &crate::execution::ProcessingConte
     append_run_record(|| format!("{record}\n"));
 }
 
-/// FFmpeg's name for an AAC profile number, in the form the run log has
-/// always shown it.
 fn profile_label(codec: abb_ffmpeg::CodecId, profile: i32) -> &'static str {
     use abb_ffmpeg::profile as p;
     if codec != abb_ffmpeg::CodecId::AAC {

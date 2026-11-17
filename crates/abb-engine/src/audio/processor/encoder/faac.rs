@@ -1,5 +1,3 @@
-//! FAAC owns its C handle and copies library-owned configuration before muxing.
-
 use crate::audio::{BitrateMode, EncoderSettings, FaacProfile};
 use crate::errors::{AppError, Result};
 use abb_ffmpeg::{AacStream, AudioFrame, Packet, SampleFormat};
@@ -120,8 +118,6 @@ impl FaacEncoder {
         )?;
         let (frame_samples, delay) = match self.info.object_type {
             faac::FAAC_OBJ_LC => (1024, 1024),
-            // FAAC reports HE priming without the SBR decoder delay; the MP4
-            // timing ABB writes (`he_timing`) must match it exactly.
             faac::FAAC_OBJ_HE_AAC_V1 => (2048, CORE_PRIMING),
             _ => {
                 return Err(AppError::General(

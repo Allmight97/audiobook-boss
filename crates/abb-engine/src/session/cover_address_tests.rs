@@ -2,8 +2,6 @@ use super::*;
 
 const AWKWARD: &str = "/books/a b/100% (final) ä#1?x=y&z.m4b";
 
-/// What the host sends the engine for an address: the page encodes it once
-/// more as a URL path component.
 pub(in crate::session) fn host_request(address: &str) -> String {
     format!("/{}", utf8_percent_encode(address, COMPONENT))
 }

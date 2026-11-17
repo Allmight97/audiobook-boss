@@ -21,8 +21,6 @@ pub(super) fn new_device_serial() -> String {
     let mut serial = String::with_capacity(DEVICE_SERIAL_LEN);
     while serial.len() < DEVICE_SERIAL_LEN {
         let uuid = uuid::Uuid::new_v4();
-        // Bytes 6 and 8 carry the UUID version and variant bits; the rest are random.
-        // 248 is the largest multiple of 62 below 256, so every symbol is equally likely.
         let random = uuid
             .as_bytes()
             .iter()

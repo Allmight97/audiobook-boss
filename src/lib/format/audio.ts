@@ -30,6 +30,5 @@ export const formatFileSize = (bytes: number | null): string => {
 	return `${size.toFixed(1)} ${units[unitIndex]}`;
 };
 
-/** Imported audio bitrate is bits per second; encoder targets use kilobits per second. */
 export const formatAudioBitrate = (bitsPerSecond: number | null): string =>
 	bitsPerSecond ? `${Math.round(bitsPerSecond / 100) / 10} kbps` : 'N/A';

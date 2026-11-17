@@ -19,8 +19,6 @@ pub use super::ChapterSpec;
 pub struct PassthroughMetadata {
     pub chapters: Vec<ChapterSpec>,
     pub cover_art: Option<Vec<u8>>,
-    /// Sources whose chapters or cover could not be read, or whose chapter
-    /// offsets are off; Work Center shows them with the finished title.
     pub warnings: Vec<String>,
 }
 
@@ -61,14 +59,6 @@ pub(crate) fn merge_passthrough_cover_art(
     }
 }
 
-/// Merge source and explicit cover, then make the winning bytes write-ready once.
-///
-/// JPEG already at or under the write target is left untouched. PNG and oversized
-/// JPEG go through `optimize_cover_art` so both encoder paths mux MJPEG and
-/// mp4ameta writes the same JPEG `covr`. Passthrough cover bytes are dropped after
-/// they have been adopted so remux cannot re-select the raw original. A source
-/// cover that cannot be prepared is dropped and the returned warning says so; a
-/// chosen cover that cannot be prepared fails the title.
 pub(crate) fn prepare_output_cover_art(
     metadata: Option<AudiobookMetadata>,
     passthrough: Option<PassthroughMetadata>,
@@ -105,9 +95,6 @@ pub(crate) fn prepare_output_cover_art(
     Ok((metadata, passthrough, None))
 }
 
-/// Extract chapters and original cover art from all valid input files.
-/// Chapters are normalized to milliseconds and offset by cumulative durations
-/// to preserve ordering for multi-file merges.
 pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughMetadata {
     let mut passthrough = PassthroughMetadata::default();
     let mut cumulative_offset_ms: i64 = 0;
@@ -154,7 +141,6 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
 
         chapter_counts.push(passthrough.chapters.len() - chapters_before);
 
-        // Rounded like the synthetic-chapter math so both paths agree.
         match file.duration {
             Some(duration) => cumulative_offset_ms += (duration * 1000.0).round() as i64,
             None => unmeasured.push((position, source_name(&file.path))),
@@ -191,9 +177,6 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
     passthrough
 }
 
-/// The chapters a file carries, titled from the `title` tag, with starts and
-/// ends rounded to milliseconds. Import, passthrough and the final
-/// verification read chapters through this, so they agree.
 pub(crate) fn read_chapters(input: &abb_ffmpeg::Input) -> Vec<ChapterSpec> {
     chapter_specs(&input.chapters())
 }
@@ -210,8 +193,6 @@ pub(crate) fn chapter_specs(chapters: &[abb_ffmpeg::Chapter]) -> Vec<ChapterSpec
         .collect()
 }
 
-/// A copy of `chapter` that carries only its title tag, with the title's
-/// bytes as they are; a chapter without a title gets an empty one.
 pub(crate) fn titled_chapter(
     chapter: &abb_ffmpeg::Chapter,
 ) -> std::result::Result<abb_ffmpeg::Chapter, abb_ffmpeg::Error> {
@@ -228,8 +209,6 @@ pub(crate) fn titled_chapter(
     })
 }
 
-/// Adds the accepted chapters to an output before its header, in
-/// milliseconds, and returns how many it added.
 pub(crate) fn add_chapters(
     output: &mut abb_ffmpeg::Output,
     chapters: &[ChapterSpec],
@@ -297,9 +276,6 @@ fn verify_chapters_inner(path: &std::path::Path, expected: &[ChapterSpec]) -> Re
     Ok(())
 }
 
-/// The first chapter where `actual` and `expected` differ, a missing one
-/// included. MP4 players end a chapter where the next starts (the last at the
-/// audio end), so without `ends_stored` only titles and starts count.
 pub(super) fn first_chapter_difference(
     actual: &[ChapterSpec],
     expected: &[ChapterSpec],

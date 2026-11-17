@@ -1,9 +1,3 @@
-//! What a tag write does to a real file: a save changes only the fields its
-//! intent names, keeps every attached picture unless told otherwise, and a
-//! clear removes the tag the file actually holds, whatever case the
-//! container's reader reports for its key (Matroska and ID3 user text frames
-//! use upper case).
-
 use super::media_fixtures::{
     assert_ffprobe_tag, audio_packet_bytes, ffmpeg, ffprobe_format_tags, minimal_jpg_bytes,
     picture_codecs, picture_payloads, write_sine_mp3, write_sine_mp3_with,
@@ -260,8 +254,6 @@ async fn metadata_saved_during_processing_rereads_from_output_artifact() {
     metadata.artist = Some("Lane Narrator".to_string());
     metadata.album = Some("Lane Album".to_string());
     metadata.genre = Some("Audiobook".to_string());
-    // The MP4 muxer drops these keys; they reach the artifact only through the
-    // finalized tag write.
     metadata.series = Some("Lane Saga".to_string());
     metadata.series_part = Some("2".to_string());
     metadata.subseries = Some("Lane Arc".to_string());
@@ -406,16 +398,12 @@ async fn metadata_save_writes_external_ffprobe_visible_mp4_tags() {
     assert_ffprobe_tag(&tags, "date", "2024-05");
     assert_ffprobe_tag(&tags, "description", "External reader proof");
     assert_ffprobe_tag(&tags, "comment", "Probe Comment");
-    // mp4ameta writes iTunes freeform series atoms; ffprobe exposes those
-    // atoms by freeform name, not as an exhaustive atom inventory.
     assert_ffprobe_tag(&tags, "SERIES", "Probe Series; Probe Subseries");
     assert_ffprobe_tag(&tags, "SERIES-PART", "2; 7");
     assert_ffprobe_tag(&tags, "track", "3/9");
     assert_ffprobe_tag(&tags, "disc", "1/2");
 }
 
-/// The iTunes freeform names are MP4 atoms; in an ID3 file they would be
-/// stray TXXX frames that no reader maps to a series.
 #[test]
 fn mp3_save_writes_series_without_mp4_freeform_names() {
     let tmp = TempDir::new().expect("MP3 save workspace");
@@ -475,8 +463,6 @@ fn a_save_without_cover_intent_keeps_every_attached_picture() {
     assert_eq!(picture_codecs(&m4b), both, "m4b remux");
 }
 
-/// The bundled FFmpeg has no GIF, BMP, TIFF or WebP decoder, and the MP3
-/// muxer refuses a picture whose dimensions are unknown.
 #[test]
 fn an_mp3_save_keeps_a_gif_bmp_tiff_or_webp_cover() {
     let dir = TempDir::new().expect("temp dir");
@@ -633,8 +619,6 @@ fn a_save_of_a_field_a_wav_cannot_hold_fails_and_leaves_the_file_unchanged() {
     assert_eq!(fs::read(&path).expect("reread"), bytes);
 }
 
-/// Copying a PNG cover into an attached-picture container needs no FFmpeg PNG
-/// encoder; the bundled build has none.
 #[test]
 fn a_container_change_carries_an_mka_png_cover_into_m4b_as_png() {
     let dir = TempDir::new().expect("temp dir");
