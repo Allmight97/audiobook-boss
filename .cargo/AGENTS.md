@@ -12,6 +12,7 @@
   the successor is zbus 6, and they stay until those three crates move to it.
   Dropping the keyring store would lose saved Audible sign-ins on every
   restart.
-- RUSTSEC-2026-0543 (chrono, unmaintained only) reaches the app only through
-  tauri-utils and serde_with; ABB does not use chrono, and it stays until
-  tauri drops it.
+- RUSTSEC-2026-0543 (chrono, unmaintained only) matches a lockfile-only entry:
+  chrono is an optional dependency of serde_with whose feature nothing
+  enables, so it is never compiled. Revisit when `cargo tree -i chrono
+  --target all` prints a path.
