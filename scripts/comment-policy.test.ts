@@ -28,7 +28,6 @@ describe('comment policy', () => {
 			'rustdoc-test',
 			'safety-doc',
 			'no-lane',
-			'audit-crate',
 			'oxlint-reason',
 			'shellcheck',
 		]);
@@ -181,12 +180,7 @@ describe('comment policy', () => {
 		);
 	});
 
-	it('keeps the crate on an audit ignore and the reason before an oxlint rule', () => {
-		const audit = '"RUSTSEC-2024-0415", # gtk\n';
-		expect(stripComments('.cargo/audit.toml', audit)).toBe(audit);
-		expect(
-			messages('.cargo/audit.toml', '"RUSTSEC-2024-0415", # gtk waiting on a migration\n'),
-		).toEqual([expect.stringContaining('Fix: delete it')]);
+	it('keeps the reason before an oxlint rule', () => {
 		const rule =
 			'\t\t// Solid ignores an event handler return value.\n\t\t"typescript/no-misused-promises": ["error"],\n';
 		expect(stripComments('.oxlintrc.json', rule)).toBe(rule);

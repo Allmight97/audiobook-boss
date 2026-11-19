@@ -16,7 +16,7 @@
 		"fmt": "oxfmt",
 		"fmt:check": "oxfmt --check",
 		"lint:check": "oxlint --type-aware --deny-warnings --report-unused-disable-directives && biome lint --error-on-warnings --no-errors-on-unmatched . && bun scripts/check-known-mistakes.ts",
-		"audit:rust": "cargo audit -D warnings",
+		"audit:rust": "cargo deny check advisories",
 		"audit:js": "bun audit",
 		"audit": "bun run --sequential --no-exit-on-error audit:rust audit:js",
 		"preview": "vite preview",

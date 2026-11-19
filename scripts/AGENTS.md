@@ -85,7 +85,7 @@
 | `.node-version` | `node` | pin: CI and a fresh setup install this exact build; setup keeps any Node of this major or newer; unpin when the owner moves to a newer Node |
 | `scripts/setup.sh` | Linux FFmpeg CLI (`ffmpeg_cli_release`, `ffmpeg_cli_build`) | pin: `setup.sh rust` installs the BtbN master autobuild of the commit in `ffmpeg-revision`; `--check` and `--print-env` also accept a major-9 CLI; unpin when the owner moves that commit |
 | `scripts/setup.sh` | `uv` (`uv_version`) | pin: setup downloads this release, checked against its published checksum, only when no `uvx` is on PATH and keeps any `uvx` it finds (`uvx` only runs the workflow and complexity linters); unpin when the owner moves the Python tools to a newer uv |
-| `scripts/setup.sh` | `cargo-audit` and `cargo-deny` (`cargo_audit_version`, `cargo_deny_version`) | pin: advisory and license verdicts stay the same between runs, and each download is checked against a pinned checksum; unpin when the owner bumps either tool |
+| `scripts/setup.sh` | `cargo-deny` (`cargo_deny_version`) | pin: advisory, license, ban, and source verdicts stay the same between runs, and each download is checked against a pinned checksum; unpin when the owner bumps the tool |
 | `scripts/check-workflows.sh` | `zizmor` | pin: workflow findings stay the same between runs; unpin when the owner bumps zizmor |
 
 

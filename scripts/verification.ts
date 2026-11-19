@@ -307,7 +307,6 @@ export const TOOL_PROBES: Record<string, ToolProbe> = {
 	ffmpeg: { version: () => version(process.env.ABB_FFMPEG ?? 'ffmpeg', ['-version']) },
 	ffprobe: { version: () => version(process.env.ABB_FFPROBE ?? 'ffprobe', ['-version']) },
 	sdk: { platform: 'darwin', version: () => version('xcrun', ['--show-sdk-version']) },
-	'cargo-audit': commandProbe('cargo', ['audit', '--version']),
 	'cargo-deny': commandProbe('cargo', ['deny', '--version']),
 	lizard: commandProbe('bash', ['scripts/check-rust-complexity.sh', '--version']),
 	zizmor: commandProbe('bash', ['scripts/check-workflows.sh', '--version']),

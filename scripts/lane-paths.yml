@@ -68,7 +68,6 @@ supply-chain:
   - package.json
   - bun.lock
   - bunfig.toml
-  - .cargo/audit.toml
   - deny.toml
   - scripts/verify.sh
   - .github/workflows/ci.yml

@@ -40,7 +40,7 @@ lane_table=(
 	"host rust linux,darwin bun,node,$(join_words "${native_tools[@]}")"
 	"apple rust darwin bun,$(join_words "${native_tools[@]}")"
 	"tooling tooling linux bun,node,zizmor,actionlint,shellcheck"
-	"supply-chain supply-chain linux bun,$(join_words "${rust_tools[@]}"),cargo-audit,cargo-deny"
+	"supply-chain supply-chain linux bun,$(join_words "${rust_tools[@]}"),cargo-deny"
 )
 all_lanes=()
 default_lanes=()
@@ -218,14 +218,13 @@ lane_tooling() {
 }
 
 lane_supply_chain() {
-	if ! cargo audit --version >/dev/null 2>&1 || ! cargo deny --version >/dev/null 2>&1; then
-		printf 'MISSING cargo-audit and/or cargo-deny\nInstall with: bash scripts/setup.sh supply-chain\n' >&2
+	if ! cargo deny --version >/dev/null 2>&1; then
+		printf 'MISSING cargo-deny\nInstall with: bash scripts/setup.sh supply-chain\n' >&2
 		return 1
 	fi
 	local status=0
 	bun audit || status=1
-	cargo audit -D warnings || status=1
-	cargo deny check bans licenses sources || status=1
+	cargo deny check advisories bans licenses sources || status=1
 	return "${status}"
 }
 

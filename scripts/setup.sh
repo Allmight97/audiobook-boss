@@ -19,7 +19,7 @@ Cursor wrapper already points .cursor-original-hooks-path at those hooks.
   bash scripts/setup.sh                 # frontend, rust, and supply-chain
   bash scripts/setup.sh frontend        # locked Bun, Node, frozen install, actionlint, shellcheck, uv, zizmor
   bash scripts/setup.sh rust            # bundled FFmpeg build deps and source, pinned FFmpeg readback CLI, uv, cargo fetch
-  bash scripts/setup.sh supply-chain    # pinned cargo-audit and cargo-deny
+  bash scripts/setup.sh supply-chain    # pinned cargo-deny
   bash scripts/setup.sh --check [mode]  # install nothing; exit nonzero if something is missing
                                         # (no mode checks frontend and rust, not supply-chain)
   bash scripts/setup.sh --print-env     # eval-able PATH and toolchain exports
@@ -271,7 +271,6 @@ want_supply_chain() {
 	[[ "${mode}" == all || "${mode}" == supply-chain ]]
 }
 
-cargo_audit_version=0.22.1
 cargo_deny_version=0.20.2
 
 installed_cargo_tool_version() {
@@ -279,15 +278,11 @@ installed_cargo_tool_version() {
 }
 
 check_supply_chain() {
-	local subcommand version
-	for subcommand in audit deny; do
-		version="cargo_${subcommand}_version"
-		if [[ "$(installed_cargo_tool_version "${subcommand}")" == "${!version}" ]]; then
-			ok "cargo-${subcommand} ${!version}"
-		else
-			need "cargo-${subcommand} ${!version} (run: bash scripts/setup.sh supply-chain)"
-		fi
-	done
+	if [[ "$(installed_cargo_tool_version deny)" == "${cargo_deny_version}" ]]; then
+		ok "cargo-deny ${cargo_deny_version}"
+	else
+		need "cargo-deny ${cargo_deny_version} (run: bash scripts/setup.sh supply-chain)"
+	fi
 }
 
 git_hooks_installed() {
@@ -765,39 +760,6 @@ install_cargo_tool() {
 	rm -rf "${tmp}"
 }
 
-ensure_cargo_audit() {
-	local triple sha256 base
-	if [[ "$(installed_cargo_tool_version audit)" == "${cargo_audit_version}" ]]; then
-		log "Using cargo-audit ${cargo_audit_version}"
-		return
-	fi
-	case "$(uname -s)-$(uname -m)" in
-		Linux-x86_64)
-			triple=x86_64-unknown-linux-musl
-			sha256=c32506f338bdcdaef5a17fb9f33abb6ecf9561324cfd34237fd335f9283a1eab
-			;;
-		Linux-aarch64 | Linux-arm64)
-			triple=aarch64-unknown-linux-gnu
-			sha256=4c8df835ee484441bd2c8c6bcac28c4ce4b4058ba9e7477cb9e0012fe7769f66
-			;;
-		Darwin-arm64)
-			triple=aarch64-apple-darwin
-			sha256=04e76e1da25f597bea4814c44faf8aac215838b9f3646e3b6a873d87acd31b73
-			;;
-		Darwin-x86_64)
-			triple=x86_64-apple-darwin
-			sha256=582d104a2a4bdb127c6bf6d056d89eede40686d11f52e4bc1765132ec99d2fca
-			;;
-		*)
-			printf 'error: no cargo-audit release for %s %s\n' "$(uname -s)" "$(uname -m)" >&2
-			exit 1
-			;;
-	esac
-	base="https://github.com/rustsec/rustsec/releases/download/cargo-audit%2Fv${cargo_audit_version}"
-	install_cargo_tool cargo-audit "${cargo_audit_version}" \
-		"${base}/cargo-audit-${triple}-v${cargo_audit_version}.tgz" "${sha256}"
-}
-
 ensure_cargo_deny() {
 	local triple sha256
 	if [[ "$(installed_cargo_tool_version deny)" == "${cargo_deny_version}" ]]; then
@@ -901,7 +863,6 @@ if want_rust; then
 fi
 
 if want_supply_chain; then
-	ensure_cargo_audit
 	ensure_cargo_deny
 fi
 

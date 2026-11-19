@@ -77,11 +77,6 @@ export const ALLOWLIST: readonly AllowEntry[] = [
 			'A `#` reason on a no-lane path in scripts/lane-paths.yml is the text verification.ts requires before a file can sit outside every lane.',
 	},
 	{
-		id: 'audit-crate',
-		reason:
-			'A `# <crate>` on a RUSTSEC id in .cargo/audit.toml is the crate name audit-ignores.test.ts matches against Cargo.lock.',
-	},
-	{
 		id: 'oxlint-reason',
 		reason:
 			'A `//` line before a tuned rule or files override in .oxlintrc.json is the reason lint-rules.test.ts requires on that line.',
@@ -316,9 +311,6 @@ function lineAt(source: string, index: number): string {
 function machineReason(file: string, source: string, span: Span): string | null {
 	const line = lineAt(source, span.start);
 	if (file === 'scripts/lane-paths.yml' && /^\s*-\s+\S.*\s#\s+\S/.test(line)) return 'no-lane';
-	if (file === '.cargo/audit.toml' && /^\s*"RUSTSEC-\d{4}-\d{4}",\s*#\s+\S+\s*$/.test(line)) {
-		return 'audit-crate';
-	}
 	if (file !== '.oxlintrc.json') return null;
 	const next = source.slice(span.end).match(/^\n([^\n]*)/)?.[1] ?? '';
 	const tuned = /^\t\t"[^"]+": (?:"off"|\[)/.test(next);
