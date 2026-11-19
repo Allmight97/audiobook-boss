@@ -7,7 +7,7 @@ function operation(id: string, sequence: number, childCount = 1): OperationSnaps
 		childJobId: `${id}-child-${index}`,
 		operationId: id,
 		label: `Child ${index + 1}`,
-		status: 'queued' as const,
+		status: { kind: 'queued' as const, position: index + 1, of: childCount },
 		progress: {
 			stage: 'pending' as const,
 			percentage: 0,

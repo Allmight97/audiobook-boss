@@ -1,3 +1,4 @@
+use super::tally::tally;
 use super::types::{
     ChildJobSnapshot, OperationId, OperationPhase, OperationSnapshot, ProgressSnapshot,
     WorkOperationStatus,
@@ -29,7 +30,7 @@ pub(crate) fn new_processing_snapshot(
         })
         .collect();
 
-    OperationSnapshot {
+    let mut snapshot = OperationSnapshot {
         operation_id,
         sequence,
         revision: 0,
@@ -45,7 +46,9 @@ pub(crate) fn new_processing_snapshot(
         children,
         terminal_summary: None,
         log_tail: Vec::new(),
-    }
+    };
+    tally(&mut snapshot);
+    snapshot
 }
 
 pub(crate) fn new_metadata_save_snapshot(
@@ -69,7 +72,7 @@ pub(crate) fn new_metadata_save_snapshot(
         })
         .collect();
 
-    OperationSnapshot {
+    let mut snapshot = OperationSnapshot {
         operation_id,
         sequence,
         revision: 0,
@@ -85,7 +88,9 @@ pub(crate) fn new_metadata_save_snapshot(
         children,
         terminal_summary: None,
         log_tail: Vec::new(),
-    }
+    };
+    tally(&mut snapshot);
+    snapshot
 }
 
 fn new_child(
@@ -100,7 +105,7 @@ fn new_child(
         child_job_id,
         operation_id: operation_id.clone(),
         label,
-        status: super::ChildJobStatus::Queued,
+        status: super::ChildJobStatus::Queued { position: 0, of: 0 },
         started_at_ms: None,
         finished_at_ms: None,
         progress: ProgressSnapshot::pending("Queued."),

@@ -37,7 +37,7 @@ function completedOperation(): OperationSnapshot {
 				childJobId: 'first',
 				operationId: 'batch',
 				label: 'A Change of Plans.m4b',
-				status: 'completed',
+				status: { kind: 'completed' },
 				progress,
 				cancellable: false,
 				cancelRequested: false,
@@ -57,7 +57,7 @@ function completedOperation(): OperationSnapshot {
 				childJobId: 'second',
 				operationId: 'batch',
 				label: 'Feedback.m4b',
-				status: 'completed',
+				status: { kind: 'completed' },
 				progress,
 				cancellable: false,
 				cancelRequested: false,
@@ -121,7 +121,7 @@ it('shows each failed file with its own reason', async () => {
 	operation.status = 'mixed';
 	operation.children[0] = {
 		...operation.children[0],
-		status: 'failed',
+		status: { kind: 'failed' },
 		message: 'File validation failed: File not found: A Change of Plans.m4b',
 	};
 	operation.children[1] = { ...operation.children[1], message: 'Saved metadata: Feedback.m4b' };
@@ -168,7 +168,7 @@ it('cancels one title in a running batch and hides title cancel for a single tit
 	operation.cancellable = true;
 	operation.children = operation.children.map((child) => ({
 		...child,
-		status: 'running',
+		status: { kind: 'running' as const },
 		cancellable: true,
 	}));
 	await showOperation(operation);
@@ -183,6 +183,18 @@ it('cancels one title in a running batch and hides title cancel for a single tit
 	expect(screen.queryByTitle(/only$/)).not.toBeInTheDocument();
 });
 
+it("words a waiting title by the engine's place in the batch", async () => {
+	const operation = completedOperation();
+	operation.status = 'running';
+	operation.phase = 'active';
+	operation.children[1] = {
+		...operation.children[1],
+		status: { kind: 'queued', position: 1, of: 1 },
+	};
+	await showOperation(operation);
+	expect(screen.getByText('Queued • #1 of 1')).toBeVisible();
+});
+
 it('keeps each row and its buttons across a progress update', async () => {
 	const operation = completedOperation();
 	operation.status = 'running';
@@ -190,7 +202,7 @@ it('keeps each row and its buttons across a progress update', async () => {
 	operation.cancellable = true;
 	operation.children = operation.children.map((child) => ({
 		...child,
-		status: 'running',
+		status: { kind: 'running' as const },
 		cancellable: true,
 	}));
 	operation.children[1].outputPath = '/Library/Feedback.m4b';
@@ -203,7 +215,7 @@ it('keeps each row and its buttons across a progress update', async () => {
 		...operation,
 		revision: 2,
 		progress: { ...operation.progress, percentage: 42 },
-		children: [{ ...operation.children[0], status: 'completed' }, operation.children[1]],
+		children: [{ ...operation.children[0], status: { kind: 'completed' } }, operation.children[1]],
 	});
 
 	await screen.findByText('42%');
@@ -233,12 +245,12 @@ it('says why a title was skipped or cancelled, and keeps its other notes', async
 	const operation = completedOperation();
 	operation.children[0] = {
 		...operation.children[0],
-		status: 'skipped',
+		status: { kind: 'skipped' },
 		message: 'Skipped: output exists.',
 	};
 	operation.children[1] = {
 		...operation.children[1],
-		status: 'cancelled',
+		status: { kind: 'cancelled' },
 		message: 'Cancelled before it started.',
 		warnings: ['Cover was not embedded.'],
 	};

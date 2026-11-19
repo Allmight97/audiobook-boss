@@ -40,7 +40,7 @@ function preview(): NonNullable<OutputSnapshot['previewRun']> {
 					childJobId: 'input-0',
 					operationId: 'preview-1',
 					label: 'Book.m4b',
-					status: 'running',
+					status: { kind: 'running' },
 					startedAtMs: 1,
 					finishedAtMs: null,
 					progress,
@@ -219,14 +219,14 @@ describe('engine preview adapter', () => {
 		run.operation.status = 'cancelling';
 		run.operation.cancelRequested = true;
 		const [first] = run.operation.children;
-		first.status = 'completed';
+		first.status = { kind: 'completed' };
 		first.cancelRequested = true;
 		first.message = 'Preview ready.';
 		run.operation.children.push({
 			...first,
 			childJobId: 'input-1',
 			label: 'Second.m4b',
-			status: 'running',
+			status: { kind: 'running' },
 			message: null,
 		});
 		engine.change((state) => {
@@ -239,6 +239,51 @@ describe('engine preview adapter', () => {
 				'Cancelling',
 			]),
 		);
+	});
+
+	it("numbers each waiting title by the engine's place, not its row", async () => {
+		const engine = createFakeEngine();
+		const run = preview();
+		const [running] = run.operation.children;
+		const waiting = {
+			stage: 'pending' as const,
+			percentage: 0,
+			message: 'Queued.',
+			etaSeconds: null,
+		};
+		run.operation.children = [
+			{ ...running, childJobId: 'input-0', label: 'Done.m4b', status: { kind: 'completed' } },
+			running,
+			{
+				...running,
+				childJobId: 'input-2',
+				label: 'Next.m4b',
+				status: { kind: 'queued', position: 1, of: 2 },
+				progress: waiting,
+			},
+			{
+				...running,
+				childJobId: 'input-3',
+				label: 'Last.m4b',
+				status: { kind: 'queued', position: 2, of: 2 },
+				progress: waiting,
+			},
+		];
+		engine.change((state) => {
+			state.output.previewRun = run;
+		});
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<StatusPanelView />
+			</AppRuntimeProvider>
+		));
+		fireEvent.click(await screen.findByRole('button', { name: 'View queue' }));
+		flush();
+		const row = (label: string) => screen.getByText(label).closest<HTMLElement>('[data-status]')!;
+		expect(within(row('Next.m4b')).getByText('Queued • #1 of 2 (0.0%)')).toBeVisible();
+		expect(within(row('Last.m4b')).getByText('Queued • #2 of 2 (0.0%)')).toBeVisible();
 	});
 
 	it('leaves the engine line on a cancelled preview and reports no failure', async () => {

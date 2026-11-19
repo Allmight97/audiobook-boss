@@ -557,7 +557,7 @@ fn work_operation_log_counts(snapshot: &OperationSnapshot) -> WorkOperationLogCo
             super::ChildJobStatus::Skipped => counts.skipped += 1,
             super::ChildJobStatus::Cancelled => counts.cancelled += 1,
             super::ChildJobStatus::Failed => counts.failed += 1,
-            super::ChildJobStatus::Queued | super::ChildJobStatus::Running => {}
+            super::ChildJobStatus::Queued { .. } | super::ChildJobStatus::Running => {}
         }
     }
     counts

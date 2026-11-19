@@ -219,7 +219,7 @@ export type ChildJobSnapshot = {
 	outputUpdate: OutputUpdate | null,
 };
 
-export type ChildJobStatus = "queued" | "running" | "completed" | "skipped" | "cancelled" | "failed";
+export type ChildJobStatus = { kind: "queued"; position: number; of: number } | { kind: "running" } | { kind: "completed" } | { kind: "skipped" } | { kind: "cancelled" } | { kind: "failed" };
 
 export type CodecFamily = "aac" | "opus";
 

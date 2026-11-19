@@ -173,7 +173,7 @@ async fn the_wait_ends_on_the_finished_snapshot_reported_while_it_waits() {
                 1,
                 WorkOperationStatus::Accepted,
                 OperationPhase::Accepted,
-                ChildJobStatus::Queued,
+                ChildJobStatus::Queued { position: 1, of: 1 },
             ),
             (
                 2,

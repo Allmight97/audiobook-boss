@@ -11,6 +11,7 @@ use crate::processing::{
 use std::collections::BTreeMap;
 
 use super::stage_table::{for_event, CANCELLING_STAGE};
+use super::tally::tally;
 use super::terminal::{
     operation_terminal_summary, terminal_summary_from_summary, work_status_from_summary,
 };
@@ -127,11 +128,13 @@ impl WorkRuntimeState {
         operation_id: &OperationId,
         now_ms: i64,
     ) -> Result<OperationSnapshot> {
-        let snapshot = self.snapshot_mut(operation_id)?;
-        if !snapshot.is_finished() {
+        self.edit(operation_id, |snapshot| {
+            if snapshot.is_finished() {
+                return;
+            }
             snapshot.started_at_ms.get_or_insert(now_ms);
             if snapshot.cancel_requested {
-                return Ok(snapshot.clone());
+                return;
             }
             snapshot.set_status(WorkOperationStatus::Running);
             snapshot.progress.stage = WorkProgressStage::Analyzing;
@@ -144,12 +147,12 @@ impl WorkRuntimeState {
             );
             let titles_cancellable = titles_cancel_individually(snapshot.kind);
             for child in &mut snapshot.children {
-                if child.status == ChildJobStatus::Queued && !child.cancel_requested {
+                if matches!(child.status, ChildJobStatus::Queued { .. }) && !child.cancel_requested
+                {
                     child.cancellable = titles_cancellable;
                 }
             }
-        }
-        Ok(snapshot.clone())
+        })
     }
 
     pub(crate) fn apply_progress_event(
@@ -158,78 +161,9 @@ impl WorkRuntimeState {
         event: &ProgressEvent,
         now_ms: i64,
     ) -> Result<OperationSnapshot> {
-        let snapshot = self.snapshot_mut(operation_id)?;
-        if snapshot.is_finished() {
-            return Ok(snapshot.clone());
-        }
-
-        let child_count = snapshot.children.len();
-        let titles_cancellable = titles_cancel_individually(snapshot.kind);
-        let mut matched_child = false;
-        let mut child_scoped_batch_event = false;
-        let mut matched_child_job_id: Option<String> = None;
-
-        for child in &mut snapshot.children {
-            if !progress_matches_child(child, event) {
-                continue;
-            }
-            matched_child = true;
-            child_scoped_batch_event = child_count > 1;
-            matched_child_job_id = Some(child.child_job_id.clone());
-
-            let row = for_event(event.stage);
-            if let Some(job_id) = event.job_id.as_deref() {
-                child.job_id = Some(job_id.to_string());
-            }
-            if row.child == ChildJobStatus::Running {
-                child.started_at_ms.get_or_insert(now_ms);
-            } else {
-                child.finished_at_ms.get_or_insert(now_ms);
-            }
-            child.status = row.child;
-            child.progress.stage = row.stage;
-            child.progress.percentage = finite_percentage(event.percentage);
-            child.progress.message = event.message.clone();
-            child.progress.eta_seconds = event.eta_seconds;
-            child.cancellable = titles_cancellable
-                && row.child == ChildJobStatus::Running
-                && event.job_id.is_some()
-                && !child.cancel_requested;
-            child.message = Some(event.message.clone());
-        }
-
-        if !matched_child {
-            return Ok(snapshot.clone());
-        }
-
-        if snapshot.cancel_requested {
-            return Ok(snapshot.clone());
-        }
-
-        snapshot.progress.stage = if child_scoped_batch_event {
-            in_flight_stage(snapshot.progress.stage)
-        } else {
-            for_event(event.stage).stage
-        };
-        snapshot.progress.percentage = if child_scoped_batch_event {
-            aggregate_child_progress(&snapshot.children)
-        } else {
-            finite_percentage(event.percentage)
-        };
-        snapshot.progress.message = event.message.clone();
-        snapshot.progress.eta_seconds = if child_scoped_batch_event {
-            None
-        } else {
-            event.eta_seconds
-        };
-        push_operation_log(
-            snapshot,
-            &event.message,
-            Some(for_event(event.stage).stage),
-            matched_child_job_id,
-        );
-
-        Ok(snapshot.clone())
+        self.edit(operation_id, |snapshot| {
+            apply_progress(snapshot, event, now_ms)
+        })
     }
 
     pub(crate) fn request_cancel(
@@ -237,8 +171,11 @@ impl WorkRuntimeState {
         operation_id: &OperationId,
         now_ms: i64,
     ) -> Result<OperationSnapshot> {
-        let snapshot = self.snapshot_mut(operation_id)?;
-        if !snapshot.is_finished() {
+        self.edit(operation_id, |snapshot| {
+            if snapshot.is_finished() {
+                snapshot.finished_at_ms.get_or_insert(now_ms);
+                return;
+            }
             snapshot.set_status(WorkOperationStatus::Cancelling);
             snapshot.cancel_requested = true;
             snapshot.cancellable = false;
@@ -254,10 +191,7 @@ impl WorkRuntimeState {
                 child.cancel_requested = true;
                 child.cancellable = false;
             }
-        } else {
-            snapshot.finished_at_ms.get_or_insert(now_ms);
-        }
-        Ok(snapshot.clone())
+        })
     }
 
     pub(crate) fn request_child_cancel(
@@ -265,36 +199,10 @@ impl WorkRuntimeState {
         operation_id: &OperationId,
         child_job_id: &str,
     ) -> Result<(OperationSnapshot, Option<usize>)> {
-        let snapshot = self.snapshot_mut(operation_id)?;
-        if !titles_cancel_individually(snapshot.kind) {
-            return Err(AppError::InvalidInput(
-                "Items in this operation can't be cancelled one at a time.".to_string(),
-            ));
-        }
-        let operation_terminal = snapshot.is_finished();
-        let child = snapshot
-            .children
-            .iter_mut()
-            .find(|child| child.child_job_id == child_job_id)
-            .ok_or_else(|| AppError::InvalidInput("Work item was not found.".to_string()))?;
-        if operation_terminal
-            || TERMINAL_CHILD_STATUSES.contains(&child.status)
-            || child.cancel_requested
-        {
-            return Ok((snapshot.clone(), None));
-        }
-        child.cancel_requested = true;
-        child.cancellable = false;
-        child.progress.message = "Cancellation requested.".to_string();
-        let title_index = child.input_index;
-        let message = format!("Cancellation requested for {}.", child.label);
-        push_operation_log(
-            snapshot,
-            &message,
-            Some(CANCELLING_STAGE),
-            Some(child_job_id.to_string()),
-        );
-        Ok((snapshot.clone(), title_index))
+        let (snapshot, title_index) = self.edit_with(operation_id, |snapshot| {
+            request_title_cancel(snapshot, child_job_id)
+        })?;
+        Ok((snapshot, title_index?))
     }
 
     pub(crate) fn complete_from_process_result(
@@ -396,10 +304,10 @@ impl WorkRuntimeState {
         now_ms: i64,
         plan: impl FnOnce(&OperationSnapshot) -> TerminalPlan<'a>,
     ) -> Result<OperationSnapshot> {
-        let snapshot = self.snapshot_mut(operation_id)?;
-        let plan = plan(snapshot);
-        apply_terminal_plan(snapshot, plan, now_ms);
-        let snapshot = snapshot.clone();
+        let snapshot = self.edit(operation_id, |snapshot| {
+            let plan = plan(snapshot);
+            apply_terminal_plan(snapshot, plan, now_ms);
+        })?;
         self.record_terminal_operation(operation_id.as_str());
         self.prune_terminal_operations();
         Ok(snapshot)
@@ -411,13 +319,17 @@ impl WorkRuntimeState {
         input_index: usize,
         update: Option<crate::processing::OutputUpdate>,
     ) -> Option<OperationSnapshot> {
-        let snapshot = self.snapshot_mut(operation_id).ok()?;
-        let child = snapshot
-            .children
-            .iter_mut()
-            .find(|child| child.input_index == Some(input_index))?;
-        child.output_update = update;
-        Some(snapshot.clone())
+        let (snapshot, found) = self
+            .edit_with(operation_id, |snapshot| {
+                let child = snapshot
+                    .children
+                    .iter_mut()
+                    .find(|child| child.input_index == Some(input_index))?;
+                child.output_update = update;
+                Some(())
+            })
+            .ok()?;
+        found.map(|()| snapshot)
     }
 
     pub(crate) fn child_job_id(
@@ -433,13 +345,28 @@ impl WorkRuntimeState {
             .map(|child| child.child_job_id.clone())
     }
 
-    fn snapshot_mut(&mut self, operation_id: &OperationId) -> Result<&mut OperationSnapshot> {
+    fn edit(
+        &mut self,
+        operation_id: &OperationId,
+        change: impl FnOnce(&mut OperationSnapshot),
+    ) -> Result<OperationSnapshot> {
+        self.edit_with(operation_id, change)
+            .map(|(snapshot, ())| snapshot)
+    }
+
+    fn edit_with<T>(
+        &mut self,
+        operation_id: &OperationId,
+        change: impl FnOnce(&mut OperationSnapshot) -> T,
+    ) -> Result<(OperationSnapshot, T)> {
         let snapshot = self
             .operations
             .get_mut(operation_id.as_str())
             .ok_or_else(|| AppError::InvalidInput("Work operation was not found.".to_string()))?;
         snapshot.revision += 1;
-        Ok(snapshot)
+        let outcome = change(snapshot);
+        tally(snapshot);
+        Ok((snapshot.clone(), outcome))
     }
 
     fn record_terminal_operation(&mut self, operation_id: &str) {
@@ -454,6 +381,113 @@ impl WorkRuntimeState {
             self.operations.remove(&oldest);
         }
     }
+}
+
+fn request_title_cancel(
+    snapshot: &mut OperationSnapshot,
+    child_job_id: &str,
+) -> Result<Option<usize>> {
+    if !titles_cancel_individually(snapshot.kind) {
+        return Err(AppError::InvalidInput(
+            "Items in this operation can't be cancelled one at a time.".to_string(),
+        ));
+    }
+    let operation_terminal = snapshot.is_finished();
+    let child = snapshot
+        .children
+        .iter_mut()
+        .find(|child| child.child_job_id == child_job_id)
+        .ok_or_else(|| AppError::InvalidInput("Work item was not found.".to_string()))?;
+    if operation_terminal
+        || TERMINAL_CHILD_STATUSES.contains(&child.status)
+        || child.cancel_requested
+    {
+        return Ok(None);
+    }
+    child.cancel_requested = true;
+    child.cancellable = false;
+    child.progress.message = "Cancellation requested.".to_string();
+    let title_index = child.input_index;
+    let message = format!("Cancellation requested for {}.", child.label);
+    push_operation_log(
+        snapshot,
+        &message,
+        Some(CANCELLING_STAGE),
+        Some(child_job_id.to_string()),
+    );
+    Ok(title_index)
+}
+
+fn apply_progress(snapshot: &mut OperationSnapshot, event: &ProgressEvent, now_ms: i64) {
+    if snapshot.is_finished() {
+        return;
+    }
+
+    let child_count = snapshot.children.len();
+    let titles_cancellable = titles_cancel_individually(snapshot.kind);
+    let mut matched_child = false;
+    let mut child_scoped_batch_event = false;
+    let mut matched_child_job_id: Option<String> = None;
+
+    for child in &mut snapshot.children {
+        if !progress_matches_child(child, event) {
+            continue;
+        }
+        matched_child = true;
+        child_scoped_batch_event = child_count > 1;
+        matched_child_job_id = Some(child.child_job_id.clone());
+
+        let row = for_event(event.stage);
+        if let Some(job_id) = event.job_id.as_deref() {
+            child.job_id = Some(job_id.to_string());
+        }
+        if row.child == ChildJobStatus::Running {
+            child.started_at_ms.get_or_insert(now_ms);
+        } else {
+            child.finished_at_ms.get_or_insert(now_ms);
+        }
+        child.status = row.child;
+        child.progress.stage = row.stage;
+        child.progress.percentage = finite_percentage(event.percentage);
+        child.progress.message = event.message.clone();
+        child.progress.eta_seconds = event.eta_seconds;
+        child.cancellable = titles_cancellable
+            && row.child == ChildJobStatus::Running
+            && event.job_id.is_some()
+            && !child.cancel_requested;
+        child.message = Some(event.message.clone());
+    }
+
+    if !matched_child {
+        return;
+    }
+
+    if snapshot.cancel_requested {
+        return;
+    }
+
+    snapshot.progress.stage = if child_scoped_batch_event {
+        in_flight_stage(snapshot.progress.stage)
+    } else {
+        for_event(event.stage).stage
+    };
+    snapshot.progress.percentage = if child_scoped_batch_event {
+        aggregate_child_progress(&snapshot.children)
+    } else {
+        finite_percentage(event.percentage)
+    };
+    snapshot.progress.message = event.message.clone();
+    snapshot.progress.eta_seconds = if child_scoped_batch_event {
+        None
+    } else {
+        event.eta_seconds
+    };
+    push_operation_log(
+        snapshot,
+        &event.message,
+        Some(for_event(event.stage).stage),
+        matched_child_job_id,
+    );
 }
 
 fn child_position(snapshot: &OperationSnapshot, input_index: usize) -> Option<usize> {

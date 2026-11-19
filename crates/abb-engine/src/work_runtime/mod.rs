@@ -7,10 +7,15 @@ mod stage_table;
 #[cfg(test)]
 mod stage_table_tests;
 mod state;
+#[cfg(test)]
+mod state_log_tail_tests;
 pub(crate) use snapshot::new_processing_snapshot;
 pub(crate) use state::WorkRuntimeState;
 #[cfg(test)]
 mod state_tests;
+mod tally;
+#[cfg(test)]
+mod tally_tests;
 mod terminal;
 mod terminalize;
 #[cfg(test)]

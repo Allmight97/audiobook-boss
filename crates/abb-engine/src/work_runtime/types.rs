@@ -49,9 +49,9 @@ pub enum OperationPhase {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ChildJobStatus {
-    Queued,
+    Queued { position: u32, of: u32 },
     Running,
     Completed,
     Skipped,

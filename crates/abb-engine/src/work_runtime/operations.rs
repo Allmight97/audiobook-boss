@@ -74,7 +74,7 @@ impl Operations {
             for child in &operation.children {
                 let reading = matches!(
                     child.status,
-                    ChildJobStatus::Queued | ChildJobStatus::Running
+                    ChildJobStatus::Queued { .. } | ChildJobStatus::Running
                 );
                 if let Some(paths) = child
                     .input_index

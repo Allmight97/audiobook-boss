@@ -1,9 +1,9 @@
-import type { ChildJobSnapshot, WorkProgressStage } from '../../lib/generated/tauri';
+import type { ChildJobStatus, WorkProgressStage } from '../../lib/generated/tauri';
 
 export type JobListItem = {
 	readonly childJobId: string;
 	readonly label: string;
-	readonly status: ChildJobSnapshot['status'];
+	readonly status: ChildJobStatus['kind'];
 	readonly statusText: string;
 	readonly stage: WorkProgressStage;
 	readonly percentage: number;

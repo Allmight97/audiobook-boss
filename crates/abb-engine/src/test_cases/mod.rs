@@ -6,6 +6,8 @@ pub(crate) mod id3_frames;
 mod integration_audible_handoff_tests;
 #[path = "integration_audible_pdf_save_tests.rs"]
 mod integration_audible_pdf_save_tests;
+#[path = "integration_batch_queue_tests.rs"]
+mod integration_batch_queue_tests;
 #[path = "integration_cancel_events_tests.rs"]
 mod integration_cancel_events_tests;
 #[path = "integration_collision_review_tests.rs"]

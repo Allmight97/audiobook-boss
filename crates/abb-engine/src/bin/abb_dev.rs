@@ -451,7 +451,7 @@ async fn follow(
             .ok_or_else(|| format!("there is no title {}", index + 1))?;
         if matches!(
             child.status,
-            ChildJobStatus::Queued | ChildJobStatus::Running
+            ChildJobStatus::Queued { .. } | ChildJobStatus::Running
         ) {
             engine
                 .cancel_work_operation(operation_id.clone(), Some(child.child_job_id.clone()))

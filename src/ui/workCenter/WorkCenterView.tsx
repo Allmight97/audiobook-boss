@@ -34,10 +34,10 @@ function childStatusText(child: ChildJobSnapshot): string {
 	const { status } = child;
 	const label = childCancelling(child)
 		? operationStatusLabel('cancelling')
-		: status === 'completed'
+		: status.kind === 'completed'
 			? withDuration(childStatusLabel(status), child)
 			: childStatusLabel(status);
-	return status === 'running' && child.progress.etaSeconds != null
+	return status.kind === 'running' && child.progress.etaSeconds != null
 		? `${label} · ${formatEtaRemaining(child.progress.etaSeconds)}`
 		: label;
 }
@@ -47,8 +47,9 @@ function canCancelSeparateTitle(operation: OperationSnapshot, child: ChildJobSna
 }
 
 function childReason(child: ChildJobSnapshot): string | null {
-	if (child.status === 'failed') return child.message ?? null;
-	const endNote = child.status === 'skipped' || child.status === 'cancelled' ? child.message : null;
+	const { kind } = child.status;
+	if (kind === 'failed') return child.message ?? null;
+	const endNote = kind === 'skipped' || kind === 'cancelled' ? child.message : null;
 	const notes = [
 		endNote,
 		child.supplementalWarning,
@@ -199,7 +200,7 @@ export function WorkCenterView(): JSX.Element {
 											<>
 												<JobRow
 													class="work-child-row"
-													status={child().status}
+													status={child().status.kind}
 													label={child().label}
 													labelTitle={child().sourcePath ?? child().label}
 													statusText={childStatusText(child())}

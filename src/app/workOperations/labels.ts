@@ -26,7 +26,7 @@ const OPERATION_STATUSES: Record<WorkOperationStatus, string> = {
 	mixed: 'Mixed result',
 };
 
-const CHILD_STATUSES: Record<ChildJobStatus, string> = {
+const CHILD_STATUSES: Record<ChildJobStatus['kind'], string> = {
 	queued: 'Queued',
 	running: 'Running',
 	completed: 'Done',
@@ -56,11 +56,14 @@ export function childCancelling(child: {
 	readonly status: ChildJobStatus;
 	readonly cancelRequested: boolean;
 }): boolean {
-	return (child.status === 'queued' || child.status === 'running') && child.cancelRequested;
+	const { kind } = child.status;
+	return (kind === 'queued' || kind === 'running') && child.cancelRequested;
 }
 
 export function childStatusLabel(status: ChildJobStatus): string {
-	return CHILD_STATUSES[status];
+	return status.kind === 'queued'
+		? `Queued • #${status.position} of ${status.of}`
+		: CHILD_STATUSES[status.kind];
 }
 
 export function operationKindLabel(kind: OperationKind): string {

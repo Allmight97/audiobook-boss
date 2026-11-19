@@ -11,7 +11,7 @@ export type JobRowAction = {
 };
 
 export type JobRowProps = {
-	readonly status: ChildJobStatus;
+	readonly status: ChildJobStatus['kind'];
 	readonly label: string;
 	readonly labelTitle?: string;
 	readonly statusText: string;
