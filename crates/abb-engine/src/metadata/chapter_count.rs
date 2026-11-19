@@ -1,11 +1,7 @@
-//! Which chapters ABB sends to the output when titles' sources are joined.
-
 use std::path::Path;
 
 use super::ChapterSpec;
 
-/// One source of a title, in join order. `chapters` counts the chapters the
-/// source brings: accepted ones, or those its container carries.
 pub(crate) struct JoinedSource<'a> {
     pub path: &'a Path,
     pub duration: Option<f64>,
@@ -13,12 +9,8 @@ pub(crate) struct JoinedSource<'a> {
 }
 
 pub(crate) struct JoinedChapters {
-    /// One chapter per measured source, titled by the file name, when the join
-    /// has several sources and none brings a chapter; empty otherwise.
     pub synthetic: Vec<ChapterSpec>,
-    /// Sources the synthesis skipped for want of a length.
     pub warnings: Vec<String>,
-    /// How many chapters the output carries: the synthetic ones, else the sum.
     pub count: usize,
 }
 

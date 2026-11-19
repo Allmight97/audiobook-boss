@@ -158,10 +158,10 @@ fn values_outside_the_capabilities_are_refused() {
 
     for edit in [
         AudioEdit::Bitrate(500),
-        AudioEdit::Encoder(EncoderType::AacAt), // unavailable here
+        AudioEdit::Encoder(EncoderType::AacAt),
         AudioEdit::Encoder(EncoderType::Opus),
         AudioEdit::NativeSpeed(9),
-        AudioEdit::Quality(100), // not FAAC
+        AudioEdit::Quality(100),
         AudioEdit::SampleRate(SampleRateConfig::Explicit(8_000)),
     ] {
         let before = choice.clone();

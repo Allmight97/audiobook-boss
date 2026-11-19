@@ -5,7 +5,6 @@ use ffmpeg_sys_next as sys;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// The layer operation that failed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Step {
     OpenInput,
@@ -63,46 +62,21 @@ impl Step {
     }
 }
 
-/// A layer failure. Its text never holds a path or an option value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
-    Ffmpeg {
-        step: Step,
-        code: c_int,
-    },
-    OutOfMemory {
-        step: Step,
-    },
-    NulInText {
-        step: Step,
-    },
-    MissingStream {
-        step: Step,
-        index: usize,
-    },
+    Ffmpeg { step: Step, code: c_int },
+    OutOfMemory { step: Step },
+    NulInText { step: Step },
+    MissingStream { step: Step, index: usize },
     EmptyPacket,
     ChapterEndsBeforeStart,
-    CodecNotFound {
-        step: Step,
-    },
-    NotAudio {
-        step: Step,
-    },
-    UnsupportedSampleFormat {
-        step: Step,
-    },
-    UnsupportedChannelOrder {
-        step: Step,
-    },
-    OutOfRange {
-        step: Step,
-    },
+    CodecNotFound { step: Step },
+    NotAudio { step: Step },
+    UnsupportedSampleFormat { step: Step },
+    UnsupportedChannelOrder { step: Step },
+    OutOfRange { step: Step },
     WrongFrameShape,
-    /// Option names only; values are never listed.
-    OptionsNotTaken {
-        step: Step,
-        names: Vec<String>,
-    },
+    OptionsNotTaken { step: Step, names: Vec<String> },
 }
 
 impl Error {
@@ -114,8 +88,6 @@ impl Error {
         }
     }
 
-    /// The operating-system error number FFmpeg reported, or `None` for an
-    /// error of FFmpeg's own, such as invalid data.
     pub fn os_error(&self) -> Option<c_int> {
         match self {
             Self::Ffmpeg { code, .. } if (-4095..0).contains(code) => Some(-code),

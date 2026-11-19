@@ -1,20 +1,8 @@
-//! What the session knows about each file's tags and what the user asked to
-//! change.
-//!
-//! Known tags are what was read from the file plus what this session saved.
-//! Pending intent is what the user asked for and has not been written. What a
-//! caller reads is always derived from both, so the form never shows a value
-//! that Save or processing would not send. Whether the file's own tags were
-//! ever read is tracked separately, so saved values never pass for a complete
-//! read.
-
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::metadata::{AudiobookMetadata, MetadataIntentPatch};
 
-/// Permission to apply one source read. A save, removal, or Clear All that
-/// happens while the read runs makes the ticket stale.
 #[derive(Debug)]
 pub(crate) struct ReadTicket {
     pub(crate) path: PathBuf,
@@ -38,8 +26,6 @@ pub(crate) struct TagCache {
 }
 
 impl TagCache {
-    /// Starts a source read unless the file's tags are already known from a
-    /// read. Concurrent reads of one file share a token, so either may land.
     pub(crate) fn begin_read(&mut self, path: &Path) -> Option<ReadTicket> {
         if self.read.contains(path) {
             return None;
@@ -102,8 +88,6 @@ impl TagCache {
             .filter(|cover| !cover.is_empty())
     }
 
-    /// Stages intent unless a source read proves that it would change nothing.
-    /// Unknown source fields are not known-empty: Blank must still reach the file.
     pub(crate) fn stage(&mut self, path: &Path, patch: &MetadataIntentPatch) {
         if !patch.is_actionable() {
             return;
@@ -134,10 +118,6 @@ impl TagCache {
         !self.pending.is_empty()
     }
 
-    /// Accepts `saved` as written to the file: it folds into the known tags,
-    /// even when the file was never read, and stops being pending. A change
-    /// staged after `revision` was submitted keeps the whole pending patch for
-    /// the next save. A read begun before the save can no longer land.
     pub(crate) fn commit_saved(&mut self, path: &Path, saved: &MetadataIntentPatch, revision: u64) {
         self.reads_in_flight.remove(path);
         let known = self.known.entry(path.to_path_buf()).or_default();

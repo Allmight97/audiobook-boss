@@ -13,47 +13,34 @@ use crate::processing::{
 };
 use crate::work_runtime::OperationId;
 
-/// Why the session could not be submitted. Hosts word these.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SubmitRefusal {
     NoTitles,
     NoValidTitles,
     NoOutputDirectory,
-    /// A grouped title has a source that is not valid audio.
     InvalidSource,
-    /// A grouped title's sources disagree about their audio.
     AudioChoiceRequired,
-    /// A CUE sheet needs a decision first; `message` says which.
     ChapterReview {
         message: String,
     },
     DraftInvalid {
         message: String,
     },
-    /// There are edits and no valid title to carry them.
     NoTarget,
     SaveInProgress,
-    /// Another submission or a preview is still running.
     Busy,
-    /// This title has no title tag and none was typed; its output would
-    /// carry no title. `label` is what the title list shows for it.
     #[serde(rename_all = "camelCase")]
     MissingTitle {
         title_id: String,
         label: String,
     },
-    /// A downloaded source is being removed after its export finished.
     SourceRemoved,
     Closing,
-    /// The restart offer was replaced by a later Save, or the output folder
-    /// or naming changed since it was made.
     RestartStale,
 }
 
 impl SubmitRefusal {
-    /// The refusal's kind as hosts receive it, for a log line; never a
-    /// title or a message.
     pub(crate) fn kind(&self) -> String {
         serde_json::to_value(self)
             .ok()
@@ -83,7 +70,6 @@ pub enum SubmissionStatus {
     Refused {
         reason: SubmitRefusal,
     },
-    /// Some outputs already exist; `OutputSnapshot::collision_review` holds the question.
     ReviewRequired,
     Blocked {
         message: String,
@@ -95,17 +81,13 @@ pub enum SubmissionStatus {
     Submitted {
         operation_id: OperationId,
         title: String,
-        /// Invalid titles the submission left out.
         left_out: usize,
     },
     Previewing,
     PreviewFinished {
         result: ProcessCommandResult,
     },
-    /// The user cancelled the collision review.
     Cancelled,
-    /// The title finished at its original location before the restart could
-    /// stop it; `outputs` says whether its tags took the edit there.
     FinishedBeforeRestart {
         outputs: super::exports::OutputEdits,
     },
@@ -160,10 +142,6 @@ pub(crate) struct DraftInputs {
     pub(crate) preview: bool,
 }
 
-/// Builds the payload for the valid titles. Invalid standalone titles and
-/// titles with an exported, removed source are left out; a grouped title with
-/// any other invalid source, or one whose sources disagree about their audio,
-/// refuses the submission.
 pub(crate) fn build_draft(
     titles: &[SubmittedTitle<'_>],
     inputs: DraftInputs,

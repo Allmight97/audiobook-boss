@@ -89,13 +89,6 @@ fn unprivileged_ids() -> (u32, u32) {
     (parse("-u").unwrap_or(65534), parse("-g").unwrap_or(65534))
 }
 
-/// chmod is not enough: root ignores a 0o444 file. Settings tests put a
-/// regular file at the parent path so create_dir_all fails for every uid.
-/// Save writes this source in place, so that blocker cannot sit at the
-/// parent while Import still reads the book. Run the host unprivileged
-/// when uid 0 so the read-only file fails the write, without chattr. That
-/// host runs from a copy beside the book, because the user cannot traverse a
-/// private checkout such as one under /root.
 #[cfg(unix)]
 fn run_save_against_unwritable_book(source: &Path, state: &Path) -> std::process::Output {
     use std::os::unix::fs::PermissionsExt;

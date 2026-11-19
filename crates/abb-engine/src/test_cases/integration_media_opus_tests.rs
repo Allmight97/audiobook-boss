@@ -1,7 +1,3 @@
-//! Real-media proofs for Opus: a title keeps its tags, cover, chapters and
-//! playable length in both the M4A and MKA containers, and copying Opus
-//! between containers keeps packets and trim.
-
 use super::media_fixtures::{
     accepted_chapters, audio_packet_bytes, chapters_of, decode_pcm_f32, ffmpeg, minimal_jpg_bytes,
     picture_codecs, preflight_payload, run_planned_title, MediaLane,

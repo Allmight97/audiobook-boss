@@ -1,7 +1,3 @@
-//! The chapters a preserved merge of chapterless sources carries: one per
-//! source, titled by the source's own file name, each starting where the one
-//! before ends.
-
 use super::media_fixtures::run_planned_title;
 use super::support::encoders::native_encoder_settings;
 use super::tag_interop_seed::seed_mergeable_m4a;

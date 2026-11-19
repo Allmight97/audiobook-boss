@@ -1,8 +1,6 @@
 use abb_audible_core::{LicenseDenial, LicenseFacts, OwnedPathStep};
 use serde_json::Value;
 
-/// Sanitized shape of a license reply: codes and key names only, never URLs,
-/// license material, or Audible's free-text messages.
 pub(super) fn license_reply_log_fields(reply: &Value, facts: &LicenseFacts) -> String {
     let license = &reply["content_license"];
     format!(

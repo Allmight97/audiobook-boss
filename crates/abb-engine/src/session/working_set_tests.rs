@@ -464,7 +464,6 @@ proptest! {
             let selection = set.selection(0);
             let count = snapshot.files.len();
 
-            // Selection points at loaded titles, once each, in order.
             let mut sorted = selection.selected_indices.clone();
             sorted.sort_unstable();
             sorted.dedup();
@@ -488,7 +487,6 @@ proptest! {
                 }
             }
 
-            // A source file belongs to exactly one title.
             let mut paths = Vec::new();
             for file in &snapshot.files {
                 for source in set.sources_for(file) {
@@ -499,14 +497,12 @@ proptest! {
             prop_assert_eq!(unique.len(), paths.len());
 
             for file in &snapshot.files {
-                // Every title has an audio request, and a group contains its anchor.
                 prop_assert!(set.audio_request(&file.input_id).is_some());
                 if let Some(sources) = snapshot.title_sources_by_identity.get(&file.input_id) {
                     prop_assert!(sources.len() >= 2);
                     prop_assert!(sources.iter().any(|source| source.input_id == file.input_id));
                 }
             }
-            // Group records and pending audio choices exist only for loaded titles.
             let ids: HashSet<&str> = snapshot.files.iter().map(|f| f.input_id.as_str()).collect();
             prop_assert!(snapshot.title_sources_by_identity.keys().all(|id| ids.contains(id.as_str())));
             prop_assert!(set.audio_choice_required().iter().all(|id| ids.contains(id.as_str())));

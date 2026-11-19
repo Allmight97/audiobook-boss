@@ -86,8 +86,6 @@ fn device_key_from_pem(pem: &str) -> Result<RsaKeyPair> {
     })
 }
 
-/// The signed date Audible expects: UTC RFC 3339 with `+00:00`, then a
-/// literal `Z`, as `audible_api` wrote it (`chrono` `to_rfc3339() + "Z"`).
 pub(super) fn adp_date(now: SystemTime) -> String {
     let elapsed = now.duration_since(UNIX_EPOCH).unwrap_or_default();
     let seconds = elapsed.as_secs();

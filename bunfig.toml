@@ -1,7 +1,4 @@
 [install]
-# Delay fresh dependency resolutions by 10 days to reduce exposure to newly
-# published supply-chain compromises while leaving the committed lockfile flow
-# unchanged. Policy and exceptions live in scripts/AGENTS.md (Dependencies).
 minimumReleaseAge = 864000
 
 minimumReleaseAgeExcludes = [

@@ -1,6 +1,3 @@
-//! Output streams built from facts instead of an input or an encoder, the
-//! lookups that answer what this FFmpeg build has, and the text rules.
-
 use std::path::Path;
 
 use abb_ffmpeg::{
@@ -9,7 +6,6 @@ use abb_ffmpeg::{
 };
 use tempfile::TempDir;
 
-/// AudioSpecificConfig: AAC-LC, 44.1 kHz, stereo.
 const AAC_LC_CONFIG: [u8; 2] = [0x12, 0x10];
 
 fn aac(config: &[u8]) -> AacStream<'_> {

@@ -385,7 +385,6 @@ async fn metadata_source_fixtures(
         workspace,
     )
     .await;
-    // External books may carry a stale sort key or none at all.
     for (index, (source, title)) in seeds.iter().zip(["Alpha", "Beta"]).enumerate() {
         save_metadata_intent(
             source,
@@ -446,7 +445,6 @@ async fn metadata_two_pass_workflow(intent: crate::audio::AudioIntent) {
         .await;
         assert_eq!(outputs.len(), 2);
         for (output, title) in outputs.iter().zip(titles) {
-            // Read atoms independently of ABB's read_metadata projection.
             let tags = mp4ameta::Tag::read_from_path(output).expect("read actual output tags");
             assert_eq!(tags.title(), Some(*title));
             assert_eq!(tags.artist(), Some("Edited Author"));

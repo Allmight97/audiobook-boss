@@ -1,9 +1,3 @@
-//! Tag output pinned for interop. Sources seeded with every tag alias and
-//! several pictures go through each way ABB writes tags, and what the file
-//! then carries is compared with a committed snapshot. MP4 Saves also pin the
-//! file's SHA-256. A refactor of tag writing must leave every snapshot
-//! identical; `ABB_BLESS_TAG_SNAPSHOTS=1` rewrites them on purpose.
-
 use super::media_fixtures::{preflight_payload, run_planned_title, single_title_payload};
 use super::support::encoders::{native_encoder_settings, opus_encoder_settings};
 use super::tag_interop_dump::{assert_snapshot, dump_tags, sha256_hex};

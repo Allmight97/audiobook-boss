@@ -1,11 +1,3 @@
-//! Bundled FAAD3 behind the frame pipeline's decoder interface.
-//!
-//! One AAC access unit in, packed float frames out. FAAD's reported decoder
-//! delay shifts the whole decoded stream before FFmpeg's packet trimming
-//! (skip samples, discard padding, discard flag) applies, the order the `faad`
-//! frontend uses. `discard_samples()` in libavcodec's `decode.c` defines the
-//! trimming rules mirrored here.
-
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use abb_ffmpeg::{AudioFrame, ChannelLayout, Packet, Progress, SampleFormat};
 use faac_sys as faad;
@@ -56,8 +48,6 @@ struct PacketTrim {
     discard: bool,
 }
 
-/// libavcodec `discard_samples()` state across frames, in samples per
-/// channel, and the decode's counts for its summary line.
 #[derive(Default)]
 struct Trimmer {
     skip_samples: usize,
@@ -65,7 +55,6 @@ struct Trimmer {
 }
 
 impl Trimmer {
-    /// The kept sample range of one packet's frame, or None to drop it.
     fn range(&mut self, trim: &PacketTrim) -> Option<(usize, usize)> {
         if trim.skip != 0 {
             self.skip_samples = trim.skip as usize;
@@ -241,8 +230,6 @@ fn format_from(info: &faad::faad_stream_info) -> FaadFormat {
     }
 }
 
-/// Decodes until FAAD emits PCM, so the resampler is built for the format
-/// FAAD actually emits (implicit SBR and ADTS discover it only then).
 fn discover_format(path: &Path, stream_index: usize, asc: Option<&[u8]>) -> Result<FaadFormat> {
     let handle = open_handle(asc)?;
     let mut output = vec![0u8; stream_info(&handle)?.max_output_bytes as usize];
@@ -375,8 +362,6 @@ impl FaadDecoder {
         }
     }
 
-    /// Releases each packet's samples once the delay-shifted stream holds
-    /// them all, or at EOF with whatever remains.
     fn emit_ready(&mut self) {
         let channels = self.format.channels as usize;
         loop {

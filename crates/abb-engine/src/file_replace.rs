@@ -1,8 +1,6 @@
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-/// A file ABB writes beside `destination` before installing it there. Removed
-/// on drop unless committed, so a failed write leaves nothing behind.
 pub(crate) struct SiblingTemp {
     path: PathBuf,
     committed: bool,

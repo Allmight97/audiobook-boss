@@ -1,10 +1,3 @@
-//! The working set: output titles, their ordered sources, order, and selection.
-//!
-//! Every function here is a state transition with no I/O. A visible entry in
-//! `files` anchors one output title's metadata; a grouped title keeps its
-//! ordered sources in `title_sources`. Identity is the file's `input_id`, so
-//! reorder and sort never change which title a choice belongs to.
-
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -42,20 +35,15 @@ pub enum MoveDirection {
     Down,
 }
 
-/// What the last import could not do: why it added nothing, or which dropped
-/// paths it skipped. Hosts word these for the user.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum InputNotice {
-    /// The order is locked while processing; nothing can be added.
     OrderLocked,
     #[serde(rename_all = "camelCase")]
     NoSupportedFiles {
         formats_text: String,
     },
-    /// Every analyzed file was already in the list.
     DuplicatesOnly,
-    /// Paths that could not be read; the rest of the import was added.
     SkippedPaths {
         skipped: Vec<crate::audio::SkippedImportPath>,
     },
@@ -64,29 +52,22 @@ pub enum InputNotice {
     },
 }
 
-/// The output titles as a host sees them. Selection travels separately
-/// because it changes far more often than the titles do.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TitlesSnapshot {
     pub revision: u64,
     pub files: Vec<AudioFile>,
-    /// Ordered sources for grouped titles, keyed by the title's identity.
     pub title_sources_by_identity: BTreeMap<String, Vec<AudioFile>>,
-    /// What each title sends to the output, keyed by the title's identity.
     pub title_totals: BTreeMap<String, TitleTotals>,
-    /// Bytes of every valid source in the list.
     pub total_size_bytes: f64,
     pub preview_length: PreviewLength,
     pub sort_direction: SortDirection,
     pub order_locked: bool,
     pub notice: Option<InputNotice>,
     pub order_differs_from_import: bool,
-    /// Companion PDF names of downloaded titles, by input id.
     pub companions: BTreeMap<String, Vec<String>>,
 }
 
-/// Which titles are selected, as positions in [`TitlesSnapshot::files`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectionSnapshot {
@@ -151,7 +132,6 @@ impl WorkingSet {
         !self.order_locked && self.selected_indices.len() >= 2
     }
 
-    /// Advances whenever the titles, their order, or their settings change.
     pub(crate) fn titles_changes(&self) -> u64 {
         self.titles_changes
     }
@@ -160,7 +140,6 @@ impl WorkingSet {
         self.titles_changes += 1;
     }
 
-    /// Advances whenever a title's audio request changes.
     pub(crate) fn audio_changes(&self) -> u64 {
         self.audio_changes
     }
@@ -177,9 +156,6 @@ impl WorkingSet {
         &self.files
     }
 
-    /// A downloaded source removed after export is finished, not failed, and no
-    /// longer a valid input. Keep its row as history while excluding it from
-    /// later standalone batches.
     pub(crate) fn sources_removed(&mut self, paths: &[PathBuf]) {
         for file in self
             .files
@@ -256,9 +232,6 @@ impl WorkingSet {
         self.touch();
     }
 
-    /// Adds analyzed files as new titles. Files already present, visible or
-    /// inside a group, are skipped; the first import into an empty set
-    /// replaces it. Each new title takes `default_audio` as its request.
     pub(crate) fn append_analyzed(
         &mut self,
         analyzed: Vec<AudioFile>,
@@ -302,9 +275,6 @@ impl WorkingSet {
         self.notice = None;
     }
 
-    /// Selects the named title. Unknown ids change nothing. Range selection
-    /// resolves the stored anchor by identity against current order, then
-    /// the target, so a reorder in between cannot retarget either end.
     pub(crate) fn select_title(&mut self, title_id: &str, modifiers: SelectionModifiers) {
         let Some(index) = self.index_of(title_id) else {
             return;
@@ -510,8 +480,6 @@ impl WorkingSet {
         self.sort_direction = SortDirection::None;
     }
 
-    /// Sorts titles by file name in natural numeric order, toggling direction.
-    /// Selection follows the titles, not their positions.
     pub(crate) fn toggle_sort(&mut self) {
         if self.order_locked || self.files.len() <= 1 {
             return;
@@ -562,9 +530,6 @@ impl WorkingSet {
         }
     }
 
-    /// Merges the selected titles into one, anchored on the first selected
-    /// title. Conflicting audio choices require an explicit choice afterward.
-    /// Returns whether a group was formed.
     pub(crate) fn group_selected(&mut self) -> bool {
         if !self.can_group() {
             return false;
@@ -657,8 +622,6 @@ impl WorkingSet {
         self.touch();
     }
 
-    /// Makes the list call a saved source by the title and author just
-    /// written to its file.
     pub(crate) fn note_saved_names(&mut self, path: &Path, saved: &MetadataIntentPatch) {
         let mut changed = false;
         let mut apply = |file: &mut AudioFile| {
@@ -687,10 +650,6 @@ impl WorkingSet {
         }
     }
 
-    /// Carries a source's size and chapter plan across ABB's own tag write,
-    /// which changes the file but not its audio. A plan made for a file that
-    /// had already changed before the write keeps its old fingerprint, so the
-    /// change is still caught.
     pub(crate) fn note_tag_write(&mut self, path: &Path, rewrite: &Rewrite) {
         let mut changed = false;
         let mut apply = |file: &mut AudioFile| {

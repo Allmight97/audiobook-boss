@@ -29,7 +29,13 @@ One bullet per view; a view without one has no trap beyond its owner.
   its position. A drag holds the pressed row's identity and finds positions
   again at release, so an import or removal mid-drag cannot move another
   title. A copied audio plan shows a check and an explicit copy label, not
-  color alone.
+  color alone. `setPointerCapture` can throw; window listeners still carry
+  the drag (`pointerReorder.ts`). A browser can deliver focus and hover to
+  the audio plan trigger after Escape closes its popover, so those late
+  events must not reopen it.
+- `fileList/AudioHandlingControl.tsx` keeps its complexity exemption
+  (`.oxlintrc.json`): one view over the audio plan states with no rule of
+  its own; next trigger: it gains another control, then split it.
 - `metadataLookup`: result covers load eagerly, because the dialog is a
   decision surface. A provider-controlled URL never goes into a DOM attribute;
   covers load from the engine's `cover` addresses through `coverSrc`.
@@ -54,7 +60,11 @@ One bullet per view; a view without one has no trap beyond its owner.
   rebuild a button between press and release.
 - Open modals form one stack (`src/ui/foundation/internal/modal.ts`) and
   only the topmost handles Escape and Tab, because each controller listens on
-  `document` and `stopPropagation` cannot order listeners on one node.
+  `document` and `stopPropagation` cannot order listeners on one node. The
+  listener is document-level and capture-phase, because WebKit can refuse a
+  dialog's first focus or blur to `body`, which leaves a container listener
+  deaf; WebKit also refuses focus before the backdrop's visibility transition
+  gets a style recalc, so focus retries on the next frame.
 - Callers use a primitive's props, never its private class names; the
   `.app-modal-*` dialog-body classes in
   `src/ui/foundation/internal/dialogs.css` are the shared exception. No

@@ -1,0 +1,400 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
+import {
+	ALLOWLIST,
+	commentFindings,
+	DOCTESTED_CRATES,
+	isPolicyFile,
+	keptComments,
+	stripComments,
+} from './comment-policy';
+
+function messages(file: string, source: string): string[] {
+	return commentFindings(file, source).map((finding) => finding.message);
+}
+
+describe('comment policy', () => {
+	it('gives every allowlist entry a reason', () => {
+		expect(ALLOWLIST.map((entry) => entry.id)).toEqual([
+			'license',
+			'lint-directive',
+			'shell-directive',
+			'permission-fake',
+			'safety',
+			'upstream',
+			'pin',
+			'ratchet',
+			'rustdoc-test',
+			'safety-doc',
+			'no-lane',
+			'audit-crate',
+			'oxlint-reason',
+			'shellcheck',
+		]);
+		for (const entry of ALLOWLIST) {
+			expect(entry.reason.trim().length).toBeGreaterThan(20);
+		}
+	});
+
+	it('skips vendored, generated, frozen settings, and frozen fixtures', () => {
+		expect(isPolicyFile('crates/abb-engine/src/lib.rs')).toBe(true);
+		expect(isPolicyFile('vendor/opus/src/lib.rs')).toBe(false);
+		expect(isPolicyFile('src/lib/generated/tauri.ts')).toBe(false);
+		expect(isPolicyFile('crates/abb-engine/src/app_settings/saved_settings/settings.toml')).toBe(
+			false,
+		);
+		expect(isPolicyFile('scripts/fixtures/ci-64ec2240-parent.yml')).toBe(false);
+		expect(isPolicyFile('README.md')).toBe(false);
+	});
+
+	it('fails a new comment and names the fix and the root cause', () => {
+		const message = messages('src/app/x.ts', 'const value = 1;\n// retry it later\n');
+		expect(message).toHaveLength(1);
+		expect(message[0]).toContain('Fix: delete it');
+		expect(message[0]).toContain('Root cause:');
+		expect(message[0]).toContain('scripts/comment-policy.ts');
+	});
+
+	it('keeps a lint directive only when it carries a reason', () => {
+		const kept =
+			'// oxlint-disable-next-line typescript/no-explicit-any -- the fixture is untyped\n';
+		expect(messages('src/app/x.ts', kept)).toEqual([]);
+		const bareDirective = ['// oxlint', '-disable-next-line typescript/no-explicit-any\n'].join('');
+		expect(messages('src/app/x.ts', bareDirective)).toEqual([
+			expect.stringContaining('directive with no reason'),
+		]);
+		expect(messages('vite.config.ts', '// @ts-expect-error process is a nodejs global\n')).toEqual(
+			[],
+		);
+	});
+
+	it('keeps a SAFETY comment and the lines that finish its sentence, and rejects a bare one', () => {
+		const source =
+			'    // SAFETY: the handle is open, and\n    // Drop closes it.\n    unsafe { free(handle) }\n';
+		expect(stripComments('crates/x/src/lib.rs', source)).toBe(source);
+		expect(
+			messages('crates/x/src/lib.rs', '    // SAFETY:\n    unsafe { free(p) }\n'),
+		).toHaveLength(1);
+	});
+
+	it('keeps an upstream bug link with its sentence and drops the prose around it and a pin', () => {
+		const cargo = [
+			'# The lib name collides on Windows.',
+			'# See https://github.com/rust-lang/cargo/issues/8519',
+			'specta = "=2.0.0"',
+			'# Bump the family together.',
+			'# pin: prerelease family; unpin when specta 2.0.0 is stable',
+			'',
+		].join('\n');
+		expect(stripComments('Cargo.toml', cargo)).toBe(
+			[
+				'# See https://github.com/rust-lang/cargo/issues/8519',
+				'specta = "=2.0.0"',
+				'# pin: prerelease family; unpin when specta 2.0.0 is stable',
+				'',
+			].join('\n'),
+		);
+	});
+
+	it('keeps a rustdoc test and drops the prose around it', () => {
+		const source = [
+			'//! Hosts can read this.',
+			'//!',
+			'//! ```',
+			'//! use crate::Engine;',
+			'//! ```',
+			'pub struct Engine;',
+			'',
+		].join('\n');
+		expect(stripComments('crates/abb-engine/src/lib.rs', source)).toBe(
+			['//! ```', '//! use crate::Engine;', '//! ```', 'pub struct Engine;', ''].join('\n'),
+		);
+		expect(keptComments('crates/abb-engine/src/lib.rs', source).map((kept) => kept.id)).toEqual([
+			'rustdoc-test',
+			'rustdoc-test',
+			'rustdoc-test',
+		]);
+	});
+
+	it('does not treat a slash pair inside a regular expression as a comment', () => {
+		const source =
+			"return source.replace(/\\/\\*[\\s\\S]*?\\*\\//g, ' ').replace(/\\/\\/.*$/gm, ' ');\n";
+		expect(stripComments('src/x.ts', source)).toBe(source);
+	});
+
+	it('does not treat comment markers in strings, raw strings, or a heredoc as comments', () => {
+		const rust =
+			'const TEXT: &str = r#" // not a comment "#;\nlet url = "https://example.com/a#b";\n';
+		expect(stripComments('crates/x/src/lib.rs', rust)).toBe(rust);
+		const shell = ["cat <<'USAGE'", '  # this is help text', 'USAGE', 'echo hi # goes', ''].join(
+			'\n',
+		);
+		expect(stripComments('scripts/x.sh', shell)).toBe(
+			["cat <<'USAGE'", '  # this is help text', 'USAGE', 'echo hi', ''].join('\n'),
+		);
+	});
+
+	it('keeps shell and permission directives and drops a JSX comment with its braces', () => {
+		expect(
+			messages('scripts/x.sh', 'v="$(tool 2>/dev/null)" # allow-silence: missing is the answer\n'),
+		).toEqual([]);
+		const tsx = [
+			'export const View = () => (',
+			'\t<div>',
+			'\t\t{/* retry later */}',
+			'\t\t<span />',
+			'\t</div>',
+			');',
+			'',
+		].join('\n');
+		expect(stripComments('src/ui/View.tsx', tsx)).toBe(
+			['export const View = () => (', '\t<div>', '\t\t<span />', '\t</div>', ');', ''].join('\n'),
+		);
+		const kept =
+			'\t\t{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- the backdrop closes on click. */}\n';
+		expect(messages('src/ui/View.tsx', kept)).toEqual([]);
+	});
+
+	it('leaves a workflow prompt block alone and strips a YAML comment', () => {
+		const yaml = [
+			'      - run: |',
+			'          echo hi # stays in the script? no, run blocks are shell',
+			'      - name: Review',
+			'        with:',
+			'          prompt: |',
+			'            # leave this instruction',
+			'          model: fable # pinned',
+			'',
+		].join('\n');
+		expect(stripComments('.github/workflows/ci.yml', yaml)).toBe(
+			[
+				'      - run: |',
+				'          echo hi',
+				'      - name: Review',
+				'        with:',
+				'          prompt: |',
+				'            # leave this instruction',
+				'          model: fable',
+				'',
+			].join('\n'),
+		);
+	});
+
+	it('keeps the crate on an audit ignore and the reason before an oxlint rule', () => {
+		const audit = '"RUSTSEC-2024-0415", # gtk\n';
+		expect(stripComments('.cargo/audit.toml', audit)).toBe(audit);
+		expect(
+			messages('.cargo/audit.toml', '"RUSTSEC-2024-0415", # gtk waiting on a migration\n'),
+		).toEqual([expect.stringContaining('Fix: delete it')]);
+		const rule =
+			'\t\t// Solid ignores an event handler return value.\n\t\t"typescript/no-misused-promises": ["error"],\n';
+		expect(stripComments('.oxlintrc.json', rule)).toBe(rule);
+		expect(messages('.oxlintrc.json', '\t\t// just because\n\t\t"name": "ok",\n')).toEqual([
+			expect.stringContaining('Fix: delete it'),
+		]);
+	});
+
+	it('keeps the reason on a no-lane path and drops the same shape elsewhere', () => {
+		const lane = 'no-lane:\n  - CHANGELOG.md # release history, written by hand\n';
+		expect(stripComments('scripts/lane-paths.yml', lane)).toBe(lane);
+		expect(
+			messages('.github/workflows/ci.yml', '      - uses: actions/checkout@abc # v6\n'),
+		).toEqual([expect.stringContaining('Fix: delete it')]);
+	});
+
+	it('keeps a shellcheck directive that names its reason', () => {
+		const disable = '# shellcheck disable=SC2261 # restores stdout, then stderr, on purpose\n';
+		expect(stripComments('scripts/dev-tauri-log.sh', disable)).toBe(disable);
+		expect(messages('scripts/dev-tauri-log.sh', '# shellcheck disable=SC2261\n')).toEqual([
+			expect.stringContaining('directive with no reason'),
+		]);
+		const sourced = '# shellcheck shell=bash\n';
+		expect(stripComments('scripts/golden-path/lib.sh', sourced)).toBe(sourced);
+	});
+
+	it('keeps a license header', () => {
+		const header =
+			'/*\n * Copyright (c) 2026 Ada Lovelace\n * SPDX-License-Identifier: MIT\n */\nexport const n = 1;\n';
+		expect(stripComments('scripts/x.ts', header)).toBe(header);
+	});
+
+	it('reads a URL in JSX text as text', () => {
+		expect(
+			messages('src/ui/A.tsx', 'export const A = () => <p>See https://example.com</p>;\n'),
+		).toEqual([]);
+	});
+
+	it('reads a heredoc inside a workflow run block as data', () => {
+		const yaml = [
+			'      - run: |',
+			"          cat <<'EOF' > notes.md",
+			'          # Release notes',
+			'          EOF',
+			'          echo done # trailing',
+			'',
+		].join('\n');
+		expect(lines('.github/workflows/ci.yml', yaml)).toEqual([5]);
+	});
+
+	it('ends a run block at the sibling keys of its step', () => {
+		const yaml = [
+			'      - run: |',
+			'          echo a',
+			'        env:',
+			"          NOTE: it's fine",
+			'          OTHER: x # c',
+			'',
+		].join('\n');
+		expect(lines('.github/workflows/ci.yml', yaml)).toEqual([5]);
+	});
+
+	it('reads a hash inside a multi-line shell string as data', () => {
+		const shell = ['message="first', '# still the string', 'last"', 'echo "${message}"', ''].join(
+			'\n',
+		);
+		expect(messages('scripts/x.sh', shell)).toEqual([]);
+	});
+
+	it('reads a keyless YAML block scalar as data', () => {
+		const yaml = ['args:', '  - |', '    # literal text', '  - plain # note', ''].join('\n');
+		expect(lines('config.yml', yaml)).toEqual([4]);
+	});
+
+	it('keeps a copyright line with a year or the copyright sign', () => {
+		for (const header of [
+			'// Copyright 2024 Ada Lovelace\n',
+			'// Copyright © 2024 Ada Lovelace\n',
+		]) {
+			expect(keptComments('scripts/x.ts', header)).toEqual([{ line: 1, id: 'license' }]);
+		}
+		expect(lines('scripts/x.ts', '// Copyright the team, see below\n')).toEqual([1]);
+	});
+
+	it('keeps a tracker, RFC, discussion, or issue-number link and nothing link-shaped', () => {
+		for (const link of [
+			'// https://trac.ffmpeg.org/ticket/10531',
+			'// https://www.rfc-editor.org/rfc/rfc8216',
+			'// https://datatracker.ietf.org/doc/html/rfc8216',
+			'// https://github.com/tauri-apps/tauri/discussions/4012',
+			'// blocked on #557',
+		]) {
+			expect(keptComments('src/x.ts', `${link}\n`)).toEqual([{ line: 1, id: 'upstream' }]);
+		}
+		for (const prose of ['// see SC2261', '// see https://example.com/a']) {
+			expect(lines('src/x.ts', `${prose}\n`)).toEqual([1]);
+		}
+		expect(lines('src/x.css', '/* the old #123 grey */\n')).toEqual([1]);
+	});
+
+	it('reads a quote inside a regular expression literal as part of the pattern', () => {
+		expect(lines('src/x.ts', 'const r = /[\'"]/;\n// a real comment\n')).toEqual([2]);
+		expect(lines('src/x.ts', 'const half = total / 2; // a real comment\n')).toEqual([1]);
+	});
+
+	it('reads an apostrophe in JSX text as text', () => {
+		expect(
+			lines('src/ui/A.tsx', "export const A = () => <p>don't</p>;\n// a real comment\n"),
+		).toEqual([2]);
+	});
+
+	it('reads a shift inside shell arithmetic as an operator, not a heredoc', () => {
+		expect(lines('scripts/x.sh', 'x=$(( 1 << 2 ))\n# a real comment\n')).toEqual([2]);
+	});
+
+	it('keeps a SAFETY or link comment only to the end of its sentence', () => {
+		const rust = [
+			'    // SAFETY: the handle is open and',
+			'    // owned here.',
+			'    // Drop closes it later.',
+			'    unsafe { free(handle) }',
+			'',
+		].join('\n');
+		expect(lines('crates/x/src/lib.rs', rust)).toEqual([3]);
+		const linked = [
+			'// Retry once.',
+			'// The decoder stalls on',
+			'// https://trac.ffmpeg.org/ticket/10531',
+			'// Keep the buffer small.',
+			'const n = 1;',
+			'',
+		].join('\n');
+		expect(lines('src/x.ts', linked)).toEqual([1, 4]);
+	});
+
+	it('requires a reason on @ts-nocheck', () => {
+		expect(messages('src/x.ts', '// @ts-nocheck\n')).toEqual([
+			expect.stringContaining('directive with no reason'),
+		]);
+		expect(
+			messages('src/x.ts', '// @ts-nocheck generated by a tool this repo does not own\n'),
+		).toEqual([]);
+	});
+
+	it('keeps only rustdoc fences that cargo test --doc runs', () => {
+		const fence = (info: string) =>
+			[`//! \`\`\`${info}`, '//! let x = 1;', '//! ```', ''].join('\n');
+		for (const info of ['', 'rust', 'compile_fail', 'no_run,edition2021']) {
+			expect(lines('crates/abb-engine/src/lib.rs', fence(info))).toEqual([]);
+		}
+		for (const info of ['text', 'ignore', 'rust,ignore', 'sh']) {
+			expect(lines('crates/abb-engine/src/lib.rs', fence(info))).toEqual([1, 2, 3]);
+		}
+		expect(lines('crates/abb-media-core/src/lib.rs', fence(''))).toEqual([1, 2, 3]);
+		expect(lines('crates/abb-engine/src/bin/abb_dev.rs', fence(''))).toEqual([1, 2, 3]);
+	});
+
+	it('keeps a # Safety doc section on an unsafe fn and nothing else', () => {
+		const section = [
+			'/// # Safety',
+			'///',
+			'/// `ptr` is live for the call',
+			'/// and owned by the caller.',
+		];
+		const kept = [
+			'    /// # Safety',
+			'    /// `ptr` is live for the call',
+			'    /// and owned by the caller.',
+			'    #[inline]',
+			'    pub(crate) unsafe fn read(ptr: *const u8) -> u8 {',
+			'',
+		].join('\n');
+		expect(lines('crates/abb-ffmpeg/src/x.rs', kept)).toEqual([]);
+		expect(keptComments('crates/abb-ffmpeg/src/x.rs', kept).map((entry) => entry.id)).toEqual([
+			'safety-doc',
+			'safety-doc',
+			'safety-doc',
+		]);
+		const safe = ['/// # Safety', '/// `ptr` is live.', 'pub fn read(ptr: *const u8) {}', ''].join(
+			'\n',
+		);
+		expect(lines('crates/abb-ffmpeg/src/x.rs', safe)).toEqual([1, 2]);
+		const prose = ['/// Reads one byte.', ...section, 'unsafe fn read(ptr: *const u8) {}', ''].join(
+			'\n',
+		);
+		expect(lines('crates/abb-ffmpeg/src/x.rs', prose)).toEqual([1, 3, 4, 5]);
+	});
+
+	it('names exactly the crates verify.sh runs with --doc', () => {
+		const verify = readFileSync(path.join(import.meta.dirname, 'verify.sh'), 'utf8');
+		const documented = [...verify.matchAll(/cargo test\b[^\n]*?-p (\S+)[^\n]*--doc\b/g)].map(
+			(match) => match[1],
+		);
+		expect([...DOCTESTED_CRATES].toSorted()).toEqual([...new Set(documented)].toSorted());
+	});
+
+	it('scans the git hook, HTML, JSX, and module TypeScript files', () => {
+		for (const file of ['.githooks/pre-commit', 'index.html', 'src/a.jsx', 'src/a.mts']) {
+			expect(isPolicyFile(file)).toBe(true);
+		}
+		expect(lines('.githooks/pre-commit', '#!/usr/bin/env bash\n# Fast checks.\nset -e\n')).toEqual([
+			2,
+		]);
+		const html = '<!-- SPDX-License-Identifier: MIT -->\n<p>a // b</p>\n<!--\n  note\n-->\n';
+		expect(lines('index.html', html)).toEqual([3]);
+	});
+});
+
+function lines(file: string, source: string): number[] {
+	return commentFindings(file, source).map((finding) => finding.line);
+}

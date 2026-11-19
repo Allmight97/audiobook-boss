@@ -3,8 +3,6 @@ use crate::errors::{AppError, Result};
 
 use super::EncoderOptions;
 
-/// ABB's Native contract is a constant target; upstream may change the
-/// default rate control.
 pub(in crate::audio::processor::encoder) fn build_native_options(
     settings: &EncoderSettings,
 ) -> EncoderOptions {
@@ -23,7 +21,6 @@ pub(in crate::audio::processor::encoder) fn validate_native_options(
     encoder: &abb_ffmpeg::AudioEncoder,
     settings: &EncoderSettings,
 ) -> Result<()> {
-    // Pinned source: AAC_CODER_NMR = 2 (aacenc.h); aac_rc cbr = 0 (aacenc.c).
     for (name, expected) in [
         ("aac_coder", 2),
         ("aac_nmr_speed", i64::from(settings.native_aac_speed)),

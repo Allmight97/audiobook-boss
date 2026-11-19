@@ -9,19 +9,14 @@ use crate::output_artifact::OutputNamingConfig;
 use crate::processing::TitleOutput;
 use crate::work_runtime::OperationId;
 
-/// An edit that would move a title's unpublished output. Hosts ask whether
-/// to restart the title there (`RestartTitle`) or keep it (`KeepTitleLocation`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RestartOffer {
     pub title_id: String,
     pub operation_id: OperationId,
-    /// Names this offer; a later Save replaces it with another.
     #[specta(type = specta_typescript::Number)]
     pub revision: u64,
-    /// Where the output is being written.
     pub from: String,
-    /// Where the edit names it.
     pub to: String,
 }
 
@@ -31,20 +26,14 @@ pub(crate) struct ExportLink {
     pub(crate) index: usize,
     pub(crate) title: Arc<TitleOutput>,
     anchor: PathBuf,
-    /// Edits written to the anchor since the export was accepted.
     acknowledged: MetadataIntentPatch,
 }
 
-/// What one Save did to the outputs of titles in exports.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OutputEdits {
-    /// Outputs that take the edit, before or after publication.
     pub updated: usize,
-    /// Of those, published outputs whose tags now name another folder; the
-    /// file is not moved.
     pub elsewhere: usize,
-    /// Unpublished outputs the edit would move; see `restart_offers`.
     pub restart_offered: usize,
     pub failed: usize,
 }
@@ -67,7 +56,6 @@ struct Ticket {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RestartStale {
-    /// No offer with that revision, or the output settings changed since.
     Stale,
 }
 
@@ -75,7 +63,6 @@ pub(crate) enum RestartStale {
 pub(crate) struct Exports {
     links: HashMap<String, ExportLink>,
     tickets: HashMap<String, Ticket>,
-    /// Locations the user chose not to restart titles at.
     declined: HashMap<String, PathBuf>,
     edits: u64,
 }

@@ -1,32 +1,3 @@
-/**
- * What changed in FFmpeg master since ABB's pinned commit, in the sources
- * ABB's build can compile.
- *
- * Usage: bun run ffmpeg:upstream [--issue]
- *        bun run ffmpeg:pin <commit>
- *
- * Reads the pin from `vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision` and the
- * FFmpeg files ABB's build compiles from `ffmpeg-used-files.txt` beside it.
- * Fetches master into a blobless clone under `target/abb-ffmpeg-upstream/`
- * (reused across runs) and lists the commits after the pin that touch one of
- * those files, or the file it was renamed to. Prints a Markdown report. With `--issue` it instead keeps one open issue current through
- * `gh api` (REST only; cloud sessions block GraphQL): the issue exists while
- * relevant commits exist, and its body changes only when the pin or the
- * commit list changes. The scheduled workflow
- * `.github/workflows/ffmpeg-upstream.yml` runs it.
- *
- * `ffmpeg:used` (`--used-files check|update`) reads the compiler dependency
- * files of this checkout's current FFmpeg build trees: `check` fails when a
- * build compiled a file the list lacks or the list names a file the pinned
- * source no longer has; `update` rewrites the list to match.
- *
- * `ffmpeg:pin` (`--pin <commit>`) moves every pin of the FFmpeg commit at
- * once: the full hash into `ffmpeg-revision` and into the shipped notice
- * `ABB-PROVENANCE.md`, and `ffmpeg_cli_release` and `ffmpeg_cli_build` in
- * `scripts/setup.sh` to the newest FFmpeg-Builds master autobuild of that
- * commit. It changes nothing when no autobuild names the
- * commit, and lists the commits that have one.
- */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -54,15 +25,9 @@ export interface Report {
 	pin: string;
 	head: string;
 	commits: Commit[];
-	/** The newest FFmpeg release tag that carries the NMR coder ABB needs, once one exists. */
 	nmrRelease: string | null;
 }
 
-/**
- * The repository paths a compiler dependency file (`make`'s `.d`) names:
- * every source and header after a target's colon, without absolute paths
- * (system and SDK headers) or a leading `./`.
- */
 export function dependencyPaths(text: string): string[] {
 	return text
 		.replace(/\\\r?\n/g, ' ')
@@ -79,7 +44,6 @@ export function renderUsedFiles(files: Iterable<string>): string {
 	return `${[...new Set(files)].toSorted().join('\n')}\n`;
 }
 
-/** Each watched path, and the path a rename between the pin and master moved it to. */
 export function watchedPaths(used: string[], renames: string): string[] {
 	const listed = new Set(used);
 	const moved = renames
@@ -100,7 +64,6 @@ export function parseCommits(log: string): Commit[] {
 		});
 }
 
-/** The newest `nX.Y` or `nX.Y.Z` tag at or after the first release with the NMR coder. */
 export function newestNmrRelease(lsRemoteTags: string): string | null {
 	const releases = [...lsRemoteTags.matchAll(/refs\/tags\/(n(\d+)\.(\d+)(?:\.(\d+))?)$/gm)]
 		.map(([, tag, major, minor, patch]) => ({
@@ -321,11 +284,6 @@ function targetDirectory(repoRoot: string): string {
 	return path.resolve(repoRoot, process.env.CARGO_TARGET_DIR ?? 'target');
 }
 
-/**
- * The FFmpeg source trees this checkout's current builds compiled: each build
- * script output whose identity names the current `build.rs`, mapped to the
- * cache tree build.rs keys by that identity's blob hash, at the pinned source.
- */
 function currentTrees(repoRoot: string, pin: string): string[] {
 	const target = targetDirectory(repoRoot);
 	const script = `build-script=${gitBlobHash(path.join(repoRoot, SYS_CRATE, 'build.rs'))}`;
@@ -362,7 +320,6 @@ function dependencyFiles(directory: string): string[] {
 		.map((file) => path.join(directory, file));
 }
 
-/** Every tracked FFmpeg file a tree's build compiled or included. */
 function compiledFiles(tree: string): { used: Set<string>; tracked: Set<string> } {
 	const source = path.join(tree, 'ffmpeg-9.0');
 	const tracked = new Set(run('git', ['ls-files'], source).split('\n'));
@@ -436,11 +393,6 @@ export interface Autobuild {
 	build: string;
 }
 
-/**
- * The master autobuilds setup can install, newest first: an `autobuild-`
- * release with the checksums and both Linux GPL archives of one describe id
- * (`N-<count>-g<short hash>`).
- */
 export function masterAutobuilds(releases: Release[]): Autobuild[] {
 	return releases.flatMap(({ tag_name: release, assets }) => {
 		if (!release.startsWith('autobuild-') || !assets.includes('checksums.sha256')) return [];

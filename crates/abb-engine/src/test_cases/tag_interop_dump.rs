@@ -1,6 +1,3 @@
-//! A deterministic text view of the tags a file carries, for the snapshots
-//! that pin tag output. Holds no tests.
-
 use crate::metadata::read_metadata;
 use abb_ffmpeg::{Disposition, Medium};
 use mp4ameta::{Data, DataIdent, Tag};

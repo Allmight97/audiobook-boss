@@ -22,9 +22,6 @@ pub fn detect_encoder_availability() -> EncoderAvailability {
     }
 }
 
-/// Encoder-specific settings facts that cannot be represented by the global
-/// controls below. In particular, FAAC's explicit HE-AAC sample-rate support
-/// is narrower than the rates accepted by the other encoders.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EncoderConfigurationCapability {

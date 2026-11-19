@@ -13,7 +13,6 @@ import type { AppRuntime, RuntimeCapabilities } from './types';
 
 export type { AppRuntime } from './types';
 
-/** Composes the owners once the engine has attached and sent its first snapshot. */
 export async function createAppRuntime(
 	capabilities: RuntimeCapabilities = {},
 ): Promise<AppRuntime> {

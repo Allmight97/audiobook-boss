@@ -73,7 +73,9 @@
 - The decryption key alone decides an AAX or AAXC lane, not the reply's shape.
   For AAXC, demuxer success does not prove the key: the decrypt decodes the
   partial with FFmpeg's built-in decoder and reads the chapters back before
-  the rename.
+  the rename. A wrong AAXC key copies noise, and FFmpeg's mov demuxer logs a
+  short key as fatal but drops `mov_aaxc_crypto`'s result and opens the file
+  undecrypted (`decrypt_copy_failure_tests.rs`).
 - Accepted risk: FFmpeg keeps plain copies of key material (option strings and
   the `mov.c` context) that ABB cannot wipe; an AAXC key opens one title, and
   AAX activation bytes stay in process memory only.
@@ -84,3 +86,33 @@
   of the book's length and its chapters end there. A Keep-original-audio merge
   of several decrypted titles is therefore refused by the preserve join's
   trim rule.
+
+## Outside facts
+
+- `vault.rs`: macOS uses the legacy file Keychain, because the Data
+  Protection Keychain needs Developer ID signing and a
+  `keychain-access-groups` entitlement the unsigned build lacks.
+- `vault.rs`: Linux uses the Secret Service when one answers on the session
+  bus (`Store::new` connects to it), else kernel keyutils, which keeps secrets
+  only until restart, so the account view says they will not be remembered.
+  A Disconnect also removes a keyutils copy left by a launch without Secret
+  Service. No plaintext file is ever written.
+- Headless `abb-dev` and the engine tests have no Secret Service, so the
+  probe fails closed and registration uses keyutils instead of hanging.
+- Vault reads and writes run on a blocking thread, because an OS keyring
+  prompt blocks that thread; never wrap one in `until_closing`, which would
+  drop a started read.
+- `providers/audible/signing.rs`: the signed date Audible expects is UTC RFC
+  3339 with `+00:00` and then a literal `Z`, as `audible_api` wrote it.
+- `providers/audible/registration.rs`: bytes 6 and 8 of the device UUID carry
+  the version and variant bits.
+- A staging purge failure after decrypt is housekeeping (#393): the title
+  stays import-ready with a non-blocking diagnostic, and the next start's
+  sweep removes the file. Purge retries wait out transient locks from
+  antivirus scans and indexing.
+- Decrypt test books are built at test time with FFmpeg's own AAX and AAXC
+  algorithms (`audible_fixed_key` in `libavformat/mov.c` is public), and
+  output is compared with the generated source, never with fixed hashes.
+- `providers/indexer/prowlarr_tests.rs`: building the production client
+  loads the system root certificates, which can take seconds under a full
+  suite, so its timeout bounds only a hang.

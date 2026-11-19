@@ -5,7 +5,7 @@ description: "Cut a release, package the DMG, or install the app locally."
 
 # Release
 
-`bun scripts/release.ts <x.y.z> <lane>` runs the release; its header says
+`bun scripts/release.ts <x.y.z> <lane>` runs the release; its `--help` says
 what each lane does. Settle the four decisions below first, and state them
 before running it.
 

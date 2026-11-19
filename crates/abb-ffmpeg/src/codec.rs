@@ -6,8 +6,6 @@ use ffmpeg_sys_next as sys;
 use crate::audio::{ChannelLayout, SampleFormat};
 use crate::error::{Error, Result, Step};
 
-/// An FFmpeg codec, kept as its number so a codec this build does not name
-/// is a value, never undefined behavior.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CodecId(c_int);
 
@@ -33,8 +31,6 @@ impl CodecId {
         Self(unsafe { id.cast::<c_int>().read() })
     }
 
-    /// Writes this id into an FFmpeg codec-id field.
-    ///
     /// # Safety
     /// `slot` points to a live, writable codec-id field.
     pub(crate) unsafe fn write(self, slot: *mut sys::AVCodecID) {
@@ -42,8 +38,6 @@ impl CodecId {
         unsafe { slot.cast::<c_int>().write(self.0) };
     }
 
-    /// FFmpeg's name for the codec, such as `aac`; `unknown_codec` when it
-    /// has none.
     pub fn name(self) -> String {
         let mut slot = sys::AVCodecID::AV_CODEC_ID_NONE;
         // SAFETY: `slot` is a local codec-id field; avcodec_get_name takes any
@@ -57,7 +51,6 @@ impl CodecId {
     }
 }
 
-/// FFmpeg's codec profile numbers.
 pub mod profile {
     use ffmpeg_sys_next as sys;
 
@@ -73,14 +66,10 @@ pub mod profile {
     pub const AAC_USAC: i32 = sys::AV_PROFILE_AAC_USAC;
 }
 
-/// What a codec did with a request for output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Progress {
-    /// The frame or packet passed in now holds output.
     Ready,
-    /// The codec needs more input before it yields output.
     NeedsInput,
-    /// The codec is drained.
     Finished,
 }
 
@@ -96,7 +85,6 @@ pub(crate) fn progress(step: Step, code: c_int) -> Result<Progress> {
     }
 }
 
-/// An owned codec context. Freed on drop.
 pub(crate) struct CodecContext(NonNull<sys::AVCodecContext>);
 
 impl CodecContext {
@@ -151,7 +139,6 @@ impl CodecContext {
         unsafe { self.0.as_ref() }.profile
     }
 
-    /// The opened codec's name, such as `aac` or `aac_at`.
     pub(crate) fn codec_name(&self) -> Option<String> {
         // SAFETY: `self` owns a live context; a codec's name is a static
         // NUL-terminated string.

@@ -1,6 +1,3 @@
-//! Real-media proofs for the bundled FAAC encoder: HE and LC timing, Auto
-//! profile resolution, and re-import alignment against external decoders.
-
 use super::media_fixtures::ffmpeg;
 use super::media_fixtures::{
     assert_auto_merge_stereo, assert_ffprobe_tag, audio_duration_ts, chapters_of, decode_pcm_f32,
@@ -158,8 +155,6 @@ async fn faac_apple_readback_preserves_short_clip_and_final_tail() {
                 String::from_utf8_lossy(&converted.stderr)
             );
             let decoded = decode_pcm_f32(&decoded_path);
-            // HE's half-rate timeline cannot express an odd full-rate duration.
-            // Even HE durations and LC must retain an exact sample count.
             let tolerance =
                 usize::from(profile == crate::audio::FaacProfile::HeAacV1 && samples % 2 != 0);
             assert!(
@@ -241,8 +236,6 @@ fn fill_with_filtered_noise(pcm16: &mut [u8]) {
     }
 }
 
-/// Apple's HE-AAC declares iTunSMPB priming without the HE decoder's SBR
-/// delay, as upstream FAAC's frontend does.
 #[cfg(target_os = "macos")]
 #[tokio::test]
 async fn apple_he_aac_with_itunsmpb_reimports_aligned_and_full_length_with_both_decoders() {
@@ -366,9 +359,6 @@ async fn assert_reimport_matches_source(
     }
 }
 
-/// Preserve remuxes an MP4 only when its accepted chapters differ from the
-/// file's. The remux must keep what reimport needs to decode ABB's FAAC HE
-/// audio: the encoding-tool tag and every access unit.
 #[tokio::test]
 async fn faac_he_preserve_with_repaired_chapters_keeps_reimport_timing() {
     let samples = 22050_u32;

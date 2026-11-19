@@ -1,8 +1,3 @@
-//! The leaf below the audio pipeline and the processing lifecycle: what one
-//! title's job carries while it runs (identity, cancellation, output, progress)
-//! and the gate its publication passes through. It imports nothing from
-//! `crate::audio` or `crate::processing`.
-
 mod aac_decoder;
 mod cancel;
 mod context;

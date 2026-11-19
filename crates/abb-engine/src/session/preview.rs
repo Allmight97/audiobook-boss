@@ -11,7 +11,6 @@ use tokio_util::sync::CancellationToken;
 #[serde(rename_all = "camelCase")]
 pub struct PreviewSnapshot {
     pub operation: OperationSnapshot,
-    /// A successful single preview may be claimed for opening once, across hosts.
     pub open_ready: bool,
     pub cover: Option<String>,
 }
@@ -44,8 +43,6 @@ impl PreviewArtwork {
     }
 }
 
-/// One preview run. `cancel` stops every title; each title has its own child
-/// token, so one title can stop alone.
 #[derive(Default)]
 enum Run {
     #[default]
@@ -139,8 +136,6 @@ impl Preview {
                 .is_some_and(|op| op.cancel_requested)
     }
 
-    /// Opens the run and returns one token per title; a cancel asked for
-    /// before now stops its tokens at once.
     pub(crate) fn start(&mut self, id: &OperationId) -> Vec<CancellationToken> {
         if !self.matches(id.as_str()) {
             return Vec::new();

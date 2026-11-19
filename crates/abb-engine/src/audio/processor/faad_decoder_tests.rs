@@ -14,7 +14,6 @@ fn trim(frames: usize, skip: u32, padding: u32, discard: bool) -> PacketTrim {
 fn leading_skip_spans_frames_like_libavcodec() {
     let mut trimmer = Trimmer::default();
     assert_eq!(trimmer.range(&trim(2048, 3000, 0, false)), None);
-    // A zero skip field keeps the running count instead of resetting it.
     assert_eq!(trimmer.range(&trim(2048, 0, 0, false)), Some((952, 2048)));
     assert_eq!(trimmer.range(&trim(2048, 0, 0, false)), Some((0, 2048)));
     assert_eq!(trimmer.counts.skipped_samples, 3000);
@@ -28,8 +27,6 @@ fn discard_flag_drops_the_frame_and_consumes_leading_skip() {
     assert_eq!(trimmer.counts.discarded_packets, 1);
 }
 
-/// FFmpeg's `tests/ref/fate/api-skip-samples` at the pinned source:
-/// (skip, padding, samples kept) for one 1000-sample frame.
 const UPSTREAM_SKIP_SAMPLES: [(u32, u32, usize); 7] = [
     (0, 0, 1000),
     (300, 0, 700),

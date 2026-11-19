@@ -87,11 +87,6 @@ export function unwrapGeneratedResult<T>(
 	return value.data;
 }
 
-/**
- * Derive a user-facing message from any thrown cause. With `suppressUnknown`,
- * an unclassified (`unknown_error`) cause collapses to `fallback` instead of
- * surfacing a raw message.
- */
 export function toUserMessage(
 	cause: unknown,
 	options: { fallback?: string; suppressUnknown?: boolean } = {},

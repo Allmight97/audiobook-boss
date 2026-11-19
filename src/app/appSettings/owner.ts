@@ -44,14 +44,12 @@ const IDLE: SettingStatus = { state: 'idle', error: '' };
 type AppSettingsDialogState = {
 	isOpen: boolean;
 	settings: AppSettings;
-	/** Only macOS has the Quit shortcut the Quitting setting governs. */
 	quittingAvailable: boolean;
 	status: Readonly<Record<DialogSetting, SettingStatus>>;
 };
 
 export type SettingsOwner = {
 	readonly durability: Accessor<SettingsDurability>;
-	/** What this launch could not keep from the saved settings; empty when nothing. */
 	readonly recoveryNotice: Accessor<string>;
 	retryPersistence: () => Promise<void>;
 	readonly concurrency: Accessor<ConcurrencyView>;

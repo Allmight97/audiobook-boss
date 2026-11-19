@@ -27,8 +27,6 @@ pub(crate) fn test_runtime_over(
     build_runtime(root, settings, None, None, None)
 }
 
-/// A runtime whose acquisitions come from `acquire` and whose vault holds
-/// nothing, so no test reaches the provider or the keychain.
 pub(crate) fn test_runtime_acquiring(
     root: &TempDir,
     settings: crate::app_settings::SettingsRuntime,
@@ -37,24 +35,19 @@ pub(crate) fn test_runtime_acquiring(
     build_runtime(root, settings, None, None, Some(acquire))
 }
 
-/// The acquisition jobs the runtime still keeps a record of.
 pub(crate) fn recorded_job_ids(runtime: &RemoteSourceRuntime) -> Vec<String> {
     let jobs = runtime.inner.lifecycle.jobs.lock().expect("job records");
     jobs.keys().cloned().collect()
 }
 
-/// Offers one available Audible title in the library, as a loaded library does.
 pub(crate) fn offer_library_title(runtime: &RemoteSourceRuntime, title_id: &str) {
     offer_title(runtime, title_id, false, true);
 }
 
-/// Offers one available Audible title that has a Supplemental PDF.
 pub(crate) fn offer_pdf_title(runtime: &RemoteSourceRuntime, title_id: &str) {
     offer_title(runtime, title_id, true, true);
 }
 
-/// Offers one Audible title with a Supplemental PDF that the account cannot
-/// acquire, as a revoked title shows.
 pub(crate) fn offer_unacquirable_pdf_title(runtime: &RemoteSourceRuntime, title_id: &str) {
     offer_title(runtime, title_id, true, false);
 }

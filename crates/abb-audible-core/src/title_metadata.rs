@@ -17,7 +17,6 @@ pub fn title_metadata_from_value(value: &Value) -> TitleMetadata {
     }
 }
 
-/// What names a title's output folder, read from a title lookup reply.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TitleNamingFacts {
     pub title: Option<String>,
@@ -27,8 +26,6 @@ pub struct TitleNamingFacts {
     pub release_date: Option<String>,
 }
 
-/// Reads the reply's own product (`item` or `product`), so a series entry's
-/// `title` never stands in for the book's.
 pub fn title_naming_facts_from_value(value: &Value) -> TitleNamingFacts {
     let product = value
         .get("item")

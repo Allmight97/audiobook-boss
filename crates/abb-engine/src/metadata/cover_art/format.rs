@@ -46,8 +46,6 @@ pub(crate) fn detect_image_dimensions(data: &[u8], format: CoverFormat) -> Optio
     }
 }
 
-/// Width and height from the header of a JPEG, PNG, GIF, BMP, TIFF or WebP
-/// picture.
 pub(crate) fn picture_dimensions(data: &[u8]) -> Option<(u32, u32)> {
     let (width, height) = if let Some(format) = detect_cover_art_format(data) {
         let (width, height) = detect_image_dimensions(data, format)?;
@@ -82,7 +80,6 @@ fn gif_dimensions(data: &[u8]) -> Option<(u32, u32)> {
 
 const BMP_CORE_HEADER_SIZE: i32 = 12;
 
-/// A negative BMP height means rows run top-down.
 fn bmp_dimensions(data: &[u8]) -> Option<(u32, u32)> {
     if le_i32(data, 14)? == BMP_CORE_HEADER_SIZE {
         return Some((le_u16(data, 18)?, le_u16(data, 20)?));
@@ -100,34 +97,49 @@ const TIFF_IMAGE_LENGTH: u32 = 257;
 const TIFF_SHORT: u32 = 3;
 const TIFF_LONG: u32 = 4;
 
-fn tiff_dimensions(data: &[u8]) -> Option<(u32, u32)> {
-    let big_endian = data.starts_with(b"MM");
-    let read = |at: usize, size: usize| -> Option<u32> {
-        let bytes = data.get(at..at.checked_add(size)?)?;
+struct TiffBytes<'a> {
+    data: &'a [u8],
+    big_endian: bool,
+}
+
+impl TiffBytes<'_> {
+    fn read(&self, at: usize, size: usize) -> Option<u32> {
+        let bytes = self.data.get(at..at.checked_add(size)?)?;
         let fold = |value: u32, byte: &u8| value << 8 | u32::from(*byte);
-        Some(if big_endian {
+        Some(if self.big_endian {
             bytes.iter().fold(0, fold)
         } else {
             bytes.iter().rev().fold(0, fold)
         })
-    };
-    let ifd = usize::try_from(read(TIFF_FIRST_IFD_OFFSET, 4)?).ok()?;
-    let entries = ifd.checked_add(2)?;
-    let (mut width, mut height) = (None, None);
-    for index in 0..read(ifd, 2)? as usize {
-        let entry = entries.checked_add(index * TIFF_IFD_ENTRY_SIZE)?;
-        if read(entry.checked_add(4)?, 4)? != 1 {
-            continue;
+    }
+
+    fn single_value_entry(&self, entry: usize) -> Option<Option<(u32, u32)>> {
+        if self.read(entry.checked_add(4)?, 4)? != 1 {
+            return Some(None);
         }
         let value_at = entry.checked_add(8)?;
-        let value = match read(entry.checked_add(2)?, 2)? {
-            TIFF_SHORT => read(value_at, 2)?,
-            TIFF_LONG => read(value_at, 4)?,
-            _ => continue,
+        let value = match self.read(entry.checked_add(2)?, 2)? {
+            TIFF_SHORT => self.read(value_at, 2)?,
+            TIFF_LONG => self.read(value_at, 4)?,
+            _ => return Some(None),
         };
-        match read(entry, 2)? {
-            TIFF_IMAGE_WIDTH => width = Some(value),
-            TIFF_IMAGE_LENGTH => height = Some(value),
+        Some(Some((self.read(entry, 2)?, value)))
+    }
+}
+
+fn tiff_dimensions(data: &[u8]) -> Option<(u32, u32)> {
+    let tiff = TiffBytes {
+        data,
+        big_endian: data.starts_with(b"MM"),
+    };
+    let ifd = usize::try_from(tiff.read(TIFF_FIRST_IFD_OFFSET, 4)?).ok()?;
+    let entries = ifd.checked_add(2)?;
+    let (mut width, mut height) = (None, None);
+    for index in 0..tiff.read(ifd, 2)? as usize {
+        let entry = entries.checked_add(index * TIFF_IFD_ENTRY_SIZE)?;
+        match tiff.single_value_entry(entry)? {
+            Some((TIFF_IMAGE_WIDTH, value)) => width = Some(value),
+            Some((TIFF_IMAGE_LENGTH, value)) => height = Some(value),
             _ => {}
         }
     }

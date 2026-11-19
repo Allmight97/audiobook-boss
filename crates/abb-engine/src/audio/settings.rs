@@ -111,8 +111,6 @@ pub(crate) fn validate_output_target(path: &Path, format: AudiobookFormat) -> Re
     }
 }
 
-/// Auto retains supported source rates, otherwise uses the next supported rate,
-/// capped at the encoder/profile maximum. Explicit requests are validated unchanged.
 pub(crate) fn automatic_sample_rate(
     encoder: EncoderType,
     profile: FaacProfile,

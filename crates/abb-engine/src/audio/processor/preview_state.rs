@@ -1,4 +1,3 @@
-/// The current file's preview excerpt, cut at exactly `per_file_samples`.
 #[derive(Debug)]
 pub struct PreviewState {
     per_file_samples: u64,
@@ -17,7 +16,6 @@ impl PreviewState {
         self.current_file_elapsed_samples = 0;
     }
 
-    /// Samples the current excerpt can still take from a frame of `available`.
     pub fn take(&mut self, available: usize) -> usize {
         let left = self
             .per_file_samples

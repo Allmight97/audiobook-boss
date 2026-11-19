@@ -31,11 +31,9 @@ export type ProcessingOwner = {
 	keepLocation: (offer: RestartOffer) => Promise<void>;
 	start: () => Promise<void>;
 	preview: () => Promise<void>;
-	/** Says what Preview Audio does, with the length the engine renders. */
 	previewTooltip: () => string;
 	cancelAll: () => void;
 	cancelJob: (childJobId: string) => void;
-	/** The engine still accepts a cancel of the running preview. */
 	previewCancellable: () => boolean;
 	isProcessing: () => boolean;
 	reset: () => void;

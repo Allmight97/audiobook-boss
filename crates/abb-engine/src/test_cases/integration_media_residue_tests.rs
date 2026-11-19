@@ -1,7 +1,3 @@
-//! A title that fails after its workspace exists, for a reason other than a
-//! cancel, publishes nothing and leaves no workspace and no temp file, and a
-//! file already at the destination keeps its bytes.
-
 use super::media_fixtures::MediaLane;
 use super::support::fs_listing::names_in;
 use super::support::wav::SAMPLE_RATE;

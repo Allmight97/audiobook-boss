@@ -12,8 +12,6 @@ const PDF_SAVE_MESSAGE: &str = "Saving the Supplemental PDF.";
 const FAILED_MESSAGE: &str = "Acquisition failed.";
 const CANCELLED_MESSAGE: &str = "Acquisition cancelled.";
 
-/// What a provider hands back when it has worked through a job. The lifecycle
-/// applies it to the job it registered.
 #[derive(Debug)]
 pub(crate) enum AcquisitionOutcome {
     Acquired {
@@ -25,7 +23,6 @@ pub(crate) enum AcquisitionOutcome {
     },
 }
 
-/// What a provider gathers while it works through titles.
 #[derive(Debug, Default)]
 pub(crate) struct TitlesOutcome {
     pub(crate) files: Vec<MaterializedSourceFile>,
@@ -80,9 +77,6 @@ pub(super) enum JobState {
     Done(JobEnding),
 }
 
-/// One registered acquisition job. State only moves forward: Running to
-/// Validated or Done, Validated to Done. Progress is a display value and
-/// never moves it.
 #[derive(Debug, Clone)]
 pub(super) struct Registered {
     job: AcquisitionJob,
@@ -113,8 +107,6 @@ impl Registered {
         matches!(self.state, JobState::Done(_))
     }
 
-    /// The staged files are still wanted by the session: handed over and
-    /// listed, or waiting to be.
     pub(super) fn holds_staged_files(&self) -> bool {
         matches!(
             self.state,
@@ -125,7 +117,6 @@ impl Registered {
         )
     }
 
-    /// Shows `progress` while the job runs; says whether its stage changed.
     pub(super) fn show_progress(&mut self, progress: AcquisitionProgress) -> Option<bool> {
         if !self.is_running() {
             return None;
@@ -184,8 +175,6 @@ impl Registered {
         true
     }
 
-    /// Ends a running job. Its progress keeps the last working stage and
-    /// shows the ending at 100%.
     fn end(&mut self, ending: JobEnding, message: &str) {
         self.job.progress = AcquisitionProgress {
             stage: self.job.progress.stage,
@@ -212,8 +201,6 @@ impl Registered {
         true
     }
 
-    /// The job as the session's handoff receives it, while its content waits
-    /// for the handoff.
     pub(super) fn job_for_handoff(&self) -> Option<AcquiredJob> {
         let JobState::Validated(content) = &self.state else {
             return None;

@@ -6,8 +6,6 @@ use crate::metadata::{
 };
 use crate::metadata_lookup::OnlineMetadataResult;
 
-/// An editable field. Author is stored as artist, narrator as composer, and
-/// editing the title sets the album to the same value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum MetadataField {
@@ -60,9 +58,6 @@ impl MetadataField {
     }
 }
 
-/// Where one form field lives in each shape that carries it. `date` marks the
-/// field that keeps the text as stored (a blank one shows empty), is compared
-/// untrimmed across several titles, and is trimmed when a lookup fills it.
 pub(crate) struct FieldSpec {
     pub(crate) field: MetadataField,
     pub(crate) stored: fn(&AudiobookMetadata) -> &Option<String>,
@@ -173,8 +168,6 @@ const _: () = {
     }
 };
 
-/// Keep restores the hydrated value; Blank clears the field on every selected
-/// title.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum FieldAction {
@@ -198,11 +191,9 @@ pub struct FieldSnapshot {
     pub value: String,
     pub action: FieldAction,
     pub dirty: bool,
-    /// The selected titles disagree on this field.
     pub mixed: bool,
 }
 
-/// Non-blocking advice about the book number. Hosts word these.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SeriesPartWarning {
@@ -226,7 +217,6 @@ pub struct MetadataFormSnapshot {
     pub fields: Vec<FieldSnapshot>,
     pub series_part_warning: Option<SeriesPartWarning>,
     pub subseries_part_warning: Option<SubseriesPartWarning>,
-    /// The first problem in the values on screen, including inherited ones.
     pub validation_message: Option<String>,
 }
 
@@ -379,7 +369,6 @@ impl MetadataForm {
         }
     }
 
-    /// The values on screen as metadata: trimmed, with an empty field absent.
     pub(crate) fn metadata(&self) -> AudiobookMetadata {
         let mut metadata = AudiobookMetadata::default();
         for spec in &FIELDS {
@@ -408,8 +397,6 @@ impl MetadataForm {
         }
     }
 
-    /// The edit intent the form carries. Cover intent is staged by the cover
-    /// actions themselves.
     pub(crate) fn compose_intent(&self) -> MetadataIntentPatch {
         let mut patch = MetadataIntentPatch::default();
         for field in MetadataField::ALL {

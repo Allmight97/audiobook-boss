@@ -1,5 +1,3 @@
-//! Whether each listed title and source can be exported.
-
 use std::collections::BTreeMap;
 
 use crate::audio::{AudioFile, TitleStatus};

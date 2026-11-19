@@ -34,8 +34,6 @@ fn ephemeral_store_tells_the_user_sign_in_will_not_be_remembered() {
     assert_eq!(account_message(None, true), None);
 }
 
-/// Headless `abb-dev` and the engine tests have no Secret Service. The probe
-/// must fail closed so registration can use keyutils instead of hanging.
 #[cfg(target_os = "linux")]
 #[test]
 fn secret_service_probe_fails_closed_without_a_session_bus() {

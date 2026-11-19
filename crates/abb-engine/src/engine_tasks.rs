@@ -4,15 +4,10 @@ use std::sync::{Arc, Mutex, PoisonError};
 use crate::errors::{AppError, Result};
 use tokio_util::task::TaskTracker;
 
-/// Admission and shutdown share this lock: visible work is registered before
-/// shutdown closes admission and enumerates what it must cancel. Internal
-/// cleanup may still spawn while its already-tracked parent is settling.
 #[derive(Clone, Default)]
 pub(crate) struct EngineTasks {
     tracker: TaskTracker,
     admission: Arc<Mutex<()>>,
-    /// Fires when shutdown begins, for work that has nothing to save and is
-    /// dropped rather than waited for.
     closing: tokio_util::sync::CancellationToken,
 }
 
@@ -36,8 +31,6 @@ impl EngineTasks {
         let _ = self.close_if(|| Ok::<(), ()>(()));
     }
 
-    /// Closes admission only when `check` passes, in the same turn, so no
-    /// work can be admitted between the check and the close.
     pub(crate) fn close_if<E>(
         &self,
         check: impl FnOnce() -> std::result::Result<(), E>,

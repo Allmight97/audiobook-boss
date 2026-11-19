@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Lints GitHub workflows: actionlint (syntax, expressions, and run: blocks
-# through shellcheck) and zizmor (security). zizmor runs through uvx with the
-# pinned version and 10-day wait (scripts/AGENTS.md); --offline skips
-# audits that query GitHub, so the result does not change between runs.
-# Usage: bash scripts/check-workflows.sh [--prefetch]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

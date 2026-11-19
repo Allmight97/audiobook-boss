@@ -8,8 +8,6 @@ use super::{RemoteDraftStatus, RemoteLibrarySnapshot, RemoteUiSnapshot};
 
 const STAGED_FILES_REMOVED: &str = "Staged remote files were removed.";
 
-/// `job_ending_line` is the last done job's line, unless a later library
-/// load or sign-in replaced it; only that fact orders a job against them.
 pub(super) fn audible_message(
     remote: &RemoteUiSnapshot,
     audible: &AudibleLane,
@@ -74,7 +72,6 @@ pub(super) fn grab_batch_line(sent: usize, failed: usize, unconfirmed: usize) ->
     line
 }
 
-/// The line a done job leaves in the Audible lane; `None` while it works.
 pub(super) fn job_ending_line(job: &AcquisitionSnapshot) -> Option<String> {
     let AcquisitionJobState::Done { ending } = &job.state else {
         return None;

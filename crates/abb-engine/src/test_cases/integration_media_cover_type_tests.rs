@@ -1,7 +1,3 @@
-//! A cover the user picks is saved as the front cover. FFmpeg's MP3 and FLAC
-//! muxers take the picture type from the stream's `comment` tag and write
-//! type 0 "Other" without one.
-
 use super::media_fixtures::{ffmpeg, minimal_jpg_bytes, write_sine_mp3};
 use crate::metadata::{save_metadata_intent, MetadataIntentPatch, PatchOp};
 use std::path::Path;

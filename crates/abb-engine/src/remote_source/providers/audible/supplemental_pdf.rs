@@ -190,7 +190,6 @@ struct SupplementalPdfLog<'a> {
     title_id: &'a str,
 }
 
-/// `on_bytes` hears the bytes received so far and the reply's length.
 pub(super) async fn download_supplemental_pdf(
     request: SupplementalPdfRequest<'_>,
     on_bytes: &mut impl FnMut(u64, Option<u64>),

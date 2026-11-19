@@ -17,12 +17,10 @@ pub(crate) fn path_text(path: &Path, step: Step) -> Result<CString> {
     CString::new(bytes).map_err(|_| Error::NulInText { step })
 }
 
-/// An open, probed input file. Closed on drop.
 pub struct Input(NonNull<sys::AVFormatContext>);
 
 pub struct OpenedInput {
     pub input: Input,
-    /// Names of the options no part of FFmpeg took. Values are never listed.
     pub unused_options: Vec<String>,
 }
 
@@ -60,7 +58,6 @@ impl Input {
         unsafe { context::stream_facts(self.0.as_ptr()) }
     }
 
-    /// The index of the audio stream FFmpeg ranks best.
     pub fn best_audio_stream(&self) -> Option<usize> {
         // SAFETY: `self` owns a live context; the call only reads it.
         let index = unsafe {
@@ -76,8 +73,6 @@ impl Input {
         usize::try_from(index).ok()
     }
 
-    /// The codec setup bytes of a stream, such as an AAC
-    /// AudioSpecificConfig, or `None` when it has none.
     pub fn stream_extradata(&self, index: usize) -> Option<Vec<u8>> {
         // SAFETY: `self` owns a live context; a stream's `codecpar` holds
         // `extradata_size` readable bytes at `extradata`.
@@ -92,20 +87,16 @@ impl Input {
         }
     }
 
-    /// The demuxer's name; one demuxer can list several, as in
-    /// `mov,mp4,m4a,3gp,3g2,mj2`.
     pub fn format_name(&self) -> String {
         // SAFETY: an open input always has an input format with a name.
         unsafe { crate::text::Text::copied_from((*(*self.0.as_ptr()).iformat).name) }.display()
     }
 
-    /// Bits per second of the whole file, or 0 when unknown.
     pub fn bit_rate(&self) -> i64 {
         // SAFETY: `self` owns a live context.
         unsafe { (*self.0.as_ptr()).bit_rate }
     }
 
-    /// Whether FFmpeg only estimated the duration from the bit rate.
     pub fn duration_is_estimated(&self) -> bool {
         // SAFETY: `self` owns a live context; the method is read as the C
         // int it is.
@@ -127,16 +118,12 @@ impl Input {
         Tags::read(unsafe { (*self.0.as_ptr()).metadata })
     }
 
-    /// FFmpeg's duration in microseconds (`AV_TIME_BASE`), or `None` when
-    /// unknown.
     pub fn duration_micros(&self) -> Option<i64> {
         // SAFETY: `self` owns a live context.
         let duration = unsafe { (*self.0.as_ptr()).duration };
         (duration != sys::AV_NOPTS_VALUE).then_some(duration)
     }
 
-    /// The picture a stream carries as its one attached packet (a cover),
-    /// or `None` when the stream is not an attached picture.
     pub fn attached_picture(&self, index: usize) -> Option<Vec<u8>> {
         // SAFETY: `self` owns a live context; an attached picture's packet
         // holds `size` readable bytes at `data` for the context's life.
@@ -156,8 +143,6 @@ impl Input {
         }
     }
 
-    /// The byte range (position, size) of every packet the demuxer indexed
-    /// for a stream, or `None` when an entry cannot be read.
     pub fn indexed_byte_ranges(&self, index: usize) -> Option<Vec<(i64, i64)>> {
         // SAFETY: `self` owns a live context; the index calls only read the
         // stream, and each entry's fields are copied before the next call.
@@ -174,7 +159,6 @@ impl Input {
         }
     }
 
-    /// Reads the next packet into `packet`. Returns `false` at the end.
     pub fn read_packet(&mut self, packet: &mut Packet) -> Result<bool> {
         packet.clear();
         // SAFETY: `self` owns a live context and `packet` owns a blank packet.
@@ -186,9 +170,6 @@ impl Input {
         }
     }
 
-    /// Reads the next packet for a scan that tolerates damage: a packet
-    /// FFmpeg reports as invalid data is skipped, and any other read error
-    /// ends the scan like the end of the file. Returns `false` at that end.
     pub fn read_packet_skipping_invalid(&mut self, packet: &mut Packet) -> bool {
         loop {
             match self.read_packet(packet) {

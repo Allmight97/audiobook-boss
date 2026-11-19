@@ -5,7 +5,6 @@ use ffmpeg_sys_next as sys;
 
 use crate::error::{Error, Result, Step};
 
-/// A text value as FFmpeg stores it: bytes without NUL, not always UTF-8.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Text(CString);
 
@@ -16,7 +15,6 @@ impl Text {
             .map_err(|_| Error::NulInText { step })
     }
 
-    /// Text from bytes that need not be UTF-8.
     pub fn from_bytes(value: &[u8], step: Step) -> Result<Self> {
         CString::new(value)
             .map(Self)
@@ -27,8 +25,6 @@ impl Text {
         self.0.as_bytes()
     }
 
-    /// The text for display: its bytes as UTF-8 when they are valid UTF-8,
-    /// otherwise each byte as one Latin-1 character.
     pub fn display(&self) -> String {
         match self.0.to_str() {
             Ok(text) => text.to_owned(),
@@ -53,13 +49,10 @@ impl Text {
     }
 }
 
-/// Tags in FFmpeg's order, copied out of a container, stream, or chapter.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Tags(Vec<(Text, Text)>);
 
 impl Tags {
-    /// The first value whose key equals `key`, ignoring ASCII case as
-    /// FFmpeg's own lookup does.
     pub fn get(&self, key: &str) -> Option<&Text> {
         self.0
             .iter()
@@ -118,7 +111,6 @@ impl Tags {
     }
 }
 
-/// An owned `AVDictionary`, freed on drop.
 pub(crate) struct Dictionary(*mut sys::AVDictionary);
 
 impl Default for Dictionary {
@@ -164,9 +156,6 @@ impl Drop for Dictionary {
     }
 }
 
-/// Input options that hold secrets, such as a decrypt key. It has no `Debug`
-/// or `Clone`, and it zeroes its values when dropped. FFmpeg keeps its own
-/// copy while the input is open.
 #[derive(Default)]
 pub struct SecretOptions(Vec<(CString, Vec<u8>)>);
 

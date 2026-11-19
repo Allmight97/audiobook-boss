@@ -11,8 +11,6 @@ fn syncsafe(bytes: &[u8]) -> usize {
         .fold(0usize, |size, byte| (size << 7) | usize::from(byte & 0x7f))
 }
 
-/// The frames of the ID3v2.3 or v2.4 tag at the start of a file, as stored:
-/// what a library's tag reader sees, before any FFmpeg key mapping.
 pub(crate) fn id3v2_frames(path: &Path) -> Vec<Id3Frame> {
     let bytes = std::fs::read(path).expect("read the MP3");
     assert!(
@@ -41,7 +39,6 @@ pub(crate) fn id3v2_frames(path: &Path) -> Vec<Id3Frame> {
     frames
 }
 
-/// The text of the first frame with `id`, without its encoding byte.
 pub(crate) fn id3v2_text(path: &Path, id: &str) -> Option<String> {
     let frame = id3v2_frames(path)
         .into_iter()
@@ -54,7 +51,6 @@ pub(crate) fn id3v2_text(path: &Path, id: &str) -> Option<String> {
     )
 }
 
-/// The descriptions of every user-defined text (TXXX) frame.
 pub(crate) fn id3v2_txxx_descriptions(path: &Path) -> Vec<String> {
     id3v2_frames(path)
         .into_iter()

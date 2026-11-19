@@ -15,8 +15,6 @@ impl Rig {
         .expect("a download is removed")
     }
 
-    /// Waits until `count` removal attempts have finished and the sweep has
-    /// parked, so a paused clock can advance without racing the spawn.
     async fn settled_removal_attempts(&self, count: usize) {
         let limit = crate::session::staged::RETRY_DELAY * 4;
         tokio::time::timeout(limit, async {

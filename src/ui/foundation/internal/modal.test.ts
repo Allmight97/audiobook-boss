@@ -146,7 +146,6 @@ describe('ModalController', () => {
 	it('retries initial focus on the next animation frame when the first attempt is refused', async () => {
 		const { container, first } = dialogWithFields();
 		const modal = new ModalController();
-		// Simulate WebKit refusing focus mid-visibility-transition.
 		// oxlint-disable-next-line typescript/unbound-method -- the spy calls the native focus with its own `this`.
 		const nativeFocus = HTMLElement.prototype.focus;
 		let refusals = 1;

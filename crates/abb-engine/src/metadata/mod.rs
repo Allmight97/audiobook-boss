@@ -67,7 +67,6 @@ pub use passthrough::{
     extract_passthrough_metadata, verify_chapters, PassthroughMetadata, PassthroughSource,
 };
 
-/// Opens and probes a media file for reading.
 pub(crate) fn open_input(path: &std::path::Path) -> Result<abb_ffmpeg::Input> {
     Ok(abb_ffmpeg::Input::open(path, &abb_ffmpeg::SecretOptions::default())?.input)
 }
@@ -77,9 +76,6 @@ pub fn save_metadata_intent(path: &std::path::Path, patch: &MetadataIntentPatch)
     save_metadata_with_plan(path, &plan)
 }
 
-/// Saves into a sibling copy (a clone of the source for MP4, a remux for
-/// others), checks the copy's audio against the original, then swaps it in.
-/// The original is never opened for writing.
 pub(crate) fn save_metadata_with_plan(
     path: &std::path::Path,
     plan: &MetadataWritePlan,
@@ -109,12 +105,6 @@ fn commit_checked_save(
     })
 }
 
-/// Refuses a saved copy whose audio stream count differs from the original's
-/// or whose duration is more than 0.5 s away. A loss under 0.5 s passes.
-/// Durations count only when FFmpeg measured both or estimated both from a
-/// bitrate: a joined MP3 reads as an estimate while its remuxed copy is
-/// measured. Without comparable durations (that case, raw ADTS) only the
-/// stream count is checked.
 fn check_saved_audio(original: &std::path::Path, saved: &std::path::Path) -> Result<()> {
     const TOLERANCE_US: u64 = 500_000;
     let (original_us, original_estimated, original_streams) = audio_shape(original)?;
@@ -154,9 +144,6 @@ fn audio_shape(path: &std::path::Path) -> Result<(Option<i64>, bool, usize)> {
     ))
 }
 
-/// Remuxes a freshly produced artifact into its container with the accepted
-/// chapters and cover art, then finishes its tags (see `finish_artifact_tags`).
-/// Used by preserved merges.
 pub fn finalize_artifact_metadata(
     path: &std::path::Path,
     metadata: Option<&AudiobookMetadata>,
@@ -178,12 +165,6 @@ pub fn finalize_artifact_metadata(
     Ok(())
 }
 
-/// Last metadata step on a produced artifact, after muxing or remuxing:
-/// MP4-family tag truth is rewritten through mp4ameta (the mov muxer drops
-/// series, freeform, and sort keys), then accepted chapters are verified.
-/// `before_tag_write` runs only when that rewrite happens, so callers can
-/// report progress without knowing the container strategy. Returns whether
-/// tags were rewritten.
 pub(crate) fn finish_artifact_tags(
     path: &std::path::Path,
     metadata: Option<&AudiobookMetadata>,
@@ -212,10 +193,6 @@ pub(crate) fn finish_artifact_tags(
     Ok(rewrote)
 }
 
-/// Puts an owned staging artifact into the target container with the accepted
-/// chapters, keeping its audio, pictures, and tags. A file already in that
-/// container with those chapters (for MP4, those titles and starts) is left
-/// alone. Callers never pass an original source here.
 pub(crate) fn remux_preserved_audio_container(
     path: &std::path::Path,
     extension: &str,
@@ -242,8 +219,6 @@ pub(crate) fn remux_preserved_audio_container(
         return Ok(());
     }
     let mut metadata = read_metadata(path)?;
-    // A same-container remux copies every picture the file holds; a cover
-    // would replace them. A container change carries the first one over.
     let cover_art = if same_container {
         metadata.cover_art = None;
         None

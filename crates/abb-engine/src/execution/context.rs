@@ -58,7 +58,6 @@ pub struct ProcessingContext {
     pub(crate) workspace_root: PathBuf,
     pub(crate) identity: JobIdentity,
     pub(crate) progress_listener: ProgressEventListener,
-    /// The export title's output record; publication goes through it.
     pub(crate) publish_gate: Option<Arc<dyn PublishGate>>,
 }
 

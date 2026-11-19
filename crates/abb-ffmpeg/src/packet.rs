@@ -6,8 +6,6 @@ use ffmpeg_sys_next as sys;
 use crate::context::Rational;
 use crate::error::{Error, Result, Step};
 
-/// Samples a decoder drops from one packet's output, as FFmpeg's
-/// skip-samples packet side data holds them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SkipSamples {
     pub start: u32,
@@ -41,7 +39,6 @@ impl SkipSamples {
     }
 }
 
-/// One compressed packet. Freed on drop.
 pub struct Packet(NonNull<sys::AVPacket>);
 
 impl Packet {
@@ -53,7 +50,6 @@ impl Packet {
         })
     }
 
-    /// A packet holding a copy of `data`, with no flags and no timestamps.
     pub fn copy_of(data: &[u8]) -> Result<Self> {
         let step = Step::AllocatePacket;
         let size = c_int::try_from(data.len()).map_err(|_| Error::OutOfRange { step })?;
@@ -67,7 +63,6 @@ impl Packet {
         Ok(packet)
     }
 
-    /// A key-frame packet holding a copy of `data`.
     pub fn key_frame_of(data: &[u8]) -> Result<Self> {
         let mut packet = Self::copy_of(data)?;
         // SAFETY: `packet` owns a live packet.
@@ -91,7 +86,6 @@ impl Packet {
         (pts != sys::AV_NOPTS_VALUE).then_some(pts)
     }
 
-    /// The payload bytes; empty for a packet that carries none.
     pub fn data(&self) -> &[u8] {
         // SAFETY: `self` owns a live packet whose `data` holds `size`
         // readable bytes until the packet changes, which needs `&mut self`.
@@ -106,16 +100,12 @@ impl Packet {
         }
     }
 
-    /// The byte position of the packet in its input file, or `None` when
-    /// the demuxer did not say.
     pub fn position(&self) -> Option<i64> {
         // SAFETY: `self` owns a live packet.
         let position = unsafe { self.0.as_ref() }.pos;
         (position >= 0).then_some(position)
     }
 
-    /// Forgets the input byte position, as a packet moved to another file
-    /// needs.
     pub fn clear_position(&mut self) {
         // SAFETY: `self` owns a live packet.
         unsafe { self.0.as_mut() }.pos = -1;
@@ -127,7 +117,6 @@ impl Packet {
         (dts != sys::AV_NOPTS_VALUE).then_some(dts)
     }
 
-    /// Whether the packet is decoded but not played.
     pub fn is_discard(&self) -> bool {
         // SAFETY: `self` owns a live packet.
         unsafe { self.0.as_ref() }.flags & sys::AV_PKT_FLAG_DISCARD != 0
@@ -153,20 +142,16 @@ impl Packet {
         unsafe { self.0.as_mut() }.duration = duration;
     }
 
-    /// The payload length in bytes.
     pub fn size(&self) -> usize {
         // SAFETY: `self` owns a live packet.
         usize::try_from(unsafe { self.0.as_ref() }.size).unwrap_or(0)
     }
 
-    /// Marks the packet as decoded but not played.
     pub fn mark_discard(&mut self) {
         // SAFETY: `self` owns a live packet.
         unsafe { self.0.as_mut() }.flags |= sys::AV_PKT_FLAG_DISCARD;
     }
 
-    /// The packet's skip-samples side data. `Err` when its size is not the
-    /// ten bytes FFmpeg defines.
     pub fn skip_samples(&self) -> Result<Option<SkipSamples>> {
         // SAFETY: `self` owns a live packet whose side-data array holds
         // `side_data_elems` entries, each with `size` readable bytes.
@@ -192,7 +177,6 @@ impl Packet {
         }
     }
 
-    /// Sets the packet's skip-samples side data, replacing what it holds.
     pub fn set_skip_samples(&mut self, skip: SkipSamples) -> Result<()> {
         let bytes = skip.to_bytes();
         // SAFETY: `self` owns a live packet; FFmpeg returns a buffer of the

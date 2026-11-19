@@ -1,8 +1,3 @@
-//! One loader per cover. Every view that shows a cover, Lookup Apply, and a
-//! typed cover URL read it here: each cover is fetched or read once per size,
-//! sized from the downloaded bytes, and kept in a bounded cache. Concurrent
-//! requests for one cover share its load.
-
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -14,9 +9,6 @@ use tokio::sync::{OnceCell, Semaphore};
 
 use crate::errors::{AppError, Result};
 
-/// How many covers are kept: a whole Audible library's thumbnails. Small
-/// covers are a few kilobytes, full ones about a hundred, so this stays
-/// under about fifty megabytes.
 const CACHED_COVERS: usize = 512;
 const REMOTE_FETCHES: usize = 12;
 const LOCAL_READS: usize = 2;
@@ -120,8 +112,6 @@ impl CoverService {
         (self.inner.fetch)(url.to_string()).await
     }
 
-    /// An audio file's embedded cover sized for a thumbnail; `None` when it
-    /// has none. `path` is already validated.
     pub(crate) async fn embedded_small(&self, path: &Path) -> Result<Option<Cover>> {
         let stamp = std::fs::metadata(path).map_err(AppError::Io)?;
         let key = Key::EmbeddedSmall {
@@ -137,8 +127,6 @@ impl CoverService {
         .await
     }
 
-    /// Joins the load already under way for `key`, or starts `load`. A
-    /// failed load is not kept, so the next request tries again.
     async fn load(
         &self,
         key: Key,

@@ -365,7 +365,6 @@ describe('Solid input workbench', () => {
 			}),
 		);
 		await user.keyboard('{Escape}');
-		// Browser focus/hover can arrive after the popover unmounts.
 		fireEvent.focus(indicator);
 		fireEvent.mouseEnter(indicator);
 		expect(screen.queryByRole('dialog', { name: 'Audio plan' })).not.toBeInTheDocument();

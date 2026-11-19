@@ -20,7 +20,6 @@ export type StatusView = {
 	readonly stepText: string;
 	readonly stepTone: StepTone;
 	readonly concurrencyText: string;
-	/** A preview is running or cancelling now; a queued one shows still progress. */
 	readonly progressActive: boolean;
 };
 

@@ -15,7 +15,6 @@ pub(crate) struct SavePlan {
     pub(crate) grouped: bool,
 }
 
-/// What the writer reports for the files a Save wrote at once.
 #[derive(Debug, Default)]
 pub(crate) struct WriteBatch {
     pub(crate) outcomes: Vec<WriteOutcome>,
@@ -34,12 +33,6 @@ impl SessionState {
             .collect()
     }
 
-    /// Decides where each pending edit goes. `in_use` is every source an
-    /// accepted export has yet to finish reading; `is_temporary` says whether
-    /// a source is a download the engine will remove.
-    ///
-    /// Returns `None`, with the reason in the status, when there is nothing to
-    /// write.
     pub(crate) fn begin_save(
         &mut self,
         in_use: &HashSet<PathBuf>,
@@ -95,8 +88,6 @@ impl SessionState {
         Some(plan)
     }
 
-    /// The edit each linked output should carry: what was written to its
-    /// source plus the edit still pending. `only` names the titles asked for.
     pub(crate) fn output_edits(&mut self, only: Option<&[String]>) -> Vec<OutputEdit> {
         let tags = &self.tags;
         let mut edits = self
@@ -108,8 +99,6 @@ impl SessionState {
         edits
     }
 
-    /// Records how a Save ended. `written` is the writer's report for
-    /// `plan.immediate`; a plan with nothing to write passes an empty batch.
     pub(crate) fn finish_save(
         &mut self,
         epoch: u64,

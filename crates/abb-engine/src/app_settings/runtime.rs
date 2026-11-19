@@ -18,34 +18,14 @@ use crate::ManagedJobRegistry;
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SettingsIntent {
-    /// Chooses the source an import starts from. It stays in effect even when
-    /// the write fails; the snapshot then reports the failure for retry.
-    SetDefaultAcquisitionLane {
-        lane: AcquisitionLane,
-    },
-    /// Changes how many titles export at once. Refused while jobs run.
-    SetConcurrency {
-        preference: ConcurrencyPreference,
-    },
-    SetKeepAwake {
-        enabled: bool,
-    },
-    /// Chooses whether the Quit shortcut needs a second press.
-    SetPressQuitTwice {
-        enabled: bool,
-    },
-    /// Chooses the decoder for AAC sources in imports, previews, and exports
-    /// accepted from now on.
-    SetAacDecoder {
-        decoder: AacDecoder,
-    },
-    SetStartupBehavior {
-        behavior: StartupBehavior,
-    },
+    SetDefaultAcquisitionLane { lane: AcquisitionLane },
+    SetConcurrency { preference: ConcurrencyPreference },
+    SetKeepAwake { enabled: bool },
+    SetPressQuitTwice { enabled: bool },
+    SetAacDecoder { decoder: AacDecoder },
+    SetStartupBehavior { behavior: StartupBehavior },
     PinCurrentDefaults,
-    /// Writes accepted changes that an earlier write failed to save.
     Retry,
-    /// Returns every setting to its default. Refused while exports run.
     Reset,
 }
 
@@ -53,17 +33,13 @@ pub enum SettingsIntent {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SettingsOutcome {
     Applied,
-    /// Nothing changed.
-    Rejected {
-        error: AppErrorEnvelope,
-    },
+    Rejected { error: AppErrorEnvelope },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ConcurrencySnapshot {
     pub preference: ConcurrencyPreference,
-    /// How many titles export at once right now.
     pub effective: usize,
     pub capabilities: MaxConcurrentJobsCapabilities,
 }
@@ -73,17 +49,12 @@ pub struct ConcurrencySnapshot {
 pub struct SettingsSnapshot {
     pub revision: u64,
     pub settings: AppSettings,
-    /// Why accepted changes are not on disk yet. Absent when all are saved.
     pub save_error: Option<AppErrorEnvelope>,
     pub concurrency: ConcurrencySnapshot,
-    /// The defaults a host shows at launch: the pinned ones when the user
-    /// chose that and has pinned some, otherwise the last used.
     #[serde(skip)]
     pub startup_defaults: PinnedDefaults,
     #[serde(skip)]
     pub(crate) applied_edits: EditStamp,
-    /// What this launch could not keep from the saved settings. Absent after
-    /// the next accepted change.
     pub recovery: Option<SettingsRecovery>,
 }
 
@@ -122,7 +93,6 @@ struct Inner {
     power: PowerManager,
     current: RwLock<Arc<AppSettings>>,
     state: tokio::sync::Mutex<State>,
-    /// Completion of the last accepted intent, independent of host waits.
     turn: Mutex<Option<tokio::sync::oneshot::Receiver<()>>>,
 }
 
@@ -142,11 +112,7 @@ enum Persistence {
     Saved,
     Pending {
         error: Option<AppErrorEnvelope>,
-        /// The settings file could be neither read nor kept aside; nothing is
-        /// saved over it until it is kept or gone.
         set_aside_first: bool,
-        /// The unusable file a failed save already kept aside; recovery names
-        /// it once a save lands.
         kept: Option<String>,
     },
 }
@@ -206,9 +172,6 @@ struct State {
 }
 
 impl State {
-    /// Records how a write ended. A file kept aside stays kept when the save
-    /// after it fails, so the retry does not set aside again and recovery
-    /// names the file once a save lands.
     fn settle_write(
         &mut self,
         set_aside_first: bool,
@@ -358,7 +321,6 @@ impl SettingsRuntime {
         }
     }
 
-    /// Reserves its turn synchronously, so async replies cannot reorder writes.
     pub(crate) fn begin(
         &self,
         intent: SettingsIntent,
@@ -367,8 +329,6 @@ impl SettingsRuntime {
         self.enqueue(Change::Intent(intent), None, tasks)
     }
 
-    /// Reserves the turn for an Indexer Save. It is not a `SettingsIntent`: the
-    /// connection changes only with its API key (a Save) or through Reset.
     pub(crate) fn set_indexer_connection(
         &self,
         connection: IndexerConnection,
@@ -625,8 +585,6 @@ impl SettingsRuntime {
             .unwrap_or_else(PoisonError::into_inner) = Arc::new(state.accepted.clone());
     }
 
-    /// Asks the scheduler to accept the change before recording it. A fixed
-    /// choice is recorded as the count the scheduler settled on.
     async fn set_concurrency(
         &self,
         state: &mut State,

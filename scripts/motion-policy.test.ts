@@ -42,10 +42,6 @@ const allowsMotion = (d: Declaration) =>
 	d.scopes.some((scope) => /prefers-reduced-motion:\s*no-preference/.test(scope));
 const describeDeclaration = (d: Declaration) => `${d.file}: ${d.scopes.join(' > ')} { ${d.text} }`;
 
-/**
- * Transitions that run under reduced motion or animate `all`, `width`, or
- * `height`. A longhand in a rule that names no properties animates `all`.
- */
 function transitionProblems(list: readonly Declaration[]): string[] {
 	const transitions = list.filter(isTransition);
 	const named = new Set(transitions.filter(namesProperties).map(ruleOf));

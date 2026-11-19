@@ -20,13 +20,11 @@ pub enum FaacRateControl {
 pub enum AudioEdit {
     Format(AudiobookFormat),
     Intent(AudioIntent),
-    /// The AAC encoder; Opus formats always use Opus.
     Encoder(EncoderType),
     FaacProfile(FaacProfile),
     RateControl(FaacRateControl),
     Quality(u16),
     NativeSpeed(u8),
-    /// Target kbps for the format's encoder, across all channels.
     Bitrate(u16),
     SampleRate(SampleRateConfig),
     Channels(ChannelConfig),
@@ -62,12 +60,9 @@ struct RateOffer {
 pub struct AudioChoice {
     pub format: AudiobookFormat,
     pub intent: AudioIntent,
-    /// The AAC encoder chosen; never Opus.
     pub encoder: EncoderType,
     pub aac_bitrate_kbps: u16,
     pub opus_bitrate_kbps: u16,
-    /// The bitrate mode the saved settings carried, used until capabilities
-    /// name the encoder's default.
     #[serde(skip)]
     pub saved_mode: BitrateMode,
     pub faac_profile: FaacProfile,
@@ -119,27 +114,19 @@ pub struct AudioChoiceFacts {
     pub codec_family: CodecFamily,
     pub intent_options: Vec<AudioIntent>,
     pub channel_options: Vec<ChannelConfig>,
-    /// The encoder that would run: Opus for Opus formats, and what Auto
-    /// resolves to.
     pub effective_encoder: EncoderType,
     pub encoder_options: Vec<EncoderOption>,
     pub encoder_locked: bool,
     pub downmix_warning: bool,
     pub bitrate_mode: BitrateMode,
-    /// The target kbps the request carries: the Opus bitrate for an Opus
-    /// format, else the AAC one.
     pub bitrate_kbps: u16,
     pub bitrate_kbps_min: u16,
     pub bitrate_kbps_max: u16,
     pub allowed_modes: Vec<BitrateModeKind>,
     pub faac_profiles: Vec<FaacProfile>,
-    /// Every speed the native AAC encoder accepts, slowest search first.
     pub native_speed_options: Vec<u8>,
     pub allowed_sample_rates: Vec<u32>,
-    /// False when an explicit sample rate is kept that this encoder does not
-    /// accept; the user must choose another before export.
     pub sample_rate_supported: bool,
-    /// Total target kbps, or `None` when a quality setting owns the bitrate.
     #[serde(skip)]
     pub estimate_kbps: Option<u16>,
 }
@@ -408,8 +395,6 @@ impl AudioChoice {
         }
     }
 
-    /// The sample rate a request carries: an explicit rate no encoder offers
-    /// becomes Auto.
     fn request_sample_rate(&self, caps: Option<&EncoderSettingsCapabilities>) -> SampleRateConfig {
         match (self.sample_rate, caps) {
             (SampleRateConfig::Explicit(hz), Some(caps))

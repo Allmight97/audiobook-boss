@@ -12,8 +12,6 @@ const NOT_IMPORTABLE_AUDIO: &str = "Audible's license reply points to a file tha
 const NO_DECRYPTION_KEY: &str =
     "Audible's license reply for this title did not include the key needed to decrypt it.";
 
-/// What a license reply lets ABB do with a title. The decryption kind comes
-/// from the key material in the reply, never from the download URL.
 pub(super) enum LicensePlan {
     ImportReady {
         url: String,

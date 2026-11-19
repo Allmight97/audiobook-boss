@@ -89,7 +89,6 @@ impl Session {
         SessionOutcome::Applied
     }
 
-    /// Analysis can overlap a submission: wait before changing its locked list.
     async fn list_imported(
         &self,
         mut files: Vec<AudioFile>,

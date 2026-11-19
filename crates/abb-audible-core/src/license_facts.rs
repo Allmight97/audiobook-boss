@@ -23,13 +23,11 @@ pub struct LicenseFacts {
     pub denial: Option<LicenseDenial>,
 }
 
-/// Audible answered the license request but refused it (`status_code: Denied`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LicenseDenial {
     pub reasons: Vec<LicenseDenialReason>,
 }
 
-/// One refused eligibility check, as Audible's reason codes only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LicenseDenialReason {
     pub rejection_reason: String,
@@ -37,7 +35,6 @@ pub struct LicenseDenialReason {
 }
 
 impl LicenseDenial {
-    /// Audible is rate-limiting the account; the same request works later.
     pub fn is_throttled(&self) -> bool {
         self.reasons
             .iter()

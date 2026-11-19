@@ -17,7 +17,6 @@ resolver = "2"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-# Bump the family together and regenerate bindings.
 # pin: prerelease family whose generated TS contract changes between RCs; unpin when specta 2.0.0 is stable
 specta = "=2.0.0-rc.25"
 specta-typescript = "=0.0.12"
@@ -45,8 +44,6 @@ ffmpeg-sys-next = { path = "vendor/ffmpeg-sys-next-9.0.1" }
 [profile.dev]
 debug = 1
 
-# Image codecs run optimized in dev and test builds, so cover loading there
-# shows release speed; unoptimized decoding is many times slower.
 [profile.dev.package.image]
 opt-level = 3
 

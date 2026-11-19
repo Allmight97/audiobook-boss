@@ -3,7 +3,6 @@ import type { JSX } from '@solidjs/web';
 export type ProgressProps = {
 	readonly value: number;
 	readonly label: string;
-	/** Work is running now; only active progress shows motion. */
 	readonly active?: boolean;
 	readonly class?: string;
 };

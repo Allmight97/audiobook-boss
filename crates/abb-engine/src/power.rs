@@ -1,4 +1,3 @@
-//! Active work owns the idle-sleep hold; an open, idle app owns no OS resource.
 use std::sync::{Arc, Mutex, MutexGuard};
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]

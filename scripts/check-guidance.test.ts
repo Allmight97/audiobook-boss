@@ -43,6 +43,8 @@ describe('check-guidance', () => {
 				'src/main.ts',
 			]).map((finding) => finding.file),
 		).toEqual(['PLAN.md', 'docs/export-rework.md', 'crates/abb-engine/src/session/NOTES.md']);
+		expect(markdownHomeFindings(['NOTES.md'])[0]?.message).toContain('Fix:');
+		expect(markdownHomeFindings(['NOTES.md'])[0]?.message).toContain('Root cause:');
 	});
 
 	it('rejects skill frontmatter that is not valid YAML', () => {

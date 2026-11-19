@@ -1,6 +1,3 @@
-//! ABB's safe layer over the FFmpeg C API. It exposes only the operations ABB
-//! performs, as owned values and typed errors; no FFmpeg pointer, lifetime,
-//! or `unsafe` crosses its public surface.
 #![deny(clippy::undocumented_unsafe_blocks, unsafe_op_in_unsafe_fn)]
 
 mod audio;
@@ -29,7 +26,6 @@ pub use packet::{Packet, SkipSamples};
 pub use resampler::{AudioShape, Resampler};
 pub use text::{SecretOptions, Tags, Text};
 
-/// The version string of the linked FFmpeg.
 pub fn ffmpeg_version() -> String {
     // SAFETY: FFmpeg returns a static NUL-terminated string.
     unsafe { std::ffi::CStr::from_ptr(ffmpeg_sys_next::av_version_info()) }
@@ -37,8 +33,6 @@ pub fn ffmpeg_version() -> String {
         .into_owned()
 }
 
-/// The linked libavcodec and libavformat versions, each as FFmpeg packs it:
-/// major in the high 16 bits, then minor and micro in 8 bits each.
 pub fn library_versions() -> (u32, u32) {
     // SAFETY: both calls return a constant of the linked library.
     unsafe {
@@ -49,7 +43,6 @@ pub fn library_versions() -> (u32, u32) {
     }
 }
 
-/// How much FFmpeg's own log prints.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogLevel {
     Error,
@@ -72,8 +65,6 @@ pub fn set_log_level(level: LogLevel) {
     unsafe { ffmpeg_sys_next::av_log_set_level(level.number()) };
 }
 
-/// The level FFmpeg's log is set to, or `None` for a level this enum does
-/// not name.
 pub fn log_level() -> Option<LogLevel> {
     // SAFETY: av_log_get_level reads one integer.
     let number = unsafe { ffmpeg_sys_next::av_log_get_level() };

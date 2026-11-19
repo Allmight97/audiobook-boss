@@ -31,8 +31,6 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
         OutputConfig::new(&destination),
         workspace.clone(),
     );
-    // Joining is announced once before the first packet and again after each
-    // source; cancel after the first source's packets are in the partial join.
     let joining_events = Arc::new(AtomicUsize::new(0));
     let listener_events = Arc::clone(&joining_events);
     context.progress_listener = Arc::new(move |event| {

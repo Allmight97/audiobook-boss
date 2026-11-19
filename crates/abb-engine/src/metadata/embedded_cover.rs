@@ -1,11 +1,3 @@
-//! Allocation-bounded embedded-cover reads for non-MP4 audiobook containers.
-//!
-//! Thumbnail discovery must not ask FFmpeg to open these files: demuxer open can
-//! materialize an attached-picture packet before ABB can inspect its size. This
-//! reader handles the tag containers used by ABB's supported non-MP4 inputs and
-//! returns no thumbnail for an unrecognized container rather than taking an
-//! unbounded fallback path.
-
 use super::cover_choice::CoverChoice;
 use super::thumbnail::THUMBNAIL_MAX_ENCODED_BYTES;
 use crate::errors::{AppError, Result};
@@ -65,7 +57,6 @@ fn read_id3_cover(file: &mut File, start: u64, span_len: u64) -> Result<Option<V
         return Ok(None);
     }
     if version == 2 && header[5] & 0x40 != 0 {
-        // ID3v2.2 compression changes the entire tag representation.
         return Ok(None);
     }
     let tag_size = u64::from(syncsafe_u32(&header[6..10])?);
@@ -415,10 +406,10 @@ fn read_flac_cover(file: &mut File, file_len: u64) -> Result<Option<Vec<u8>>> {
 fn extract_flac_picture(mut block: Vec<u8>) -> Result<Option<(u32, Vec<u8>)>> {
     let mut cursor = 0usize;
     let picture_type = read_be_u32(&block, &mut cursor)?;
-    skip_len_prefixed(&block, &mut cursor)?; // MIME type
-    skip_len_prefixed(&block, &mut cursor)?; // description
+    skip_len_prefixed(&block, &mut cursor)?;
+    skip_len_prefixed(&block, &mut cursor)?;
     for _ in 0..4 {
-        read_be_u32(&block, &mut cursor)?; // dimensions, depth, colors
+        read_be_u32(&block, &mut cursor)?;
     }
     let image_len = read_be_u32(&block, &mut cursor)? as usize;
     ensure_picture_size(image_len)?;

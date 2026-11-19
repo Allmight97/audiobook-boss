@@ -76,7 +76,6 @@ function actionIntent(
 export type RemoteSourceOwner = {
 	readonly view: Accessor<RemoteSourceView>;
 	readonly isBusy: Accessor<boolean>;
-	/** Library titles left by the filter, PDF, and availability choices. */
 	readonly visibleTitles: Accessor<readonly RemoteTitle[]>;
 	readonly selectedTitleSummary: Accessor<string>;
 	isTitleSelected: (titleId: string) => boolean;
@@ -87,7 +86,6 @@ export type RemoteSourceOwner = {
 	readonly hiddenReleaseSelectionCount: Accessor<number>;
 	readonly acquisition: Accessor<AcquisitionSnapshot | null>;
 	readonly acquisitionTitle: Accessor<RemoteTitle | undefined>;
-	/** Every lane with its label, whether it is connected, and which controls it shows. */
 	readonly lanes: Accessor<readonly RemoteLane[]>;
 	readonly lane: Accessor<RemoteLane>;
 	readonly indexerConnection: Omit<IndexerConnectionSettings, 'reset'>;

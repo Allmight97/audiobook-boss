@@ -71,10 +71,6 @@ struct CopyJob {
     control: CopyControl,
 }
 
-/// Decrypts an Audible AAX or AAXC download into an MP4 by stream copy. Packet
-/// success does not prove the key: AAXC decrypts to noise under a wrong key,
-/// so the partial must decode as audio and read back its chapters before it
-/// is committed to its final path.
 pub(super) async fn decrypt_download(
     request: DecryptRequest<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
@@ -173,8 +169,6 @@ fn confirm_decodes_as_audio(job: &CopyJob) -> Result<()> {
     ))
 }
 
-/// Removes its own partial when it fails or is stopped: an aborted caller may
-/// remove the partial before this worker has created it.
 pub(super) fn stream_copy(
     input: &Path,
     partial: &Path,
@@ -356,8 +350,6 @@ fn next_packet(
         .map_err(|error| decrypt_failure("reading audio", error))
 }
 
-/// How far a packet's time is through the book, or `None` when either is
-/// unknown.
 fn packet_fraction(
     pts: Option<i64>,
     time_base: abb_ffmpeg::Rational,

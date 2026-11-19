@@ -7,10 +7,6 @@ use super::faad_decoder::packet_trim;
 use crate::audio::AacDecoder;
 use crate::errors::{AppError, Result};
 
-/// The length decoding yields, for a file whose container only estimates it.
-/// Packets count samples exactly when FFmpeg decodes and the stream's time
-/// base divides the output rate; any other stream is decoded and counted.
-/// `None` keeps the estimate: a zero output rate or a packet with no duration.
 pub(in crate::audio) fn measured_length_seconds(
     path: &Path,
     aac_decoder: AacDecoder,

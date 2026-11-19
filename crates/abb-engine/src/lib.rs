@@ -1,12 +1,3 @@
-//! ABB's engine: every rule and workflow that decides what happens to a
-//! user's audiobooks, with no dependency on a UI toolkit.
-//!
-//! A host constructs one [`Engine`] and drives it through that type's
-//! methods. The engine publishes [`EngineEvent`]s through the host's
-//! [`EventSink`].
-
-//! Hosts can read typed remote outcomes without reaching private workflow code.
-//!
 //! ```
 //! use abb_engine::remote_source::{RemoteUiSnapshot, ReleaseGrabStatus};
 //! fn sent_releases(snapshot: &RemoteUiSnapshot) -> usize {
@@ -15,13 +6,9 @@
 //! }
 //! ```
 
-//! Hosts cannot bypass accepted remote lifecycle work or write tags/start
-//! processing outside the session's safety rules.
-//!
 //! ```compile_fail
 //! use abb_engine::remote_source::RemoteSourceRuntime;
 //! ```
-//!
 //! ```compile_fail
 //! use abb_engine::metadata::save_metadata_intent;
 //! ```

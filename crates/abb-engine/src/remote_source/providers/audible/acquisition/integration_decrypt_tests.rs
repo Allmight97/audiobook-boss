@@ -1,11 +1,3 @@
-//! Real AAX/AAXC decrypt through the bundled FFmpeg.
-//!
-//! Fixtures are synthesized at test time from a lavfi sine book. Compare the
-//! decrypt output against that generated source (packets, duration, tags,
-//! chapters, cover), never against fixed hashes. A wrong AAX activation fails
-//! at open. A wrong AAXC key opens and copies noise; materialization must
-//! reject that output.
-
 use std::path::{Path, PathBuf};
 
 use secrecy::SecretBox;
@@ -480,9 +472,6 @@ fn leak_child_test_name() -> String {
     format!("{module}::decrypt_cases_run_for_the_leak_check")
 }
 
-/// The child half of `decrypting_never_prints_a_secret_or_the_file_checksum`.
-/// It does nothing unless that test started it, so the parent can read all
-/// the output of this process, FFmpeg's and every `log` level included.
 #[tokio::test]
 async fn decrypt_cases_run_for_the_leak_check() {
     if std::env::var_os(LEAK_CHILD_ENV).is_none() {

@@ -186,9 +186,6 @@ fn validate_cover_art_url(url: &str) -> Result<reqwest::Url> {
     Ok(parsed)
 }
 
-/// Accepts HTTPS URLs whose host is a domain (checked again at resolution) or
-/// a public IP literal. IP literals never reach the resolver, so they are
-/// judged here from the typed host rather than its bracketed text.
 fn check_cover_url(url: &reqwest::Url) -> std::result::Result<(), &'static str> {
     if url.scheme() != "https" {
         return Err("Only HTTPS URLs are supported");
@@ -226,7 +223,6 @@ impl Resolve for BogonFilteringResolver {
     fn resolve(&self, name: Name) -> Resolving {
         let host = name.as_str().to_string();
         Box::pin(async move {
-            // Port 0 is intentional; reqwest replaces it with the URL/scheme port.
             let addrs = tokio::net::lookup_host((host.as_str(), 0))
                 .await
                 .map_err(|e| {

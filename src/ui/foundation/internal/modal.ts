@@ -49,7 +49,6 @@ export class ModalController {
 
 	#handleOpenTransition(): void {
 		this.#invoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-		// Document-level, capture-phase: WebKit can refuse initial focus or blur to body, which would leave a container-scoped listener deaf.
 		document.addEventListener('keydown', this.#keydownHandler, true);
 		openModalsInOpeningOrder.push(this);
 		this.#focusInside();
@@ -78,8 +77,6 @@ export class ModalController {
 			return container.contains(document.activeElement);
 		};
 		queueMicrotask(() => {
-			// WebKit refuses focus while the backdrop's visibility transition
-			// hasn't had a style recalc, so retry after the next frame.
 			if (!attempt() && typeof requestAnimationFrame === 'function') {
 				requestAnimationFrame(() => attempt());
 			}

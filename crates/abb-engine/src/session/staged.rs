@@ -9,7 +9,6 @@ use crate::work_runtime::{ChildJobSnapshot, ChildJobStatus};
 
 #[derive(Debug, Default)]
 pub(crate) struct StagedSources {
-    /// By acquisition job id.
     jobs: BTreeMap<String, StagedJob>,
 }
 
@@ -36,9 +35,7 @@ impl Removal {
 
 #[derive(Debug, Default)]
 struct StagedJob {
-    /// By session input id.
     titles: BTreeMap<String, StagedTitle>,
-    /// Files the session never listed and holds no claim on.
     leftovers: Vec<PathBuf>,
     removal: Removal,
     last_retry_delay: Option<Duration>,
@@ -73,8 +70,6 @@ impl StagedSources {
             );
     }
 
-    /// Records downloaded files the session will not list, so a sweep
-    /// removes them and retries if removal fails.
     pub(crate) fn register_leftovers(&mut self, job_id: &str, paths: Vec<PathBuf>) {
         self.jobs
             .entry(job_id.to_string())

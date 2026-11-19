@@ -1,8 +1,3 @@
-//! `abb-dev parity`: records what output files hold and checks later outputs
-//! against that record. It reads files with the `ffmpeg` and `ffprobe`
-//! commands, which share no code with the engine's FFmpeg layer, so a layer
-//! defect cannot hide on both sides of a comparison.
-
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -79,7 +74,6 @@ pub(crate) fn parse(mut args: impl Iterator<Item = String>) -> Result<Options, S
     })
 }
 
-/// What one output file holds. Each field is one compared part.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct FileRecord {
     pub(crate) bytes: String,
@@ -160,8 +154,6 @@ stream_tags:stream_disposition=attached_pic:chapter=start_time,end_time:chapter_
     serde_json::from_slice(&output.stdout).map_err(|error| format!("ffprobe output: {error}"))
 }
 
-/// The muxer stamps its own version in an `encoder` tag, which says nothing
-/// about what the file holds.
 fn without_muxer_stamp(mut value: Value) -> Value {
     fn strip(value: &mut Value) {
         match value {
@@ -217,7 +209,6 @@ fn name_of(file: &Path) -> Result<String, String> {
         .ok_or_else(|| format!("{} has no file name", file.display()))
 }
 
-/// The parts of `actual` that differ from `expected`, by name.
 pub(crate) fn differences(
     expected: &FileRecord,
     actual: &FileRecord,

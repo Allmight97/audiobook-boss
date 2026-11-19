@@ -23,18 +23,8 @@ enum Step {
     Stage,
     Cover(u8),
     ClearCover,
-    /// Save while exports read the files in `reading`; `failing` marks files
-    /// whose write fails.
-    Save {
-        reading: u8,
-        failing: u8,
-    },
-    /// Only the exports reading `reading` remain; waiting writes to files in
-    /// `failing` fail.
-    ExportsReading {
-        reading: u8,
-        failing: u8,
-    },
+    Save { reading: u8, failing: u8 },
+    ExportsReading { reading: u8, failing: u8 },
     BeginRead(usize),
     LandReads,
 }
@@ -121,10 +111,7 @@ impl Mirror {
 
 struct Run {
     desk: Desk,
-    /// Reads begun and not landed, with whether a save or removal since then
-    /// made each stale.
     begun: Vec<(ReadTicket, bool)>,
-    /// Which files are downloads the engine will remove.
     temporary: Vec<PathBuf>,
 }
 
@@ -245,8 +232,6 @@ impl Run {
                     .map(|(path, _)| path.clone())
                     .collect();
 
-                // Save never writes a file an export is reading: a local one
-                // waits and a temporary one is not written at all.
                 for path in &reading {
                     prop_assert_eq!(desk.disk.get(path), disk_before.get(path));
                 }
@@ -255,7 +240,6 @@ impl Run {
                         prop_assert!(!reading.contains(&item.path));
                     }
                 }
-                // A temporary source in flight is never queued for a later write.
                 for path in desk.state.waiting_write_paths() {
                     prop_assert!(!temporary.contains(&path) || !reading.contains(&path));
                 }
@@ -307,7 +291,6 @@ impl Run {
                     let binding = desk.state.binding;
                     desk.state.finish_reads(binding, vec![(ticket, Ok(read))]);
                     if stale {
-                        // A read begun before a save or a removal never lands.
                         prop_assert_eq!(desk.state.known_tags(&path), known_before);
                     }
                 }
@@ -319,7 +302,7 @@ impl Run {
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(192))] // PROPTEST_CASES overrides
+    #![proptest_config(ProptestConfig::with_cases(192))]
 
     #[test]
     fn any_sequence_keeps_edits_reads_and_writes_truthful(
@@ -351,8 +334,6 @@ proptest! {
             run.apply(step)?;
             let desk = &mut run.desk;
 
-            // A source's cover address changes exactly when a cover was written
-            // into it.
             let wrote_cover: HashSet<PathBuf> = desk.written[written_before..]
                 .iter()
                 .filter(|(_, patch)| patch.cover_art.is_some())
@@ -365,7 +346,6 @@ proptest! {
                 prop_assert_eq!(*before != after, wrote_cover.contains(&path), "cover address of {:?}", path);
             }
 
-            // An accepted edit stays pending until a write or a removal takes it.
             if !losing {
                 let pending_after = pending_by_file(desk);
                 for (path, before) in &pending_before {
@@ -376,14 +356,10 @@ proptest! {
                 }
             }
 
-            // Only Save and a finished export ever change a file.
             if !writes {
                 prop_assert_eq!(&desk.disk, &disk_before);
             }
 
-            // Only loaded source files have tags or edits, and what the
-            // session knows of a loaded file never contradicts the file with
-            // its pending edits applied.
             let live = desk.state.working_set.source_paths();
             for name in NAMES {
                 let file = path(name);
@@ -409,8 +385,6 @@ proptest! {
                 }
             }
 
-            // A clean form over one readable title shows exactly what Save
-            // and processing would send.
             let form = desk.metadata().form;
             let selected = desk.state.working_set.selected_files();
             if let [title] = selected.as_slice() {
@@ -423,7 +397,6 @@ proptest! {
                             .map(|snapshot| snapshot.value.trim().to_string())
                             .unwrap_or_default()
                     };
-                    // Staging trims, and the form keeps what was typed.
                     let trimmed = |value: Option<String>| {
                         value.unwrap_or_default().trim().to_string()
                     };
@@ -436,7 +409,6 @@ proptest! {
                 }
             }
 
-            // A host that applied every update shows what a fresh host would.
             mirror.apply(&desk.state);
             let full = desk.state.update_since(None);
             prop_assert_eq!(&mirror.titles, &json(&full.titles));
@@ -445,8 +417,6 @@ proptest! {
             prop_assert_eq!(&mirror.lookup, &json(&full.lookup));
         }
 
-        // Once every export has finished and a Save runs with nothing in the
-        // way, each local single-source title's file carries its edits.
         let desk = &mut run.desk;
         desk.exports_now_reading(&HashSet::new());
         desk.save(&[]);

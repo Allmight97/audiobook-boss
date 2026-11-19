@@ -1,4 +1,3 @@
-//! Accepted chapter positions use milliseconds, rounded once to nearest ms.
 use crate::MetadataCoreError;
 use serde::{Deserialize, Serialize};
 type Result<T> = std::result::Result<T, MetadataCoreError>;
@@ -69,8 +68,6 @@ fn quoted(value: &str, line: usize) -> Result<String> {
     Ok(rest[..end].to_string())
 }
 
-/// Parse a single FILE/AUDIO sheet. Nonstandard fields propose hundredths;
-/// the runtime/UI must obtain explicit confirmation before accepting that plan.
 #[expect(
     clippy::too_many_lines,
     reason = "One pass over CUE lines; each arm handles one directive"
@@ -133,7 +130,7 @@ pub fn parse_cue(text: &str, duration_ms: i64) -> Result<CueSheet> {
                         track.start = Some(time);
                         track.line = line_number;
                     }
-                    "00" => {} // pregap index is not the supplied chapter start
+                    "00" => {}
                     _ => {
                         return Err(invalid(
                             line_number,
@@ -145,7 +142,7 @@ pub fn parse_cue(text: &str, duration_ms: i64) -> Result<CueSheet> {
             "PREGAP" | "POSTGAP" => {
                 return Err(invalid(line_number, "explicit gaps are unsupported"))
             }
-            _ => {} // REM, performer, and other descriptive tags do not change the timeline
+            _ => {}
         }
     }
     let file_name = file_name.ok_or_else(|| invalid(1, "missing FILE"))?;
@@ -203,11 +200,6 @@ pub fn parse_cue(text: &str, duration_ms: i64) -> Result<CueSheet> {
 
 const MAX_EMBEDDED_REPAIR_MS: i64 = 1_000;
 
-/// Repairs the drift real files carry in embedded chapters: sorts by start,
-/// drops zero-length markers, ends each chapter where the next starts and the
-/// last one at the audio end. Refuses a chapter that starts outside the audio
-/// or whose end would move by more than one second. With no known audio end
-/// (FFmpeg only estimated the length), the last chapter keeps its own end.
 pub fn normalize_embedded_chapters(
     chapters: &[ChapterSpec],
     audio_end_ms: Option<i64>,

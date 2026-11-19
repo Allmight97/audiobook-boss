@@ -5,8 +5,6 @@ use std::time::Duration;
 use crate::remote_source::test_support::{unused_address, Reply, StubServer};
 use tokio::time::timeout;
 
-// Bounds a hang only: building the production client loads the system
-// root certificates, which can take seconds while the whole suite runs.
 const LOCAL_TIMEOUT: Duration = Duration::from_secs(15);
 
 fn local_client(host: &str, addr: SocketAddr) -> Client {

@@ -17,8 +17,6 @@ const NO_PDF: &str = "This title has no supplemental PDF.";
 const NOT_ACQUIRABLE: &str = "This title is not available for acquisition.";
 const NO_OUTPUT_FOLDER: &str = "Choose an output folder before saving a Supplemental PDF.";
 
-/// Where the Audible account change stands. The pending sign-in lives only in
-/// `AwaitingHandoff`; leaving that state hands it out or drops it.
 #[derive(Default)]
 pub(super) enum AudibleSignIn {
     #[default]
@@ -30,9 +28,6 @@ pub(super) enum AudibleSignIn {
     Disconnecting,
 }
 
-/// Audible's sign-in, library read, and job-line facts, with the predicates
-/// that decide what the lane accepts. Account facts shared with the Indexer
-/// stay on the UI state.
 #[derive(Default)]
 pub(super) struct AudibleLane {
     pub(super) sign_in: AudibleSignIn,
@@ -148,9 +143,6 @@ impl UiState {
         self.audible.can_disconnect(self.acquisition.busy())
     }
 
-    /// Applies a finished sign-in; returns the library read it starts.
-    /// `unused_sign_in` is the pending sign-in a completion handed back
-    /// because it failed before it reached Amazon.
     pub(super) fn auth_completed(
         &mut self,
         result: &Result<super::super::RemoteSourceAccountState>,

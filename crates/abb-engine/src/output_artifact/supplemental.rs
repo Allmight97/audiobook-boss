@@ -16,7 +16,6 @@ pub(crate) struct SupplementalOutputAssetsCommitRequest<'a> {
 
 pub(crate) struct SupplementalOutputAssetCommitRequest<'a> {
     source_path: &'a Path,
-    /// The requested name; a taken name gets the next free ` (n)` suffix.
     destination: PathBuf,
     expected_identity: Option<ExpectedSupplementalPdfIdentity<'a>>,
 }
@@ -225,8 +224,6 @@ pub(crate) fn commit_supplemental_output_asset(
     Ok(destination)
 }
 
-/// Publishes a PDF with no audiobook commit beside it, so it owns the folders
-/// it creates and a failed publish removes them.
 pub(crate) fn publish_supplemental_pdf(
     records: &super::OutputFolderRecords,
     output_root: &Path,

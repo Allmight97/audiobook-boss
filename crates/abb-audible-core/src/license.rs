@@ -17,7 +17,6 @@ use crate::reply_keys::{asin, license_response};
 
 type Aes128CbcDec = cbc::Decryptor<Aes128>;
 
-/// Fixed-size secrets that zeroize on drop. The enum has no `Debug`.
 pub enum AudibleDecryptionMaterial {
     Aax {
         activation_bytes: SecretBox<[u8; 4]>,
@@ -47,7 +46,6 @@ impl AudibleDecryptionMaterial {
     }
 }
 
-/// Which reader produced the decryption material, for the license log.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MaterialSource {
     LicenseResponse,
@@ -83,9 +81,6 @@ struct VoucherKeyMaterial {
     iv: Option<Vec<u8>>,
 }
 
-/// Extract decryption material for the given strategy from a license response,
-/// trying (in order) an encrypted `license_response` blob, an inline voucher,
-/// and strategy-specific activation/key-iv scans of the whole reply.
 pub fn audible_decryption_material_from_license(
     license: &Value,
     strategy: AcquisitionStrategy,

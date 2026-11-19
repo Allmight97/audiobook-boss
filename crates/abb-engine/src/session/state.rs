@@ -35,11 +35,9 @@ use submitting::Submission;
 use write_queue::WriteQueue;
 pub(crate) use write_queue::{SaveItem, WriteOutcome};
 
-/// Why the last metadata action ended the way it did. Hosts word these.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum MetadataStatus {
-    /// The edits on screen were not accepted, so the selection did not change.
     DraftInvalid {
         message: String,
     },
@@ -47,21 +45,16 @@ pub enum MetadataStatus {
     PreparingSave,
     SaveInvalid,
     NoPendingChanges,
-    /// Only grouped titles have edits; those are written with their output.
     GroupedEditsKept,
     #[serde(rename_all = "camelCase")]
     SaveComplete {
         succeeded: usize,
         failed: usize,
         cancelled: usize,
-        /// Local sources an export is still reading; written when it finishes.
         waiting: usize,
-        /// Temporary downloads; never written, their edits go with exports.
         held: usize,
         outputs: OutputEdits,
     },
-    /// The shown form is not the tags of `label` or of `more` other selected
-    /// titles, whose tags could not be read.
     TagReadFailed {
         label: String,
         more: usize,
@@ -69,8 +62,6 @@ pub enum MetadataStatus {
     SaveFailed {
         error: AppErrorEnvelope,
     },
-    /// Saves that waited for an export have run. A failed write keeps its
-    /// edit pending on a title still in the list, so Save retries it.
     DeferredWritesFinished {
         written: usize,
         failed: usize,
@@ -90,13 +81,10 @@ pub enum CoverNotice {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverSnapshot {
-    /// The address of the displayed image; absent when there is none.
     pub image: Option<String>,
-    /// The user replaced the cover and has not saved or staged it yet.
     pub custom: bool,
     pub loading: bool,
     pub notice: Option<CoverNotice>,
-    /// Advances with every notice, so a repeated notice is still new.
     pub notice_serial: u64,
 }
 
@@ -104,20 +92,15 @@ pub struct CoverSnapshot {
 #[serde(rename_all = "camelCase")]
 pub struct MetadataSnapshot {
     pub revision: u64,
-    /// Advances whenever the form binds to a different selection, so a host
-    /// can tell which form its unconfirmed typing belongs to.
     pub binding: u64,
     pub form: MetadataFormSnapshot,
     pub cover: CoverSnapshot,
-    /// The tags Save or processing would write for the values on screen.
     pub tags: TagPreview,
     pub save_in_progress: bool,
     pub status: Option<MetadataStatus>,
     pub has_pending_edits: bool,
 }
 
-/// The tags the values on screen become. Title is also the album; author is
-/// also the album artist.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TagPreview {
@@ -130,16 +113,11 @@ pub struct TagPreview {
     pub series_part: String,
     pub subseries: String,
     pub subseries_part: String,
-    /// The album sort processing would write: the sort-album atom in the MP4
-    /// family.
     pub album_sort: String,
     pub year: String,
     pub genre: String,
 }
 
-/// Everything that changed since a revision. A part is present only when it
-/// changed; each part carries the revision of its own last change, so a host
-/// keeps whichever copy of a part is newest.
 #[derive(Debug, Clone, Default, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionUpdate {
@@ -168,7 +146,6 @@ pub(crate) struct SessionState {
     pub(crate) deferred_writer: Claim,
     pub(crate) preview: super::preview::Preview,
     plans: Plans,
-    /// The title and audio-request changes plans were last refreshed for.
     plans_seen: (u64, u64),
     submission: Option<SubmissionStatus>,
     review_serial: u64,

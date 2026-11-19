@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Fails when a Rust function passes cyclomatic complexity 20 and is not listed in
-# scripts/rust-complexity-allowlist.txt. Test code is skipped. Lizard parses
-# without compiling. The length limit is raised because lizard can misread where
-# a function ends (a 13-complexity function was reported 1000+ lines long).
-# uvx takes the newest lizard at least 10 days old (scripts/AGENTS.md,
-# Dependencies).
-# Usage: bash scripts/check-rust-complexity.sh [--prefetch | --version]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

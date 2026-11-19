@@ -274,8 +274,6 @@ async fn two_titles_differing_only_by_case_never_overwrite_each_other() {
     assert_eq!(output_seconds(&outputs), [1, 2], "{outputs:?}");
 }
 
-/// Where the file system folds Unicode forms together (APFS), the second
-/// title's output is the first one's path. It must fail, never replace.
 #[tokio::test]
 async fn two_titles_differing_only_by_unicode_form_never_overwrite_each_other() {
     let nfc = "Caf\u{e9}";

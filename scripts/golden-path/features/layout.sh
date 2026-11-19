@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Layout: the default export path follows Author/Series/Book N - Title, and a
-# hostile tag or template never writes outside the output folder.
 set -euo pipefail
 source "$(dirname "$0")/../lib.sh"
 

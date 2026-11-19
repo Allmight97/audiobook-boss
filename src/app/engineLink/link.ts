@@ -37,26 +37,15 @@ export type EngineLink = {
 	readonly remoteLibrary: Accessor<RemoteLibrarySnapshot>;
 	readonly remoteAcquisition: Accessor<RemoteAcquisitionSnapshot>;
 	readonly settings: Accessor<SettingsSnapshot>;
-	/** WorkRuntime's operations in the engine's display order. */
 	readonly workOperations: Accessor<ReadonlyArray<OperationSnapshot>>;
-	/** The engine refuses a change of the job limit now: a job or an export is active. */
 	readonly concurrencyLocked: Accessor<boolean>;
-	/** Cancels an operation, or only the title named by `childJobId`; the
-	 * change arrives in `workOperations`. */
 	cancelWork: (operationId: OperationId, childJobId?: string) => Promise<void>;
-	/** Sends an intent and resolves with its outcome once its work has finished. */
 	send: (intent: SessionIntent) => Promise<SessionOutcome>;
 	openPreview: (runId: string) => Promise<SessionOutcome>;
-	/** Sends an intent whose outcome the caller does not need. A refusal is
-	 * kept as `refusal` until dismissed. */
 	post: (intent: SessionIntent) => void;
-	/** Keeps a `send` caller's refusal as `refusal`, the way `post` does.
-	 * `scope` names what failed in the log: an intent kind, or the step. */
 	refuse: (scope: string, error: unknown) => void;
-	/** Why the latest posted intent was refused, worded for the user. */
 	readonly refusal: Accessor<string | null>;
 	dismissRefusal: () => void;
-	/** True while a second press of the Quit shortcut would quit. */
 	readonly quitReminder: Accessor<boolean>;
 	sendSettings: (intent: SettingsIntent) => Promise<SettingsOutcome>;
 	dispose: () => void;
@@ -344,11 +333,6 @@ function createLink(
 	};
 }
 
-/**
- * Starts listening, then attaches, and resolves with the link once the
- * engine's first snapshot is in it. What arrives in between is applied on top
- * of that snapshot, so no update is missed; part revisions keep the newest.
- */
 export async function attachEngineLink(
 	capability: EngineCapability = liveEngineCapability,
 ): Promise<EngineLink> {

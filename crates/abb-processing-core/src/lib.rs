@@ -9,7 +9,6 @@ pub enum OperationKind {
 }
 
 impl OperationKind {
-    /// The `kind=` value of the dev-log records `scripts/dev-log-analysis.ts` parses.
     pub fn log_label(self) -> &'static str {
         match self {
             OperationKind::ProcessingBatch => "processing_batch",
@@ -29,7 +28,6 @@ pub struct OperationResultSummary {
 }
 
 impl OperationResultSummary {
-    /// Summary for a whole-operation failure that produced no per-item results.
     pub fn all_failed(total: usize) -> Self {
         let total = total.max(1);
         Self {
@@ -41,7 +39,6 @@ impl OperationResultSummary {
         }
     }
 
-    /// Summary for a whole-operation cancellation that produced no per-item results.
     pub fn all_cancelled(total: usize) -> Self {
         let total = total.max(1);
         Self {
@@ -98,8 +95,6 @@ pub fn summarize_result_statuses(
     summary
 }
 
-/// Classifies a run from its aggregate counts. Callers starting from a status
-/// iterator summarize first via `summarize_result_statuses`.
 pub fn classify_run_terminal(summary: &OperationResultSummary) -> RunTerminalClass {
     let mut classes = [
         (summary.succeeded, RunTerminalClass::Success),

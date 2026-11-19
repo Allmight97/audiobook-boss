@@ -20,8 +20,6 @@ const US_SAVED_MARKETPLACE_ID: &str = "AF2M0KC94RCEA";
 const CODE_VERIFIER_BYTES: usize = 32;
 const IDENTIFIER_SELECT: &str = "http://specs.openid.net/auth/2.0/identifier_select";
 
-/// The keychain JSON of a saved sign-in. Field names are the format earlier
-/// releases wrote through `audible_api`; they stay so a saved sign-in reads.
 #[derive(Serialize, Deserialize, Clone)]
 pub(in crate::remote_source) struct Auth {
     pub(super) locale: Locale,

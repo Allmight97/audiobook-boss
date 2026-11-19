@@ -1,6 +1,3 @@
-//! Removal of ABB-owned working directories. Each owner names its root; removal
-//! refuses anything that resolves outside that root or is itself a symlink.
-
 use std::path::Path;
 
 use crate::errors::{AppError, Result};

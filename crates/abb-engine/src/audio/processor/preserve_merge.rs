@@ -1,5 +1,3 @@
-//! Packet-copy joining for matching AAC sources with complete, contiguous frames.
-//! Interior priming, padding and decoder resets require re-encoding.
 use super::workspace::Workspace;
 use crate::audio::AudioFile;
 use crate::errors::{AppError, Result};

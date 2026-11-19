@@ -1,13 +1,3 @@
-//! The decoded sample interval of HE-AAC MP4 files: ABB's own FAAC files,
-//! recognized by their encoding-tool tag, and third-party files that declare
-//! iTunSMPB gapless info (Apple's encoder and the `faac` frontend measured).
-//!
-//! Neither convention counts the HE decoder's SBR delay in its priming.
-//! FFmpeg's native HE decoder emits that delay untrimmed, so the window adds
-//! it. FAAD3 trims its reported delay itself, so its window holds priming
-//! alone. Both read every access unit: an edit list can drop the final unit,
-//! which holds the delayed tail.
-
 use crate::errors::{AppError, Result};
 use abb_ffmpeg::{CodecId, Input, Packet, Rational, SkipSamples};
 
@@ -18,7 +8,6 @@ pub(super) const SBR_DELAY: i64 = 962;
 fn core_priming(tool: Option<&str>) -> Option<i64> {
     match tool {
         Some(ENCODING_TOOL) => Some(CORE_PRIMING),
-        // Files written before upstream's one-sample HE input padding.
         Some("AudioBook Boss FAAC HE-AAC") => Some(2079),
         _ => None,
     }
@@ -28,7 +17,6 @@ fn tag(input: &Input, key: &str) -> Option<String> {
     input.tags().get(key).map(abb_ffmpeg::Text::display)
 }
 
-/// Whether a container `encoder` tag names ABB's FAAC HE-AAC output.
 pub(super) fn is_abb_faac_he(encoder_tag: Option<&str>) -> bool {
     core_priming(encoder_tag).is_some()
 }
@@ -39,7 +27,6 @@ pub(super) enum SbrDelayOwner {
     Decoder,
 }
 
-/// iTunSMPB priming, playable length, and padding, in the track's time base.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Gapless {
     priming: i64,
@@ -47,8 +34,6 @@ struct Gapless {
     remainder: i64,
 }
 
-/// Reads iTunSMPB as FFmpeg's MP4 reader does: four hex fields of at most 16
-/// digits, counts up to 2^40, priming in 1..16384, a positive length.
 fn itunes_gapless(value: &str) -> Option<Gapless> {
     let fields = value
         .split_whitespace()
@@ -110,8 +95,6 @@ pub(super) struct HeDecodeWindow {
 }
 
 impl HeDecodeWindow {
-    /// The window for ABB's FAAC HE files, or for an HE-AAC file (`he`) that
-    /// declares iTunSMPB. Any other input keeps FFmpeg's own trimming.
     pub fn from_input(
         input: &Input,
         he: bool,
@@ -189,8 +172,6 @@ impl HeDecodeWindow {
         })
     }
 
-    /// Packet skip metadata lets the decoder own frame slicing before
-    /// resampling. It replaces the skip metadata FFmpeg derived from iTunSMPB.
     pub fn apply(self, packet: &mut Packet, time_base: Rational) -> Result<()> {
         let samples = Rational::new(1, self.rate as i32);
         let pts = packet

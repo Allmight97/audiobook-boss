@@ -13,22 +13,15 @@ use crate::remote_source::PdfTitle;
 const NO_PDF_FOLDER: &str =
     "Choose an output folder, then save the Supplemental PDF again. Nothing was saved.";
 
-/// A custom naming template left empty names files this way.
 pub const DEFAULT_CUSTOM_TEMPLATE: &str = "{author}/{title}";
 
-/// The path the selected title would be written to.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum OutputPreview {
     NoDirectory,
     NoTitle,
-    Path {
-        path: String,
-    },
-    /// The metadata or template cannot name a file; `message` says why.
-    Unavailable {
-        message: String,
-    },
+    Path { path: String },
+    Unavailable { message: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
@@ -38,21 +31,13 @@ pub struct OutputSnapshot {
     pub directory: Option<String>,
     pub preset: NamingPreset,
     pub include_year: bool,
-    /// The custom template exactly as typed.
     pub template: String,
-    /// The naming processing receives: an empty custom template names files
-    /// `{author}/{title}`.
     pub naming: OutputNamingConfig,
     pub preview: OutputPreview,
-    /// How the latest submission or preview is going.
     pub submission: Option<SubmissionStatus>,
-    /// Accepted preparation, review, restart, or preview still holds the session.
     pub submission_in_progress: bool,
-    /// The question awaiting an answer; a later refusal does not replace it.
     pub collision_review: Option<super::submission::CollisionReview>,
-    /// Exported titles a Save would move, each awaiting Restart or Keep.
     pub restart_offers: Vec<super::exports::RestartOffer>,
-    /// One unanswered offer to ask now; absent while a decision's work settles.
     pub restart_prompt: Option<super::exports::RestartOffer>,
     pub preview_run: Option<super::preview::PreviewSnapshot>,
 }
@@ -104,8 +89,6 @@ impl OutputPlan {
         self.directory.clone()
     }
 
-    /// Where a title's Supplemental PDF goes when only the PDF is saved:
-    /// beside the audiobook the title would export to, in any format.
     pub(crate) fn pdf_destination(&self, title: &PdfTitle) -> Result<PdfDestination> {
         let directory = self
             .directory

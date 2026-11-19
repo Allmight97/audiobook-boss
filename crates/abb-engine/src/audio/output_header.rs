@@ -1,14 +1,5 @@
 use crate::errors::{AppError, Result};
 
-/// Writes an output header. For MP4 it pins the movie timescale to the audio
-/// sample rate, which keeps edit lists sample-exact. Left unset, FFmpeg derives
-/// it from every stream's time base (audio at 1/44100 plus a cover at 1/90000
-/// gives 4,410,000), and the chapter track then truncates any chapter longer
-/// than about 487 seconds. The chapter track counts each chapter's duration in
-/// 32 bits of movie ticks, and the muxer rejects a start more than 32 bits of
-/// ticks after the previous chapter's start (the first, after zero), so a
-/// longer chapter or a longer gap between starts takes a divisor of the sample
-/// rate. An option the muxer does not take is an error.
 pub(crate) fn write_output_header(
     output: abb_ffmpeg::Output,
     options: &abb_ffmpeg::Tags,
@@ -45,8 +36,6 @@ pub(crate) fn write_output_header(
     }
 }
 
-/// FFmpeg rejects a delta of `i32::MAX` and rounds each start, so stay two
-/// ticks below it.
 const MOST_TICKS_BETWEEN_PACKETS: i128 = i32::MAX as i128 - 2;
 
 struct ChapterSpan {

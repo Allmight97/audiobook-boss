@@ -27,8 +27,6 @@ impl OutputPlanLedger {
         self.resolve_requested(&requested, kind, policy, source_paths)
     }
 
-    /// Refreshes collisions at the already-derived artifact path; a preview
-    /// suffix must not be applied for a second time during execution.
     pub(crate) fn refresh(
         &mut self,
         planned: &ResolvedOutputPlan,

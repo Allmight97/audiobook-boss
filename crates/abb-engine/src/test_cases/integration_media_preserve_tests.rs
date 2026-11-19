@@ -1,9 +1,3 @@
-//! Real-media proofs for the Preserve route: a title whose audio is kept never
-//! changes its packets or its source file, one that cannot pass through is
-//! refused before anything is published, a preserved title drops a source
-//! cover it cannot prepare with a warning and fails on a chosen cover it
-//! cannot, and encoder constraints apply only to titles that encode.
-
 use super::media_fixtures::{
     audio_packet_bytes, chapters_of, decode_pcm_f32, ffmpeg, minimal_jpg_bytes, oversized_jpeg,
     preflight_payload, run_planned_title, title_audio_request, write_complete_frame_aac,

@@ -310,8 +310,6 @@ fn read_pasted_line() -> std::io::Result<Option<String>> {
     Ok((read > 0).then_some(line))
 }
 
-/// The blocked read of standard input would keep the runtime from shutting
-/// down, so the process leaves here after restoring the terminal.
 async fn stop_after_interrupt(engine: &Engine, long_lines: Option<LongTerminalLines>) -> ! {
     drop(long_lines);
     shut_down(engine).await;
@@ -319,10 +317,6 @@ async fn stop_after_interrupt(engine: &Engine, long_lines: Option<LongTerminalLi
     std::process::exit(130)
 }
 
-/// The landing address runs past the 1024-byte line limit of a terminal in
-/// canonical mode, which drops the rest of the line and the Return with it.
-/// Turning canonical mode off for the read lifts that limit. The earlier
-/// settings come back exactly when the guard drops.
 struct LongTerminalLines {
     saved: String,
 }
@@ -364,9 +358,6 @@ fn stty(settings: &[&str]) -> bool {
         .is_ok_and(|status| status.success())
 }
 
-/// Whether the engine now holds a connected Audible account. A sign-in whose
-/// credentials were stored can still be answered with a rejection, when the
-/// library read after it fails.
 fn connected_account(engine: &Engine) -> Result<(), String> {
     let account = engine
         .session_snapshot()
@@ -381,8 +372,6 @@ fn connected_account(engine: &Engine) -> Result<(), String> {
     }
 }
 
-/// Selects the Audible lane, which reads the account and loads the library,
-/// and returns the library rows.
 async fn load_library(engine: &Engine) -> Result<Vec<RemoteTitle>, String> {
     applied(
         remote(
@@ -554,8 +543,6 @@ async fn acquire_one(
     }
 }
 
-/// Waits on the engine's session events until the job that replaced
-/// `previous_job` has settled, which is after its files reached the session.
 async fn await_done(
     engine: &Engine,
     ticks: &watch::Sender<u64>,

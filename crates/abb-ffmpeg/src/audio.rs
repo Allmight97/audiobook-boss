@@ -6,8 +6,6 @@ use ffmpeg_sys_next as sys;
 
 use crate::error::{Error, Result, Step};
 
-/// An FFmpeg sample format, kept as its number so a format this build does
-/// not name is a value, never undefined behavior.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SampleFormat(c_int);
 
@@ -67,8 +65,6 @@ impl SampleFormat {
         .ok_or(Error::UnsupportedSampleFormat { step })
     }
 
-    /// Bytes per sample of one channel, or 0 for a format this build does
-    /// not name.
     pub fn bytes(self) -> usize {
         use sys::AVSampleFormat as F;
         match self.to_sys(Step::AllocateFrame) {
@@ -104,8 +100,6 @@ impl SampleFormat {
     }
 }
 
-/// A channel layout ABB handles: a native speaker mask, or a count with no
-/// declared speakers. FFmpeg's custom and ambisonic orders are refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChannelLayout {
     Native { channels: u16, mask: u64 },
@@ -123,8 +117,6 @@ impl ChannelLayout {
         .unwrap_or(Self::Unspecified { channels })
     }
 
-    /// The native layout of a speaker mask, or `None` when the mask names
-    /// no speaker.
     pub fn from_mask(mask: u64) -> Option<Self> {
         let mut layout = empty_layout();
         // SAFETY: `layout` is a blank layout FFmpeg fills without allocating.
@@ -192,7 +184,6 @@ fn empty_layout() -> sys::AVChannelLayout {
     }
 }
 
-/// One frame of decoded audio. Freed on drop.
 pub struct AudioFrame(NonNull<sys::AVFrame>);
 
 impl AudioFrame {
@@ -205,7 +196,6 @@ impl AudioFrame {
             })
     }
 
-    /// A frame with writable buffers for `samples` samples.
     pub fn allocate(
         format: SampleFormat,
         layout: ChannelLayout,
@@ -264,7 +254,6 @@ impl AudioFrame {
         unsafe { self.0.as_mut() }.pts = pts.unwrap_or(sys::AV_NOPTS_VALUE);
     }
 
-    /// The number of data planes: one per channel when planar, else one.
     pub fn planes(&self) -> usize {
         let raw = self.raw();
         if raw.extended_data.is_null() || raw.linesize[0] == 0 {
@@ -287,7 +276,6 @@ impl AudioFrame {
         self.samples() * per_sample * channels
     }
 
-    /// One planar `f32` channel, `samples()` long.
     pub fn plane_f32(&self, index: usize) -> Result<&[f32]> {
         self.check_plane(index, SampleFormat::F32_PLANAR)?;
         // SAFETY: `check_plane` confirmed the plane exists and holds f32
@@ -302,7 +290,6 @@ impl AudioFrame {
         Ok(unsafe { slice::from_raw_parts_mut(self.plane_ptr(index).cast(), samples) })
     }
 
-    /// The interleaved bytes of a packed frame, `samples() * channels * bytes` long.
     pub fn packed_bytes(&self) -> Result<&[u8]> {
         if self.planes() != 1 || self.format().is_planar() {
             return Err(Error::WrongFrameShape);

@@ -75,10 +75,6 @@ pub fn export_fresh(fixtures: &Path) {
     fixture.finish();
 }
 
-/// Rewrites what differs between runs or machines in a recorded snapshot.
-/// Title ids are random per run; they are named `title-N` in the order the
-/// titles first appear in a `titles.files` list, so the name does not depend
-/// on map order. The numbering carries from one snapshot to the next.
 pub struct Normalizer {
     roots: Vec<(String, String)>,
     titles: Vec<String>,
@@ -169,10 +165,6 @@ impl Normalizer {
     }
 }
 
-/// `aac_at` exists only in a macOS FFmpeg, so the recorded availability is
-/// pinned to what the owner's Mac reports. The automatic job count follows
-/// the machine's cores. The operating system words an I/O error ("File
-/// exists", its error number) differ per platform, so they are replaced.
 fn pin_machine_values(map: &mut Map<String, Value>) {
     if map.get("code") == Some(&Value::from("io_error")) && map.contains_key("detail") {
         map.insert("detail".into(), Value::from(""));
@@ -197,7 +189,6 @@ fn pin_machine_values(map: &mut Map<String, Value>) {
     }
 }
 
-/// A cover address carries a source's path percent-encoded.
 fn encode_component(text: &str) -> String {
     text.bytes()
         .map(|byte| match byte {

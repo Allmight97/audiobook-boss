@@ -34,8 +34,6 @@ impl ProcessingRoots {
     }
 }
 
-/// Runs an inspected plan. `_run` is the caller's hold on the job registry,
-/// required so concurrency cannot change under the run.
 pub(crate) async fn process_inspected_with_options(
     _run: &crate::processing::job_registry::ActiveRun,
     host: Host,
@@ -87,10 +85,6 @@ pub(crate) fn inspect_processing_plan(
     Ok(InspectedProcessingPlan { plan, file_info })
 }
 
-/// Stable dev-log diagnostic for processing requests that terminate as an
-/// error before any job lifecycle exists (validation, planning, registration).
-/// Counted by `scripts/dev-log-analysis.ts` via its generic ERROR counter;
-/// cancellations are excluded so a user cancel cannot degrade a session.
 fn processing_request_rejected_record(error: &AppError) -> Option<String> {
     let envelope = AppErrorEnvelope::from(error);
     if envelope.category == AppErrorCategory::Cancellation {

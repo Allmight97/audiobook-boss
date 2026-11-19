@@ -22,11 +22,8 @@ export type EncodingScope =
 	| { readonly kind: 'title'; readonly file: AudioFile }
 	| { readonly kind: 'selection'; readonly files: readonly AudioFile[] };
 
-/** One encoder panel's view, refusal, edit and summary line. */
 export type EncodingForm = {
-	/** `null` for a selection the engine has not combined yet. */
 	readonly view: Accessor<PanelView | null>;
-	/** Why the latest edit of these titles' audio changed nothing, worded. */
 	readonly refusal: Accessor<string | null>;
 	readonly choose: (field: EncodingField, value: string) => void;
 	readonly summary: Accessor<string>;

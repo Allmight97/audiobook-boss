@@ -2,7 +2,6 @@ use super::plan::{collision_kind_label, collision_path_label, PlannedProcessingJ
 use crate::audio::{AacDecoder, AudioHandling, EncoderSettings, TitleAudioPlan};
 use crate::output_artifact::{CollisionPolicy, OutputKind};
 
-/// Length-prefixed fields, so two different plans never encode the same bytes.
 #[derive(Default)]
 struct SignatureInput(Vec<u8>);
 
@@ -62,8 +61,6 @@ impl SignatureInput {
     }
 }
 
-/// Identifies the destination and audio assumptions a collision review was
-/// made against; execution refuses a review whose signature no longer matches.
 pub(super) fn build(
     output_kind: OutputKind,
     collision_policy: CollisionPolicy,

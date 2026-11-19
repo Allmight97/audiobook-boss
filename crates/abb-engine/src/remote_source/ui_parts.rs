@@ -170,7 +170,6 @@ impl super::UiState {
 }
 
 impl RemoteSourceRuntime {
-    /// Adds the parts newer than `since` to `update`; every part for `None`.
     pub(crate) fn add_ui_parts(
         &self,
         update: &mut crate::session::SessionUpdate,

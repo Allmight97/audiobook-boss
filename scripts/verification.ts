@@ -342,7 +342,6 @@ export function fingerprintFiles(root: string, files: string[], context: unknown
 	return hash.digest('hex');
 }
 
-/** The tooling lane's verdict is HEAD against the merge-base of ABB_FILE_SIZE_BASE. */
 export function toolingRatchetIdentity(root: string): { head: string; mergeBase: string } {
 	const head = git(root, ['rev-parse', 'HEAD']).trim();
 	const requested = process.env.ABB_FILE_SIZE_BASE?.trim() || 'HEAD';

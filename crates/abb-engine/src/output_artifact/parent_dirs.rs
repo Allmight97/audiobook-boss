@@ -8,7 +8,6 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 #[derive(Default)]
 struct DirectoryOwnership {
     claims: Vec<PathBuf>,
-    /// Kept across runs until the final claimant ends; failed removals retry.
     created: Vec<CreatedFolder>,
 }
 
@@ -28,8 +27,6 @@ fn ownership() -> std::sync::MutexGuard<'static, DirectoryOwnership> {
     OWNERSHIP.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// Called under the ownership lock, including filesystem removal, so a new
-/// run cannot claim a directory between its last-claim check and removal.
 fn prune_unclaimed(owned: &mut DirectoryOwnership, parents: &[PathBuf]) -> Result<()> {
     owned
         .created
@@ -61,13 +58,8 @@ fn claimed_under(claims: &[PathBuf], dir: &Path) -> bool {
 
 #[derive(Debug)]
 pub(crate) struct OutputParentDirCleanup {
-    /// Canonical directory that existed before execution created anything; only
-    /// directories strictly below it can be removed.
     existing_anchor: PathBuf,
     created_dirs: Vec<PathBuf>,
-    /// Each output's parent folder, in the order the outputs were given;
-    /// `None` for an output that writes nothing or has ended. A `Some` is a
-    /// claim in `OWNERSHIP`.
     title_parents: Vec<Option<PathBuf>>,
     active: bool,
 }
@@ -151,9 +143,6 @@ impl Drop for OutputParentDirCleanup {
     }
 }
 
-/// Creates the output root and each writable output's parent after review has
-/// passed. Every directory is registered as soon as it exists, so an error part
-/// way through drops the returned guard and removes what this call created.
 pub(crate) fn ensure_output_parent_dirs<'a>(
     records: &OutputFolderRecords,
     output_root: &Path,

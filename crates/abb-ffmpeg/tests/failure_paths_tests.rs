@@ -1,7 +1,3 @@
-//! Failure paths that need no real media. Media-backed failure paths (wrong
-//! key shape, stop after N packets) live in the engine beside its encrypted
-//! fixtures.
-
 use abb_ffmpeg::{Error, Input, Output, SecretOptions, Step, Tags};
 use tempfile::TempDir;
 

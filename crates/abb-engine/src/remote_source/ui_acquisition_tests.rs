@@ -224,7 +224,6 @@ fn a_title_level_license_failure_leaves_the_account_connected() {
     );
 }
 
-/// Bytes of each session update a download sends, for a library of `count` titles.
 fn download_update_bytes(count: usize) -> Vec<(bool, bool, bool, usize)> {
     use abb_remote_source_core::{acquisition_progress, AcquisitionStage};
     let root = tempfile::TempDir::new().expect("temp dir");

@@ -1,9 +1,6 @@
 use super::Session;
 use crate::session::state::SessionState;
 
-/// The end of one in-flight fact on the session state (a Save claim, a sweep,
-/// a kept location). It ends under the session lock when dropped, so a task
-/// that stops early cannot leave the gate shut.
 pub(super) struct InFlight {
     session: Session,
     end: fn(&mut SessionState),
@@ -19,8 +16,6 @@ impl InFlight {
         }
     }
 
-    /// Ends it inside the transition that decided to, so no other turn runs
-    /// between the decision and the release.
     pub(super) fn end_in(mut self, state: &mut SessionState) {
         (self.end)(state);
         self.ended = true;

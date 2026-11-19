@@ -8,7 +8,6 @@ use crate::decoder::AudioDecoder;
 use crate::error::{Error, Result, Step};
 use crate::text::Tags;
 
-/// One side of a conversion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AudioShape {
     pub format: SampleFormat,
@@ -16,7 +15,6 @@ pub struct AudioShape {
     pub rate: u32,
 }
 
-/// A sample format, layout, and rate converter. Freed on drop.
 pub struct Resampler {
     ctx: NonNull<sys::SwrContext>,
     input_rate: u32,
@@ -30,8 +28,6 @@ impl Resampler {
         Self::create(&input.layout.to_sys(), format, input.rate, output, options)
     }
 
-    /// A resampler for the frames `decoder` yields, whatever channel order
-    /// they have.
     pub fn for_decoder(decoder: &AudioDecoder, output: AudioShape, options: &Tags) -> Result<Self> {
         let step = Step::CreateResampler;
         let format = decoder.format().to_sys(step)?;
@@ -123,20 +119,15 @@ impl Resampler {
         self.output
     }
 
-    /// The samples the resampler still holds, counted at `rate`.
     pub fn delay_at(&self, rate: u32) -> i64 {
         // SAFETY: `self` owns a live, initialized context.
         unsafe { sys::swr_get_delay(self.ctx.as_ptr(), i64::from(rate)) }
     }
 
-    /// Converts `input` into `output`, which keeps its buffers and gets the
-    /// number of samples written. Samples that do not fit stay buffered.
     pub fn convert(&mut self, input: &AudioFrame, output: &mut AudioFrame) -> Result<()> {
         self.convert_frame(input.as_ptr(), output)
     }
 
-    /// Writes buffered samples into `output`; it gets zero samples when the
-    /// resampler holds none.
     pub fn flush(&mut self, output: &mut AudioFrame) -> Result<()> {
         self.convert_frame(ptr::null(), output)
     }

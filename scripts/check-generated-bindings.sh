@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Verify generated bindings without changing the candidate being proved.
-# Usage: bash scripts/check-generated-bindings.sh
 set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"

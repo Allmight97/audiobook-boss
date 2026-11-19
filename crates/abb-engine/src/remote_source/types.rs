@@ -180,17 +180,12 @@ pub struct AcquisitionPlan {
     pub selections: Vec<AcquisitionSelection>,
 }
 
-/// What one acquisition job does. Every kind shares progress, cancel,
-/// staging, and purge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum AcquisitionWork {
-    /// Download, decrypt, and import these titles.
     Titles(AcquisitionPlan),
-    /// Save one title's companion PDF into the output folder, with no audio.
     Pdf { title_id: String },
 }
 
-/// What a finished job holds for the session.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum AcquiredContent {
     Titles {
@@ -203,7 +198,6 @@ pub(crate) enum AcquiredContent {
     },
 }
 
-/// A downloaded companion PDF in the job's staging folder.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct StagedPdf {
     pub(crate) path: PathBuf,
@@ -211,7 +205,6 @@ pub(crate) struct StagedPdf {
     pub(crate) sha256: String,
 }
 
-/// The provider's facts that name where a title's output goes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PdfTitle {
     pub(crate) title: String,
@@ -221,7 +214,6 @@ pub(crate) struct PdfTitle {
     pub(crate) release_date: Option<String>,
 }
 
-/// A finished job as the session's handoff receives it.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct AcquiredJob {
     pub(crate) job_id: String,
@@ -233,20 +225,13 @@ pub(crate) struct AcquiredJob {
 pub enum RemoteAcquisitionFailureKind {
     AuthRequired,
     ProviderPrivateProtocolFailed,
-    /// Audible answered the license request and refused it; the message says
-    /// why (for example, a temporary download limit on the account).
     LicenseDenied,
     ProtectedUnsupported,
     DownloadFailed,
     MaterializationFailed,
-    /// Decryption succeeded and the title is import-ready, but the encrypted
-    /// staging source could not be purged. Non-blocking: the startup session
-    /// sweep removes it on next launch.
     ProtectedSourcePurgeFailed,
     ValidationFailed,
     SupplementalPdfFailed,
-    /// The user asked for the title's Supplemental PDF and Audible offers
-    /// none. Non-blocking: the audiobook is imported without it.
     SupplementalPdfUnavailable,
     ReleaseSearchFailed,
     ReleaseGrabFailed,
@@ -324,11 +309,8 @@ pub struct AcquisitionSnapshot {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AcquisitionJobState {
     Running,
-    /// The files are acquired and the session is taking them over.
     HandingOver,
-    Done {
-        ending: JobEnding,
-    },
+    Done { ending: JobEnding },
 }
 
 impl AcquisitionJobState {
@@ -364,7 +346,6 @@ pub(crate) struct RemoteRevisions {
 pub struct RemoteAcquisitionSnapshot {
     #[specta(type = specta_typescript::Number)]
     pub revision: u64,
-    /// An accepted request whose job is not registered yet.
     #[serde(skip)]
     pub acquiring: bool,
     pub job: Option<Box<AcquisitionSnapshot>>,
@@ -396,7 +377,6 @@ impl std::ops::Deref for AcquisitionSnapshot {
     }
 }
 
-/// What the engine did with a finished job's content, by job kind.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "job", content = "outcome", rename_all = "camelCase")]
 pub enum AcquisitionHandoff {
@@ -407,16 +387,10 @@ pub enum AcquisitionHandoff {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum TitlesHandoff {
-    Imported {
-        count: usize,
-    },
-    /// Nothing was imported, so the engine removes the staged files.
-    Removed {
-        reason: HandoffRefusal,
-    },
+    Imported { count: usize },
+    Removed { reason: HandoffRefusal },
 }
 
-/// A PDF job's staged copy is removed either way.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum PdfHandoff {
@@ -434,7 +408,6 @@ pub enum HandoffRefusal {
     ImportFailed {
         error: crate::errors::AppErrorEnvelope,
     },
-    /// The files were already listed, or a reset dropped the import.
     NothingAdded,
 }
 

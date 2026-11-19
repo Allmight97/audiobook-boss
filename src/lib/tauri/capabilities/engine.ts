@@ -19,7 +19,6 @@ export interface EngineCapability {
 		sequence: number,
 		intent: SessionIntent,
 	) => Promise<SessionReply>;
-	/** Claims a finished preview's output and opens it, numbered with the session intents. */
 	openPreviewOutput: (client: number, sequence: number, runId: string) => Promise<SessionReply>;
 	settingsDispatch: (
 		client: number,
@@ -27,10 +26,8 @@ export interface EngineCapability {
 		intent: SettingsIntent,
 	) => Promise<SettingsReply>;
 	listenSessionUpdates: (handler: (update: SessionUpdate) => void) => Promise<UnlistenFn>;
-	/** Settings changed by something other than a settings intent. */
 	listenSettingsUpdates: (handler: (snapshot: SettingsSnapshot) => void) => Promise<UnlistenFn>;
 	listenWorkOperations: (handler: (update: WorkOperationsUpdate) => void) => Promise<UnlistenFn>;
-	/** The Quit shortcut was pressed once; a second press inside `windowMs` quits. */
 	listenQuitPressAgain: (handler: (windowMs: number) => void) => Promise<UnlistenFn>;
 	cancelWorkOperation: (operationId: OperationId, childJobId?: string) => Promise<void>;
 }

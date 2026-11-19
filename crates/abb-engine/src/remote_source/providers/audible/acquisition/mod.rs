@@ -35,7 +35,6 @@ pub(super) enum AcquiredTitle {
         assets: Vec<SupplementalAsset>,
         diagnostics: Vec<RemoteSourceDiagnostic>,
     },
-    /// Audible refused the license; nothing was downloaded.
     Refused(RemoteSourceDiagnostic),
 }
 
@@ -333,8 +332,6 @@ async fn finalize_acquired_title(
     )
     .await?;
     committed_audio.permanent();
-    // Purge failure is housekeeping, not acquisition failure: the title stays
-    // import-ready and the diagnostic rides along non-blocking (#393).
     diagnostics.extend(purge_diagnostic);
     Ok(AcquiredTitle::Ready {
         file,

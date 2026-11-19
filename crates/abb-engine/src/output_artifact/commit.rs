@@ -13,9 +13,6 @@ fn collision_state_changed_error(final_path: &Path) -> AppError {
     ))
 }
 
-/// User-facing wording for the destination refusing the final commit: names the
-/// realistic causes and tells it apart from a processing failure. The existing
-/// destination file is never touched by a refused commit.
 fn destination_refused_commit_error(final_path: &Path, error: impl std::fmt::Display) -> AppError {
     AppError::FileValidation(format!(
         "The destination refused the final file commit for '{}': {error}. \
@@ -26,8 +23,6 @@ fn destination_refused_commit_error(final_path: &Path, error: impl std::fmt::Dis
     ))
 }
 
-/// Copies the staged output into a new file at `destination_path` and flushes
-/// it. Callers pass a fresh `SiblingTemp` path, whose guard removes a failed copy.
 fn copy_staged_output_to_new_file(temp_output: &Path, destination_path: &Path) -> Result<()> {
     let mut source = std::fs::File::open(temp_output).map_err(|error| {
         AppError::FileValidation(format!(
@@ -58,8 +53,6 @@ fn flush_staged_output(temp_output: &Path) -> Result<()> {
         })
 }
 
-/// Links `source` at `final_path`, which fails rather than replace an entry
-/// there. `Ok(false)`: publish by copy instead.
 fn link_without_replacing(source: &Path, final_path: &Path) -> Result<bool> {
     match std::fs::hard_link(source, final_path) {
         Ok(()) => Ok(true),
@@ -67,9 +60,6 @@ fn link_without_replacing(source: &Path, final_path: &Path) -> Result<bool> {
     }
 }
 
-/// A taken name is a collision. Any other failure goes to the copy paths,
-/// which never replace an entry, because network and FUSE disks report a
-/// missing hard-link feature with many different errors.
 fn classify_link_failure(error: &std::io::Error, final_path: &Path) -> Result<bool> {
     if matches!(
         error.kind(),
@@ -124,9 +114,6 @@ fn publish_by_placeholder(destination_temp: SiblingTemp, final_path: &Path) -> R
         })
 }
 
-/// Publishes `temp_output` under `final_path` without replacing anything
-/// there. On another disk the bytes are copied and flushed beside the final
-/// name first, so the name appears only with complete content.
 fn publish_without_replacing(temp_output: &Path, final_path: &Path) -> Result<PathBuf> {
     let started = Instant::now();
     if path_entry_exists(final_path)? {
@@ -144,8 +131,6 @@ fn publish_without_replacing(temp_output: &Path, final_path: &Path) -> Result<Pa
     publish_copy_without_replacing(temp_output, final_path)
 }
 
-/// Copies `source` into a flushed temp beside `final_path`, then links it
-/// there without replacing anything. `source` never shares the published file.
 pub(super) fn publish_copy_without_replacing(source: &Path, final_path: &Path) -> Result<PathBuf> {
     let started = Instant::now();
     let destination_temp = replacement_temp(final_path)?;
@@ -184,10 +169,6 @@ fn replacement_temp(final_path: &Path) -> Result<SiblingTemp> {
     })
 }
 
-/// Removes stale `.abb_replace_install_<key>_<uuid>` files that a crash
-/// mid-commit left in the destination folder. Runs when ABB commits the same
-/// final artifact again; matches only this file name's key, touches regular
-/// files only, and never blocks the commit.
 pub(super) fn remove_stale_replacement_temps(final_path: &Path) {
     let (Some(parent), Ok(tag)) = (final_path.parent(), replacement_temp_tag(final_path)) else {
         return;
@@ -204,8 +185,6 @@ pub(super) fn remove_stale_replacement_temps(final_path: &Path) {
         if !entry_name.starts_with(&prefix) {
             continue;
         }
-        // DirEntry::file_type does not follow symlinks: links and directories
-        // that merely imitate the temp naming are preserved.
         if !entry
             .file_type()
             .map(|kind| kind.is_file())

@@ -1,14 +1,3 @@
-/**
- * Where CI time goes, and whether the caches hit.
- *
- * Usage: bun scripts/ci-timing.ts [--limit N] [--run ID ...] [--json]
- *   --limit N   last N completed, non-cancelled runs of ci.yml (default 20, max 100)
- *   --run ID    report these run ids instead (repeatable)
- *   --json      print JSON instead of markdown
- *
- * Reads GitHub Actions through `gh api` for the current repository. A `closed`
- * run is a pull request's closed event.
- */
 import { execFileSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 

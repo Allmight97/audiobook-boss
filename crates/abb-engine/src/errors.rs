@@ -81,8 +81,6 @@ impl AppError {
 }
 
 impl AppErrorCode {
-    /// Stable dev-log label; parsed from captured dev sessions by
-    /// `scripts/dev-log-analysis.ts`.
     pub(crate) fn log_label(self) -> &'static str {
         match self {
             Self::FileValidationFailed => "file_validation_failed",
@@ -99,8 +97,6 @@ impl AppErrorCode {
 }
 
 impl AppErrorCategory {
-    /// Stable dev-log label; parsed from captured dev sessions by
-    /// `scripts/dev-log-analysis.ts`.
     pub(crate) fn log_label(self) -> &'static str {
         match self {
             Self::Validation => "validation",
@@ -209,8 +205,6 @@ impl fmt::Display for AppErrorEnvelope {
     }
 }
 
-/// Sanitizes filesystem paths for user-facing messages.
-/// Returns basename only and avoids exposing directory structure.
 pub fn sanitize_path_for_display(path: &Path) -> String {
     path.file_name()
         .or_else(|| {

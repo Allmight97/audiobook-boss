@@ -10,7 +10,6 @@ use crate::error::{Error, Result, Step};
 use crate::input::Input;
 use crate::packet::Packet;
 
-/// Whether this FFmpeg build has a decoder for the codec.
 pub fn has_decoder(codec: CodecId) -> bool {
     let mut id = sys::AVCodecID::AV_CODEC_ID_NONE;
     // SAFETY: `id` is a local codec-id field; the lookup returns a static
@@ -21,7 +20,6 @@ pub fn has_decoder(codec: CodecId) -> bool {
     }
 }
 
-/// Whether this FFmpeg build has the decoder `name`, such as `aac_at`.
 pub fn has_decoder_named(name: &str) -> bool {
     let Ok(name) = CString::new(name) else {
         return false;
@@ -30,12 +28,9 @@ pub fn has_decoder_named(name: &str) -> bool {
     !unsafe { sys::avcodec_find_decoder_by_name(name.as_ptr()) }.is_null()
 }
 
-/// An open audio decoder for one input stream. Freed on drop.
 pub struct AudioDecoder(CodecContext);
 
 impl AudioDecoder {
-    /// Opens the decoder for the stream: the one FFmpeg prefers for its
-    /// codec, or the decoder `named`.
     pub fn open(input: &Input, stream_index: usize, named: Option<&str>) -> Result<Self> {
         let step = Step::OpenDecoder;
         // SAFETY: `input` owns a live context.
@@ -76,7 +71,6 @@ impl AudioDecoder {
         self.0.codec_id()
     }
 
-    /// One of `profile`'s numbers, as the opened decoder found it.
     pub fn profile(&self) -> i32 {
         self.0.profile()
     }
@@ -93,13 +87,10 @@ impl AudioDecoder {
         self.0.format()
     }
 
-    /// `None` for a channel order the layer does not handle.
     pub fn layout(&self) -> Option<ChannelLayout> {
         self.0.layout()
     }
 
-    /// Declares the layout of the frames this decoder yields, for an input
-    /// that declared none.
     pub fn set_layout(&mut self, layout: ChannelLayout) {
         // SAFETY: `self` owns a live context; the old layout is released
         // before the new one, which holds no allocation, takes its place.
@@ -137,7 +128,6 @@ impl AudioDecoder {
         Error::check(Step::Decode, code).map(drop)
     }
 
-    /// Replaces the contents of `frame` with the next decoded frame.
     pub fn receive_frame(&mut self, frame: &mut AudioFrame) -> Result<Progress> {
         // SAFETY: both values are live; FFmpeg unreferences `frame` first.
         let code = unsafe { sys::avcodec_receive_frame(self.0.as_ptr(), frame.as_mut_ptr()) };

@@ -20,8 +20,6 @@ pub enum RemoteUiIntent {
     CompleteAuth {
         response_url_handoff_path: Option<String>,
     },
-    /// Disconnects the Audible sign-in; refused unless Audible is the lane on
-    /// screen. The Indexer has no sign-in to remove.
     Disconnect,
     RefreshLibrary,
     SelectLane {
@@ -37,9 +35,6 @@ pub enum RemoteUiIntent {
         title_id: String,
     },
     AcquireSelected,
-    /// Saves one title's Supplemental PDF into the output folder, where the
-    /// audiobook would go, without downloading the audiobook. The selection
-    /// and the PDF choices stay as they are.
     #[serde(rename_all = "camelCase")]
     SavePdf {
         title_id: String,
@@ -104,24 +99,15 @@ pub struct IndexerCategoryOption {
 #[serde(rename_all = "camelCase")]
 pub struct IndexerDraftSnapshot {
     pub base_url: String,
-    /// The draft URL is plain HTTP, so the form warns that it is unencrypted.
     pub uses_http: bool,
     pub category_ids: Vec<u32>,
-    /// Every category the form offers: the known ones, then any other
-    /// category the draft or the saved connection holds, so it can be unchecked.
     pub category_options: Vec<IndexerCategoryOption>,
     pub api_key_configured: bool,
     pub api_key_entered: bool,
     pub save: RemoteDraftStatus,
     pub test: RemoteDraftStatus,
     pub test_result: Option<RemoteIndexerConnectionTestResult>,
-    /// Why the API key or the URL was refused, the key first. The URL draft
-    /// shows what was typed; the key draft keeps the value it accepted
-    /// before. Save and Test refuse until a new value for each refused field
-    /// is accepted.
     pub draft_error: Option<AppErrorEnvelope>,
-    /// The last category edit chose none and was refused; the draft keeps
-    /// its categories. A search needs at least one.
     pub empty_categories_refused: bool,
 }
 
@@ -173,9 +159,7 @@ pub struct RemoteUiSnapshot {
     pub include_pdf_by_title_id: BTreeMap<String, bool>,
     pub indexer: IndexerWorkSnapshot,
     pub connection: IndexerDraftSnapshot,
-    /// The shown lane refuses new work now; hosts disable its actions.
     pub busy: bool,
-    /// The Audible lane's status line while no job is running.
     pub audible_message: String,
 }
 

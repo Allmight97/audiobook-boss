@@ -188,8 +188,6 @@ enum ShutdownWait<T> {
     QuitChosen,
 }
 
-/// Awaits `shutdown`, asking after each `SHUTDOWN_WAIT` whether to keep
-/// waiting.
 async fn settle_or_ask<T, A>(
     shutdown: impl std::future::Future<Output = T>,
     mut keep_waiting: impl FnMut() -> A,

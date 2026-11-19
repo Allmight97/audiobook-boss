@@ -6,7 +6,6 @@ use std::path::Path;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CoverArtPassthroughPolicy {
     Preserve,
-    /// The user chose this title's cover, so the output must carry it.
     Chosen,
     SuppressAfterExplicitClear,
 }
@@ -36,14 +35,10 @@ impl CoverArtPassthroughPolicy {
 
 #[derive(Debug, Clone)]
 pub(crate) struct MetadataOutcomePlan {
-    /// The anchor source's own tags as read for this plan, so a later edit
-    /// can be planned again without reading the source.
     pub(crate) source_metadata: AudiobookMetadata,
     pub(crate) effective_metadata: AudiobookMetadata,
     pub(crate) naming_metadata: NamingMetadata,
     pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
-    /// The patch a route that writes onto the source's own tags applies: the
-    /// user's intent plus the processing album sort when the user stated none.
     pub(crate) write_intent: Option<MetadataIntentPatch>,
 }
 

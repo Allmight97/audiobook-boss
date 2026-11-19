@@ -1,6 +1,3 @@
-//! Encrypted Audible books for decrypt tests, built at test time from a lavfi
-//! sine book with FFmpeg's own AAX and AAXC algorithms.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -18,7 +15,6 @@ pub(crate) const AAXC_IV_HEX: &str = "f0e0d0c0b0a090807060504030201000";
 pub(crate) const AAX_ACTIVATION_HEX: &str = "1ceb00da";
 pub(crate) const AAX_WRONG_ACTIVATION_HEX: &str = "deadbeef";
 pub(crate) const WRONG_AAXC_KEY_HEX: &str = "ffffffffffffffffffffffffffffffff";
-/// Public constant from FFmpeg libavformat/mov.c (`audible_fixed_key` default).
 pub(crate) const AUDIBLE_FIXED_KEY: [u8; 16] = [
     0x77, 0x21, 0x4d, 0x4b, 0x19, 0x6a, 0x87, 0xcd, 0x52, 0x00, 0x45, 0xfd, 0x20, 0xa5, 0x1d, 0x67,
 ];

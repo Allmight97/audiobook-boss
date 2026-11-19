@@ -1,7 +1,3 @@
-//! The one logger the engine's tests install. Records from every test in the
-//! process land here, so an assertion filters on an id its own test created.
-//! Holds no tests.
-
 use std::sync::{Mutex, Once};
 
 struct CapturingLogger {

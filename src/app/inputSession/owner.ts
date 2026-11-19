@@ -24,7 +24,6 @@ export type InputOwner = {
 	readonly capability: Accessor<InputCapability>;
 	sourcesFor: (file: AudioFile) => ReadonlyArray<AudioFile>;
 	totalsFor: (file: AudioFile) => TitleTotals | undefined;
-	/** The detail line under a title: its own, or the combined line of a group. */
 	detailsFor: (file: AudioFile) => string;
 	cueNoticeFor: (file: AudioFile) => CueNotice | null;
 	isSelected: (file: AudioFile) => boolean;
@@ -33,9 +32,7 @@ export type InputOwner = {
 	reorderSources: (file: AudioFile, from: number, to: number) => void;
 	hasCompanions: (inputId: string | undefined) => boolean;
 	companionSummary: (inputIds: ReadonlyArray<string | undefined>) => CompanionSummary;
-	/** Resolves once the picker closes and the import is sent, before it lands. */
 	importIntent: (intent: ImportIntent) => Promise<void>;
-	/** Resolves true when the selection changed and its tags have loaded. */
 	selectFile: (command: {
 		readonly index: number;
 		readonly modifiers: SelectionModifiers;

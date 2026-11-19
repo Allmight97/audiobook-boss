@@ -5,9 +5,6 @@ use std::path::{Path, PathBuf};
 
 const RECORDS_DIR: &str = "output-folders";
 
-/// The cache folder that holds one record file per output folder ABB created
-/// and has not yet handed over or removed, so the next start can remove the
-/// empty ones a killed process left.
 #[derive(Debug, Clone)]
 pub(crate) struct OutputFolderRecords {
     root: PathBuf,
@@ -27,8 +24,6 @@ impl OutputFolderRecords {
         }
     }
 
-    /// Writes the record before the folder exists, so no kill leaves a
-    /// created folder without one.
     pub(super) fn record(&self, dir: &Path, anchor: &Path) -> Result<CreatedFolder> {
         std::fs::create_dir_all(&self.root).map_err(record_error)?;
         let record = self.root.join(uuid::Uuid::new_v4().to_string());
@@ -43,9 +38,6 @@ impl OutputFolderRecords {
         })
     }
 
-    /// Startup sweep: removes each recorded folder that is still empty,
-    /// deepest first. A record whose anchor is missing (an unmounted disk) or
-    /// whose removal failed stays for a later start.
     pub(crate) fn remove_abandoned(&self) -> Result<()> {
         if !self.root.exists() {
             return Ok(());

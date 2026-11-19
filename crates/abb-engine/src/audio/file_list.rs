@@ -7,10 +7,8 @@ use std::path::Path;
 #[serde(rename_all = "camelCase")]
 pub struct FileListInfo {
     pub files: Vec<AudioFile>,
-    /// Total duration in seconds
     #[specta(type = specta_typescript::Number)]
     pub total_duration: f64,
-    /// Total size in bytes
     #[specta(type = specta_typescript::Number)]
     pub total_size: f64,
     pub valid_count: usize,
@@ -99,8 +97,6 @@ struct AudioProperties {
     preservation: super::AudioPreservation,
 }
 
-/// Known MP4 audio packets must fit inside the local file, even when the
-/// demuxer would report ordinary EOF at a missing packet boundary.
 fn validate_mp4_audio_extent(
     input: &abb_ffmpeg::Input,
     audio_stream: usize,
@@ -241,8 +237,6 @@ fn cue_review_error(cue: &crate::metadata::CueSource) -> AppError {
 }
 
 impl FileListInfo {
-    /// The rule for one title's sources: no CUE may wait for review, and CUE
-    /// chapters cannot ride on a merged title.
     pub(crate) fn check_cue_chapters(files: &[AudioFile]) -> Result<()> {
         let unreviewed = files
             .iter()
@@ -298,7 +292,6 @@ impl FileListInfo {
     }
 }
 
-/// Bind accepted chapter facts to freshly inspected audio, never to a reread CUE.
 pub fn apply_chapter_plans(
     files: &mut FileListInfo,
     plans: Option<&std::collections::HashMap<String, crate::metadata::ChapterPlan>>,

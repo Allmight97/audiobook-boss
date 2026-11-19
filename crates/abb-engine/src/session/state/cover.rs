@@ -20,10 +20,6 @@ pub(super) struct Cover {
     pub(super) request: u64,
 }
 
-/// The revision of every source's cover address. A Save that writes a cover
-/// into a source gives it the next number of one counter, and an entry is
-/// never dropped, so ABB's own Saves never offer one address for two images.
-/// A file retagged outside ABB and imported again keeps its address.
 #[derive(Debug, Default)]
 pub(super) struct SourceCovers {
     written: u64,

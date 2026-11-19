@@ -170,9 +170,6 @@ impl Session {
         self.transition(|state| state.record_output_edits(replies))
     }
 
-    /// Brings outputs linked by a just-accepted export up to the session's
-    /// edits: a Save made while the submission was being prepared did not
-    /// reach the export.
     pub(super) async fn catch_up_outputs(&self, title_ids: &[String]) {
         let edits = self.transition(|state| state.output_edits(Some(title_ids)));
         self.update_outputs(edits).await;

@@ -14,15 +14,12 @@ use crate::processing::{ProcessPayload, ProcessingPreflightPlan};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-/// What decides where a title's output lands besides its metadata.
 pub(crate) struct NamingInputs<'a> {
     pub(crate) base_dir: &'a Path,
     pub(crate) naming: &'a OutputNamingConfig,
     pub(crate) anchor: &'a Path,
 }
 
-/// The requested output path of a title, before collision handling. The plan
-/// and the title's output record both name through this.
 pub(crate) fn output_path_for(
     inputs: NamingInputs<'_>,
     metadata: &NamingMetadata,
@@ -50,7 +47,6 @@ pub(crate) struct PlannedProcessingJob {
     pub(crate) source_paths: Vec<PathBuf>,
     pub(crate) output: ResolvedOutputPlan,
     pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
-    /// The anchor's own tags as read for this plan.
     pub(crate) source_metadata: crate::metadata::AudiobookMetadata,
     pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
     pub(crate) audio_plan: crate::audio::TitleAudioPlan,

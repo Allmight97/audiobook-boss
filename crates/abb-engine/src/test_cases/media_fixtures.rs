@@ -1,5 +1,3 @@
-//! Shared synthesized-media helpers for the real-media proofs. Holds no tests.
-
 use super::support::encoders::native_encoder_settings;
 use super::support::wav::{write_sine_wav, write_stereo_sine_wav, SAMPLE_RATE};
 use crate::audio::{
@@ -29,8 +27,6 @@ pub(crate) fn minimal_jpg_bytes() -> Vec<u8> {
     fs::read(MINIMAL_JPG).expect("read minimal.jpg support fixture")
 }
 
-/// Synthesizes one second of audio carrying a JPEG and a PNG picture
-/// (attached pictures in MP3, FLAC and M4B, attachments in Matroska).
 pub(crate) fn write_two_picture_fixture(dir: &Path, extension: &str) -> PathBuf {
     let path = dir.join(format!("two-pictures.{extension}"));
     let jpeg = MINIMAL_JPG;
@@ -100,9 +96,6 @@ pub(crate) fn oversized_jpeg() -> Vec<u8> {
     bytes
 }
 
-/// Case-insensitive tag lookup: MP4 freeform atom families differing only in
-/// name case collapse into one ffprobe dict entry whose case follows atom
-/// order, so exact-case assertions would be brittle.
 pub(crate) fn ffprobe_tag_ci(
     tags: &serde_json::Map<String, serde_json::Value>,
     key: &str,
@@ -312,9 +305,6 @@ where
     output.stdout
 }
 
-/// Apple Books reads the QuickTime `text` trak, not Nero `chpl`.
-/// FFmpeg's chapter API only sees `chpl`, so a green chpl probe does not prove
-/// the player-visible track. Walk the `text` handler's `mdhd`.
 pub(crate) fn timed_text_chapter_track(path: &Path) -> (f64, u32, u32) {
     let bytes = fs::read(path).expect("read artifact for timed-text atom probe");
     let moov = find_atom(&bytes, 0, bytes.len(), *b"moov").expect("moov atom");
@@ -337,7 +327,6 @@ pub(crate) fn timed_text_chapter_track(path: &Path) -> (f64, u32, u32) {
         let Some(hdlr) = find_atom(&bytes, mdia.0, mdia.1, *b"hdlr") else {
             continue;
         };
-        // hdlr payload: version/flags (4) + component type (4) + handler (4)
         let subtype_at = hdlr.0 + 8;
         if subtype_at + 4 > hdlr.1 {
             continue;
@@ -439,9 +428,6 @@ pub(crate) fn parse_mdhd(bytes: &[u8], start: usize, end: usize) -> (u32, u64) {
     }
 }
 
-/// External-reader tag truth: ffprobe's view of the container's format tags.
-/// Requires an `ffprobe` binary on PATH (or via `ABB_FFPROBE`); the media lane
-/// environments provide one (`scripts/AGENTS.md`).
 pub(crate) fn ffprobe_format_tags(path: &Path) -> serde_json::Map<String, serde_json::Value> {
     let output = ffprobe([
         "-v",
@@ -473,8 +459,6 @@ pub(crate) fn assert_ffprobe_tag(
     );
 }
 
-/// Stream `duration_ts` of the first audio stream: playable length including
-/// any padding the encoder or muxer declared.
 pub(crate) fn audio_duration_ts(path: &Path) -> u64 {
     audio_stream_timing(path).0
 }

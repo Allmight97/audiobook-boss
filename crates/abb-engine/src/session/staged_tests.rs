@@ -22,7 +22,6 @@ fn pdf(input_id: &str) -> SupplementalProcessingAsset {
 }
 
 pub(crate) fn exported(titles: &[(&str, ChildJobStatus, bool)]) -> Vec<ChildJobSnapshot> {
-    // A grouped title lists its sources joined by "+".
     titles
         .iter()
         .map(|(input_id, status, warning)| {

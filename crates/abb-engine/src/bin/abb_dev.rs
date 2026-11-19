@@ -1,15 +1,3 @@
-//! Developer tool: drives the engine's working session from a terminal, the
-//! way a UI host would, with no window.
-//!
-//! It imports audio, prints the session, and can edit metadata on every
-//! imported title, save, choose audio and output, export or preview, show
-//! progress, cancel one title, edit and re-import while an export reads its
-//! files, and read back the exported tags. `abb-dev audible ...` signs in to
-//! Audible, lists the library, acquires titles, and saves a title's PDF
-//! through the same engine API. It runs under its own identity and state
-//! folder, so it never reads or changes the app's settings or stored
-//! credentials.
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -226,8 +214,6 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Options, String> {
     Ok(options)
 }
 
-/// The newest snapshot of every operation the engine has reported, by the
-/// snapshot's own revision.
 type OperationFeed = watch::Receiver<HashMap<OperationId, OperationSnapshot>>;
 
 struct PrintProgress {
@@ -428,10 +414,6 @@ async fn submit(engine: &Engine, options: &Options) -> Result<SubmissionStatus, 
     Ok(submission(engine).ok_or("the engine did not answer the review")?)
 }
 
-/// Waits for an export to finish, calling `each` with every snapshot the
-/// engine reports for it. A requested title is cancelled from the first
-/// snapshot that shows it queued or running, so a fast passthrough cannot
-/// finish it unseen.
 async fn await_finished(
     feed: &mut OperationFeed,
     operation_id: &OperationId,
@@ -593,8 +575,6 @@ async fn run(options: Options, state_dir: PathBuf) -> AbbDevStatus {
     }
 }
 
-/// Imports the paths and leaves every title selected, joined into one when
-/// `--merge` asks for it.
 async fn import(engine: &Engine, options: &Options) -> Result<(), String> {
     let paths = options.paths.clone();
     send(engine, SessionIntent::Import { paths }).await?;

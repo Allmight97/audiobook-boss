@@ -49,7 +49,6 @@ fn owned_root(workspace_root: &Path) -> OwnedRoot<'_> {
     }
 }
 
-/// Startup policy: sweep each abandoned session but keep the workspace root.
 pub(crate) fn cleanup_abandoned_processing_sessions(workspace_root: &Path) -> Result<()> {
     if !workspace_root.exists() {
         return Ok(());

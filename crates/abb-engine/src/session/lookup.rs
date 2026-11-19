@@ -11,7 +11,6 @@ pub(crate) const RESULT_LIMIT: u8 = 8;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum LookupSource {
-    /// Audnexus and Open Library together.
     #[default]
     Auto,
     Audnexus,
@@ -31,14 +30,11 @@ impl LookupSource {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum LookupApplyMode {
-    /// Apply to the current title and stay on it.
     #[default]
     Current,
-    /// Apply, then move to the next queued title and search for it.
     Queue,
 }
 
-/// What happened to the previous queued title before this search ran.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum QueueStep {
@@ -47,11 +43,9 @@ pub enum QueueStep {
     Skipped,
 }
 
-/// The lookup's last outcome. Hosts word these.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum LookupStatus {
-    /// Lookup was opened with no valid title selected.
     NoValidTitle,
     #[serde(rename_all = "camelCase")]
     QueryRequired {
@@ -61,21 +55,16 @@ pub enum LookupStatus {
     #[serde(rename_all = "camelCase")]
     Found {
         count: usize,
-        /// Some lookup data was unavailable; the results shown are partial.
         partial: bool,
         after: Option<QueueStep>,
     },
     SearchFailed {
         after: Option<QueueStep>,
     },
-    /// The query or source changed while a search ran, so its answer was dropped.
     SearchSuperseded,
-    /// Apply was requested with no title queued.
     NoTitleQueued,
     Applying,
-    /// The query or source changed, or the selection moved, while an apply ran, so it was dropped.
     ApplySuperseded,
-    /// The title's pending edits were not accepted, so the result was not applied.
     ApplyRejected,
     #[serde(rename_all = "camelCase")]
     Applied {
