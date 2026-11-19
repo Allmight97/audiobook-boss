@@ -94,7 +94,7 @@ fn headers_equal_those_audible_api_0_1_0_wrote_for_the_same_request() {
 }
 
 #[test]
-fn the_signed_date_matches_chrono_rfc3339_with_a_trailing_z() {
+fn the_signed_date_is_utc_rfc3339_with_offset_then_a_trailing_z() {
     let cases = [
         (1793000000, 0, "2026-10-26T07:33:20+00:00Z"),
         (1793000000, 123000000, "2026-10-26T07:33:20.123+00:00Z"),
