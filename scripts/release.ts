@@ -19,6 +19,24 @@ const CI_FINISH_TIMEOUT_MS = 120 * 60_000;
 
 const USAGE = `Usage: bun scripts/release.ts <x.y.z> <${LANES.join('|')}>`;
 
+const HELP = `${USAGE}
+
+Runs one release lane to the first failure, printing \`phase: <name>\` lines.
+
+Lanes:
+  local         bump the version and install /Applications/AudioBook Boss.app
+  dmg           bump the version and build, verify, and hash the portable DMG
+  github        dmg, plus audit, commit, push, wait for CI, tag, and publish
+  github+local  github, plus the local install after the DMG is verified
+
+Every lane first checks, without changing anything: macOS, branch main, not
+behind origin/main, a tree clean apart from CHANGELOG.md and the version
+files, and a non-empty "## [x.y.z] - <today>" changelog section. The github
+lanes also need the tag and the GitHub Release to be absent; the install lanes
+need the installed app to be closed. A rerun after a failure resumes: the bump
+and commit are no-ops once done. The tag waits for CI because CI is the
+release's only Linux proof.`;
+
 export interface Release {
 	version: string;
 	lane: Lane;
@@ -453,7 +471,7 @@ const STEP_ACTIONS: Record<Step, (context: Context) => void> = {
 
 function main(): void {
 	if (process.argv.includes('--help') || process.argv.includes('-h')) {
-		console.log(USAGE);
+		console.log(HELP);
 		return;
 	}
 	const repoRoot = path.resolve(import.meta.dirname, '..');

@@ -27,3 +27,6 @@
   as finished, and a title's cleanup ends after its last progress event.
 - Hosts, `abb-dev`, session previews, and the UI read `OperationSnapshot.phase`
   and keep no status list of their own.
+- `title_cancel_requested` is not a `work_operation` record, because
+  `scripts/dev-log-analysis.ts` validates those records as lifecycle events;
+  the job's own terminal record carries the outcome.

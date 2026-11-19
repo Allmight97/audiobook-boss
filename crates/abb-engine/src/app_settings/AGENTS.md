@@ -30,3 +30,5 @@
   checks a durable choice through their APIs.
 - Store request-shaped settings only; display state stays out. Runtime owners
   validate a persisted path before they read or write it.
+- `storage.rs` keeps an unreadable settings file aside with a hard link,
+  because a link fails when the name exists and a rename would replace it.

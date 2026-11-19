@@ -32,3 +32,13 @@
   community recipe that applies only when that Plex setup is in use.
 - Audio resolves the output extension before collision review; naming and
   collision policy take that path, and codec choice stays with Audio.
+
+## Outside facts
+
+- macOS and Windows disks usually ignore case, so `file_lock.rs` folds case in
+  the lock key there; two files that differ only in case then wait for each
+  other.
+- APFS folds Unicode normalization forms together, so two titles whose names
+  differ only in form name one path; the second must fail, never replace.
+- The stale-temp sweep in `commit.rs` checks `DirEntry::file_type`, which does
+  not follow symlinks, so a link or folder that imitates the temp name stays.

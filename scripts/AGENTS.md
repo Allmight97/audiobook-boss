@@ -22,8 +22,9 @@
 - Select Rust packages with `-p`: Cargo's workspace discovery pulls unrelated
   binaries into the target set.
 - Each git worktree holds its own `target/`; remove finished worktrees.
-- Linux builds link with mold through clang (`.cargo/config.toml`); a
-  `RUSTFLAGS` variable replaces that config's flags.
+- Linux builds link with mold through clang (`.cargo/config.toml`), which cut
+  a relink after an engine edit from about 20 s to 7 s; GCC before 12 rejects
+  `-fuse-ld=mold`. A `RUSTFLAGS` variable replaces that config's flags.
 - Clippy still typechecks the FFmpeg bindings crate after a build, because
   Cargo treats check and build as different units.
 - Direct Cargo or upstream Tauri CLI launches bypass the per-checkout dev
@@ -34,7 +35,8 @@
 ## Script rules
 
 - A new script enforces a live repo invariant or simplifies a build or release
-  workflow, and has a package script or a usage header.
+  workflow, and has a package script or a `--help` text that prints its
+  usage (a heredoc or `USAGE` string, never a comment header).
 - `check-tauri-runtime-boundary.ts` stays a text scan, only for what Oxlint's
   `no-restricted-imports` cannot name (namespace imports, star re-exports,
   `__TAURI_INVOKE`), because TypeScript 7 offers no stable compiler API
@@ -44,7 +46,8 @@
 - A `no-restricted-imports` message states its rule; when the reason does not
   fit, it names the `AGENTS.md` that holds it.
 - Update `bun.lock` in place at `lockfileVersion` 1, because Dependabot's Bun
-  updater rejects newer versions.
+  updater rejects newer versions; a lockfile Bun 1.4 or later writes from
+  scratch is version 2 and silently stops Bun updates.
 
 ## Dependencies
 
@@ -91,7 +94,11 @@
 - Setup cannot install rustup, or Homebrew on macOS; it stops first with the
   install link. Without root or sudo, frontend setup skips shellcheck, which
   `verify.sh tooling` and the pre-commit hook need.
-- The Claude Code cloud SessionStart hook runs `setup.sh frontend`; Cursor
+- `.githooks/pre-commit` runs formatters and lints on staged files only, never
+  builds or tests, so a commit stays fast; CI runs the full lanes.
+- The Claude Code cloud SessionStart hook runs `setup.sh frontend`, because a
+  cloud session starts without `node_modules` and may carry another Bun; the
+  hook's stdout becomes session context, so setup logs go to stderr. Cursor
   cloud runs `setup.sh` from `.cursor/environment.json`; Codex cloud sets the
   same command in its environment settings, outside the repo.
 - Cloud setup steps do not pass their environment to agent shells, so run
@@ -103,3 +110,39 @@
   media test that fails on it is a readback artifact, not a regression.
 - Linux cannot prove Apple AAC (AudioToolbox) behavior; the macOS CI leg runs
   the `apple` lane.
+
+## Outside facts
+
+- `setup.sh`: Homebrew's FFmpeg prints `-version` on stderr, and Homebrew may
+  leave it unlinked from `bin/`, so setup reads the formula prefix. BtbN
+  appends `-YYYYMMDD` to the describe id, and a master autobuild's version
+  token is `N-<count>-g<sha>`.
+- `setup.sh` parses with awk, because BSD sed reads `\?` literally.
+- `setup.sh` fetches Bun from GitHub releases, because some agent network
+  policies deny bun.sh. A minimal Ubuntu image lacks curl, xz, and unzip, so
+  frontend setup installs them first.
+- `setup.sh rust` mirrors the pinned FFmpeg source, so verification works
+  offline after setup (Codex cloud can drop the network).
+- Cursor cloud wraps `core.hooksPath` and records the original path in
+  `.cursor-original-hooks-path`, so setup accepts either.
+- `check-file-size.mjs`: git reports the repository root with symlinks
+  resolved (macOS `/tmp` is `/private/tmp`).
+- `check-rust-complexity.sh` raises lizard's length limit, because lizard can
+  misread where a function ends (a complexity-13 function read as 1000+
+  lines).
+- `check-workflows.sh` runs zizmor `--offline`, so audits that query GitHub
+  cannot change the result between runs.
+- `dev-tauri-log.sh`: a later process substitution makes the tee's pid
+  unwaitable in bash, so the drain signal is liveness plus the exit-status
+  sidecar; a tee that died on a write error must not pass as drained.
+- `ffmpeg-upstream.ts --issue` uses `gh api` REST only, because cloud
+  sessions block GraphQL.
+- `lane-paths.test.ts` uses dorny/paths-filter's matcher options, so a pass
+  there means CI selects the lane.
+- `release.ts`: `gh run list --commit` matches only a full SHA. The tag waits
+  for CI, because CI is the release's only Linux proof.
+- `ci-timing.ts`: a `closed` run is a pull request's closed event.
+- `golden-path/features/corpus.sh` measures raw ADTS length by decoding,
+  because ffprobe estimates it from the bit rate (1.1% short on a 5-minute
+  probe). Its 0.25 s length tolerance covers 2112 AAC priming samples at
+  22.05 kHz and does not grow with the book.

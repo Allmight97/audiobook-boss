@@ -55,3 +55,5 @@ bullet has none.
   `src-tauri/src/bin/export_bindings/scenarios.json`.
 - The recorder writes `audio` as null in every step, because no replay reads
   it and it would be most of the file.
+- `eslint/no-console` is an error under `src/` (`.oxlintrc.json`), because
+  production code reports through the log bridge or a visible state.

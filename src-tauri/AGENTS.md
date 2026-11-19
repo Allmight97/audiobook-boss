@@ -43,3 +43,16 @@
 - The fixture check runs on macOS and Linux, so a value that differs between
   machines is pinned in `pin_machine_values`. Name a title in `scenarios.json`
   only after importing it, or the recorder panics.
+
+## Outside facts
+
+- `events.rs`: Rust's orphan rule forbids implementing `tauri_specta::Event`
+  here for an engine type, so each engine payload gets a host-owned event
+  type.
+- `ipc_contract.rs` casts bigints to JS numbers, because the JSON IPC carries
+  bounded sizes, timestamps, counts, indices, and sequence values the
+  frontend does arithmetic on. A float may use `specta_typescript::Number`
+  only when its Rust owner keeps it finite; add `bigint` or lossless floats
+  only for a payload that needs them.
+- `cover_protocol.rs`: the scheme handler runs on the webview's thread, so
+  the cover loads on another task.

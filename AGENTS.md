@@ -95,6 +95,17 @@ without asking; they write only `.logs/`, `target/`, and temp dirs.
 named lanes run afresh. `verify.sh --help` lists the lanes and what each form
 runs; their commands live only in `verify.sh`.
 
+## Root Config Facts
+
+- `vite.config.ts`: `tauri://localhost` serves the built app without CORS
+  headers and WebKit then refuses a `crossorigin` script or link, so
+  `removeCrossoriginPlugin` strips it; dev mode serves modules over
+  `http://localhost`. WebKit under `tauri://localhost` also rejects an import
+  cycle between chunks, so the build emits one bundle (`codeSplitting:
+  false`). Tauri expects the dev server on a fixed port (`strictPort`).
+- `Cargo.toml` builds the image codecs optimized in dev and test profiles,
+  because unoptimized cover decoding is many times slower than release.
+
 ## Refactor Discipline
 
 - Name the owned invariant and its owner before refactoring; move truth to the

@@ -54,3 +54,26 @@
   alone (`SbrDelayOwner`).
 - A windowed input reads all access units (`ignore_editlist`), because an edit
   list can drop the final unit that holds the delayed tail.
+- `he_timing.rs` reads iTunSMPB as FFmpeg's MP4 reader does: four hex fields
+  of at most 16 digits, counts up to 2^40, priming in 1..16384, a positive
+  length.
+- An HE file's half-rate timeline cannot express an odd full-rate duration;
+  LC and even HE durations keep an exact sample count.
+- FAAC HE packets past the audio are kept and marked discard, and the
+  crossing packet keeps its full duration (`encoder/write.rs`
+  `retain_postroll`), so the HE decoder's postroll stays available.
+- A backward-compatible HE AudioSpecificConfig starts with the LC object
+  type; only the demuxer's probed profile accounts for the SBR or PS
+  extension (`streams.rs`).
+
+## FAAD3 and packet joins
+
+- `faad_decoder.rs` shifts the stream by FAAD's reported delay before FFmpeg's
+  packet trimming applies, the order the `faad` frontend uses; the trimming
+  mirrors `discard_samples()` in libavcodec's `decode.c`, and its tests use
+  FFmpeg's `tests/ref/fate/api-skip-samples` values. FAAD reveals its output
+  format (implicit SBR, ADTS) only with its first PCM, so the resampler is
+  built after it.
+- A packet-copy join takes only AAC sources with complete, contiguous frames
+  (`preserve_merge.rs`), because one stream cannot carry interior priming,
+  padding, or a decoder reset.

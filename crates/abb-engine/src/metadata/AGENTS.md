@@ -18,7 +18,8 @@
 - Real file saves go through `save_metadata_intent`, so series validation can
   see the source's tags.
 - MP4-family tag truth never depends on a bare remux, because FFmpeg's mov
-  muxer drops unknown keys (rustdoc on `finish_artifact_tags`).
+  muxer drops series, freeform, and sort keys: `finish_artifact_tags`
+  rewrites an MP4-family artifact's tags through mp4ameta after every mux.
 - A Save never opens the original for writing: it checks a sibling copy and
   swaps it in, so a crash or a bad write leaves the original whole.
 - `tag_support::refuse_unholdable_edits` fails a Save that edits a tag the
@@ -64,8 +65,10 @@
   told otherwise.
 - Every cover reader offers its pictures in file order to `CoverChoice` and
   adds no rule of its own, so an export keeps the cover the app shows.
-- Thumbnail readers stay allocation-bounded before decode or demux; an unknown
-  non-MP4 tag container returns no thumbnail rather than an unbounded demux.
+- Thumbnail readers stay allocation-bounded before decode or demux, because
+  FFmpeg's demuxer open can read a whole attached picture before ABB sees its
+  size; an unknown non-MP4 tag container returns no thumbnail rather than an
+  unbounded demux.
 - When metadata policy crosses planning and writing, prove it through the
   production processing planner and read tags from real output files on each
   affected route; a test with supplied metadata cannot prove planner
@@ -74,7 +77,9 @@
   (`crates/abb-engine/tests/snapshots/tag-interop/`) pin what every
   tag-writing route leaves in a file. Rewrite one with
   `ABB_BLESS_TAG_SNAPSHOTS=1` only for an intended output change, and name
-  that change in the commit.
+  that change in the commit. Encodes are not snapshotted, because their bytes
+  follow the linked FFmpeg; two Matroska encodes differ in bytes because its
+  muxer writes a random segment identifier.
 - Keep `set | clear | absent` field semantics (absent keeps the source value)
   across save, processing, naming, write plans, validation, and covers. Clear
   is the explicit blank action, never a sentinel value.
@@ -106,6 +111,36 @@
 - A same-container remux carries no cover, so it copies every picture the file
   holds; the first is not a chosen cover.
 - Opus Matroska to MP4 copies restore the 48 kHz timeline lost to millisecond
-  container rounding; a discontinuity fails rather than discards audio. MP4
-  frame-size metadata must let the muxer honor trailing discard padding. An
-  MP3 source without trim metadata gets no invented Xing decoder delay.
+  container rounding; a discontinuity fails rather than discards audio. The
+  timeline comes from packet framing (RFC 6716 §3.1–3.2: the TOC gives frame
+  duration, the packing code the frame count), read without decoding. MP4
+  frame-size metadata must let the muxer honor trailing discard padding, so a
+  copy declares Opus's smallest legal frame. An MP3 source without trim
+  metadata gets no invented Xing decoder delay.
+
+## Outside facts
+
+- `mp4_covr.rs`: mp4ameta's `Tag::read_from_path` allocates the whole artwork
+  before a size check can run, so thumbnails walk `moov/udta/meta/ilst/covr`
+  themselves. A valid MP4 can have padding before `ftyp`, and a legacy
+  QuickTime file may name itself only by its `moov`.
+- `matroska_cover.rs`: only a Segment may have an unknown size (streaming
+  writers write it as eight bytes) and run to end of file; any other
+  unknown-size element cannot be skipped by a bounded reader.
+- `container.rs`: MP4 players end a chapter where the next one starts, so for
+  MP4 only chapter starts and titles are kept and compared. FFmpeg probes raw
+  ADTS AAC as `aac`, but the muxer that writes it is `adts`.
+- `cover_art/format.rs`: a negative BMP height means rows run top-down. The
+  format tests follow FFmpeg's `ff_id3v2_mime_tags` (`libavformat/id3v2`),
+  which maps an ID3 or FLAC picture's MIME type to its codec.
+- `field_schema.rs`: FFmpeg exports an ID3 `COMM` frame as
+  `comment[-descriptor][-language]`; ABB shows one user comment and passes the
+  iTunes technical `COMM` records through untouched.
+- The sinks write Author to both artist and album artist, because
+  Audiobookshelf and Plex group books by album artist.
+- `mod.rs` save check: FFmpeg reads a joined MP3's duration as a bitrate
+  estimate but measures its remuxed copy, and raw ADTS has no comparable
+  duration, so durations count only when both sides were measured or both
+  estimated.
+- `cue_tests.rs`: two CUE names that differ only in case are two candidates
+  on a case-sensitive volume and one file on a case-insensitive one.
