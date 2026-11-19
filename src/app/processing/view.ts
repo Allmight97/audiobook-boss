@@ -1,4 +1,4 @@
-import type { ChildJobStatus, WorkProgressStage } from '../../lib/generated/tauri';
+import type { ChildCounts, ChildJobStatus, WorkProgressStage } from '../../lib/generated/tauri';
 
 export type JobListItem = {
 	readonly childJobId: string;
@@ -15,6 +15,7 @@ export type StepTone = 'normal' | 'error';
 export type StatusView = {
 	readonly coverArtSrc: string | null;
 	readonly jobItems: ReadonlyArray<JobListItem>;
+	readonly counts: ChildCounts;
 	readonly progressPercentage: number;
 	readonly statusText: string;
 	readonly stepText: string;
@@ -26,6 +27,7 @@ export type StatusView = {
 export const IDLE_STATUS_VIEW: StatusView = {
 	coverArtSrc: null,
 	jobItems: [],
+	counts: { queued: 0, running: 0, completed: 0, skipped: 0, cancelled: 0, failed: 0 },
 	progressPercentage: 0,
 	statusText: 'Idle',
 	stepText: 'Current Step: Ready',

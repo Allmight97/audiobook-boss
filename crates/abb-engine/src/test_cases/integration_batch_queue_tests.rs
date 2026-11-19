@@ -3,7 +3,7 @@ use std::fs;
 use crate::app_settings::{ConcurrencyPreference, SettingsIntent};
 use crate::output_artifact::lock_output_file;
 use crate::session::{MetadataField, SelectionModifiers, SessionIntent};
-use crate::work_runtime::{ChildJobStatus, OperationId, OperationSnapshot};
+use crate::work_runtime::{ChildCounts, ChildJobStatus, OperationId, OperationSnapshot};
 use crate::ShutdownOutcome;
 
 use super::integration_session_desk::Desk;
@@ -57,7 +57,7 @@ async fn three_titles_one_at_a_time(desk: &Desk) {
 }
 
 #[tokio::test]
-async fn titles_waiting_behind_a_running_one_read_their_place_and_close_up_after_a_cancel() {
+async fn titles_waiting_behind_a_running_one_read_their_place_and_the_counts_follow_a_cancel() {
     let desk = Desk::new();
     three_titles_one_at_a_time(&desk).await;
     let alpha_folder = desk.root.path().join("exports/Source Author/Alpha");
@@ -75,6 +75,14 @@ async fn titles_waiting_behind_a_running_one_read_their_place_and_close_up_after
             ChildJobStatus::Queued { position: 2, of: 2 },
         ]
     );
+    assert_eq!(
+        operation(&desk, &export).counts,
+        ChildCounts {
+            queued: 2,
+            running: 1,
+            ..ChildCounts::default()
+        }
+    );
 
     let beta = operation(&desk, &export).children[1].child_job_id.clone();
     desk.engine
@@ -88,9 +96,26 @@ async fn titles_waiting_behind_a_running_one_read_their_place_and_close_up_after
         statuses(&desk, &export)[2],
         ChildJobStatus::Queued { position: 1, of: 1 }
     );
+    assert_eq!(
+        operation(&desk, &export).counts,
+        ChildCounts {
+            queued: 1,
+            running: 1,
+            cancelled: 1,
+            ..ChildCounts::default()
+        }
+    );
 
     drop(hold);
     desk.wait_until("done", |d| d.export_finished(&export))
         .await;
+    assert_eq!(
+        operation(&desk, &export).counts,
+        ChildCounts {
+            completed: 2,
+            cancelled: 1,
+            ..ChildCounts::default()
+        }
+    );
     assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
 }

@@ -137,7 +137,7 @@ fn operation(
                 output_update: None,
             })
             .collect(),
-        terminal_summary: None,
+        counts: Default::default(),
         log_tail: Vec::new(),
     }
 }

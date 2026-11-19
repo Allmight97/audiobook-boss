@@ -24,9 +24,9 @@ mod types;
 
 pub(crate) use runtime::{now_ms, InlineRunTerminal, WorkRuntime};
 pub use types::{
-    ChildJobSnapshot, ChildJobStatus, OperationId, OperationLogEntry, OperationPhase,
-    OperationSnapshot, OperationTerminalSummary, ProgressSnapshot, WorkOperationStatus,
-    WorkOperationsSnapshot, WorkOperationsUpdate, WorkProgressStage,
+    ChildCounts, ChildJobSnapshot, ChildJobStatus, OperationId, OperationLogEntry, OperationPhase,
+    OperationSnapshot, ProgressSnapshot, WorkOperationStatus, WorkOperationsSnapshot,
+    WorkOperationsUpdate, WorkProgressStage,
 };
 
 pub(crate) use types::SubmitProcessingOperationRequest;

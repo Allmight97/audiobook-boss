@@ -35,6 +35,7 @@ function preview(): NonNullable<OutputSnapshot['previewRun']> {
 			cancelRequested: false,
 			progress,
 			logTail: [],
+			counts: { queued: 0, running: 1, completed: 0, skipped: 0, cancelled: 0, failed: 0 },
 			children: [
 				{
 					childJobId: 'input-0',
@@ -269,6 +270,7 @@ describe('engine preview adapter', () => {
 				progress: waiting,
 			},
 		];
+		run.operation.counts = { ...run.operation.counts, queued: 2, running: 1, completed: 1 };
 		engine.change((state) => {
 			state.output.previewRun = run;
 		});
@@ -284,6 +286,35 @@ describe('engine preview adapter', () => {
 		const row = (label: string) => screen.getByText(label).closest<HTMLElement>('[data-status]')!;
 		expect(within(row('Next.m4b')).getByText('Queued • #1 of 2 (0.0%)')).toBeVisible();
 		expect(within(row('Last.m4b')).getByText('Queued • #2 of 2 (0.0%)')).toBeVisible();
+	});
+
+	it("shows the engine's counts in the queue chips, not a count of the rows", async () => {
+		const engine = createFakeEngine();
+		const run = preview();
+		run.operation.counts = {
+			queued: 2,
+			running: 1,
+			completed: 1,
+			skipped: 1,
+			cancelled: 1,
+			failed: 1,
+		};
+		engine.change((state) => {
+			state.output.previewRun = run;
+		});
+		const app = await createAppRuntime({ engine });
+		runtimes.push(app);
+		render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<StatusPanelView />
+			</AppRuntimeProvider>
+		));
+		const chips = await screen.findByRole('region', { name: 'Queue status summary' });
+		expect(
+			within(chips)
+				.getAllByText(/./)
+				.map((chip) => chip.textContent),
+		).toEqual(['1 converting', '2 queued', '2 complete', '1 failed', '1 cancelled']);
 	});
 
 	it('leaves the engine line on a cancelled preview and reports no failure', async () => {

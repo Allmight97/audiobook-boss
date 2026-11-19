@@ -33,6 +33,7 @@ function operation(operationId: string): OperationSnapshot {
 			etaSeconds: null,
 		},
 		children: [],
+		counts: { queued: 0, running: 0, completed: 0, skipped: 0, cancelled: 0, failed: 0 },
 		logTail: [],
 	};
 }

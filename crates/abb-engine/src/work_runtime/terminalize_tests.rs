@@ -2,9 +2,10 @@ use super::snapshot::new_processing_snapshot;
 use super::state::WorkRuntimeState;
 use super::{ChildJobStatus, OperationId, OperationPhase, WorkOperationStatus, WorkProgressStage};
 use crate::processing::{
-    EventStage, OperationKind, OperationResultSummary, ProcessCommandResult, ProcessResultEntry,
-    ProcessResultStatus, ProgressEvent,
+    EventStage, OperationKind, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus,
+    ProgressEvent,
 };
+use abb_processing_core::summarize_result_statuses;
 
 fn accepted_state() -> (WorkRuntimeState, OperationId) {
     let mut state = WorkRuntimeState::default();
@@ -66,7 +67,7 @@ fn a_processing_run_keeps_a_title_cancel_request_and_an_inline_run_clears_it() {
     state
         .request_child_cancel(&operation_id, "input-0")
         .expect("cancel first title");
-    let summary = OperationResultSummary::all_cancelled(2);
+    let summary = summarize_result_statuses([ProcessResultStatus::Cancelled; 2]);
     let terminals = [
         (0, ProcessResultStatus::Cancelled, "stopped".to_string()),
         (1, ProcessResultStatus::Cancelled, "stopped".to_string()),

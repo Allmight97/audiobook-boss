@@ -198,6 +198,15 @@ export type ChapterSpec = {
 	endMs: number,
 };
 
+export type ChildCounts = {
+	queued: number,
+	running: number,
+	completed: number,
+	skipped: number,
+	cancelled: number,
+	failed: number,
+};
+
 export type ChildJobSnapshot = {
 	childJobId: string,
 	operationId: OperationId,
@@ -480,6 +489,7 @@ export type OperationSnapshot = {
 	cancelRequested: boolean,
 	progress: ProgressSnapshot,
 	children: ChildJobSnapshot[],
+	counts: ChildCounts,
 	logTail: OperationLogEntry[],
 };
 

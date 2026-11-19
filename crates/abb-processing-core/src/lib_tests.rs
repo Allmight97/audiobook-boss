@@ -60,22 +60,6 @@ fn classify_run_terminal_treats_skipped_only_as_skipped() {
 }
 
 #[test]
-fn whole_operation_summary_constructors_are_consistent() {
-    let failed = OperationResultSummary::all_failed(3);
-    assert_eq!(failed.total, 3);
-    assert_eq!(failed.failed, 3);
-    assert_eq!(classify_run_terminal(&failed), RunTerminalClass::Failed);
-
-    let cancelled = OperationResultSummary::all_cancelled(0);
-    assert_eq!(cancelled.total, 1);
-    assert_eq!(cancelled.cancelled, 1);
-    assert_eq!(
-        classify_run_terminal(&cancelled),
-        RunTerminalClass::Cancelled
-    );
-}
-
-#[test]
 fn a_run_with_one_kind_of_result_has_that_class_and_two_kinds_are_mixed() {
     let class_of = |statuses: &[ProcessResultStatus]| {
         classify_run_terminal(&summarize_result_statuses(statuses.iter().copied()))

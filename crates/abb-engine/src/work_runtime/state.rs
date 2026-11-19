@@ -12,9 +12,7 @@ use std::collections::BTreeMap;
 
 use super::stage_table::{for_event, CANCELLING_STAGE};
 use super::tally::tally;
-use super::terminal::{
-    operation_terminal_summary, terminal_summary_from_summary, work_status_from_summary,
-};
+use super::terminal::{terminal_message, work_status_from_summary};
 use super::terminalize::{apply_terminal_plan, ChildOutcome, TerminalPlan};
 
 const TERMINAL_CHILD_STATUSES: [ChildJobStatus; 4] = [
@@ -213,7 +211,7 @@ impl WorkRuntimeState {
     ) -> Result<OperationSnapshot> {
         self.terminalize(operation_id, now_ms, |snapshot| TerminalPlan {
             status: work_status_from_summary(&result.summary),
-            summary: terminal_summary_from_summary(&result.summary),
+            message: terminal_message(&result.summary),
             cancel_requested: false,
             children: result
                 .results
@@ -235,7 +233,7 @@ impl WorkRuntimeState {
     ) -> Result<OperationSnapshot> {
         self.terminalize(operation_id, now_ms, |snapshot| TerminalPlan {
             status: work_status_from_summary(summary),
-            summary: terminal_summary_from_summary(summary),
+            message: terminal_message(summary),
             cancel_requested: false,
             children: child_terminals
                 .iter()
@@ -255,10 +253,7 @@ impl WorkRuntimeState {
     ) -> Result<OperationSnapshot> {
         self.terminalize(operation_id, now_ms, |snapshot| TerminalPlan {
             status: WorkOperationStatus::Failed,
-            summary: operation_terminal_summary(
-                &OperationResultSummary::all_failed(snapshot.children.len()),
-                message.clone(),
-            ),
+            message: message.clone(),
             cancel_requested: false,
             children: unsettled_children(snapshot, |status| {
                 !matches!(
@@ -282,10 +277,7 @@ impl WorkRuntimeState {
     ) -> Result<OperationSnapshot> {
         self.terminalize(operation_id, now_ms, |snapshot| TerminalPlan {
             status: WorkOperationStatus::Cancelled,
-            summary: operation_terminal_summary(
-                &OperationResultSummary::all_cancelled(snapshot.children.len()),
-                message.clone(),
-            ),
+            message: message.clone(),
             cancel_requested: true,
             children: unsettled_children(snapshot, |status| {
                 !matches!(status, ChildJobStatus::Completed | ChildJobStatus::Skipped)

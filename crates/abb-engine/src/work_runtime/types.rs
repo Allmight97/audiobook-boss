@@ -128,15 +128,15 @@ pub struct OperationLogEntry {
 
 pub const OPERATION_LOG_TAIL_CAP: usize = 20;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct OperationTerminalSummary {
-    pub total: usize,
-    pub succeeded: usize,
-    pub skipped: usize,
-    pub cancelled: usize,
-    pub failed: usize,
-    pub message: String,
+pub struct ChildCounts {
+    pub queued: u32,
+    pub running: u32,
+    pub completed: u32,
+    pub skipped: u32,
+    pub cancelled: u32,
+    pub failed: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -155,8 +155,7 @@ pub struct OperationSnapshot {
     pub cancel_requested: bool,
     pub progress: ProgressSnapshot,
     pub children: Vec<ChildJobSnapshot>,
-    #[serde(skip)]
-    pub terminal_summary: Option<OperationTerminalSummary>,
+    pub counts: ChildCounts,
     pub log_tail: Vec<OperationLogEntry>,
 }
 

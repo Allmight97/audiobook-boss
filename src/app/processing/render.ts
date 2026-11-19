@@ -40,6 +40,7 @@ export function previewView(preview: PreviewRun): Omit<StatusView, 'concurrencyT
 	return {
 		coverArtSrc: preview.cover ? coverSrc(preview.cover) : null,
 		jobItems: previewJobItems(operation),
+		counts: operation.counts,
 		progressPercentage: operation.progress.percentage,
 		statusText: previewStatusText(operation),
 		stepText: `Current Step: ${operation.progress.message}`,

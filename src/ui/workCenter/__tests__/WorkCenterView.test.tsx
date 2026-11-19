@@ -32,6 +32,7 @@ function completedOperation(): OperationSnapshot {
 		cancellable: false,
 		cancelRequested: false,
 		progress,
+		counts: { queued: 0, running: 0, completed: 2, skipped: 0, cancelled: 0, failed: 0 },
 		children: [
 			{
 				childJobId: 'first',

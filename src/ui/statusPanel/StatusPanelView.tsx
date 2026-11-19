@@ -11,19 +11,13 @@ function jobStatusLabel(item: JobListItem): string {
 	return `${item.statusText} (${item.percentage.toFixed(1)}%)`;
 }
 
-function countItems(
-	items: ReadonlyArray<JobListItem>,
-	statuses: ReadonlyArray<JobListItem['status']>,
-): number {
-	return items.filter((item) => statuses.includes(item.status)).length;
-}
-
-function activeChipLabel(items: ReadonlyArray<JobListItem>): string | null {
-	const activeItems = items.filter((item) => item.status === 'running');
-	if (activeItems.length === 0) return null;
-	const labels = new Set(activeItems.map((item) => stageActivity(item.stage)));
+function activeChipLabel(items: ReadonlyArray<JobListItem>, running: number): string | null {
+	if (running === 0) return null;
+	const labels = new Set(
+		items.filter((item) => item.status === 'running').map((item) => stageActivity(item.stage)),
+	);
 	const label = labels.size === 1 ? Array.from(labels)[0] : 'running';
-	return `${activeItems.length} ${label}`;
+	return `${running} ${label}`;
 }
 
 export function StatusPanelView(): JSX.Element {
@@ -32,11 +26,9 @@ export function StatusPanelView(): JSX.Element {
 	const startProcessing = processing.start;
 	const [queueExpanded, setQueueExpanded] = createSignal(false);
 	const items = createMemo(() => view().jobItems);
-	const activeChip = createMemo(() => activeChipLabel(items()));
-	const queuedCount = createMemo(() => countItems(items(), ['queued']));
-	const completeCount = createMemo(() => countItems(items(), ['completed', 'skipped']));
-	const failedCount = createMemo(() => countItems(items(), ['failed']));
-	const cancelledCount = createMemo(() => countItems(items(), ['cancelled']));
+	const activeChip = createMemo(() => activeChipLabel(items(), view().counts.running));
+	const counts = () => view().counts;
+	const completeCount = () => counts().completed + counts().skipped;
 
 	return (
 		<div class="panel status-panel">
@@ -72,17 +64,17 @@ export function StatusPanelView(): JSX.Element {
 								<Show when={activeChip()}>
 									{(label) => <span class="queue-chip is-running">{label()}</span>}
 								</Show>
-								<Show when={queuedCount() > 0}>
-									<span class="queue-chip is-queued">{queuedCount()} queued</span>
+								<Show when={counts().queued > 0}>
+									<span class="queue-chip is-queued">{counts().queued} queued</span>
 								</Show>
 								<Show when={completeCount() > 0}>
 									<span class="queue-chip is-completed">{completeCount()} complete</span>
 								</Show>
-								<Show when={failedCount() > 0}>
-									<span class="queue-chip is-failed">{failedCount()} failed</span>
+								<Show when={counts().failed > 0}>
+									<span class="queue-chip is-failed">{counts().failed} failed</span>
 								</Show>
-								<Show when={cancelledCount() > 0}>
-									<span class="queue-chip is-cancelled">{cancelledCount()} cancelled</span>
+								<Show when={counts().cancelled > 0}>
+									<span class="queue-chip is-cancelled">{counts().cancelled} cancelled</span>
 								</Show>
 							</section>
 							<button

@@ -1,6 +1,6 @@
 use super::stage_table::{for_finished_operation, for_result};
 use super::state::push_operation_log;
-use super::types::{OperationSnapshot, OperationTerminalSummary, WorkOperationStatus};
+use super::types::{OperationSnapshot, WorkOperationStatus};
 use crate::processing::{ProcessResultEntry, ProcessResultStatus};
 
 pub(super) struct ChildOutcome<'a> {
@@ -49,7 +49,7 @@ impl<'a> ChildOutcome<'a> {
 
 pub(super) struct TerminalPlan<'a> {
     pub status: WorkOperationStatus,
-    pub summary: OperationTerminalSummary,
+    pub message: String,
     pub cancel_requested: bool,
     pub children: Vec<ChildOutcome<'a>>,
 }
@@ -68,9 +68,8 @@ pub(super) fn apply_terminal_plan(
     snapshot.cancel_requested |= plan.cancel_requested;
     snapshot.progress.stage = stage;
     snapshot.progress.percentage = 100.0;
-    snapshot.progress.message = plan.summary.message.clone();
-    push_operation_log(snapshot, &plan.summary.message, Some(stage), None);
-    snapshot.terminal_summary = Some(plan.summary);
+    push_operation_log(snapshot, &plan.message, Some(stage), None);
+    snapshot.progress.message = plan.message;
 
     let mut warning_logs = Vec::new();
     for outcome in plan.children {

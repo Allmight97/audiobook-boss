@@ -49,6 +49,7 @@ function operation(id: string, sequence: number, childCount = 1): OperationSnaps
 			etaSeconds: null,
 		},
 		children,
+		counts: { queued: childCount, running: 0, completed: 0, skipped: 0, cancelled: 0, failed: 0 },
 		logTail: [],
 	};
 }

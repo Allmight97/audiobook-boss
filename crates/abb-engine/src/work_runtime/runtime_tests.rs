@@ -150,14 +150,9 @@ fn work_operation_record_format_is_stable_and_path_free() {
     assert!(!accepted.contains("/private/library"));
 
     snapshot.set_status(WorkOperationStatus::Mixed);
-    snapshot.terminal_summary = Some(super::super::OperationTerminalSummary {
-        total: 2,
-        succeeded: 1,
-        skipped: 0,
-        cancelled: 0,
-        failed: 1,
-        message: "Mixed result".to_string(),
-    });
+    snapshot.children[0].status = super::super::ChildJobStatus::Completed;
+    snapshot.children[1].status = super::super::ChildJobStatus::Failed;
+    super::super::tally::tally(&mut snapshot);
     assert_eq!(
         format_work_operation_record(WorkOperationLogEvent::Terminal, &snapshot),
         "work_operation event=terminal operation_id=operation-123 kind=processing_batch status=mixed total=2 succeeded=1 skipped=0 cancelled=0 failed=1"

@@ -27,30 +27,6 @@ pub struct OperationResultSummary {
     pub failed: usize,
 }
 
-impl OperationResultSummary {
-    pub fn all_failed(total: usize) -> Self {
-        let total = total.max(1);
-        Self {
-            total,
-            succeeded: 0,
-            skipped: 0,
-            cancelled: 0,
-            failed: total,
-        }
-    }
-
-    pub fn all_cancelled(total: usize) -> Self {
-        let total = total.max(1);
-        Self {
-            total,
-            succeeded: 0,
-            skipped: 0,
-            cancelled: total,
-            failed: 0,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum ProcessResultStatus {

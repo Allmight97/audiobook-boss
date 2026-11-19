@@ -1,28 +1,8 @@
-use super::types::{OperationPhase, OperationTerminalSummary, WorkOperationStatus};
+use super::types::{OperationPhase, WorkOperationStatus};
 use crate::processing::{classify_run_terminal, OperationResultSummary, RunTerminalClass};
-
-pub(crate) fn operation_terminal_summary(
-    summary: &OperationResultSummary,
-    message: String,
-) -> OperationTerminalSummary {
-    OperationTerminalSummary {
-        total: summary.total,
-        succeeded: summary.succeeded,
-        skipped: summary.skipped,
-        cancelled: summary.cancelled,
-        failed: summary.failed,
-        message,
-    }
-}
 
 pub(crate) fn work_status_from_summary(summary: &OperationResultSummary) -> WorkOperationStatus {
     work_status_from_terminal_class(classify_run_terminal(summary))
-}
-
-pub(crate) fn terminal_summary_from_summary(
-    summary: &OperationResultSummary,
-) -> OperationTerminalSummary {
-    operation_terminal_summary(summary, terminal_message(summary))
 }
 
 fn work_status_from_terminal_class(class: RunTerminalClass) -> WorkOperationStatus {
@@ -46,7 +26,7 @@ pub(super) fn phase_of(status: WorkOperationStatus) -> OperationPhase {
     }
 }
 
-fn terminal_message(summary: &OperationResultSummary) -> String {
+pub(crate) fn terminal_message(summary: &OperationResultSummary) -> String {
     if summary.failed > 0 {
         return format!(
             "Finished with {} succeeded, {} failed, {} skipped, {} cancelled.",

@@ -1,7 +1,7 @@
 use super::tally::tally;
 use super::types::{
-    ChildJobSnapshot, OperationId, OperationPhase, OperationSnapshot, ProgressSnapshot,
-    WorkOperationStatus,
+    ChildCounts, ChildJobSnapshot, OperationId, OperationPhase, OperationSnapshot,
+    ProgressSnapshot, WorkOperationStatus,
 };
 use crate::processing::OperationKind;
 use std::path::Path;
@@ -44,7 +44,7 @@ pub(crate) fn new_processing_snapshot(
         cancel_requested: false,
         progress: ProgressSnapshot::pending("Accepted for background processing."),
         children,
-        terminal_summary: None,
+        counts: ChildCounts::default(),
         log_tail: Vec::new(),
     };
     tally(&mut snapshot);
@@ -86,7 +86,7 @@ pub(crate) fn new_metadata_save_snapshot(
         cancel_requested: false,
         progress: ProgressSnapshot::pending("Queued for metadata save."),
         children,
-        terminal_summary: None,
+        counts: ChildCounts::default(),
         log_tail: Vec::new(),
     };
     tally(&mut snapshot);

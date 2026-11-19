@@ -504,15 +504,6 @@ enum WorkOperationLogEvent {
     Terminal,
 }
 
-#[derive(Default)]
-struct WorkOperationLogCounts {
-    total: usize,
-    succeeded: usize,
-    skipped: usize,
-    cancelled: usize,
-    failed: usize,
-}
-
 fn log_work_operation(event: WorkOperationLogEvent, snapshot: &OperationSnapshot) {
     log::info!("{}", format_work_operation_record(event, snapshot));
 }
@@ -521,46 +512,19 @@ fn format_work_operation_record(
     event: WorkOperationLogEvent,
     snapshot: &OperationSnapshot,
 ) -> String {
-    let counts = work_operation_log_counts(snapshot);
+    let counts = snapshot.counts;
     format!(
         "work_operation event={} operation_id={} kind={} status={} total={} succeeded={} skipped={} cancelled={} failed={}",
         work_operation_event_label(event),
         snapshot.operation_id,
         snapshot.kind.log_label(),
         work_operation_status_label(snapshot.status),
-        counts.total,
-        counts.succeeded,
+        snapshot.children.len(),
+        counts.completed,
         counts.skipped,
         counts.cancelled,
         counts.failed,
     )
-}
-
-fn work_operation_log_counts(snapshot: &OperationSnapshot) -> WorkOperationLogCounts {
-    if let Some(summary) = &snapshot.terminal_summary {
-        return WorkOperationLogCounts {
-            total: summary.total,
-            succeeded: summary.succeeded,
-            skipped: summary.skipped,
-            cancelled: summary.cancelled,
-            failed: summary.failed,
-        };
-    }
-
-    let mut counts = WorkOperationLogCounts {
-        total: snapshot.children.len(),
-        ..WorkOperationLogCounts::default()
-    };
-    for child in &snapshot.children {
-        match child.status {
-            super::ChildJobStatus::Completed => counts.succeeded += 1,
-            super::ChildJobStatus::Skipped => counts.skipped += 1,
-            super::ChildJobStatus::Cancelled => counts.cancelled += 1,
-            super::ChildJobStatus::Failed => counts.failed += 1,
-            super::ChildJobStatus::Queued { .. } | super::ChildJobStatus::Running => {}
-        }
-    }
-    counts
 }
 
 fn work_operation_event_label(event: WorkOperationLogEvent) -> &'static str {

@@ -199,10 +199,7 @@ fn terminal_result_updates_summary_and_child_rows_in_input_order() {
         .expect("complete");
 
     assert_eq!(snapshot.status, WorkOperationStatus::Mixed);
-    assert_eq!(
-        snapshot.terminal_summary.as_ref().expect("summary").failed,
-        1
-    );
+    assert_eq!(snapshot.counts.failed, 1);
     assert_eq!(snapshot.children[0].status, ChildJobStatus::Completed);
     assert_eq!(snapshot.children[1].status, ChildJobStatus::Failed);
     assert_eq!(snapshot.children[1].job_id.as_deref(), Some("job-2"));
@@ -400,7 +397,7 @@ fn success_plus_skipped_resolves_to_mixed_matching_canonical_classifier() {
 
     assert_eq!(snapshot.status, WorkOperationStatus::Mixed);
     assert_eq!(
-        snapshot.terminal_summary.as_ref().expect("summary").message,
+        snapshot.progress.message,
         "Finished with 1 succeeded and 1 skipped."
     );
 }
@@ -420,7 +417,7 @@ fn skipped_plus_cancelled_reports_mixed_message_counts() {
 
     assert_eq!(snapshot.status, WorkOperationStatus::Mixed);
     assert_eq!(
-        snapshot.terminal_summary.as_ref().expect("summary").message,
+        snapshot.progress.message,
         "Finished with 1 skipped and 1 cancelled."
     );
 }
@@ -528,9 +525,8 @@ fn complete_from_summary_terminalizes_metadata_save_children_by_index() {
         .expect("complete");
 
     assert_eq!(snapshot.status, WorkOperationStatus::Mixed);
-    let terminal = snapshot.terminal_summary.as_ref().expect("summary");
-    assert_eq!(terminal.succeeded, 1);
-    assert_eq!(terminal.failed, 1);
+    assert_eq!(snapshot.counts.completed, 1);
+    assert_eq!(snapshot.counts.failed, 1);
     assert_eq!(snapshot.children[0].status, ChildJobStatus::Completed);
     assert_eq!(
         snapshot.children[0].message.as_deref(),
