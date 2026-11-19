@@ -55,6 +55,8 @@ impl Resampler {
         unsafe { Self::create_from(input_layout, input_format, input_rate, output, options) }
     }
 
+    /// # Safety
+    /// `input_layout` points to a live channel layout.
     unsafe fn create_from(
         input_layout: *const sys::AVChannelLayout,
         input_format: sys::AVSampleFormat,

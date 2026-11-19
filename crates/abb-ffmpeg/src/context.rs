@@ -126,6 +126,8 @@ impl Chapter {
     }
 }
 
+/// # Safety
+/// `ctx` is a live format context that nobody changes while the slice lives.
 pub(crate) unsafe fn streams<'a>(ctx: *const sys::AVFormatContext) -> &'a [*mut sys::AVStream] {
     // SAFETY: the caller guarantees `ctx`; FFmpeg keeps `nb_streams` entries.
     unsafe {
@@ -136,6 +138,8 @@ pub(crate) unsafe fn streams<'a>(ctx: *const sys::AVFormatContext) -> &'a [*mut 
     }
 }
 
+/// # Safety
+/// `ctx` is a live format context.
 pub(crate) unsafe fn stream(
     ctx: *const sys::AVFormatContext,
     index: usize,
@@ -160,6 +164,8 @@ fn medium(kind: sys::AVMediaType) -> Medium {
     }
 }
 
+/// # Safety
+/// `ctx` is a live format context.
 pub(crate) unsafe fn stream_facts(ctx: *const sys::AVFormatContext) -> Vec<StreamFacts> {
     // SAFETY: the caller guarantees `ctx`; each stream and its `codecpar`
     // stay valid for the context's life.
@@ -193,6 +199,8 @@ pub(crate) unsafe fn stream_facts(ctx: *const sys::AVFormatContext) -> Vec<Strea
     }
 }
 
+/// # Safety
+/// `ctx` is a live format context.
 pub(crate) unsafe fn chapters(ctx: *const sys::AVFormatContext) -> Vec<Chapter> {
     // SAFETY: the caller guarantees `ctx`; FFmpeg keeps `nb_chapters` live
     // chapter pointers.

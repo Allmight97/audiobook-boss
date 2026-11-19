@@ -1,7 +1,10 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
 	ALLOWLIST,
 	commentFindings,
+	DOCTESTED_CRATES,
 	isPolicyFile,
 	keptComments,
 	stripComments,
@@ -23,6 +26,7 @@ describe('comment policy', () => {
 			'pin',
 			'ratchet',
 			'rustdoc-test',
+			'safety-doc',
 			'no-lane',
 			'audit-crate',
 			'oxlint-reason',
@@ -65,16 +69,16 @@ describe('comment policy', () => {
 		);
 	});
 
-	it('keeps a SAFETY comment and its continuation, and rejects a bare one', () => {
+	it('keeps a SAFETY comment and the lines that finish its sentence, and rejects a bare one', () => {
 		const source =
-			'    // SAFETY: the handle is open.\n    // Drop closes it.\n    unsafe { free(handle) }\n';
+			'    // SAFETY: the handle is open, and\n    // Drop closes it.\n    unsafe { free(handle) }\n';
 		expect(stripComments('crates/x/src/lib.rs', source)).toBe(source);
 		expect(
 			messages('crates/x/src/lib.rs', '    // SAFETY:\n    unsafe { free(p) }\n'),
 		).toHaveLength(1);
 	});
 
-	it('keeps an upstream bug link with its paragraph and drops the prose around a pin', () => {
+	it('keeps an upstream bug link with its sentence and drops the prose around it and a pin', () => {
 		const cargo = [
 			'# The lib name collides on Windows.',
 			'# See https://github.com/rust-lang/cargo/issues/8519',
@@ -85,7 +89,6 @@ describe('comment policy', () => {
 		].join('\n');
 		expect(stripComments('Cargo.toml', cargo)).toBe(
 			[
-				'# The lib name collides on Windows.',
 				'# See https://github.com/rust-lang/cargo/issues/8519',
 				'specta = "=2.0.0"',
 				'# pin: prerelease family; unpin when specta 2.0.0 is stable',
@@ -104,10 +107,10 @@ describe('comment policy', () => {
 			'pub struct Engine;',
 			'',
 		].join('\n');
-		expect(stripComments('crates/x/src/lib.rs', source)).toBe(
+		expect(stripComments('crates/abb-engine/src/lib.rs', source)).toBe(
 			['//! ```', '//! use crate::Engine;', '//! ```', 'pub struct Engine;', ''].join('\n'),
 		);
-		expect(keptComments('crates/x/src/lib.rs', source).map((kept) => kept.id)).toEqual([
+		expect(keptComments('crates/abb-engine/src/lib.rs', source).map((kept) => kept.id)).toEqual([
 			'rustdoc-test',
 			'rustdoc-test',
 			'rustdoc-test',
@@ -215,4 +218,183 @@ describe('comment policy', () => {
 			'/*\n * Copyright (c) 2026 Ada Lovelace\n * SPDX-License-Identifier: MIT\n */\nexport const n = 1;\n';
 		expect(stripComments('scripts/x.ts', header)).toBe(header);
 	});
+
+	it('reads a URL in JSX text as text', () => {
+		expect(
+			messages('src/ui/A.tsx', 'export const A = () => <p>See https://example.com</p>;\n'),
+		).toEqual([]);
+	});
+
+	it('reads a heredoc inside a workflow run block as data', () => {
+		const yaml = [
+			'      - run: |',
+			"          cat <<'EOF' > notes.md",
+			'          # Release notes',
+			'          EOF',
+			'          echo done # trailing',
+			'',
+		].join('\n');
+		expect(lines('.github/workflows/ci.yml', yaml)).toEqual([5]);
+	});
+
+	it('ends a run block at the sibling keys of its step', () => {
+		const yaml = [
+			'      - run: |',
+			'          echo a',
+			'        env:',
+			"          NOTE: it's fine",
+			'          OTHER: x # c',
+			'',
+		].join('\n');
+		expect(lines('.github/workflows/ci.yml', yaml)).toEqual([5]);
+	});
+
+	it('reads a hash inside a multi-line shell string as data', () => {
+		const shell = ['message="first', '# still the string', 'last"', 'echo "${message}"', ''].join(
+			'\n',
+		);
+		expect(messages('scripts/x.sh', shell)).toEqual([]);
+	});
+
+	it('reads a keyless YAML block scalar as data', () => {
+		const yaml = ['args:', '  - |', '    # literal text', '  - plain # note', ''].join('\n');
+		expect(lines('config.yml', yaml)).toEqual([4]);
+	});
+
+	it('keeps a copyright line with a year or the copyright sign', () => {
+		for (const header of [
+			'// Copyright 2024 Ada Lovelace\n',
+			'// Copyright © 2024 Ada Lovelace\n',
+		]) {
+			expect(keptComments('scripts/x.ts', header)).toEqual([{ line: 1, id: 'license' }]);
+		}
+		expect(lines('scripts/x.ts', '// Copyright the team, see below\n')).toEqual([1]);
+	});
+
+	it('keeps a tracker, RFC, discussion, or issue-number link and nothing link-shaped', () => {
+		for (const link of [
+			'// https://trac.ffmpeg.org/ticket/10531',
+			'// https://www.rfc-editor.org/rfc/rfc8216',
+			'// https://datatracker.ietf.org/doc/html/rfc8216',
+			'// https://github.com/tauri-apps/tauri/discussions/4012',
+			'// blocked on #557',
+		]) {
+			expect(keptComments('src/x.ts', `${link}\n`)).toEqual([{ line: 1, id: 'upstream' }]);
+		}
+		for (const prose of ['// see SC2261', '// see https://example.com/a']) {
+			expect(lines('src/x.ts', `${prose}\n`)).toEqual([1]);
+		}
+		expect(lines('src/x.css', '/* the old #123 grey */\n')).toEqual([1]);
+	});
+
+	it('reads a quote inside a regular expression literal as part of the pattern', () => {
+		expect(lines('src/x.ts', 'const r = /[\'"]/;\n// a real comment\n')).toEqual([2]);
+		expect(lines('src/x.ts', 'const half = total / 2; // a real comment\n')).toEqual([1]);
+	});
+
+	it('reads an apostrophe in JSX text as text', () => {
+		expect(
+			lines('src/ui/A.tsx', "export const A = () => <p>don't</p>;\n// a real comment\n"),
+		).toEqual([2]);
+	});
+
+	it('reads a shift inside shell arithmetic as an operator, not a heredoc', () => {
+		expect(lines('scripts/x.sh', 'x=$(( 1 << 2 ))\n# a real comment\n')).toEqual([2]);
+	});
+
+	it('keeps a SAFETY or link comment only to the end of its sentence', () => {
+		const rust = [
+			'    // SAFETY: the handle is open and',
+			'    // owned here.',
+			'    // Drop closes it later.',
+			'    unsafe { free(handle) }',
+			'',
+		].join('\n');
+		expect(lines('crates/x/src/lib.rs', rust)).toEqual([3]);
+		const linked = [
+			'// Retry once.',
+			'// The decoder stalls on',
+			'// https://trac.ffmpeg.org/ticket/10531',
+			'// Keep the buffer small.',
+			'const n = 1;',
+			'',
+		].join('\n');
+		expect(lines('src/x.ts', linked)).toEqual([1, 4]);
+	});
+
+	it('requires a reason on @ts-nocheck', () => {
+		expect(messages('src/x.ts', '// @ts-nocheck\n')).toEqual([
+			expect.stringContaining('directive with no reason'),
+		]);
+		expect(
+			messages('src/x.ts', '// @ts-nocheck generated by a tool this repo does not own\n'),
+		).toEqual([]);
+	});
+
+	it('keeps only rustdoc fences that cargo test --doc runs', () => {
+		const fence = (info: string) =>
+			[`//! \`\`\`${info}`, '//! let x = 1;', '//! ```', ''].join('\n');
+		for (const info of ['', 'rust', 'compile_fail', 'no_run,edition2021']) {
+			expect(lines('crates/abb-engine/src/lib.rs', fence(info))).toEqual([]);
+		}
+		for (const info of ['text', 'ignore', 'rust,ignore', 'sh']) {
+			expect(lines('crates/abb-engine/src/lib.rs', fence(info))).toEqual([1, 2, 3]);
+		}
+		expect(lines('crates/abb-media-core/src/lib.rs', fence(''))).toEqual([1, 2, 3]);
+		expect(lines('crates/abb-engine/src/bin/abb_dev.rs', fence(''))).toEqual([1, 2, 3]);
+	});
+
+	it('keeps a # Safety doc section on an unsafe fn and nothing else', () => {
+		const section = [
+			'/// # Safety',
+			'///',
+			'/// `ptr` is live for the call',
+			'/// and owned by the caller.',
+		];
+		const kept = [
+			'    /// # Safety',
+			'    /// `ptr` is live for the call',
+			'    /// and owned by the caller.',
+			'    #[inline]',
+			'    pub(crate) unsafe fn read(ptr: *const u8) -> u8 {',
+			'',
+		].join('\n');
+		expect(lines('crates/abb-ffmpeg/src/x.rs', kept)).toEqual([]);
+		expect(keptComments('crates/abb-ffmpeg/src/x.rs', kept).map((entry) => entry.id)).toEqual([
+			'safety-doc',
+			'safety-doc',
+			'safety-doc',
+		]);
+		const safe = ['/// # Safety', '/// `ptr` is live.', 'pub fn read(ptr: *const u8) {}', ''].join(
+			'\n',
+		);
+		expect(lines('crates/abb-ffmpeg/src/x.rs', safe)).toEqual([1, 2]);
+		const prose = ['/// Reads one byte.', ...section, 'unsafe fn read(ptr: *const u8) {}', ''].join(
+			'\n',
+		);
+		expect(lines('crates/abb-ffmpeg/src/x.rs', prose)).toEqual([1, 3, 4, 5]);
+	});
+
+	it('names exactly the crates verify.sh runs with --doc', () => {
+		const verify = readFileSync(path.join(import.meta.dirname, 'verify.sh'), 'utf8');
+		const documented = [...verify.matchAll(/cargo test\b[^\n]*?-p (\S+)[^\n]*--doc\b/g)].map(
+			(match) => match[1],
+		);
+		expect([...DOCTESTED_CRATES].toSorted()).toEqual([...new Set(documented)].toSorted());
+	});
+
+	it('scans the git hook, HTML, JSX, and module TypeScript files', () => {
+		for (const file of ['.githooks/pre-commit', 'index.html', 'src/a.jsx', 'src/a.mts']) {
+			expect(isPolicyFile(file)).toBe(true);
+		}
+		expect(lines('.githooks/pre-commit', '#!/usr/bin/env bash\n# Fast checks.\nset -e\n')).toEqual([
+			2,
+		]);
+		const html = '<!-- SPDX-License-Identifier: MIT -->\n<p>a // b</p>\n<!--\n  note\n-->\n';
+		expect(lines('index.html', html)).toEqual([3]);
+	});
 });
+
+function lines(file: string, source: string): number[] {
+	return commentFindings(file, source).map((finding) => finding.line);
+}

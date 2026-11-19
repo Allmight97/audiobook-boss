@@ -24,11 +24,15 @@ impl CodecId {
     pub const MJPEG: Self = Self(sys::AVCodecID::AV_CODEC_ID_MJPEG as c_int);
     pub const PNG: Self = Self(sys::AVCodecID::AV_CODEC_ID_PNG as c_int);
 
+    /// # Safety
+    /// `id` points to a live codec-id field.
     pub(crate) unsafe fn read(id: *const sys::AVCodecID) -> Self {
         // SAFETY: the caller guarantees the field; it is read as the C int it is.
         Self(unsafe { id.cast::<c_int>().read() })
     }
 
+    /// # Safety
+    /// `slot` points to a live, writable codec-id field.
     pub(crate) unsafe fn write(self, slot: *mut sys::AVCodecID) {
         // SAFETY: the caller guarantees the field; FFmpeg defines it as a C int.
         unsafe { slot.cast::<c_int>().write(self.0) };

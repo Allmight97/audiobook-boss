@@ -138,6 +138,8 @@ impl ChannelLayout {
         matches!(self, Self::Unspecified { .. })
     }
 
+    /// # Safety
+    /// `layout` points to a live channel layout.
     pub(crate) unsafe fn from_sys(layout: *const sys::AVChannelLayout) -> Option<Self> {
         // SAFETY: the caller guarantees `layout`; the order is read as the C
         // int it is, and a native-order layout stores its speakers in `mask`.

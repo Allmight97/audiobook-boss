@@ -41,6 +41,8 @@ impl Text {
         self.0.as_ptr()
     }
 
+    /// # Safety
+    /// `ptr` is a valid NUL-terminated string.
     pub(crate) unsafe fn copied_from(ptr: *const c_char) -> Self {
         // SAFETY: the caller guarantees a valid NUL-terminated string.
         Self(unsafe { CStr::from_ptr(ptr) }.to_owned())

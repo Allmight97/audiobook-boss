@@ -413,6 +413,8 @@ impl Muxer {
     }
 }
 
+/// # Safety
+/// `parameters` is live and holds no extradata.
 unsafe fn set_extradata(
     parameters: *mut sys::AVCodecParameters,
     bytes: &[u8],
@@ -435,6 +437,8 @@ unsafe fn set_extradata(
     Ok(())
 }
 
+/// # Safety
+/// `slot` is a live context's dictionary field.
 unsafe fn replace_dictionary(slot: &mut *mut sys::AVDictionary, dictionary: Dictionary) {
     // SAFETY: the caller guarantees `slot`; the old dictionary is freed before
     // the new one takes its place.

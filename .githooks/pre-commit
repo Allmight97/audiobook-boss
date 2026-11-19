@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Fast checks on staged files.
-# Formatters and lints only; no builds, no tests. setup.sh installs it
-# with `git config core.hooksPath .githooks`.
-# Skip once with `git commit --no-verify`; CI still runs the full lanes.
 set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "${repo_root}"
