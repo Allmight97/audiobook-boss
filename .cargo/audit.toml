@@ -18,5 +18,7 @@ ignore = [
   "RUSTSEC-2026-0370", # zvariant
   "RUSTSEC-2026-0371", # zbus_names
   "RUSTSEC-2026-0372", # zvariant_derive
+
+  "RUSTSEC-2026-0543", # chrono
 ]
 informational_warnings = ["unmaintained", "unsound"]
