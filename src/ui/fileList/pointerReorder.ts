@@ -43,6 +43,16 @@ function fileListRowHitFromPoint(clientX: number, clientY: number): FileListRowH
 	};
 }
 
+function capturePointer(grip: Element, pointerId: number): boolean {
+	if (typeof grip.setPointerCapture !== 'function') return false;
+	try {
+		grip.setPointerCapture(pointerId);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export function createFileListPointerReorder(options: {
 	readonly setDragState: (state: FileListDragState) => void;
 	readonly hitTest?: FileListRowHitTest;
@@ -140,17 +150,12 @@ export function createFileListPointerReorder(options: {
 			};
 			event.preventDefault();
 			const grip = event.currentTarget;
-			if (grip instanceof Element && typeof grip.setPointerCapture === 'function') {
-				try {
-					grip.setPointerCapture(event.pointerId);
-					const listener = (lostEvent: Event) => {
-						if (lostEvent instanceof PointerEvent) handlePointerCancel(lostEvent);
-					};
-					capture = { grip, listener };
-					grip.addEventListener('lostpointercapture', listener, { once: true });
-				} catch (captureError) {
-					void captureError;
-				}
+			if (grip instanceof Element && capturePointer(grip, event.pointerId)) {
+				const listener = (lostEvent: Event) => {
+					if (lostEvent instanceof PointerEvent) handlePointerCancel(lostEvent);
+				};
+				capture = { grip, listener };
+				grip.addEventListener('lostpointercapture', listener, { once: true });
 			}
 			window.addEventListener('pointermove', handlePointerMove);
 			window.addEventListener('pointerup', handlePointerUp);
