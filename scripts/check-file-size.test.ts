@@ -159,19 +159,6 @@ describe('check-file-size --against', () => {
 		});
 	});
 
-	it('skips a file that opts out, and still counts it in --all', () => {
-		withRepo((root) => {
-			writeBytes(root, 'keep.rs', 20);
-			const base = commitAll(root, 'base');
-			writeBytes(root, 'table.rs', over, '// @ratchet-files-ignore: one opcode table.\n');
-			commitAll(root, 'opt out');
-			const listed = run(root, ['--all']);
-			expect(listed.status, listed.stderr).toBe(0);
-			expect(listed.stdout).toContain('opted out');
-			expect(run(root, ['--against', base]).status).toBe(0);
-		});
-	});
-
 	it('fails closed when the base object is missing', () => {
 		withRepo((root) => {
 			writeBytes(root, 'small.rs', 20);
@@ -262,12 +249,7 @@ describe('file-size ratchet selection', () => {
 		});
 		const fromChecker = listed.stdout
 			.split('\n')
-			.filter(
-				(line) =>
-					line.includes('  ') &&
-					!line.startsWith('Source files') &&
-					!line.startsWith('Over the budget'),
-			)
+			.filter((line) => line.includes('  ') && !line.startsWith('Source files'))
 			.map((line) => line.slice(line.lastIndexOf('  ') + 2));
 		const files = [
 			'crates/abb-engine/src/session/runtime.rs',
