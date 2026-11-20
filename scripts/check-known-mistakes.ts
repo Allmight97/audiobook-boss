@@ -113,7 +113,9 @@ const EXCUSE_COMMENT =
 	/^\s*\/\/+[!/]?\s*(shortcut|TODO|FIXME|HACK|XXX|workaround)\b|^\s*\/\/.*(intentional architecture|not (?:a )?temporary)/;
 const PLANNING_COMMENT = /^\s*\/\/.*(\(#\d+ (?:Branch|residual|follow-?up|phase))/;
 const UNENFORCED_CLAIM = /^\s*\/\/.*\b(never panics?|cannot panic|will not panic)\b/;
-const CARGO_EXACT_PIN_REASONS: Readonly<Record<string, string>> = {
+type PinReason = `${string}; unpin when ${string}`;
+
+const CARGO_EXACT_PIN_REASONS: Readonly<Record<string, PinReason>> = {
 	specta:
 		'prerelease family whose generated TS contract changes between RCs; unpin when specta 2.0.0 is stable',
 	'specta-typescript': 'same specta prerelease family as specta; unpin when specta 2.0.0 is stable',
@@ -218,15 +220,15 @@ function recordedLine(records: readonly LineRecord[], file: string, line: string
 	return records.some((record) => record.file === file && line.includes(record.anchor));
 }
 
-const FILE_PIN_REASONS: readonly { file: string; anchor: string; reason: string }[] = [
+const FILE_PIN_REASONS: readonly { file: string; anchor: string; reason: PinReason }[] = [
 	{
 		file: 'bunfig.toml',
-		anchor: 'minimumReleaseAgeExcludes',
+		anchor: '"solid-js"',
 		reason: 'update:rc takes fresh Solid prerelease builds; unpin when Solid 2.0 is stable',
 	},
 	{
 		file: 'rust-toolchain.toml',
-		anchor: 'channel = "1.99.1"',
+		anchor: 'channel = "',
 		reason:
 			'one exact Rust release, so every agent and CI compile with the same rustc; unpin when the owner moves to a newer Rust',
 	},

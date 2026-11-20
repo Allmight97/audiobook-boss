@@ -236,12 +236,16 @@ describe('check-known-mistakes', () => {
 	});
 
 	it('records the bunfig exclusion and the Rust toolchain pin', () => {
-		expect(filePinFindings('bunfig.toml', 'minimumReleaseAgeExcludes = [\n]\n')).toEqual([]);
-		expect(filePinFindings('bunfig.toml', 'minimumReleaseAge = 1\n')).toEqual([
-			expect.objectContaining({ message: expect.stringContaining('minimumReleaseAgeExcludes') }),
+		expect(
+			filePinFindings('bunfig.toml', 'minimumReleaseAgeExcludes = [\n  "solid-js",\n]\n'),
+		).toEqual([]);
+		expect(filePinFindings('bunfig.toml', 'minimumReleaseAgeExcludes = [\n]\n')).toEqual([
+			expect.objectContaining({ message: expect.stringContaining('"solid-js"') }),
 		]);
-		expect(filePinFindings('rust-toolchain.toml', 'channel = "1.99.1"\n')).toEqual([]);
-		expect(filePinFindings('rust-toolchain.toml', 'channel = "1.99.2"\n')).toHaveLength(1);
+		expect(filePinFindings('rust-toolchain.toml', 'channel = "1.99.2"\n')).toEqual([]);
+		expect(filePinFindings('rust-toolchain.toml', 'components = ["rustfmt"]\n')).toEqual([
+			expect.objectContaining({ message: expect.stringContaining('channel = "') }),
+		]);
 	});
 
 	it('requires a pin-table row for each exact package pin and override', () => {
