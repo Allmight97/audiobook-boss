@@ -4,6 +4,23 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.19.2] - 2026-11-20
+
+### Fixed
+
+- A title waiting in a batch shows its place among the titles still waiting, as "#1 of 2",
+  not its row in the list. A title third in the list but first to wait used to show as #3.
+- The status counts for a batch come from the engine. A batch that fails or is cancelled counts
+  titles that already finished as completed, not as failed or cancelled.
+- The next launch removes empty output folders left when an export was killed. A folder that
+  holds a file, or one AudioBook Boss did not create, is left alone. A folder on a disk that is
+  not connected is left for a later launch.
+
+### Changed
+
+- The bundled FFmpeg note names the exact FFmpeg commit the app is built from, where that source
+  lives, and the one patch the build applies.
+
 ## [1.19.1] - 2026-11-13
 
 ### Fixed
