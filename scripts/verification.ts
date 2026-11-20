@@ -12,7 +12,7 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 import picomatch from 'picomatch';
-import { isScalar, isSeq, parseDocument } from 'yaml';
+import { parseDocument } from 'yaml';
 
 type LaneMap = Record<string, string[]>;
 export interface LaneInfo {
@@ -195,42 +195,46 @@ export function formatExplanation(file: string, choices: PathChoice[]): string {
 	return [file, ...lines].join('\n');
 }
 
-function noLaneReasons(yaml: string): Map<string, string> {
-	const reasons = new Map<string, string>();
-	const exemptions = parseDocument(yaml).get('no-lane');
-	if (!isSeq(exemptions)) return reasons;
-	for (const item of exemptions.items) {
-		if (isScalar(item) && item.comment?.trim())
-			reasons.set(String(item.value), item.comment.trim());
+function reasonMap(value: unknown, label: string): Record<string, string> {
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+		throw new Error(`${label} needs a reason: expected a map of path to reason`);
+	}
+	const reasons: Record<string, string> = {};
+	for (const [pattern, reason] of Object.entries(value)) {
+		if (typeof reason !== 'string' || reason.trim() === '') {
+			throw new Error(`${label} needs a reason: ${pattern}`);
+		}
+		reasons[pattern] = reason.trim();
 	}
 	return reasons;
+}
+
+function stringPatterns(lane: string, value: unknown): string[] {
+	if (lane === 'no-lane') return Object.keys(reasonMap(value, lane));
+	if (
+		!Array.isArray(value) ||
+		!value.flat(Number.POSITIVE_INFINITY).every((item) => typeof item === 'string')
+	) {
+		throw new Error(`Invalid path patterns for ${lane}`);
+	}
+	return (value as string[]).flat(Number.POSITIVE_INFINITY);
+}
+
+function noLaneReasons(yaml: string): Map<string, string> {
+	const value = (parseDocument(yaml).toJS() as Record<string, unknown> | null)?.['no-lane'];
+	if (value === undefined) return new Map();
+	return new Map(Object.entries(reasonMap(value, 'no-lane')));
 }
 
 export function laneMap(yaml: string, lanes: string[]): LaneMap {
 	const document = parseDocument(yaml);
 	if (document.errors.length > 0) throw new Error(document.errors.join('\n'));
 	const map = document.toJS() as Record<string, unknown>;
-	for (const [lane, patterns] of Object.entries(map)) {
-		if (![...lanes, 'shared', 'no-lane'].includes(lane)) throw new Error(`Unknown lane: ${lane}`);
-		if (
-			!Array.isArray(patterns) ||
-			!patterns.flat(Number.POSITIVE_INFINITY).every((item) => typeof item === 'string')
-		) {
-			throw new Error(`Invalid path patterns for ${lane}`);
-		}
-	}
-	const exemptions = document.get('no-lane');
-	if (isSeq(exemptions)) {
-		for (const item of exemptions.items) {
-			if (!isScalar(item) || !item.comment?.trim())
-				throw new Error(`no-lane needs a reason: ${String(item)}`);
-		}
-	}
 	return Object.fromEntries(
-		Object.entries(map).map(([lane, patterns]) => [
-			lane,
-			(patterns as string[]).flat(Number.POSITIVE_INFINITY),
-		]),
+		Object.entries(map).map(([lane, patterns]) => {
+			if (![...lanes, 'shared', 'no-lane'].includes(lane)) throw new Error(`Unknown lane: ${lane}`);
+			return [lane, stringPatterns(lane, patterns)];
+		}),
 	);
 }
 

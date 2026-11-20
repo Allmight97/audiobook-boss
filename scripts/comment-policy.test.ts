@@ -19,12 +19,9 @@ describe('comment policy', () => {
 		expect(ALLOWLIST.map((entry) => entry.id)).toEqual([
 			'license',
 			'lint-directive',
-			'shell-directive',
-			'permission-fake',
 			'safety',
 			'rustdoc-test',
 			'safety-doc',
-			'no-lane',
 			'shellcheck',
 		]);
 		for (const entry of ALLOWLIST) {
@@ -124,10 +121,10 @@ describe('comment policy', () => {
 		);
 	});
 
-	it('keeps shell and permission directives and drops a JSX comment with its braces', () => {
+	it('drops an allowance comment and a JSX comment with its braces', () => {
 		expect(
 			messages('scripts/x.sh', 'v="$(tool 2>/dev/null)" # allow-silence: missing is the answer\n'),
-		).toEqual([]);
+		).toEqual([expect.stringContaining('Fix: delete it')]);
 		const tsx = [
 			'export const View = () => (',
 			'\t<div>',
@@ -179,9 +176,12 @@ describe('comment policy', () => {
 		expect(messages('.oxlintrc.json', rule)).toEqual([expect.stringContaining('Fix: delete it')]);
 	});
 
-	it('keeps the reason on a no-lane path and drops the same shape elsewhere', () => {
+	it('drops a hash reason on a no-lane path and the same shape elsewhere', () => {
 		const lane = 'no-lane:\n  - CHANGELOG.md # release history, written by hand\n';
-		expect(stripComments('scripts/lane-paths.yml', lane)).toBe(lane);
+		expect(stripComments('scripts/lane-paths.yml', lane)).toBe('no-lane:\n  - CHANGELOG.md\n');
+		expect(messages('scripts/lane-paths.yml', lane)).toEqual([
+			expect.stringContaining('Fix: delete it'),
+		]);
 		expect(
 			messages('.github/workflows/ci.yml', '      - uses: actions/checkout@abc # v6\n'),
 		).toEqual([expect.stringContaining('Fix: delete it')]);

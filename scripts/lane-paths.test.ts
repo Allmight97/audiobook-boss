@@ -4,32 +4,35 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import picomatch from 'picomatch';
 import { describe, expect, it } from 'vitest';
-import { isScalar, isSeq, parseDocument } from 'yaml';
+import { parseDocument } from 'yaml';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const mapPath = path.join(repoRoot, 'scripts/lane-paths.yml');
 
+function patternsIn(value: unknown): string[] {
+	if (Array.isArray(value)) return value.flat(Number.POSITIVE_INFINITY) as string[];
+	if (value !== null && typeof value === 'object') return Object.keys(value);
+	return [];
+}
+
 function unmappedPaths(mapYaml: string, files: string[]): string[] {
-	const filters = parseDocument(mapYaml).toJS() as Record<string, unknown[]>;
-	const patterns = Object.values(filters).flat(Number.POSITIVE_INFINITY) as string[];
+	const filters = parseDocument(mapYaml).toJS() as Record<string, unknown>;
+	const patterns = Object.values(filters).flatMap((value) => patternsIn(value));
 	const isMatch = picomatch(patterns, { dot: true });
 	return files.filter((file) => !isMatch(file));
 }
 
 function lanesFor(mapYaml: string, lane: string): (file: string) => boolean {
-	const filters = parseDocument(mapYaml).toJS() as Record<string, unknown[]>;
-	const patterns = (filters[lane] ?? []).flat(Number.POSITIVE_INFINITY) as string[];
-	return picomatch(patterns, { dot: true });
+	const filters = parseDocument(mapYaml).toJS() as Record<string, unknown>;
+	return picomatch(patternsIn(filters[lane]), { dot: true });
 }
 
 function noLaneEntriesWithoutReason(mapYaml: string): string[] {
-	const noLane = parseDocument(mapYaml).get('no-lane');
-	if (!isSeq(noLane)) {
-		return [];
-	}
-	return noLane.items
-		.filter((item) => isScalar(item) && !item.comment?.trim())
-		.map((item) => String(isScalar(item) ? item.value : item));
+	const value = (parseDocument(mapYaml).toJS() as Record<string, unknown> | null)?.['no-lane'];
+	if (value === null || typeof value !== 'object' || Array.isArray(value)) return ['no-lane'];
+	return Object.entries(value)
+		.filter(([, reason]) => typeof reason !== 'string' || reason.trim() === '')
+		.map(([pattern]) => pattern);
 }
 
 describe('scripts/lane-paths.yml', () => {
@@ -41,7 +44,7 @@ describe('scripts/lane-paths.yml', () => {
 			.filter(Boolean);
 		expect(
 			unmappedPaths(mapYaml, tracked),
-			'Add each path to a lane in scripts/lane-paths.yml, or to no-lane with a # reason',
+			'Add each path to a lane in scripts/lane-paths.yml, or to no-lane with a reason',
 		).toEqual([]);
 	});
 
@@ -79,8 +82,8 @@ describe('scripts/lane-paths.yml', () => {
 	});
 
 	it('reports a no-lane entry without a reason', () => {
-		expect(
-			noLaneEntriesWithoutReason('no-lane:\n  - LICENSE # legal text\n  - deny.toml\n'),
-		).toEqual(['deny.toml']);
+		expect(noLaneEntriesWithoutReason('no-lane:\n  LICENSE: legal text\n  deny.toml:\n')).toEqual([
+			'deny.toml',
+		]);
 	});
 });

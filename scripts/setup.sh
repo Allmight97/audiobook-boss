@@ -155,7 +155,7 @@ pinned_rust_channel() {
 
 node_major() {
 	local version
-	version="$("$@" --version 2>/dev/null | awk 'NR==1 {print; exit}')" # allow-silence: no version reads as unsupported Node, which the caller reports
+	version="$("$@" --version 2>/dev/null | awk 'NR==1 {print; exit}')"
 	version="${version#v}"
 	printf '%s\n' "${version%%.*}"
 }
@@ -190,7 +190,7 @@ brew_ffmpeg_cli() {
 	local name="$1" prefix
 	is_darwin || return 1
 	have brew || return 1
-	prefix="$(brew --prefix ffmpeg 2>/dev/null)" || return 1 # allow-silence: brew errors when ffmpeg is absent; absent is the answer
+	prefix="$(brew --prefix ffmpeg 2>/dev/null)" || return 1
 	[[ -x "${prefix}/bin/${name}" ]] || return 1
 	printf '%s\n' "${prefix}/bin/${name}"
 }
@@ -288,7 +288,7 @@ check_supply_chain() {
 git_hooks_installed() {
 	local root="${1:-${repo_root}}"
 	local hooks original
-	hooks="$(git -C "${root}" config --local --get core.hooksPath || true)" # allow-silence: an unset key exits 1 and means not installed
+	hooks="$(git -C "${root}" config --local --get core.hooksPath || true)"
 	if [[ -z "${hooks}" ]]; then
 		return 1
 	fi
@@ -350,7 +350,7 @@ linux_rust_packages=(
 missing_apt_packages() {
 	local pkg
 	for pkg in "$@"; do
-		if ! dpkg-query -W -f='${Status}' "${pkg}" 2>/dev/null | grep -q 'install ok installed'; then # allow-silence: an unknown package exits nonzero and means install it
+		if ! dpkg-query -W -f='${Status}' "${pkg}" 2>/dev/null | grep -q 'install ok installed'; then
 			printf '%s\n' "${pkg}"
 		fi
 	done
@@ -408,7 +408,7 @@ check_rust() {
 	fi
 	if is_linux; then
 		local missing_packages
-		mapfile -t missing_packages < <(missing_apt_packages "${linux_rust_packages[@]}") # allow-gnu: runs only inside the is_linux branch
+		mapfile -t missing_packages < <(missing_apt_packages "${linux_rust_packages[@]}")
 		if [[ ${#missing_packages[@]} -eq 0 ]]; then
 			ok "Linux build and Tauri packages"
 		else
@@ -576,7 +576,7 @@ ensure_download_tools() {
 
 install_linux_packages() {
 	local missing
-	mapfile -t missing < <(missing_apt_packages "${linux_rust_packages[@]}") # allow-gnu: install_linux_packages runs only on Linux
+	mapfile -t missing < <(missing_apt_packages "${linux_rust_packages[@]}")
 	if [[ ${#missing[@]} -eq 0 ]]; then
 		return
 	fi
@@ -624,9 +624,9 @@ ensure_readback_cli() {
 			return
 		fi
 		printf 'error: Homebrew ffmpeg is not major version 9\n' >&2
-		printf 'command -v ffmpeg: %s\n' "$(command -v ffmpeg 2>/dev/null || printf missing)" >&2 # allow-silence: diagnostic line; "missing" is the answer
-		printf 'command -v ffprobe: %s\n' "$(command -v ffprobe 2>/dev/null || printf missing)" >&2 # allow-silence: diagnostic line; "missing" is the answer
-		printf 'brew --prefix ffmpeg: %s\n' "$(brew --prefix ffmpeg 2>/dev/null || printf missing)" >&2 # allow-silence: diagnostic line; "missing" is the answer
+		printf 'command -v ffmpeg: %s\n' "$(command -v ffmpeg 2>/dev/null || printf missing)" >&2
+		printf 'command -v ffprobe: %s\n' "$(command -v ffprobe 2>/dev/null || printf missing)" >&2
+		printf 'brew --prefix ffmpeg: %s\n' "$(brew --prefix ffmpeg 2>/dev/null || printf missing)" >&2
 		if brew_ffmpeg="$(brew_ffmpeg_cli ffmpeg)"; then
 			printf 'brew ffmpeg -version: %s\n' "$("${brew_ffmpeg}" -version 2>&1 | awk 'NR==1 {print; exit}')" >&2
 		fi
@@ -801,7 +801,7 @@ ensure_ffmpeg_source() {
 	local commit mirror
 	commit="$(tr -d '[:space:]' <"$(echo "${repo_root}"/vendor/ffmpeg-sys-next-*/ffmpeg-revision)")"
 	mirror="${CARGO_TARGET_DIR:-${repo_root}/target}/abb-ffmpeg-source/${commit}.git"
-	if git -C "${mirror}" cat-file -e "${commit}^{commit}" 2>/dev/null; then # allow-silence: a missing mirror exits nonzero and means fetch it
+	if git -C "${mirror}" cat-file -e "${commit}^{commit}" 2>/dev/null; then
 		log "Using FFmpeg source ${commit}"
 		return
 	fi

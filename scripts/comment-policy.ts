@@ -33,16 +33,6 @@ export const ALLOWLIST: readonly AllowEntry[] = [
 			'A lint or TypeScript suppression is a directive the tool reads, and it has to carry the reason the tool or this repo requires.',
 	},
 	{
-		id: 'shell-directive',
-		reason:
-			'`# allow-gnu:` and `# allow-silence:` are directives check-known-mistakes.ts reads, and each requires the reason it runs only where the marker says.',
-	},
-	{
-		id: 'permission-fake',
-		reason:
-			'`// allow-permission-fake:` is a directive check-known-mistakes.ts reads, and it requires the reason the test runs unprivileged.',
-	},
-	{
 		id: 'safety',
 		reason:
 			'Clippy requires `// SAFETY:` with a reason on unsafe (workspace lint undocumented_unsafe_blocks); the comment ends with the sentence it starts.',
@@ -58,11 +48,6 @@ export const ALLOWLIST: readonly AllowEntry[] = [
 			'A `/// # Safety` section on an `unsafe fn` states the caller contract; clippy missing_safety_doc skips non-public functions, and no other check can hold the contract.',
 	},
 	{
-		id: 'no-lane',
-		reason:
-			'A `#` reason on a no-lane path in scripts/lane-paths.yml is the text verification.ts requires before a file can sit outside every lane.',
-	},
-	{
 		id: 'shellcheck',
 		reason:
 			'`# shellcheck disable=SC<id> # <why>` and `# shellcheck shell=bash` are directives shellcheck reads; a disable has to say why.',
@@ -73,15 +58,13 @@ const PLAIN =
 	'is a comment, and a comment does not hold a constraint. Fix: delete it. If it names a constraint, encode that constraint in the API, a type, a lint rule, or a test, and put the fix in the failure text. A comment may stay only when its shape is an entry in ALLOWLIST in scripts/comment-policy.ts. Root cause: prose in code goes stale and gets copied as an excuse.';
 
 const BARE =
-	'is a directive with no reason. Fix: add the reason its form requires (` -- why` on a lint suppression, text after `// SAFETY:` or `@ts-nocheck`, text after `# allow-gnu:` or `# allow-silence:`, `# shellcheck disable=SC<id> # why`), or delete it and satisfy the check. Root cause: a suppression without a reason hides the constraint.';
+	'is a directive with no reason. Fix: add the reason its form requires (` -- why` on a lint suppression, text after `// SAFETY:` or `@ts-nocheck`, `# shellcheck disable=SC<id> # why`), or delete it and satisfy the check. Root cause: a suppression without a reason hides the constraint.';
 
 const LICENSE =
 	/SPDX-License-Identifier:|Copyright\s+(?:\(c\)|©|\d{4})|Permission is hereby granted|licensed under the/i;
 const SENTENCE_END = /[.!?][)"'`]*$/;
 const LINK_END = /https?:\/\/\S+$/;
 const SAFETY = /(?:^|\s)\/\/\s*SAFETY:\s+\S|\/\*\s*SAFETY:\s+\S/;
-const SHELL_DIRECTIVE = /#\s*allow-(?:gnu|silence):\s*\S/;
-const PERMISSION_FAKE = /\/\/\s*allow-permission-fake:\s*\S/;
 const LINT_DIRECTIVE = /\b(?:(?:ox|es)lint-disable(?:-next-line|-line)?|biome-ignore)\b/;
 const TS_DIRECTIVE = /@ts-(?:expect-error|ignore|nocheck|check)\b/;
 const RUSTDOC_TEST_ATTRIBUTE =
@@ -135,13 +118,11 @@ function commentBody(text: string): string {
 }
 
 function classify(text: string): Mark {
-	if (SHELL_DIRECTIVE.test(text)) return entry('shell-directive');
 	if (/#\s*shellcheck\b/.test(text)) {
 		const reasoned = /#\s*shellcheck disable=SC\d+\s+#\s+\S/.test(text);
 		const sourced = /#\s*shellcheck shell=bash\s*$/.test(text);
 		return reasoned || sourced ? entry('shellcheck') : BARE_MARK;
 	}
-	if (PERMISSION_FAKE.test(text)) return entry('permission-fake');
 	if (LINT_DIRECTIVE.test(text)) return /--\s*\S/.test(text) ? entry('lint-directive') : BARE_MARK;
 	if (/@ts-check\b/.test(text)) return entry('lint-directive');
 	if (!TS_DIRECTIVE.test(text)) return { keep: false };
@@ -255,18 +236,6 @@ function markGroup(group: Span[], claims: Claims, rest: (span: Span) => Mark): D
 	});
 }
 
-function lineAt(source: string, index: number): string {
-	const start = source.lastIndexOf('\n', index - 1) + 1;
-	const end = source.indexOf('\n', index);
-	return source.slice(start, end === -1 ? source.length : end);
-}
-
-function machineReason(file: string, source: string, span: Span): string | null {
-	const line = lineAt(source, span.start);
-	if (file === 'scripts/lane-paths.yml' && /^\s*-\s+\S.*\s#\s+\S/.test(line)) return 'no-lane';
-	return null;
-}
-
 const UNSAFE_FN =
 	/^(?:\s*#\[[^\n]*\]\s*)*\s*(?:pub(?:\([^)]*\))?\s+)?(?:const\s+)?(?:async\s+)?unsafe\s+(?:extern\s+"[^"]*"\s+)?fn\b/;
 
@@ -285,15 +254,12 @@ function markDocGroup(file: string, source: string, group: Span[]): Decision[] {
 	return markGroup(group, claimAnchors(group, claims), () => ({ keep: false }));
 }
 
-function markPlainGroup(file: string, source: string, group: Span[]): Decision[] {
+function markPlainGroup(group: Span[]): Decision[] {
 	const claims = claimAnchors(
 		group,
 		group.map(() => null),
 	);
-	return markGroup(group, claims, (span) => {
-		const machine = machineReason(file, source, span);
-		return machine === null ? classify(span.text) : entry(machine);
-	});
+	return markGroup(group, claims, (span) => classify(span.text));
 }
 
 function decisions(file: string, source: string): Decision[] {
@@ -307,7 +273,7 @@ function decisions(file: string, source: string): Decision[] {
 	}
 	const plain = spans.filter((span) => !claimed.has(span));
 	for (const group of groupSpans(source, plain, () => true)) {
-		marked.push(...markPlainGroup(file, source, group));
+		marked.push(...markPlainGroup(group));
 	}
 	return marked.toSorted((left, right) => left.start - right.start);
 }

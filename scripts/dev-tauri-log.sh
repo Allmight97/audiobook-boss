@@ -37,7 +37,7 @@ note_port_action() {
 command_or_unavailable() {
 	local output
 
-	if output="$("$@" 2>/dev/null)"; then # allow-silence: optional tool probe; the else branch prints unavailable
+	if output="$("$@" 2>/dev/null)"; then
 		printf '%s' "${output:-ok}"
 	else
 		printf 'unavailable'
@@ -47,7 +47,7 @@ command_or_unavailable() {
 git_dirty_summary() {
 	local status
 
-	status="$(git status --short 2>/dev/null || true)" # allow-silence: the summary also runs outside a git checkout
+	status="$(git status --short 2>/dev/null || true)"
 	if [[ -n "$status" ]]; then
 		printf '%s\n' "$status"
 	else
@@ -227,7 +227,7 @@ finish_run() {
 		wait_for_tee_exit_within_ten_seconds
 		if kill -0 "$tee_pid" 2>/dev/null; then
 			tee_drain_failed="true"
-		elif [[ "$(cat "$tee_status_file" 2>/dev/null)" != "0" ]]; then # allow-silence: a missing status file is not "0", so it counts as failed
+		elif [[ "$(cat "$tee_status_file" 2>/dev/null)" != "0" ]]; then
 			tee_drain_failed="true"
 		fi
 	fi

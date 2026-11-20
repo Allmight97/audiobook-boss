@@ -104,12 +104,12 @@ tooling:
   - vendor/ffmpeg-sys-next-*/build.rs
   - vendor/ffmpeg-sys-next-*/ABB-PROVENANCE.md
 no-lane:
-  - CHANGELOG.md # release history, written by hand before scripts/release.ts runs
-  - LICENSE # legal text
-  - .gitignore # read by git only
-  - .cbmignore # read by an editor tool only
-  - .git-blame-ignore-revs # read by git blame only
-  - .vscode/** # editor recommendations
-  - .github/FUNDING.yml # GitHub sponsor button
-  - .github/dependabot.yml # read by Dependabot; no lane can run it
-  - site/** # built and deployed by .github/workflows/pages.yml
+  CHANGELOG.md: release history, written by hand before scripts/release.ts runs
+  LICENSE: legal text
+  .gitignore: read by git only
+  .cbmignore: read by an editor tool only
+  .git-blame-ignore-revs: read by git blame only
+  ".vscode/**": editor recommendations
+  .github/FUNDING.yml: GitHub sponsor button
+  .github/dependabot.yml: read by Dependabot; no lane can run it
+  "site/**": built and deployed by .github/workflows/pages.yml

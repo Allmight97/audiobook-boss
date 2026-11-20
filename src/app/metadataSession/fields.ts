@@ -145,6 +145,12 @@ export type MetadataFormState = {
 
 const NO_WARNING: MetadataWarningState = { message: '', visible: false };
 
+function isCompleteForm(
+	fields: Partial<Record<MetadataFieldId, MetadataFieldState>>,
+): fields is Record<MetadataFieldId, MetadataFieldState> {
+	return METADATA_FIELD_DEFINITIONS.every((definition) => fields[definition.inputId] !== undefined);
+}
+
 function seriesPartWarningText(warning: SeriesPartWarning | null): MetadataWarningState {
 	switch (warning?.kind) {
 		case undefined:
@@ -183,8 +189,7 @@ export function toFormState(
 	snapshot: MetadataFormSnapshot,
 	typedValue: (field: MetadataField) => string | undefined,
 ): MetadataFormState {
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the loop below fills one key per field definition.
-	const fields = {} as Record<MetadataFieldId, MetadataFieldState>;
+	const fields: Partial<Record<MetadataFieldId, MetadataFieldState>> = {};
 	for (const definition of METADATA_FIELD_DEFINITIONS) {
 		const reported = snapshot.fields.find((field) => field.field === definition.field);
 		const pending = typedValue(definition.field);
@@ -194,6 +199,9 @@ export function toFormState(
 			dirty: pending !== undefined || (reported?.dirty ?? false),
 			mixed: pending === undefined && (reported?.mixed ?? false),
 		};
+	}
+	if (!isCompleteForm(fields)) {
+		throw new Error('metadata form is missing a field');
 	}
 	return {
 		mode: snapshot.mode,

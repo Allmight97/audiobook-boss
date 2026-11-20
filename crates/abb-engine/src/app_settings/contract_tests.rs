@@ -455,7 +455,6 @@ fn a_file_abb_may_not_read_is_set_aside_before_defaults_are_used() {
     let temp = TempDir::new().expect("temp dir");
     let path = temp.path().join("settings.toml");
     std::fs::write(&path, include_str!("saved_settings/settings.toml")).expect("write sample");
-    // allow-permission-fake: the test returns early when root can still read it
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).expect("chmod");
     if std::fs::read(&path).is_ok() {
         return;
