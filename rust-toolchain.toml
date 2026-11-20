@@ -1,4 +1,3 @@
 [toolchain]
-# pin: one exact Rust release, so every agent and CI compile with the same rustc; unpin when the owner moves to a newer Rust
 channel = "1.99.1"
 components = ["rustfmt", "clippy"]

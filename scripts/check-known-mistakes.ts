@@ -107,7 +107,28 @@ const EXCUSE_COMMENT =
 	/^\s*\/\/+[!/]?\s*(shortcut|TODO|FIXME|HACK|XXX|workaround)\b|^\s*\/\/.*(intentional architecture|not (?:a )?temporary)/;
 const PLANNING_COMMENT = /^\s*\/\/.*(\(#\d+ (?:Branch|residual|follow-?up|phase))/;
 const UNENFORCED_CLAIM = /^\s*\/\/.*\b(never panics?|cannot panic|will not panic)\b/;
-const PIN_TAG = /^\s*#\s*pin: .+; unpin when /;
+export const CARGO_EXACT_PIN_REASONS: Readonly<Record<string, string>> = {
+	specta:
+		'prerelease family whose generated TS contract changes between RCs; unpin when specta 2.0.0 is stable',
+	'specta-typescript': 'same specta prerelease family as specta; unpin when specta 2.0.0 is stable',
+	'tauri-specta': 'same specta prerelease family as specta; unpin when specta 2.0.0 is stable',
+};
+
+export const FILE_PIN_REASONS: readonly { file: string; anchor: string; reason: string }[] = [
+	{
+		file: 'bunfig.toml',
+		anchor: 'minimumReleaseAgeExcludes',
+		reason: 'update:rc takes fresh Solid prerelease builds; unpin when Solid 2.0 is stable',
+	},
+	{
+		file: 'rust-toolchain.toml',
+		anchor: 'channel = "1.99.1"',
+		reason:
+			'one exact Rust release, so every agent and CI compile with the same rustc; unpin when the owner moves to a newer Rust',
+	},
+];
+
+const EXACT_CRATE = /^\s*([A-Za-z0-9_-]+)\s*=/;
 
 const SILENCED = /2>\s*\/dev\/null|\|\|\s*true\b/;
 const CAPTURE_WITH_SILENCE = /\$\((?:[^()]|\([^()]*\))*(2>\s*\/dev\/null|\|\|\s*true\b)/;
@@ -460,22 +481,56 @@ function ffmpegPointerFindings(file: string, lines: string[]): Finding[] {
 	});
 }
 
+function exactCrate(line: string): string | null {
+	if (!/"=\d/.test(line) || /^\s*#/.test(line)) return null;
+	return EXACT_CRATE.exec(line)?.[1] ?? null;
+}
+
 export function cargoPinFindings(file: string, text: string): Finding[] {
 	if (path.basename(file) !== 'Cargo.toml' || file.startsWith('vendor/')) return [];
 	const lines = text.split('\n');
-	return lines.flatMap((line, index) => {
-		if (!/"=\d/.test(line) || /^\s*#/.test(line)) return [];
-		for (let above = index - 1; above >= 0 && lines[above].trim() !== ''; above -= 1) {
-			if (PIN_TAG.test(lines[above])) return [];
-		}
+	const findings = lines.flatMap((line, index) => {
+		const name = exactCrate(line);
+		if (!name || name in CARGO_EXACT_PIN_REASONS) return [];
 		return [
 			{
 				file,
 				line: index + 1,
-				message: `\`${line.trim()}\` is an exact pin without a tag. Fix: add \`# pin: <why>; unpin when <trigger or YYYY-MM-DD>\` above it (scripts/AGENTS.md, Dependencies).`,
+				message: `\`${line.trim()}\` is an exact pin without a recorded reason. Fix: add \`<crate>: "<why>; unpin when <trigger>"\` to CARGO_EXACT_PIN_REASONS in scripts/check-known-mistakes.ts.`,
 			},
 		];
 	});
+	if (file !== 'Cargo.toml') return findings;
+	const pinned = new Set(
+		lines.flatMap((line) => {
+			const name = exactCrate(line);
+			return name ? [name] : [];
+		}),
+	);
+	return [
+		...findings,
+		...Object.entries(CARGO_EXACT_PIN_REASONS).flatMap(([name, reason]) =>
+			pinned.has(name)
+				? []
+				: [
+						{
+							file,
+							line: 1,
+							message: `\`${name}\` is recorded in CARGO_EXACT_PIN_REASONS but is not an exact pin. Fix: delete that record when the pin is gone (${reason}).`,
+						},
+					],
+		),
+	];
+}
+
+export function filePinFindings(file: string, text: string): Finding[] {
+	return FILE_PIN_REASONS.filter((pin) => pin.file === file && !text.includes(pin.anchor)).map(
+		(pin) => ({
+			file,
+			line: 1,
+			message: `\`${pin.file}\` no longer contains \`${pin.anchor}\`. Fix: update that anchor in FILE_PIN_REASONS in scripts/check-known-mistakes.ts and keep its unpin trigger. Recorded reason: ${pin.reason}`,
+		}),
+	);
 }
 
 export function packagePinFindings(packageJson: string, scriptsGuidance: string): Finding[] {
@@ -627,6 +682,9 @@ function main(): number {
 		...packagePinFindings(
 			readFileSync(path.join(repoRoot, 'package.json'), 'utf8'),
 			readFileSync(path.join(repoRoot, 'scripts/AGENTS.md'), 'utf8'),
+		),
+		...FILE_PIN_REASONS.flatMap((pin) =>
+			filePinFindings(pin.file, readFileSync(path.join(repoRoot, pin.file), 'utf8')),
 		),
 		...sampleFindings(repoRoot, values.against),
 	];

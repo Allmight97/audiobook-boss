@@ -7,6 +7,7 @@ import {
 	cargoPinFindings,
 	changedSampleFindings,
 	checkFile,
+	filePinFindings,
 	frozenSampleFindings,
 	packagePinFindings,
 } from './check-known-mistakes';
@@ -211,29 +212,34 @@ describe('check-known-mistakes', () => {
 		expect(found(file, '#[expect(lint, reason = "joined by run_job")]')).toEqual([]);
 	});
 
-	it('requires a pin tag above each exact Cargo pin', () => {
-		const tag = '# pin: prerelease family; unpin when specta 2.0.0 is stable';
-		expect(cargoPinFindings('crates/x/Cargo.toml', `${tag}\nspecta = "=2.0.0-rc.25"`)).toEqual([]);
+	it('records every exact Cargo pin and rejects one the record does not name', () => {
+		expect(cargoPinFindings('crates/x/Cargo.toml', 'specta = "=2.0.0-rc.25"')).toEqual([]);
 		expect(
 			cargoPinFindings(
 				'crates/x/Cargo.toml',
-				`${tag}\nspecta = "=2.0.0-rc.25"\nspecta-typescript = "=0.0.12"`,
+				'specta-typescript = "=0.0.12"\ntauri-specta = "=2.0.0-rc.25"',
 			),
 		).toEqual([]);
-		expect(cargoPinFindings('crates/x/Cargo.toml', 'specta = "=2.0.0-rc.25"')).toEqual([
+		expect(cargoPinFindings('crates/x/Cargo.toml', 'made-up = "=1.0.0"')).toEqual([
 			expect.objectContaining({
 				line: 1,
-				message: expect.stringContaining('exact pin without a tag'),
+				message: expect.stringContaining('CARGO_EXACT_PIN_REASONS'),
 			}),
 		]);
-		expect(
-			cargoPinFindings('crates/x/Cargo.toml', `${tag}\n\nspecta = "=2.0.0-rc.25"`),
-		).toHaveLength(1);
-		expect(
-			cargoPinFindings('crates/x/Cargo.toml', '# pin: no trigger\nspecta = "=1.0.0"'),
-		).toHaveLength(1);
 		expect(cargoPinFindings('crates/x/Cargo.toml', 'serde = "1.0"')).toEqual([]);
-		expect(cargoPinFindings('vendor/x/Cargo.toml', 'specta = "=2.0.0-rc.25"')).toEqual([]);
+		expect(cargoPinFindings('vendor/x/Cargo.toml', 'made-up = "=1.0.0"')).toEqual([]);
+		expect(
+			cargoPinFindings('Cargo.toml', 'serde = "1.0"').map((finding) => finding.message),
+		).toEqual(expect.arrayContaining([expect.stringContaining('`specta`')]));
+	});
+
+	it('records the bunfig exclusion and the Rust toolchain pin', () => {
+		expect(filePinFindings('bunfig.toml', 'minimumReleaseAgeExcludes = [\n]\n')).toEqual([]);
+		expect(filePinFindings('bunfig.toml', 'minimumReleaseAge = 1\n')).toEqual([
+			expect.objectContaining({ message: expect.stringContaining('minimumReleaseAgeExcludes') }),
+		]);
+		expect(filePinFindings('rust-toolchain.toml', 'channel = "1.99.1"\n')).toEqual([]);
+		expect(filePinFindings('rust-toolchain.toml', 'channel = "1.99.2"\n')).toHaveLength(1);
 	});
 
 	it('requires a pin-table row for each exact package pin and override', () => {

@@ -22,13 +22,9 @@ describe('comment policy', () => {
 			'shell-directive',
 			'permission-fake',
 			'safety',
-			'upstream',
-			'pin',
-			'ratchet',
 			'rustdoc-test',
 			'safety-doc',
 			'no-lane',
-			'oxlint-reason',
 			'shellcheck',
 		]);
 		for (const entry of ALLOWLIST) {
@@ -77,7 +73,7 @@ describe('comment policy', () => {
 		).toHaveLength(1);
 	});
 
-	it('keeps an upstream bug link with its sentence and drops the prose around it and a pin', () => {
+	it('drops an upstream bug link and a pin comment', () => {
 		const cargo = [
 			'# The lib name collides on Windows.',
 			'# See https://github.com/rust-lang/cargo/issues/8519',
@@ -86,14 +82,8 @@ describe('comment policy', () => {
 			'# pin: prerelease family; unpin when specta 2.0.0 is stable',
 			'',
 		].join('\n');
-		expect(stripComments('Cargo.toml', cargo)).toBe(
-			[
-				'# See https://github.com/rust-lang/cargo/issues/8519',
-				'specta = "=2.0.0"',
-				'# pin: prerelease family; unpin when specta 2.0.0 is stable',
-				'',
-			].join('\n'),
-		);
+		expect(stripComments('Cargo.toml', cargo)).toBe(['specta = "=2.0.0"', ''].join('\n'));
+		expect(messages('Cargo.toml', cargo)[0]).toContain('Fix: delete it');
 	});
 
 	it('keeps a rustdoc test and drops the prose around it', () => {
@@ -180,13 +170,13 @@ describe('comment policy', () => {
 		);
 	});
 
-	it('keeps the reason before an oxlint rule', () => {
+	it('rejects a reason comment before an oxlint rule', () => {
 		const rule =
 			'\t\t// Solid ignores an event handler return value.\n\t\t"typescript/no-misused-promises": ["error"],\n';
-		expect(stripComments('.oxlintrc.json', rule)).toBe(rule);
-		expect(messages('.oxlintrc.json', '\t\t// just because\n\t\t"name": "ok",\n')).toEqual([
-			expect.stringContaining('Fix: delete it'),
-		]);
+		expect(stripComments('.oxlintrc.json', rule)).toBe(
+			'\t\t"typescript/no-misused-promises": ["error"],\n',
+		);
+		expect(messages('.oxlintrc.json', rule)).toEqual([expect.stringContaining('Fix: delete it')]);
 	});
 
 	it('keeps the reason on a no-lane path and drops the same shape elsewhere', () => {
@@ -265,18 +255,17 @@ describe('comment policy', () => {
 		expect(lines('scripts/x.ts', '// Copyright the team, see below\n')).toEqual([1]);
 	});
 
-	it('keeps a tracker, RFC, discussion, or issue-number link and nothing link-shaped', () => {
+	it('rejects a tracker, RFC, discussion, or issue-number link', () => {
 		for (const link of [
 			'// https://trac.ffmpeg.org/ticket/10531',
 			'// https://www.rfc-editor.org/rfc/rfc8216',
 			'// https://datatracker.ietf.org/doc/html/rfc8216',
 			'// https://github.com/tauri-apps/tauri/discussions/4012',
 			'// blocked on #557',
+			'// see SC2261',
+			'// see https://example.com/a',
 		]) {
-			expect(keptComments('src/x.ts', `${link}\n`)).toEqual([{ line: 1, id: 'upstream' }]);
-		}
-		for (const prose of ['// see SC2261', '// see https://example.com/a']) {
-			expect(lines('src/x.ts', `${prose}\n`)).toEqual([1]);
+			expect(lines('src/x.ts', `${link}\n`)).toEqual([1]);
 		}
 		expect(lines('src/x.css', '/* the old #123 grey */\n')).toEqual([1]);
 	});
@@ -296,7 +285,7 @@ describe('comment policy', () => {
 		expect(lines('scripts/x.sh', 'x=$(( 1 << 2 ))\n# a real comment\n')).toEqual([2]);
 	});
 
-	it('keeps a SAFETY or link comment only to the end of its sentence', () => {
+	it('keeps a SAFETY comment only to the end of its sentence and rejects the lines around a link', () => {
 		const rust = [
 			'    // SAFETY: the handle is open and',
 			'    // owned here.',
@@ -313,7 +302,7 @@ describe('comment policy', () => {
 			'const n = 1;',
 			'',
 		].join('\n');
-		expect(lines('src/x.ts', linked)).toEqual([1, 4]);
+		expect(lines('src/x.ts', linked)).toEqual([1, 2, 3, 4]);
 	});
 
 	it('requires a reason on @ts-nocheck', () => {

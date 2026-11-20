@@ -501,13 +501,80 @@ describe.each([
 
 const CONFIG_LINES = readFileSync(path.join(repoRoot, '.oxlintrc.json'), 'utf8').split('\n');
 
-function reasonless(): string[] {
-	return CONFIG_LINES.flatMap((line, index) => {
-		const tuned = /^\t\t"[^"]+": (?:"off"|\[)/.test(line);
-		const override = line.startsWith('\t\t\t"files":');
-		if (!tuned && !override) return [];
-		return /^\s*\/\//.test(CONFIG_LINES[index - 1] ?? '') ? [] : [`${index + 1}: ${line.trim()}`];
+const OXLINT_CONFIG = JSON.parse(CONFIG_LINES.join('\n')) as {
+	rules: Record<string, unknown>;
+	overrides: Array<{ files: string[] }>;
+};
+
+const TUNED_RULE_REASONS: Readonly<Record<string, string>> = {
+	'eslint/complexity': 'Cyclomatic 20 matches the Rust check (scripts/check-rust-complexity.sh).',
+	'eslint/no-restricted-imports':
+		"Each owner's import surface; overrides below repeat the whole list, since an override replaces it.",
+	'eslint/no-empty': 'A failure is handled, reported, or returned; an empty block drops it.',
+	'typescript/no-misused-promises': "Solid ignores an event handler's return value.",
+	'typescript/switch-exhaustiveness-check': 'A default branch counts as exhaustive.',
+	'jsx-a11y/label-has-associated-control':
+		"Solid JSX labels use `for`; the rule reads only React's `htmlFor`.",
+	'jsx-a11y/prefer-tag-over-role':
+		'role="status" on a container is valid ARIA; <output> is a form control with different semantics.',
+	'import/no-unassigned-import':
+		'Component styles load as side-effect imports; Vitest setup registers jest-dom matchers the same way.',
+	'vitest/valid-expect': "Vitest's expect takes a failure message as its second argument.",
+	'eslint/no-underscore-dangle': 'Tauri defines this global; tests stub it to toggle the runtime.',
+	'typescript/consistent-return':
+		'tsc already rejects a typed function with a path that returns nothing (TS2366), including exhaustive switches.',
+	'vitest/require-mock-type-parameters':
+		'vi.fn takes its type from the implementation or the slot it fills; a typed parameter adds no check there.',
+	'unicorn/consistent-function-scoping':
+		'Hoisting a closure that captures nothing protects no behavior; closures stay beside their one use.',
+	'eslint/no-unassigned-vars':
+		"Solid's ref={x} attribute assigns these variables, which the rule cannot see.",
+	'oxc/no-map-spread':
+		'The mapped copies are the point; mutating them would change shared snapshots.',
+	'eslint/no-unused-vars':
+		"Same convention as tsc's noUnusedParameters: a leading underscore marks an intentionally unused argument.",
+};
+
+const OVERRIDE_REASONS: Readonly<Record<string, string>> = {
+	'src/**': 'The app runs in a WebView, which has no Node built-ins.',
+	'src/**/*.test.ts|src/**/*.test.tsx|src/test/**/*.ts':
+		'Tests assert on values they just built and may print.',
+	'scripts/**':
+		'Scripts parse JSON and YAML the repo writes and check it in the same run; a wrong shape fails the script loudly.',
+	'**/*.test.ts|**/*.test.tsx|src/test/**/*.ts':
+		'A test double stands in for part of a platform or engine object, so the cast is the point.',
+	'scripts/check-tauri-runtime-boundary.ts|scripts/dev-log-analysis.ts|scripts/verification.ts|src/app/encoding/project.ts|src/ui/fileList/AudioHandlingControl.tsx|src/ui/remoteSource/RemoteSourceAcquireView.tsx':
+		'Hotspot exemptions from the complexity limit; each gets a disposition when next changed (AGENTS.md, Refactor Discipline).',
+	'src/app/**|src/ui/foundation/**': 'App owners and foundation import the base list only.',
+	'src/ui/*.tsx|src/ui/*.ts': 'Top-level views import another view through its folder.',
+	'src/ui/*/**': 'A view imports a sibling view through its folder; foundation is exempt.',
+	'src/lib/tauri/**': 'src/lib/tauri owns the plugin and event APIs it wraps.',
+	'src/lib/tauri/commands.ts': 'commands.ts is the one importer of the generated commands value.',
+	'src/lib/tauri/client.ts': 'client.ts is the one importer of the generated events value.',
+};
+
+function filesKey(files: readonly string[]): string {
+	return files.join('|');
+}
+
+function reasonGaps(): string[] {
+	const rules = OXLINT_CONFIG.rules;
+	const missing = Object.entries(rules).flatMap(([name, value]) => {
+		const tuned = value === 'off' || Array.isArray(value);
+		return tuned && !TUNED_RULE_REASONS[name] ? [`missing rule ${name}`] : [];
 	});
+	const staleRules = Object.keys(TUNED_RULE_REASONS).flatMap((name) => {
+		const value = rules[name];
+		return value === 'off' || Array.isArray(value) ? [] : [`stale rule ${name}`];
+	});
+	const live = new Set(OXLINT_CONFIG.overrides.map((override) => filesKey(override.files)));
+	const missingOverrides = [...live].flatMap((key) =>
+		OVERRIDE_REASONS[key] ? [] : [`missing override ${key}`],
+	);
+	const staleOverrides = Object.keys(OVERRIDE_REASONS).flatMap((key) =>
+		live.has(key) ? [] : [`stale override ${key}`],
+	);
+	return [...missing, ...staleRules, ...missingOverrides, ...staleOverrides];
 }
 
 function configuredRules(): string[] {
@@ -518,8 +585,11 @@ function configuredRules(): string[] {
 }
 
 describe('.oxlintrc.json', () => {
-	it('gives every tuned rule and override a reason on the line before it', () => {
-		expect(reasonless()).toEqual([]);
+	it('records a reason for every tuned rule and override', () => {
+		expect(
+			reasonGaps(),
+			'Fix: add the reason to TUNED_RULE_REASONS or OVERRIDE_REASONS in scripts/lint-rules.test.ts. Root cause: a tuned rule without a recorded reason hides why the default was not enough.',
+		).toEqual([]);
 	});
 
 	it('proves every configured rule with a fixture pair', () => {
