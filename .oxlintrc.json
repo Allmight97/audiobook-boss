@@ -7,14 +7,12 @@
 		"perf": "error"
 	},
 	"rules": {
-		// Cyclomatic 20 matches the Rust check (scripts/check-rust-complexity.sh).
 		"eslint/complexity": [
 			"error",
 			{
 				"max": 20
 			}
 		],
-		// Each owner's import surface; overrides below repeat the whole list, since an override replaces it.
 		"eslint/no-restricted-imports": [
 			"error",
 			{
@@ -60,48 +58,33 @@
 				]
 			}
 		],
-		// A failure is handled, reported, or returned; an empty block drops it.
 		"eslint/no-empty": ["error", { "allowEmptyCatch": false }],
 		"import/no-cycle": "error",
 		"typescript/no-explicit-any": "error",
 		"typescript/no-floating-promises": "error",
-		// Solid ignores an event handler's return value.
 		"typescript/no-misused-promises": ["error", { "checksVoidReturn": { "attributes": false } }],
-		// A default branch counts as exhaustive.
 		"typescript/switch-exhaustiveness-check": [
 			"error",
 			{ "considerDefaultExhaustiveForUnions": true }
 		],
 		"typescript/no-non-null-assertion": "error",
-		// Solid JSX labels use `for`; the rule reads only React's `htmlFor`.
 		"jsx-a11y/label-has-associated-control": "off",
-		// role="status" on a container is valid ARIA; <output> is a form control with different semantics.
 		"jsx-a11y/prefer-tag-over-role": "off",
-		// Component styles load as side-effect imports; Vitest setup registers jest-dom matchers the same way.
 		"import/no-unassigned-import": [
 			"error",
 			{ "allow": ["**/*.css", "**/*.install", "@testing-library/jest-dom/vitest"] }
 		],
-		// Vitest's expect takes a failure message as its second argument.
 		"vitest/valid-expect": ["error", { "maxArgs": 2 }],
-		// Tauri defines this global; tests stub it to toggle the runtime.
 		"eslint/no-underscore-dangle": ["error", { "allow": ["__TAURI_INTERNALS__"] }],
-		// tsc already rejects a typed function with a path that returns nothing (TS2366), including exhaustive switches.
 		"typescript/consistent-return": "off",
-		// vi.fn takes its type from the implementation or the slot it fills; a typed parameter adds no check there.
 		"vitest/require-mock-type-parameters": "off",
-		// Hoisting a closure that captures nothing protects no behavior; closures stay beside their one use.
 		"unicorn/consistent-function-scoping": "off",
-		// Solid's ref={x} attribute assigns these variables, which the rule cannot see.
 		"eslint/no-unassigned-vars": "off",
-		// The mapped copies are the point; mutating them would change shared snapshots.
 		"oxc/no-map-spread": "off",
-		// Same convention as tsc's noUnusedParameters: a leading underscore marks an intentionally unused argument.
 		"eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }]
 	},
 	"overrides": [
 		{
-			// The app runs in a WebView, which has no Node built-ins.
 			"files": ["src/**"],
 			"rules": {
 				"import/no-nodejs-modules": "error",
@@ -109,7 +92,6 @@
 			}
 		},
 		{
-			// Tests assert on values they just built and may print.
 			"files": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**/*.ts"],
 			"rules": {
 				"typescript/no-non-null-assertion": "off",
@@ -117,7 +99,6 @@
 			}
 		},
 		{
-			// Scripts parse JSON and YAML the repo writes and check it in the same run; a wrong shape fails the script loudly.
 			"files": ["scripts/**"],
 			"rules": {
 				"typescript/no-unsafe-type-assertion": "off",
@@ -125,14 +106,12 @@
 			}
 		},
 		{
-			// A test double stands in for part of a platform or engine object, so the cast is the point.
 			"files": ["**/*.test.ts", "**/*.test.tsx", "src/test/**/*.ts"],
 			"rules": {
 				"typescript/no-unsafe-type-assertion": "off"
 			}
 		},
 		{
-			// Hotspot exemptions from the complexity limit; each gets a disposition when next changed (AGENTS.md, Refactor Discipline).
 			"files": [
 				"scripts/check-tauri-runtime-boundary.ts",
 				"scripts/dev-log-analysis.ts",
@@ -146,7 +125,6 @@
 			}
 		},
 		{
-			// App owners and foundation import the base list only.
 			"files": ["src/app/**", "src/ui/foundation/**"],
 			"rules": {
 				"eslint/no-restricted-imports": [
@@ -197,7 +175,6 @@
 			}
 		},
 		{
-			// Top-level views import another view through its folder.
 			"files": ["src/ui/*.tsx", "src/ui/*.ts"],
 			"rules": {
 				"eslint/no-restricted-imports": [
@@ -252,7 +229,6 @@
 			}
 		},
 		{
-			// A view imports a sibling view through its folder; foundation is exempt.
 			"files": ["src/ui/*/**"],
 			"excludeFiles": ["src/ui/foundation/**"],
 			"rules": {
@@ -308,7 +284,6 @@
 			}
 		},
 		{
-			// src/lib/tauri owns the plugin and event APIs it wraps.
 			"files": ["src/lib/tauri/**"],
 			"rules": {
 				"eslint/no-restricted-imports": [
@@ -349,7 +324,6 @@
 			}
 		},
 		{
-			// commands.ts is the one importer of the generated commands value.
 			"files": ["src/lib/tauri/commands.ts"],
 			"rules": {
 				"eslint/no-restricted-imports": [
@@ -390,7 +364,6 @@
 			}
 		},
 		{
-			// client.ts is the one importer of the generated events value.
 			"files": ["src/lib/tauri/client.ts"],
 			"rules": {
 				"eslint/no-restricted-imports": [

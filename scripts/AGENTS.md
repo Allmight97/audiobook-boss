@@ -65,10 +65,10 @@
 - Update a direct dependency only for a concrete trigger in the touched owner;
   leave unrelated lockfile churn out.
 - Every exact pin, `package.json` override, and `bunfig.toml` exclusion carries
-  `pin: <why>; unpin when <trigger or YYYY-MM-DD>`. Cargo pins carry it beside
-  the pin; `package.json`, `.node-version`, and shell pins are rows in this
-  table. A newer release at least 10 days old is a reason to update, not to
-  keep a pin.
+  `pin: <why>; unpin when <trigger or YYYY-MM-DD>`. Cargo pins, the bunfig
+  exclusion, and the Rust toolchain are records in `check-known-mistakes.ts`;
+  `package.json`, `.node-version`, and shell pins are rows in this table. A
+  newer release at least 10 days old is a reason to update, not to keep a pin.
 
 
 | File | Pin | Tag |

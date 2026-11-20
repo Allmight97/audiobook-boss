@@ -2,7 +2,6 @@
 minimumReleaseAge = 864000
 
 minimumReleaseAgeExcludes = [
-  # pin: update:rc takes fresh Solid prerelease builds; unpin when Solid 2.0 is stable
   "solid-js",
   "@solidjs/web",
   "@solidjs/signals",

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -7,6 +7,9 @@ import {
 	cargoPinFindings,
 	changedSampleFindings,
 	checkFile,
+	filePinFindings,
+	permissionFakeFindings,
+	shellAllowanceFindings,
 	frozenSampleFindings,
 	packagePinFindings,
 } from './check-known-mistakes';
@@ -211,29 +214,38 @@ describe('check-known-mistakes', () => {
 		expect(found(file, '#[expect(lint, reason = "joined by run_job")]')).toEqual([]);
 	});
 
-	it('requires a pin tag above each exact Cargo pin', () => {
-		const tag = '# pin: prerelease family; unpin when specta 2.0.0 is stable';
-		expect(cargoPinFindings('crates/x/Cargo.toml', `${tag}\nspecta = "=2.0.0-rc.25"`)).toEqual([]);
+	it('records every exact Cargo pin and rejects one the record does not name', () => {
+		expect(cargoPinFindings('crates/x/Cargo.toml', 'specta = "=2.0.0-rc.25"')).toEqual([]);
 		expect(
 			cargoPinFindings(
 				'crates/x/Cargo.toml',
-				`${tag}\nspecta = "=2.0.0-rc.25"\nspecta-typescript = "=0.0.12"`,
+				'specta-typescript = "=0.0.12"\ntauri-specta = "=2.0.0-rc.25"',
 			),
 		).toEqual([]);
-		expect(cargoPinFindings('crates/x/Cargo.toml', 'specta = "=2.0.0-rc.25"')).toEqual([
+		expect(cargoPinFindings('crates/x/Cargo.toml', 'made-up = "=1.0.0"')).toEqual([
 			expect.objectContaining({
 				line: 1,
-				message: expect.stringContaining('exact pin without a tag'),
+				message: expect.stringContaining('CARGO_EXACT_PIN_REASONS'),
 			}),
 		]);
-		expect(
-			cargoPinFindings('crates/x/Cargo.toml', `${tag}\n\nspecta = "=2.0.0-rc.25"`),
-		).toHaveLength(1);
-		expect(
-			cargoPinFindings('crates/x/Cargo.toml', '# pin: no trigger\nspecta = "=1.0.0"'),
-		).toHaveLength(1);
 		expect(cargoPinFindings('crates/x/Cargo.toml', 'serde = "1.0"')).toEqual([]);
-		expect(cargoPinFindings('vendor/x/Cargo.toml', 'specta = "=2.0.0-rc.25"')).toEqual([]);
+		expect(cargoPinFindings('vendor/x/Cargo.toml', 'made-up = "=1.0.0"')).toEqual([]);
+		expect(
+			cargoPinFindings('Cargo.toml', 'serde = "1.0"').map((finding) => finding.message),
+		).toEqual(expect.arrayContaining([expect.stringContaining('`specta`')]));
+	});
+
+	it('records the bunfig exclusion and the Rust toolchain pin', () => {
+		expect(
+			filePinFindings('bunfig.toml', 'minimumReleaseAgeExcludes = [\n  "solid-js",\n]\n'),
+		).toEqual([]);
+		expect(filePinFindings('bunfig.toml', 'minimumReleaseAgeExcludes = [\n]\n')).toEqual([
+			expect.objectContaining({ message: expect.stringContaining('"solid-js"') }),
+		]);
+		expect(filePinFindings('rust-toolchain.toml', 'channel = "1.99.2"\n')).toEqual([]);
+		expect(filePinFindings('rust-toolchain.toml', 'components = ["rustfmt"]\n')).toEqual([
+			expect.objectContaining({ message: expect.stringContaining('channel = "') }),
+		]);
 	});
 
 	it('requires a pin-table row for each exact package pin and override', () => {
@@ -324,12 +336,18 @@ describe('check-known-mistakes', () => {
 		expect(found('scripts/setup.sh', `\tsed -E 's/^# ?//'`)).toEqual([]);
 	});
 
-	it('rejects other GNU or bash 4 forms unless marked', () => {
+	it('rejects other GNU or bash 4 forms unless the line is recorded', () => {
 		expect(
 			found('scripts/x.sh', 'sed -i "s/a/b/" file\nreadlink -f x\ndeclare -A map'),
 		).toHaveLength(3);
 		expect(
 			found('scripts/x.sh', '# allow-gnu: runs only in the Linux container\nsed -i "s/a/b/" file'),
+		).toHaveLength(1);
+		expect(
+			found(
+				'scripts/setup.sh',
+				'mapfile -t missing_packages < <(missing_apt_packages "${linux_rust_packages[@]}")',
+			),
 		).toEqual([]);
 	});
 
@@ -345,11 +363,12 @@ describe('check-known-mistakes', () => {
 		]);
 	});
 
-	it('rejects a silenced single-line capture unless marked with a reason', () => {
+	it('rejects a silenced single-line capture unless the line is recorded', () => {
 		expect(found('scripts/x.sh', 'v="$(tool --version 2>/dev/null)"')).toHaveLength(1);
 		expect(
 			found('scripts/x.sh', 'v="$(tool --version 2>/dev/null)" # allow-silence: optional probe'),
-		).toEqual([]);
+		).toHaveLength(1);
+		expect(found('scripts/dev-tauri-log.sh', 'if output="$("$@" 2>/dev/null)"; then')).toEqual([]);
 		expect(found('scripts/x.sh', 'kill "$pid" 2>/dev/null || true')).toEqual([]);
 	});
 
@@ -365,7 +384,30 @@ describe('check-known-mistakes', () => {
 				'crates/abb-engine/tests/all_tests.rs',
 				`// allow-permission-fake: runs as nobody\n${line}`,
 			),
+		).toHaveLength(1);
+		expect(
+			found(
+				'crates/abb-engine/tests/all_tests.rs',
+				'std::fs::set_permissions(source, std::fs::Permissions::from_mode(0o444))',
+			),
 		).toEqual([]);
+	});
+
+	it('records each shell allowance and permission-fake site, and rejects a missing anchor', () => {
+		const setup = readFileSync('scripts/setup.sh', 'utf8');
+		const devLog = readFileSync('scripts/dev-tauri-log.sh', 'utf8');
+		expect(shellAllowanceFindings('scripts/setup.sh', setup)).toEqual([]);
+		expect(shellAllowanceFindings('scripts/dev-tauri-log.sh', devLog)).toEqual([]);
+		expect(shellAllowanceFindings('scripts/setup.sh', 'echo\n').length).toBeGreaterThan(0);
+		expect(
+			permissionFakeFindings(
+				'crates/abb-engine/tests/all_tests.rs',
+				readFileSync('crates/abb-engine/tests/all_tests.rs', 'utf8'),
+			),
+		).toEqual([]);
+		expect(
+			permissionFakeFindings('crates/abb-engine/tests/all_tests.rs', 'fn main() {}\n'),
+		).toHaveLength(1);
 	});
 
 	it('rejects comments that stand in for structure or enforcement', () => {

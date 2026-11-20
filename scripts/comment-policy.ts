@@ -33,33 +33,9 @@ export const ALLOWLIST: readonly AllowEntry[] = [
 			'A lint or TypeScript suppression is a directive the tool reads, and it has to carry the reason the tool or this repo requires.',
 	},
 	{
-		id: 'shell-directive',
-		reason:
-			'`# allow-gnu:` and `# allow-silence:` are directives check-known-mistakes.ts reads, and each requires the reason it runs only where the marker says.',
-	},
-	{
-		id: 'permission-fake',
-		reason:
-			'`// allow-permission-fake:` is a directive check-known-mistakes.ts reads, and it requires the reason the test runs unprivileged.',
-	},
-	{
 		id: 'safety',
 		reason:
 			'Clippy requires `// SAFETY:` with a reason on unsafe (workspace lint undocumented_unsafe_blocks); the comment ends with the sentence it starts.',
-	},
-	{
-		id: 'upstream',
-		reason:
-			'A link to an upstream bug, ticket, RFC, or discussion, or a `#<n>` issue on this repo, points at the record of a constraint this repo cannot hold in code; only the sentence that holds the link stays.',
-	},
-	{
-		id: 'pin',
-		reason:
-			'`# pin: <why>; unpin when <trigger>` is the tag check-known-mistakes.ts requires on an exact pin.',
-	},
-	{
-		id: 'ratchet',
-		reason: '`// @ratchet-files-ignore:` with a reason is the opt-out check-file-size.mjs reads.',
 	},
 	{
 		id: 'rustdoc-test',
@@ -72,16 +48,6 @@ export const ALLOWLIST: readonly AllowEntry[] = [
 			'A `/// # Safety` section on an `unsafe fn` states the caller contract; clippy missing_safety_doc skips non-public functions, and no other check can hold the contract.',
 	},
 	{
-		id: 'no-lane',
-		reason:
-			'A `#` reason on a no-lane path in scripts/lane-paths.yml is the text verification.ts requires before a file can sit outside every lane.',
-	},
-	{
-		id: 'oxlint-reason',
-		reason:
-			'A `//` line before a tuned rule or files override in .oxlintrc.json is the reason lint-rules.test.ts requires on that line.',
-	},
-	{
 		id: 'shellcheck',
 		reason:
 			'`# shellcheck disable=SC<id> # <why>` and `# shellcheck shell=bash` are directives shellcheck reads; a disable has to say why.',
@@ -92,28 +58,13 @@ const PLAIN =
 	'is a comment, and a comment does not hold a constraint. Fix: delete it. If it names a constraint, encode that constraint in the API, a type, a lint rule, or a test, and put the fix in the failure text. A comment may stay only when its shape is an entry in ALLOWLIST in scripts/comment-policy.ts. Root cause: prose in code goes stale and gets copied as an excuse.';
 
 const BARE =
-	'is a directive with no reason. Fix: add the reason its form requires (` -- why` on a lint suppression, text after `// SAFETY:` or `@ts-nocheck`, text after `# allow-gnu:` or `# allow-silence:`, `# pin: <why>; unpin when <trigger>`, `# shellcheck disable=SC<id> # why`), or delete it and satisfy the check. Root cause: a suppression without a reason hides the constraint.';
+	'is a directive with no reason. Fix: add the reason its form requires (` -- why` on a lint suppression, text after `// SAFETY:` or `@ts-nocheck`, `# shellcheck disable=SC<id> # why`), or delete it and satisfy the check. Root cause: a suppression without a reason hides the constraint.';
 
 const LICENSE =
 	/SPDX-License-Identifier:|Copyright\s+(?:\(c\)|©|\d{4})|Permission is hereby granted|licensed under the/i;
-const UPSTREAM = new RegExp(
-	[
-		/https?:\/\/(?:[\w.-]*github\.com|gitlab\.com)\/[^\s)>]+\/(?:issues|pull|pulls|discussions)\/\d+/,
-		/https?:\/\/trac\.ffmpeg\.org\/ticket\/\d+/,
-		/https?:\/\/(?:www\.)?rfc-editor\.org\/(?:rfc\/)?rfc\d+/,
-		/https?:\/\/datatracker\.ietf\.org\/doc\/(?:html\/)?rfc\d+/,
-	]
-		.map((pattern) => pattern.source)
-		.join('|'),
-	'i',
-);
-const ISSUE_NUMBER = /(?:^|[\s(])#\d+(?![\w-])/;
 const SENTENCE_END = /[.!?][)"'`]*$/;
+const LINK_END = /https?:\/\/\S+$/;
 const SAFETY = /(?:^|\s)\/\/\s*SAFETY:\s+\S|\/\*\s*SAFETY:\s+\S/;
-const PIN = /#\s*pin:\s+.+;\s*unpin when\s+\S/;
-const SHELL_DIRECTIVE = /#\s*allow-(?:gnu|silence):\s*\S/;
-const PERMISSION_FAKE = /\/\/\s*allow-permission-fake:\s*\S/;
-const RATCHET = /@ratchet-files-ignore:\s*\S/;
 const LINT_DIRECTIVE = /\b(?:(?:ox|es)lint-disable(?:-next-line|-line)?|biome-ignore)\b/;
 const TS_DIRECTIVE = /@ts-(?:expect-error|ignore|nocheck|check)\b/;
 const RUSTDOC_TEST_ATTRIBUTE =
@@ -167,15 +118,11 @@ function commentBody(text: string): string {
 }
 
 function classify(text: string): Mark {
-	if (PIN.test(text)) return entry('pin');
-	if (SHELL_DIRECTIVE.test(text)) return entry('shell-directive');
 	if (/#\s*shellcheck\b/.test(text)) {
 		const reasoned = /#\s*shellcheck disable=SC\d+\s+#\s+\S/.test(text);
 		const sourced = /#\s*shellcheck shell=bash\s*$/.test(text);
 		return reasoned || sourced ? entry('shellcheck') : BARE_MARK;
 	}
-	if (PERMISSION_FAKE.test(text)) return entry('permission-fake');
-	if (RATCHET.test(text)) return entry('ratchet');
 	if (LINT_DIRECTIVE.test(text)) return /--\s*\S/.test(text) ? entry('lint-directive') : BARE_MARK;
 	if (/@ts-check\b/.test(text)) return entry('lint-directive');
 	if (!TS_DIRECTIVE.test(text)) return { keep: false };
@@ -189,15 +136,9 @@ function isPlain(text: string): boolean {
 	return !mark.keep && !mark.bare;
 }
 
-function isLink(file: string, text: string): boolean {
-	if (UPSTREAM.test(text)) return true;
-	return !file.endsWith('.css') && ISSUE_NUMBER.test(commentBody(text));
-}
-
-function endsSentence(file: string, span: Span): boolean {
+function endsSentence(span: Span): boolean {
 	const body = commentBody(span.text);
-	const last = body.split(/\s+/).at(-1) ?? '';
-	return SENTENCE_END.test(body) || isLink(file, ` ${last.replace(/[).,;:]+$/, '')}`);
+	return SENTENCE_END.test(body) || LINK_END.test(body);
 }
 
 function gap(source: string, previous: Span, next: Span): boolean {
@@ -243,26 +184,19 @@ function decideSpan(span: Span, mark: Mark): Decision {
 
 type Claims = Array<string | null>;
 
-function claimSentence(file: string, group: Span[], claims: Claims, at: number, id: string): void {
+function claimSentence(group: Span[], claims: Claims, at: number, id: string): void {
 	claims[at] = id;
 	const open = (index: number) => claims[index] === null && isPlain(group[index].text);
-	if (id === 'upstream') {
-		for (let index = at - 1; index >= 0 && open(index); index -= 1) {
-			if (endsSentence(file, group[index])) break;
-			claims[index] = id;
-		}
-	}
 	for (let index = at; index + 1 < group.length && open(index + 1); index += 1) {
-		if (endsSentence(file, group[index])) break;
+		if (endsSentence(group[index])) break;
 		claims[index + 1] = id;
 	}
 }
 
-function claimAnchors(file: string, group: Span[], claims: Claims): Claims {
+function claimAnchors(group: Span[], claims: Claims): Claims {
 	group.forEach((span, at) => {
 		if (claims[at] !== null) return;
-		if (!span.doc && SAFETY.test(span.text)) claimSentence(file, group, claims, at, 'safety');
-		else if (isLink(file, span.text)) claimSentence(file, group, claims, at, 'upstream');
+		if (!span.doc && SAFETY.test(span.text)) claimSentence(group, claims, at, 'safety');
 	});
 	return claims;
 }
@@ -302,22 +236,6 @@ function markGroup(group: Span[], claims: Claims, rest: (span: Span) => Mark): D
 	});
 }
 
-function lineAt(source: string, index: number): string {
-	const start = source.lastIndexOf('\n', index - 1) + 1;
-	const end = source.indexOf('\n', index);
-	return source.slice(start, end === -1 ? source.length : end);
-}
-
-function machineReason(file: string, source: string, span: Span): string | null {
-	const line = lineAt(source, span.start);
-	if (file === 'scripts/lane-paths.yml' && /^\s*-\s+\S.*\s#\s+\S/.test(line)) return 'no-lane';
-	if (file !== '.oxlintrc.json') return null;
-	const next = source.slice(span.end).match(/^\n([^\n]*)/)?.[1] ?? '';
-	const tuned = /^\t\t"[^"]+": (?:"off"|\[)/.test(next);
-	const override = next.startsWith('\t\t\t"files":');
-	return tuned || override ? 'oxlint-reason' : null;
-}
-
 const UNSAFE_FN =
 	/^(?:\s*#\[[^\n]*\]\s*)*\s*(?:pub(?:\([^)]*\))?\s+)?(?:const\s+)?(?:async\s+)?unsafe\s+(?:extern\s+"[^"]*"\s+)?fn\b/;
 
@@ -333,19 +251,15 @@ function safetyDocClaims(source: string, group: Span[], claims: Claims): Claims 
 
 function markDocGroup(file: string, source: string, group: Span[]): Decision[] {
 	const claims = safetyDocClaims(source, group, fenceClaims(file, group));
-	return markGroup(group, claimAnchors(file, group, claims), () => ({ keep: false }));
+	return markGroup(group, claimAnchors(group, claims), () => ({ keep: false }));
 }
 
-function markPlainGroup(file: string, source: string, group: Span[]): Decision[] {
+function markPlainGroup(group: Span[]): Decision[] {
 	const claims = claimAnchors(
-		file,
 		group,
 		group.map(() => null),
 	);
-	return markGroup(group, claims, (span) => {
-		const machine = machineReason(file, source, span);
-		return machine === null ? classify(span.text) : entry(machine);
-	});
+	return markGroup(group, claims, (span) => classify(span.text));
 }
 
 function decisions(file: string, source: string): Decision[] {
@@ -359,7 +273,7 @@ function decisions(file: string, source: string): Decision[] {
 	}
 	const plain = spans.filter((span) => !claimed.has(span));
 	for (const group of groupSpans(source, plain, () => true)) {
-		marked.push(...markPlainGroup(file, source, group));
+		marked.push(...markPlainGroup(group));
 	}
 	return marked.toSorted((left, right) => left.start - right.start);
 }

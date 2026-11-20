@@ -11,16 +11,17 @@ export type UnwrappedCommands = {
 	) => Unwrapped<ReturnType<GeneratedCommands[Name]>>;
 };
 
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the generated commands differ in arity; each is called only with its own arguments.
-const callable = generatedCommands as Record<
-	string,
-	(...args: unknown[]) => Promise<GeneratedResult<unknown>>
->;
+function unwrap<Args extends readonly unknown[], Data>(
+	command: (...args: Args) => Promise<GeneratedResult<Data>>,
+): (...args: Args) => Promise<Data> {
+	return async (...args) => unwrapGeneratedResult(await command(...args));
+}
 
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.fromEntries loses the per-command types that UnwrappedCommands restores.
-export const commands = Object.fromEntries(
-	Object.entries(callable).map(([name, command]) => [
-		name,
-		async (...args: unknown[]) => unwrapGeneratedResult(await command(...args)),
-	]),
-) as UnwrappedCommands;
+export const commands = {
+	attachFrontend: unwrap(generatedCommands.attachFrontend),
+	sessionDispatch: unwrap(generatedCommands.sessionDispatch),
+	openPreviewOutput: unwrap(generatedCommands.openPreviewOutput),
+	settingsDispatch: unwrap(generatedCommands.settingsDispatch),
+	cancelWorkOperation: unwrap(generatedCommands.cancelWorkOperation),
+	logFrontend: unwrap(generatedCommands.logFrontend),
+} satisfies UnwrappedCommands;

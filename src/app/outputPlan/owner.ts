@@ -16,7 +16,7 @@ export type OutputPlanOwner = {
 	estimateTitleSizeText: (file: AudioFile) => string | null;
 	readonly collision: Accessor<CollisionView>;
 	browseDirectory: () => Promise<void>;
-	selectNamingPreset: (value: string) => void;
+	selectNamingPreset: (value: NamingPreset) => void;
 	setAbsIncludeYear: (value: boolean) => void;
 	editNamingTemplate: (value: string) => void;
 	chooseCollisionPolicy: (reviewId: number, policy: CollisionPolicy) => void;
@@ -84,8 +84,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			}
 		},
 		selectNamingPreset(value) {
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the select offers only NamingPreset values.
-			link.post({ kind: 'setNamingPreset', preset: value as NamingPreset });
+			link.post({ kind: 'setNamingPreset', preset: value });
 		},
 		setAbsIncludeYear(includeYear) {
 			link.post({ kind: 'setIncludeYear', includeYear });

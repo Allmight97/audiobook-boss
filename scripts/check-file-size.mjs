@@ -28,9 +28,6 @@ import { extname, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 import * as languages from 'linguist-languages';
 
-const pragma = '@ratchet-files-ignore';
-const pragmaLines = 10;
-
 const usage = `Usage:
   check-file-size.mjs --all [--max-tokens N]
       List every tracked source file over the budget, largest first.
@@ -49,9 +46,7 @@ const usage = `Usage:
 
 Source is any extension GitHub Linguist assigns to a programming language
 and no prose language (.md is not source). Files marked linguist-generated
-or linguist-vendored in the staged .gitattributes are skipped, and so is a
-file with ${pragma} in a comment in its first ${pragmaLines} lines,
-followed by why splitting it would cost more than it saves. Language data
+or linguist-vendored in the staged .gitattributes are skipped. Language data
 comes from the linguist-languages package, the pinned dev dependency.
 
 The default budget is 8,000 tokens. Exit 1 means a file broke the budget.
@@ -74,13 +69,6 @@ const splitRules = `Split a file before adding to it:
     split must not change behaviour; prove it with the checks the repository
     already uses for that.`;
 
-const optOut = `Opt a file out only when every split would cost more than it saves, such
-as one table or state machine that reads only as a whole. Put
-${pragma} in a comment within its first ${pragmaLines} lines, followed by why:
-  // ${pragma}: one opcode table; split, each half reads without the other.
-The check then skips the file entirely, even as it grows, so it is a last
-resort, never a way past a refusal. Tell the user each file you opt out.`;
-
 const { values, positionals } = parseArgs({
 	allowPositionals: true,
 	options: {
@@ -91,7 +79,7 @@ const { values, positionals } = parseArgs({
 	},
 });
 if (values.help) {
-	console.log(`${usage}\n\n${splitRules}\n\n${optOut}`);
+	console.log(`${usage}\n\n${splitRules}`);
 	process.exit(0);
 }
 if (values.all && values.against !== undefined) {
@@ -156,10 +144,6 @@ const blobBytes = (spec) => {
 	const size = gitOk(['cat-file', '-s', spec]);
 	return size === null ? null : Number(size.trim());
 };
-const ignored = (spec) =>
-	(gitOk(['cat-file', 'blob', spec]) ?? '')
-		.split('\n', pragmaLines)
-		.some((line) => line.includes(pragma));
 const tokens = (bytes) => `~${Math.round(bytes / 4).toLocaleString('en')} tokens`;
 const sources = (paths) => {
 	const candidates = paths.filter(isSource);
@@ -189,7 +173,7 @@ function collectFailures(paths, origin, currentPrefix, baselinePrefix) {
 	for (const filePath of sources(paths)) {
 		const current = `${currentPrefix}${filePath}`;
 		const bytes = blobBytes(current);
-		if (bytes === null || bytes <= maxBytes || ignored(current)) continue;
+		if (bytes === null || bytes <= maxBytes) continue;
 		const before = blobBytes(`${baselinePrefix}${origin.get(filePath) ?? filePath}`);
 		if (before !== null && bytes <= before) continue;
 		failures.push({ path: filePath, bytes, before });
@@ -220,7 +204,7 @@ function reportFailures(failures, compared) {
 		console.error(`    Cut at least ${(failure.bytes - limit).toLocaleString('en')} bytes.`);
 	}
 	console.error(
-		`\nMake room by moving a concept into its own file, not by squeezing code to fit.\n${splitRules}\n\n${optOut}`,
+		`\nMake room by moving a concept into its own file, not by squeezing code to fit.\n${splitRules}`,
 	);
 	return 1;
 }
@@ -238,16 +222,11 @@ if (values.all) {
 		.map((filePath) => ({ path: filePath, bytes: blobBytes(`:${filePath}`) }))
 		.filter(({ bytes }) => bytes > maxBytes)
 		.toSorted((a, b) => b.bytes - a.bytes);
-	const opted = over.filter(({ path: filePath }) => ignored(`:${filePath}`));
-	const listed = over.filter((file) => !opted.includes(file));
-	for (const { path: filePath, bytes } of listed) {
+	for (const { path: filePath, bytes } of over) {
 		console.log(`${tokens(bytes).padStart(15)}  ${filePath}`);
 	}
-	console.log(`Source files over ${maxTokens.toLocaleString('en')} tokens: ${listed.length}.`);
-	if (opted.length > 0) {
-		console.log(`Over the budget but opted out with ${pragma}: ${opted.length}.`);
-	}
-	process.exit(listed.length > 0 ? 1 : 0);
+	console.log(`Source files over ${maxTokens.toLocaleString('en')} tokens: ${over.length}.`);
+	process.exit(over.length > 0 ? 1 : 0);
 }
 
 if (values.against !== undefined) {

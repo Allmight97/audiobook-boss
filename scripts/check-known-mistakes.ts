@@ -13,9 +13,15 @@ export interface Finding {
 interface Rule {
 	appliesTo: (file: string) => boolean;
 	comment?: RegExp;
-	allow?: string;
+	recorded?: (file: string, line: string) => boolean;
 	findIn: (line: string, insideCapture: boolean) => string | null;
 	message: string;
+}
+
+interface LineRecord {
+	file: string;
+	anchor: string;
+	reason: string;
 }
 
 const OWNED_SHELL = (file: string) =>
@@ -107,7 +113,128 @@ const EXCUSE_COMMENT =
 	/^\s*\/\/+[!/]?\s*(shortcut|TODO|FIXME|HACK|XXX|workaround)\b|^\s*\/\/.*(intentional architecture|not (?:a )?temporary)/;
 const PLANNING_COMMENT = /^\s*\/\/.*(\(#\d+ (?:Branch|residual|follow-?up|phase))/;
 const UNENFORCED_CLAIM = /^\s*\/\/.*\b(never panics?|cannot panic|will not panic)\b/;
-const PIN_TAG = /^\s*#\s*pin: .+; unpin when /;
+type PinReason = `${string}; unpin when ${string}`;
+
+const CARGO_EXACT_PIN_REASONS: Readonly<Record<string, PinReason>> = {
+	specta:
+		'prerelease family whose generated TS contract changes between RCs; unpin when specta 2.0.0 is stable',
+	'specta-typescript': 'same specta prerelease family as specta; unpin when specta 2.0.0 is stable',
+	'tauri-specta': 'same specta prerelease family as specta; unpin when specta 2.0.0 is stable',
+};
+
+const SHELL_ALLOWANCES: readonly (LineRecord & { kind: 'gnu' | 'silence' })[] = [
+	{
+		file: 'scripts/setup.sh',
+		kind: 'silence',
+		anchor: 'version="$("$@" --version 2>/dev/null',
+		reason: 'no version reads as unsupported Node, which the caller reports',
+	},
+	{
+		file: 'scripts/setup.sh',
+		kind: 'silence',
+		anchor: 'brew --prefix ffmpeg 2>/dev/null)" || return 1',
+		reason: 'brew errors when ffmpeg is absent; absent is the answer',
+	},
+	{
+		file: 'scripts/setup.sh',
+		kind: 'silence',
+		anchor: 'config --local --get core.hooksPath || true',
+		reason: 'an unset key exits 1 and means not installed',
+	},
+	{
+		file: 'scripts/setup.sh',
+		kind: 'silence',
+		anchor: "dpkg-query -W -f='${Status}'",
+		reason: 'an unknown package exits nonzero and means install it',
+	},
+	{
+		file: 'scripts/setup.sh',
+		kind: 'gnu',
+		anchor: 'mapfile -t missing_packages',
+		reason: 'runs only inside the is_linux branch',
+	},
+	{
+		file: 'scripts/setup.sh',
+		kind: 'gnu',
+		anchor: 'mapfile -t missing <',
+		reason: 'install_linux_packages runs only on Linux',
+	},
+	{
+		file: 'scripts/setup.sh',
+		kind: 'silence',
+		anchor: 'command -v ffmpeg:',
+		reason: 'diagnostic line; "missing" is the answer',
+	},
+	{
+		file: 'scripts/setup.sh',
+		kind: 'silence',
+		anchor: 'command -v ffprobe:',
+		reason: 'diagnostic line; "missing" is the answer',
+	},
+	{
+		file: 'scripts/setup.sh',
+		kind: 'silence',
+		anchor: 'brew --prefix ffmpeg:',
+		reason: 'diagnostic line; "missing" is the answer',
+	},
+	{
+		file: 'scripts/setup.sh',
+		kind: 'silence',
+		anchor: 'cat-file -e "${commit}^{commit}" 2>/dev/null',
+		reason: 'a missing mirror exits nonzero and means fetch it',
+	},
+	{
+		file: 'scripts/dev-tauri-log.sh',
+		kind: 'silence',
+		anchor: 'output="$("$@" 2>/dev/null)"',
+		reason: 'optional tool probe; the else branch prints unavailable',
+	},
+	{
+		file: 'scripts/dev-tauri-log.sh',
+		kind: 'silence',
+		anchor: 'git status --short 2>/dev/null || true',
+		reason: 'the summary also runs outside a git checkout',
+	},
+	{
+		file: 'scripts/dev-tauri-log.sh',
+		kind: 'silence',
+		anchor: 'cat "$tee_status_file" 2>/dev/null',
+		reason: 'a missing status file is not "0", so it counts as failed',
+	},
+];
+
+const PERMISSION_FAKE_SITES: readonly LineRecord[] = [
+	{
+		file: 'crates/abb-engine/src/app_settings/contract_tests.rs',
+		anchor: 'from_mode(0o000)',
+		reason: 'the test returns early when root can still read it',
+	},
+	{
+		file: 'crates/abb-engine/tests/all_tests.rs',
+		anchor: 'from_mode(0o444)',
+		reason: 'as root, abb-dev runs as nobody, which cannot write it',
+	},
+];
+
+function recordedLine(records: readonly LineRecord[], file: string, line: string): boolean {
+	return records.some((record) => record.file === file && line.includes(record.anchor));
+}
+
+const FILE_PIN_REASONS: readonly { file: string; anchor: string; reason: PinReason }[] = [
+	{
+		file: 'bunfig.toml',
+		anchor: '"solid-js"',
+		reason: 'update:rc takes fresh Solid prerelease builds; unpin when Solid 2.0 is stable',
+	},
+	{
+		file: 'rust-toolchain.toml',
+		anchor: 'channel = "',
+		reason:
+			'one exact Rust release, so every agent and CI compile with the same rustc; unpin when the owner moves to a newer Rust',
+	},
+];
+
+const EXACT_CRATE = /^\s*([A-Za-z0-9_-]+)\s*=/;
 
 const SILENCED = /2>\s*\/dev\/null|\|\|\s*true\b/;
 const CAPTURE_WITH_SILENCE = /\$\((?:[^()]|\([^()]*\))*(2>\s*\/dev\/null|\|\|\s*true\b)/;
@@ -281,29 +408,39 @@ const RULES: Rule[] = [
 	{
 		appliesTo: OWNED_SHELL,
 		comment: /^\s*#/,
-		allow: '# allow-gnu:',
+		recorded: (file, line) =>
+			recordedLine(
+				SHELL_ALLOWANCES.filter((record) => record.kind === 'gnu'),
+				file,
+				line,
+			),
 		findIn: (line) => GNU_ONLY.map((pattern) => line.match(pattern)?.[0]).find(Boolean) ?? null,
 		message:
-			'is GNU-only or needs bash 4; macOS runs BSD tools and bash 3.2. Fix: use sed -E, awk, or a portable form, or mark the line `# allow-gnu: <why it runs only on Linux>`.',
+			'is GNU-only or needs bash 4; macOS runs BSD tools and bash 3.2. Fix: use sed -E, awk, or a portable form, or add `{ file, anchor, reason }` to SHELL_ALLOWANCES in scripts/check-known-mistakes.ts with why it runs only on Linux.',
 	},
 	{
 		appliesTo: OWNED_SHELL,
 		comment: /^\s*#/,
-		allow: '# allow-silence:',
+		recorded: (file, line) =>
+			recordedLine(
+				SHELL_ALLOWANCES.filter((record) => record.kind === 'silence'),
+				file,
+				line,
+			),
 		findIn: (line, insideCapture) =>
 			line.match(CAPTURE_WITH_SILENCE)?.[1] ??
 			(insideCapture ? (line.match(SILENCED)?.[0] ?? null) : null),
 		message:
-			'hides an error inside a command substitution, so a failure reads as empty output. Fix: let it fail, capture with 2>&1, or mark the line `# allow-silence: <why the error does not matter>`.',
+			'hides an error inside a command substitution, so a failure reads as empty output. Fix: let it fail, capture with 2>&1, or add `{ file, anchor, reason }` to SHELL_ALLOWANCES in scripts/check-known-mistakes.ts with why the error does not matter.',
 	},
 	{
 		appliesTo: OWNED_RUST,
 		comment: /^\s*\/\//,
-		allow: '// allow-permission-fake:',
+		recorded: (file, line) => recordedLine(PERMISSION_FAKE_SITES, file, line),
 		findIn: (line) =>
 			line.match(/\b(from_mode|set_mode)\(0o[0145][0-7]{2}\)|\bchattr\b/)?.[0] ?? null,
 		message:
-			'fakes an I/O failure with permission bits, which root ignores (cloud containers run as root). Fix: put a file where a directory is expected, or the reverse, or mark the line `// allow-permission-fake: <why it runs unprivileged>`.',
+			'fakes an I/O failure with permission bits, which root ignores (cloud containers run as root). Fix: put a file where a directory is expected, or the reverse, or add `{ file, anchor, reason }` to PERMISSION_FAKE_SITES in scripts/check-known-mistakes.ts with why the test runs unprivileged.',
 	},
 	{
 		appliesTo: (file) => OWNED_RUST(file) && !RUST_TEST_FILE(file),
@@ -460,22 +597,79 @@ function ffmpegPointerFindings(file: string, lines: string[]): Finding[] {
 	});
 }
 
+function exactCrate(line: string): string | null {
+	if (!/"=\d/.test(line) || /^\s*#/.test(line)) return null;
+	return EXACT_CRATE.exec(line)?.[1] ?? null;
+}
+
 export function cargoPinFindings(file: string, text: string): Finding[] {
 	if (path.basename(file) !== 'Cargo.toml' || file.startsWith('vendor/')) return [];
 	const lines = text.split('\n');
-	return lines.flatMap((line, index) => {
-		if (!/"=\d/.test(line) || /^\s*#/.test(line)) return [];
-		for (let above = index - 1; above >= 0 && lines[above].trim() !== ''; above -= 1) {
-			if (PIN_TAG.test(lines[above])) return [];
-		}
+	const findings = lines.flatMap((line, index) => {
+		const name = exactCrate(line);
+		if (!name || name in CARGO_EXACT_PIN_REASONS) return [];
 		return [
 			{
 				file,
 				line: index + 1,
-				message: `\`${line.trim()}\` is an exact pin without a tag. Fix: add \`# pin: <why>; unpin when <trigger or YYYY-MM-DD>\` above it (scripts/AGENTS.md, Dependencies).`,
+				message: `\`${line.trim()}\` is an exact pin without a recorded reason. Fix: add \`<crate>: "<why>; unpin when <trigger>"\` to CARGO_EXACT_PIN_REASONS in scripts/check-known-mistakes.ts.`,
 			},
 		];
 	});
+	if (file !== 'Cargo.toml') return findings;
+	const pinned = new Set(
+		lines.flatMap((line) => {
+			const name = exactCrate(line);
+			return name ? [name] : [];
+		}),
+	);
+	return [
+		...findings,
+		...Object.entries(CARGO_EXACT_PIN_REASONS).flatMap(([name, reason]) =>
+			pinned.has(name)
+				? []
+				: [
+						{
+							file,
+							line: 1,
+							message: `\`${name}\` is recorded in CARGO_EXACT_PIN_REASONS but is not an exact pin. Fix: delete that record when the pin is gone (${reason}).`,
+						},
+					],
+		),
+	];
+}
+
+function staleLineRecords(
+	file: string,
+	text: string,
+	records: readonly LineRecord[],
+	table: string,
+): Finding[] {
+	return records
+		.filter((record) => record.file === file && !text.includes(record.anchor))
+		.map((record) => ({
+			file,
+			line: 1,
+			message: `\`${record.file}\` no longer contains \`${record.anchor}\`. Fix: update that anchor in ${table} in scripts/check-known-mistakes.ts. Recorded reason: ${record.reason}`,
+		}));
+}
+
+export function shellAllowanceFindings(file: string, text: string): Finding[] {
+	return staleLineRecords(file, text, SHELL_ALLOWANCES, 'SHELL_ALLOWANCES');
+}
+
+export function permissionFakeFindings(file: string, text: string): Finding[] {
+	return staleLineRecords(file, text, PERMISSION_FAKE_SITES, 'PERMISSION_FAKE_SITES');
+}
+
+export function filePinFindings(file: string, text: string): Finding[] {
+	return FILE_PIN_REASONS.filter((pin) => pin.file === file && !text.includes(pin.anchor)).map(
+		(pin) => ({
+			file,
+			line: 1,
+			message: `\`${pin.file}\` no longer contains \`${pin.anchor}\`. Fix: update that anchor in FILE_PIN_REASONS in scripts/check-known-mistakes.ts and keep its unpin trigger. Recorded reason: ${pin.reason}`,
+		}),
+	);
 }
 
 export function packagePinFindings(packageJson: string, scriptsGuidance: string): Finding[] {
@@ -513,11 +707,7 @@ export function checkFile(file: string, text: string): Finding[] {
 			insideCapture = false;
 		}
 		for (const rule of rules) {
-			const { allow } = rule;
-			if (
-				rule.comment?.test(line) ||
-				(allow && (line.includes(allow) || lines[index - 1]?.includes(allow)))
-			) {
+			if (rule.comment?.test(line) || rule.recorded?.(file, line)) {
 				continue;
 			}
 			const match = rule.findIn(line, insideCapture);
@@ -627,6 +817,15 @@ function main(): number {
 		...packagePinFindings(
 			readFileSync(path.join(repoRoot, 'package.json'), 'utf8'),
 			readFileSync(path.join(repoRoot, 'scripts/AGENTS.md'), 'utf8'),
+		),
+		...FILE_PIN_REASONS.flatMap((pin) =>
+			filePinFindings(pin.file, readFileSync(path.join(repoRoot, pin.file), 'utf8')),
+		),
+		...[...new Set(SHELL_ALLOWANCES.map((record) => record.file))].flatMap((file) =>
+			shellAllowanceFindings(file, readFileSync(path.join(repoRoot, file), 'utf8')),
+		),
+		...[...new Set(PERMISSION_FAKE_SITES.map((record) => record.file))].flatMap((file) =>
+			permissionFakeFindings(file, readFileSync(path.join(repoRoot, file), 'utf8')),
 		),
 		...sampleFindings(repoRoot, values.against),
 	];

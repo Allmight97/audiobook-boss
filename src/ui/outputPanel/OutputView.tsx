@@ -44,7 +44,10 @@ export function OutputView(): JSX.Element {
 							id="output-naming-preset"
 							class="output-preset-select"
 							value={view().namingPreset}
-							onChange={(event) => selectPreset(event.currentTarget.value)}
+							onChange={(event) => {
+								const value = event.currentTarget.value;
+								if (value === 'absDefault' || value === 'customTemplate') selectPreset(value);
+							}}
 						>
 							<option value="absDefault">ABS Default</option>
 							<option value="customTemplate">Custom Template</option>
