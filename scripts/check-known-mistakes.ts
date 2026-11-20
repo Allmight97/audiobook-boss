@@ -107,14 +107,14 @@ const EXCUSE_COMMENT =
 	/^\s*\/\/+[!/]?\s*(shortcut|TODO|FIXME|HACK|XXX|workaround)\b|^\s*\/\/.*(intentional architecture|not (?:a )?temporary)/;
 const PLANNING_COMMENT = /^\s*\/\/.*(\(#\d+ (?:Branch|residual|follow-?up|phase))/;
 const UNENFORCED_CLAIM = /^\s*\/\/.*\b(never panics?|cannot panic|will not panic)\b/;
-export const CARGO_EXACT_PIN_REASONS: Readonly<Record<string, string>> = {
+const CARGO_EXACT_PIN_REASONS: Readonly<Record<string, string>> = {
 	specta:
 		'prerelease family whose generated TS contract changes between RCs; unpin when specta 2.0.0 is stable',
 	'specta-typescript': 'same specta prerelease family as specta; unpin when specta 2.0.0 is stable',
 	'tauri-specta': 'same specta prerelease family as specta; unpin when specta 2.0.0 is stable',
 };
 
-export const FILE_PIN_REASONS: readonly { file: string; anchor: string; reason: string }[] = [
+const FILE_PIN_REASONS: readonly { file: string; anchor: string; reason: string }[] = [
 	{
 		file: 'bunfig.toml',
 		anchor: 'minimumReleaseAgeExcludes',
