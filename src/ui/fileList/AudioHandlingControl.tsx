@@ -135,6 +135,8 @@ export function AudioHandlingControl(props: {
 				cancelAnimationFrame(focusFrame);
 				focusFrame = requestAnimationFrame(() => {
 					const active = document.activeElement;
+					if (!(active instanceof HTMLElement)) return;
+					if (active === document.body || active === document.documentElement) return;
 					if (node?.contains(active) || trigger?.contains(active)) return;
 					close();
 				});

@@ -372,6 +372,9 @@ describe('Solid input workbench', () => {
 				edit: { field: 'format', value: 'm4aOpus' },
 			}),
 		);
+		await user.click(within(popup).getByText('Audio plan'));
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(popup).toBeInTheDocument();
 		await user.keyboard('{Escape}');
 		fireEvent.focus(indicator);
 		fireEvent.mouseEnter(indicator);
