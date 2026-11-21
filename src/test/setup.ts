@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { fakeEngine, resetFakeEngine } from './fixtures/fakeEngine';
+import { invokeMock } from './fixtures/invokeMock';
 import type { TauriCommandName } from './tauriCommandNames';
 
 type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
@@ -17,7 +18,7 @@ function emitTestEvent(event: string, payload: unknown): void {
 vi.mock('@tauri-apps/api/core', () => ({
 	convertFileSrc: (path: string, protocol: string) =>
 		`${protocol}://localhost/${encodeURIComponent(path)}`,
-	invoke: vi.fn().mockImplementation((cmd: TauriCommandName, _args?: unknown) => {
+	invoke: invokeMock.mockImplementation((cmd: TauriCommandName, _args?: unknown) => {
 		const engineArgs = _args as {
 			client: number;
 			sequence: number;

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { rawInvoke } from '../../lib/tauri/rawInvoke';
+import { invokeMock } from '../../test/fixtures/invokeMock';
 import { replayInvoke } from '../../test/fixtures/recordedInvoke';
 import { interpretFileListKeyDown } from '../inputSession';
 import { createAppRuntime, type AppRuntime } from './index';
@@ -12,15 +12,14 @@ const SINGLE = { multi: false, range: false };
 
 describe('workflows recorded from the real engine', () => {
 	let app: AppRuntime | undefined;
-	const invoke = rawInvoke();
-	const original = vi.mocked(invoke).getMockImplementation();
+	const original = vi.mocked(invokeMock).getMockImplementation();
 
 	beforeEach(() => {
 		app = undefined;
 	});
 	afterEach(() => {
 		app?.dispose();
-		vi.mocked(invoke).mockImplementation(original ?? (() => Promise.resolve(undefined)));
+		vi.mocked(invokeMock).mockImplementation(original ?? (() => Promise.resolve(undefined)));
 	});
 
 	async function open(): Promise<AppRuntime> {

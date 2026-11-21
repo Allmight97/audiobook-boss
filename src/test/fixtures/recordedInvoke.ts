@@ -1,5 +1,5 @@
 import { expect, vi } from 'vitest';
-import { rawInvoke } from '../../lib/tauri/rawInvoke';
+import { invokeMock } from './invokeMock';
 import type { TauriCommandName } from '../tauriCommandNames';
 import sessionFresh from '../../lib/generated/fixtures/session-fresh.json';
 import sessionScenarios from '../../lib/generated/fixtures/session-scenarios.json';
@@ -26,14 +26,14 @@ export function replayInvoke(
 	const wanted: TauriCommandName = engine === 'session' ? 'session_dispatch' : 'settings_dispatch';
 	const attach: TauriCommandName = 'attach_frontend';
 	const mismatches: string[] = [];
-	const fallback = vi.mocked(rawInvoke()).getMockImplementation();
+	const fallback = vi.mocked(invokeMock).getMockImplementation();
 	let delivered = 0;
 	let release: () => void = () => undefined;
 	const held = new Promise<void>((resolve) => {
 		release = resolve;
 	});
 
-	vi.mocked(rawInvoke()).mockImplementation(async (command, args) => {
+	vi.mocked(invokeMock).mockImplementation(async (command, args) => {
 		if (command === attach) {
 			return {
 				client: 1,
