@@ -14,6 +14,15 @@ import { TitleSources } from './TitleSources';
 import { AudioHandlingControl } from './AudioHandlingControl';
 import './fileList.css';
 
+function eventInList(event: Event): boolean {
+	const target = event.target;
+	return (
+		event.currentTarget instanceof Node &&
+		target instanceof Node &&
+		event.currentTarget.contains(target)
+	);
+}
+
 function isInteractiveListTarget(target: EventTarget | null): boolean {
 	return (
 		target instanceof HTMLElement && !!target.closest('button, input, select, textarea, a, label')
@@ -67,6 +76,7 @@ export function FileListView(props: {
 	);
 
 	function handleFileListClick(index: number, event: MouseEvent): void {
+		if (!eventInList(event)) return;
 		if (isInteractiveListTarget(event.target)) return;
 		if (reorderHandlers.consumePostDragClick()) return;
 		fileListContent?.focus({ preventScroll: true });
@@ -81,6 +91,7 @@ export function FileListView(props: {
 	}
 
 	function handleListKeyDown(event: KeyboardEvent): void {
+		if (!eventInList(event)) return;
 		if (isInteractiveListTarget(event.target)) return;
 		const command = interpretFileListKeyDown(event, {
 			fileCount: view().fileCount,

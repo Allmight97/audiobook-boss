@@ -348,8 +348,14 @@ describe('Solid input workbench', () => {
 		const popup = await screen.findByRole('dialog', { name: 'Audio plan' });
 		expect(popup).toHaveTextContent('Choose this title’s audio');
 		expect(popup.parentElement).toBe(document.body);
+		fireEvent.mouseLeave(indicator);
 		fireEvent.mouseEnter(popup);
+		await new Promise((resolve) => setTimeout(resolve, 250));
 		expect(popup).toBeInTheDocument();
+		const selections = () => engine.sessionIntents.filter((intent) => intent.kind === 'selectFile');
+		const beforeHeadingClick = selections().length;
+		await user.click(within(popup).getByText('Choose this title’s audio'));
+		expect(selections()).toHaveLength(beforeHeadingClick);
 		await user.click(indicator);
 		await user.click(within(popup).getByRole('button', { name: 'Apply App Settings' }));
 		await waitFor(() => expect(runtime.encoding.plan(files[0]).kind).not.toBe('choiceRequired'));

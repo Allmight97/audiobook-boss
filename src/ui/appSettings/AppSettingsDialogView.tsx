@@ -133,7 +133,11 @@ function IndexerConnectionHelp(props: {
 		},
 	);
 	return (
-		<fieldset ref={(element) => (region = element)} class="app-settings-connection-help">
+		<fieldset
+			ref={(element) => (region = element)}
+			class="app-settings-connection-help"
+			aria-label="Connection security help"
+		>
 			<button
 				type="button"
 				class="app-settings-info-button"
