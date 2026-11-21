@@ -1,4 +1,12 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import {
+	copyFileSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 
 interface TauriConfig {
@@ -7,11 +15,12 @@ interface TauriConfig {
 
 function usage(): string {
 	return [
-		'Usage: bun scripts/resolve-release-dmg.ts (--version <x.y.z> | --tag <vX.Y.Z>)',
+		'Usage: bun scripts/resolve-release-dmg.ts (--version <x.y.z> | --tag <vX.Y.Z>) [--stage <dir>]',
 		'',
 		'Options:',
 		'  --version <x.y.z>      Release version to resolve in target/release/bundle/dmg.',
 		'  --tag <vX.Y.Z>         Release tag; leading "v" is stripped before lookup.',
+		'  --stage <dir>          Copy the DMG into <dir> under its release asset name and write <name>.sha256.',
 		'  --help                 Show this help.',
 	].join('\n');
 }
@@ -31,6 +40,35 @@ function readProductName(repoRoot: string): string {
 
 function matchesReleaseDmg(name: string, productName: string, version: string): boolean {
 	return name.startsWith(`${productName}_${version}_`) && name.endsWith('.dmg');
+}
+
+export function predictedReleaseAssetName(productName: string, version: string): string {
+	return `${productName.replaceAll(' ', '.')}_${version}_aarch64.dmg`;
+}
+
+export function releaseAssetFileName(dmgPath: string): string {
+	return path.basename(dmgPath).replaceAll(' ', '.');
+}
+
+export interface StagedReleaseDmg {
+	asset: string;
+	dmg: string;
+	checksum: string;
+	sha256: string;
+}
+
+export function stageReleaseDmg(dmgPath: string, destDir: string): StagedReleaseDmg {
+	const asset = releaseAssetFileName(dmgPath);
+	if (asset.includes(' ') || !asset.endsWith('.dmg')) {
+		throw new Error(`Release asset name '${asset}' must be a DMG file name without spaces.`);
+	}
+	mkdirSync(destDir, { recursive: true });
+	const staged = path.join(destDir, asset);
+	copyFileSync(dmgPath, staged);
+	const sha256 = createHash('sha256').update(readFileSync(staged)).digest('hex');
+	const checksum = `${staged}.sha256`;
+	writeFileSync(checksum, `${sha256}  ${asset}\n`);
+	return { asset, dmg: staged, checksum, sha256 };
 }
 
 export function resolveReleaseDmgArtifact(repoRoot: string, version: string): string {
@@ -62,9 +100,10 @@ export function resolveReleaseDmgArtifact(repoRoot: string, version: string): st
 	return path.join(bundleDir, matches[0]);
 }
 
-function parseVersionArg(args: string[]): string {
+function parseArgs(args: string[]): { version: string; stage: string | null } {
 	let version = '';
 	let tag = '';
+	let stage: string | null = null;
 
 	for (let index = 0; index < args.length; index += 1) {
 		const token = args[index];
@@ -75,6 +114,11 @@ function parseVersionArg(args: string[]): string {
 		}
 		if (token === '--tag') {
 			tag = args[index + 1] ?? '';
+			index += 1;
+			continue;
+		}
+		if (token === '--stage') {
+			stage = args[index + 1] ?? '';
 			index += 1;
 			continue;
 		}
@@ -97,14 +141,26 @@ function parseVersionArg(args: string[]): string {
 		throw new Error(`Pass --version or --tag.\n\n${usage()}`);
 	}
 
-	return version;
+	if (stage === '') {
+		throw new Error(`Pass a directory to --stage.\n\n${usage()}`);
+	}
+
+	return { version, stage };
 }
 
 function main(): void {
 	try {
-		const version = parseVersionArg(process.argv.slice(2));
+		const parsed = parseArgs(process.argv.slice(2));
 		const repoRoot = path.resolve(import.meta.dir, '..');
-		console.log(resolveReleaseDmgArtifact(repoRoot, version));
+		const dmg = resolveReleaseDmgArtifact(repoRoot, parsed.version);
+		if (!parsed.stage) {
+			console.log(dmg);
+			return;
+		}
+		const staged = stageReleaseDmg(dmg, parsed.stage);
+		for (const [key, value] of Object.entries(staged)) {
+			console.log(`${key}=${value}`);
+		}
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		console.error(`Error: ${message}`);

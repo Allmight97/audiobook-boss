@@ -6,7 +6,14 @@
   stacked base is not one of them, so the plan job fetches it. The
   Workflows and shell job checks out full history, because the file-size
   ratchet merge-bases a stacked pull request and a depth-1 base has no
-  ancestry.
+  ancestry. The frontend job fetches tags, because the version check
+  compares the version files with the latest `vX.Y.Z` tag and a depth-1
+  checkout does not include tags.
+- `release.yml` publishes on the push to main that carries a version with
+  no `vX.Y.Z` tag. It does not wait for the Linux CI jobs. A pull request
+  builds the same DMG without tagging or publishing when this workflow
+  file changed, because `workflow_dispatch` exists only on the default
+  branch.
 - `rust-toolchain.toml` pins the compiler, and rustup installs it on first
   use.
 - rust-cache keys on every installed toolchain, so an image's extra stable
