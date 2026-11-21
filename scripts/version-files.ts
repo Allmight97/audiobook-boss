@@ -23,11 +23,12 @@ export interface VersionReleaseInput {
 
 const VERSION = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 
-const HELP = `Usage: bun scripts/version-files.ts [--print]
+const HELP = `Usage: bun scripts/version-files.ts [--print | --notes]
 
 Exits 0 when every version file agrees. When that version differs from the
 latest vX.Y.Z tag, CHANGELOG.md must also have a non-empty '## [x.y.z]' section.
-The date on that heading is not checked. --print writes the agreed version.`;
+The date on that heading is not checked. --print writes the agreed version.
+--notes writes that changelog section.`;
 
 export function latestStableTag(tags: string[]): string | null {
 	const stable = tags.filter((tag) => /^v\d+\.\d+\.\d+$/.test(tag));
@@ -35,7 +36,7 @@ export function latestStableTag(tags: string[]): string | null {
 	return stable[0] ?? null;
 }
 
-export function changelogReleaseNotes(changelog: string, version: string): string | null {
+function changelogReleaseNotes(changelog: string, version: string): string | null {
 	const section = changelogSection(changelog, version);
 	if (!section || section.problem || section.body.length === 0) return null;
 	return `${section.body}\n`;
@@ -69,7 +70,7 @@ export function versionReleaseFindings(input: VersionReleaseInput): VersionFindi
 	];
 }
 
-export function readVersionRelease(repoRoot: string): VersionReleaseInput {
+function readVersionRelease(repoRoot: string): VersionReleaseInput {
 	return {
 		versions: readVersions(repoRoot),
 		changelog: readFileSync(path.join(repoRoot, 'CHANGELOG.md'), 'utf8'),
@@ -209,6 +210,19 @@ function main(): number {
 		console.error(`${finding.file}:${finding.line}: ${finding.message}`);
 	}
 	if (findings.length > 0) return 1;
+	if (process.argv.includes('--notes')) {
+		const input = readVersionRelease(repoRoot);
+		const version = input.versions[0]?.version ?? '';
+		const notes = version ? changelogReleaseNotes(input.changelog, version) : null;
+		if (!notes) {
+			console.error(
+				`CHANGELOG.md has no non-empty '## [${version}]' section. Fix: rename '## [Unreleased]' to '## [${version}] - YYYY-MM-DD' and write the user-facing notes under that heading.`,
+			);
+			return 1;
+		}
+		process.stdout.write(notes);
+		return 0;
+	}
 	if (process.argv.includes('--print')) {
 		const version = readVersionRelease(repoRoot).versions[0]?.version;
 		if (!version) return 1;

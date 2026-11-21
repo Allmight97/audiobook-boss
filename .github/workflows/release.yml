@@ -62,12 +62,13 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
+          fetch-tags: true
           persist-credentials: false
       - run: bash scripts/setup.sh frontend
       - id: plan
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bun scripts/github-publish.ts plan
+        run: bash scripts/github-release.sh plan
 
   dispatch:
     name: Dry run is the only manual run
@@ -80,6 +81,45 @@ jobs:
           printf '%s\n' 'This workflow tags and publishes only on a push to main.'
           printf '%s\n' 'Run it again with dry-run set to build the DMG without tagging or publishing.'
           exit 1
+
+  ci-gate:
+    name: Wait for CI on this commit
+    needs: plan
+    if: github.event.pull_request.draft != true && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.plan.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      actions: read
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          deadline=$((SECONDS + 4800))
+          while true; do
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              printf '%s\n' "CI for ${SHA} did not succeed before the wait ended. Fix: rerun the ci workflow for that commit, then rerun this workflow." >&2
+              exit 1
+            fi
+            state="$(gh run list --repo "$GITHUB_REPOSITORY" --commit "$SHA" --workflow ci.yml --event push --limit 20 --json status,conclusion --jq 'if length == 0 then "missing" elif any(.[]; .status != "completed") then "wait" elif .[0].conclusion == "success" then "ok" else "fail" end')"
+            case "$state" in
+              ok)
+                printf '%s\n' "CI for ${SHA} succeeded."
+                exit 0
+                ;;
+              wait|missing)
+                sleep 30
+                ;;
+              fail)
+                printf '%s\n' "CI for ${SHA} did not succeed. Fix: make the ci workflow for that commit succeed, then rerun this workflow. This workflow will not publish." >&2
+                exit 1
+                ;;
+              *)
+                printf '%s\n' "Cannot read the ci run for ${SHA}." >&2
+                exit 1
+                ;;
+            esac
+          done
 
   dry-run:
     name: Dry run DMG
@@ -167,8 +207,8 @@ jobs:
 
   publish:
     name: Publish GitHub release
-    needs: plan
-    if: github.event.pull_request.draft != true && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.plan.outputs.publish == 'true'
+    needs: [plan, ci-gate]
+    if: github.event.pull_request.draft != true && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.plan.outputs.publish == 'true' && needs.ci-gate.result == 'success'
     runs-on: macos-26
     timeout-minutes: 180
     permissions:
@@ -227,7 +267,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: bun scripts/github-publish.ts create "$RUNNER_TEMP/release-assets"
+        run: bash scripts/github-release.sh create "$RUNNER_TEMP/release-assets"
       - id: ffmpeg-trees
         if: always()
         run: |

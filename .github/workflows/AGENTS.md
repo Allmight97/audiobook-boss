@@ -10,10 +10,12 @@
   compares the version files with the latest `vX.Y.Z` tag and a depth-1
   checkout does not include tags.
 - `release.yml` publishes on the push to main that carries a version with
-  no `vX.Y.Z` tag. It does not wait for the Linux CI jobs. A pull request
-  builds the same DMG without tagging or publishing when this workflow
-  file changed, because `workflow_dispatch` exists only on the default
-  branch.
+  no `vX.Y.Z` tag, and only after the `ci` workflow for that commit
+  succeeds. The owner's admin role can bypass `gate`, so a required check
+  does not cover a direct push. A tag that already points at another commit
+  stays there. A pull request builds the same DMG without tagging or
+  publishing when this workflow file changed, because `workflow_dispatch`
+  exists only on the default branch.
 - `rust-toolchain.toml` pins the compiler, and rustup installs it on first
   use.
 - rust-cache keys on every installed toolchain, so an image's extra stable
