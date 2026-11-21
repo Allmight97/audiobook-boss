@@ -301,14 +301,14 @@ function licenseDecisions(group: Span[], rest: (span: Span) => Mark): Decision[]
 	if (!group.every(lineComment)) {
 		return group.map((span) => decideSpan(span, entry('license')));
 	}
-	const decisions: Decision[] = [];
+	const marked: Decision[] = [];
 	let sentence: Span[] = [];
 	const flush = (): void => {
 		if (sentence.length === 0) return;
 		const text = sentence.map((span) => commentBody(span.text)).join(' ');
 		const keep = LICENSE.test(text) || /Ported from\b/i.test(text);
 		for (const span of sentence) {
-			decisions.push(decideSpan(span, keep ? entry('license') : rest(span)));
+			marked.push(decideSpan(span, keep ? entry('license') : rest(span)));
 		}
 		sentence = [];
 	};
@@ -317,7 +317,7 @@ function licenseDecisions(group: Span[], rest: (span: Span) => Mark): Decision[]
 		if (endsSentence(span)) flush();
 	}
 	flush();
-	return decisions;
+	return marked;
 }
 
 function markGroup(group: Span[], claims: Claims, rest: (span: Span) => Mark): Decision[] {
