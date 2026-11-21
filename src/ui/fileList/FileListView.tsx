@@ -200,10 +200,9 @@ export function FileListView(props: {
 					}}
 					onKeyDown={handleListKeyDown}
 					onClick={(event) => {
-						const node = event.target instanceof Node ? event.target : null;
-						const hit = node instanceof Element ? node : node?.parentElement;
-						const row = hit?.closest<HTMLElement>('[data-file-index]');
-						if (!row || row.parentElement !== event.currentTarget) return;
+						const hit = event.target instanceof Element ? event.target : null;
+						const row = hit?.closest('[data-file-index]');
+						if (!(row instanceof HTMLElement) || row.parentElement !== event.currentTarget) return;
 						const index = Number(row.dataset.fileIndex);
 						if (!Number.isInteger(index)) return;
 						handleFileListClick(index, event);
