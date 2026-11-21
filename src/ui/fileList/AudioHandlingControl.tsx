@@ -127,25 +127,21 @@ export function AudioHandlingControl(props: {
 			const node = panel;
 			const keepOpen = () => show();
 			const onLeave = () => leave();
-			const stop = (event: Event) => {
-				event.stopPropagation();
-			};
-			const pin = (event: Event) => {
-				event.stopPropagation();
+			const pin = () => {
 				pinned = true;
 			};
-			const onFocusOut = (event: FocusEvent) => {
-				if (
-					event.relatedTarget instanceof Node &&
-					!node?.contains(event.relatedTarget) &&
-					!trigger?.contains(event.relatedTarget)
-				)
+			let focusFrame = 0;
+			const onFocusOut = () => {
+				cancelAnimationFrame(focusFrame);
+				focusFrame = requestAnimationFrame(() => {
+					const active = document.activeElement;
+					if (node?.contains(active) || trigger?.contains(active)) return;
 					close();
+				});
 			};
 			node?.addEventListener('mouseenter', keepOpen);
 			node?.addEventListener('mouseleave', onLeave);
 			node?.addEventListener('pointerdown', pin);
-			node?.addEventListener('keydown', stop);
 			node?.addEventListener('focusout', onFocusOut);
 			place();
 			document.addEventListener('keydown', onEscape, true);
@@ -153,12 +149,12 @@ export function AudioHandlingControl(props: {
 			window.addEventListener('resize', place);
 			window.addEventListener('scroll', place, true);
 			return () => {
+				cancelAnimationFrame(focusFrame);
 				cancelAnimationFrame(frame);
 				resize?.disconnect();
 				node?.removeEventListener('mouseenter', keepOpen);
 				node?.removeEventListener('mouseleave', onLeave);
 				node?.removeEventListener('pointerdown', pin);
-				node?.removeEventListener('keydown', stop);
 				node?.removeEventListener('focusout', onFocusOut);
 				document.removeEventListener('keydown', onEscape, true);
 				document.removeEventListener('pointerdown', outside, true);
