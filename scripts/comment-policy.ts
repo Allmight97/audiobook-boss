@@ -78,7 +78,7 @@ const BARE =
 	'is a directive with no reason. Fix: add the reason its form requires (` -- why` on a lint suppression, text after `// SAFETY:`, `# shellcheck disable=SC<id> # why`), or delete it and satisfy the check. Root cause: a suppression without a reason hides the constraint.';
 
 const UNLISTED =
-	'Fix: satisfy the rule, or add it to ALLOWED_SUPPRESSIONS in scripts/comment-policy.ts with a reason, and only if the rule is style-only or faulty. Root cause: a suppression of a correctness rule hides a bug the rule would catch.';
+	'Fix: satisfy the rule, or add it to ALLOWED_SUPPRESSIONS in scripts/comment-policy.ts with a reason, and only if the rule is style-only, pedantic, or faulty. Root cause: a suppression of a correctness rule hides a bug the rule would catch.';
 
 const NO_RULE =
 	'names no rule. Fix: satisfy the check. @ts-ignore and @ts-nocheck name no rule, so they cannot be listed. Root cause: a suppression without a rule id can hide any error.';
@@ -306,7 +306,10 @@ function licenseDecisions(group: Span[], rest: (span: Span) => Mark): Decision[]
 	const flush = (): void => {
 		if (sentence.length === 0) return;
 		const text = sentence.map((span) => commentBody(span.text)).join(' ');
-		const keep = LICENSE.test(text) || /Ported from\b/i.test(text);
+		const keep = text
+			.split(/(?<=[.!?])[)"'`]*\s+/)
+			.filter((part) => part.trim() !== '')
+			.every((part) => LICENSE.test(part) || /Ported from\b/i.test(part));
 		for (const span of sentence) {
 			marked.push(decideSpan(span, keep ? entry('license') : rest(span)));
 		}

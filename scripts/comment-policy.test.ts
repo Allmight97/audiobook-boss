@@ -65,7 +65,7 @@ describe('comment policy', () => {
 		expect(rejected).toHaveLength(1);
 		expect(rejected[0]).toContain('eslint/no-restricted-imports');
 		expect(rejected[0]).toContain('satisfy the rule');
-		expect(rejected[0]).toContain('style-only or faulty');
+		expect(rejected[0]).toContain('style-only, pedantic, or faulty');
 		for (const directive of [
 			'// @ts-expect-error process is a nodejs global\n',
 			'// @ts-ignore the types are wrong here\n',
@@ -235,6 +235,9 @@ describe('comment policy', () => {
 			].join('\n'),
 		);
 		expect(messages('crates/x/src/lib.rs', rust)[0]).toContain('What this module does');
+		const sharedLine =
+			'//! The saved sign-in helpers. Ported from `audible_api` 0.1.0 (MIT OR Apache-2.0).\nfn kept() {}\n';
+		expect(messages('crates/x/src/lib.rs', sharedLine)[0]).toContain('saved sign-in helpers');
 	});
 
 	it('reads a URL in JSX text as text', () => {
