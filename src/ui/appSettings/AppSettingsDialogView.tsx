@@ -115,54 +115,53 @@ function IndexerConnectionHelp(props: {
 	readonly open: boolean;
 	readonly setOpen: (open: boolean) => void;
 }): JSX.Element {
+	let region: HTMLFieldSetElement | undefined;
+	const show = () => props.setOpen(true);
+	const hideIfLeft = (next: EventTarget | null) => {
+		if (next instanceof Node && region?.contains(next)) return;
+		if (region?.contains(document.activeElement)) return;
+		props.setOpen(false);
+	};
+	createEffect(
+		() => props.open,
+		(open) => {
+			const node = region;
+			if (!node || !open) return;
+			const out = (event: MouseEvent) => hideIfLeft(event.relatedTarget);
+			node.addEventListener('mouseout', out);
+			return () => node.removeEventListener('mouseout', out);
+		},
+	);
 	return (
-		<div
-			class="app-settings-connection-help"
-			role="button"
-			tabindex={-1}
-			aria-label="Connection security help"
-			onMouseEnter={() => props.setOpen(true)}
-			onMouseLeave={(event) => {
-				if (!event.currentTarget.contains(document.activeElement)) props.setOpen(false);
-			}}
-			onFocusIn={() => props.setOpen(true)}
-			onFocusOut={(event) => {
-				if (
-					!(
-						event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)
-					)
-				) {
-					props.setOpen(false);
-				}
-			}}
-		>
-			<fieldset>
-				<button
-					type="button"
-					class="app-settings-info-button"
-					aria-label="About indexer connection security"
-					aria-expanded={props.open ? 'true' : 'false'}
-					aria-controls="app-settings-connection-help"
-					aria-describedby={props.open ? 'app-settings-connection-help' : undefined}
-					onClick={() => props.setOpen(true)}
-				>
-					i
-				</button>
-				<Show when={props.open}>
-					<div id="app-settings-connection-help" class="app-settings-help-content" role="tooltip">
-						<strong>Use HTTPS when available</strong>
-						<p>
-							HTTPS encrypts your API key, searches, and results and verifies the server’s identity.
-						</p>
-						<p>
-							Enable HTTPS on Prowlarr or your reverse proxy using a certificate trusted by this
-							device. Enter its matching HTTPS address here, then choose Test.
-						</p>
-						<p>HTTP remains available if you accept an unencrypted connection.</p>
-					</div>
-				</Show>
-			</fieldset>
-		</div>
+		<fieldset ref={(element) => (region = element)} class="app-settings-connection-help">
+			<button
+				type="button"
+				class="app-settings-info-button"
+				aria-label="About indexer connection security"
+				aria-expanded={props.open ? 'true' : 'false'}
+				aria-controls="app-settings-connection-help"
+				aria-describedby={props.open ? 'app-settings-connection-help' : undefined}
+				onClick={show}
+				onMouseEnter={show}
+				onFocusIn={show}
+				onFocusOut={(event) => hideIfLeft(event.relatedTarget)}
+			>
+				i
+			</button>
+			<Show when={props.open}>
+				<div id="app-settings-connection-help" class="app-settings-help-content" role="tooltip">
+					<strong>Use HTTPS when available</strong>
+					<p>
+						HTTPS encrypts your API key, searches, and results and verifies the server’s identity.
+					</p>
+					<p>
+						Enable HTTPS on Prowlarr or your reverse proxy using a certificate trusted by this
+						device. Enter its matching HTTPS address here, then choose Test.
+					</p>
+					<p>HTTP remains available if you accept an unencrypted connection.</p>
+				</div>
+			</Show>
+		</fieldset>
 	);
 }
 

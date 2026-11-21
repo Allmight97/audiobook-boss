@@ -97,24 +97,16 @@ function DialogRoot(props: DialogProps): JSX.Element {
 			class={['abb-dialog-backdrop', { open: props.open }]}
 			data-testid={props.testId}
 			aria-hidden={props.open ? undefined : 'true'}
-			role="button"
-			tabindex={-1}
-			aria-label="Close dialog"
 			ref={(element) => {
 				backdropEl = element;
 			}}
-			onClick={(event) => {
-				if (event.target === event.currentTarget) {
-					props.onClose();
-				}
-			}}
-			onKeyDown={(event) => {
-				if (event.target !== event.currentTarget) return;
-				if (event.key !== 'Enter' && event.key !== ' ') return;
-				event.preventDefault();
-				props.onClose();
-			}}
 		>
+			<button
+				type="button"
+				class="abb-dialog-dismiss"
+				aria-label="Close dialog"
+				onClick={() => props.onClose()}
+			/>
 			<div
 				class="abb-dialog"
 				data-state={props.open ? 'open' : 'closed'}
