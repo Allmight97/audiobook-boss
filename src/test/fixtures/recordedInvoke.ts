@@ -1,5 +1,5 @@
 import { expect, vi } from 'vitest';
-import { invokeMock } from './invokeMock';
+import { defaultInvoke, invokeMock } from './invokeMock';
 import type { TauriCommandName } from '../tauriCommandNames';
 import sessionFresh from '../../lib/generated/fixtures/session-fresh.json';
 import sessionScenarios from '../../lib/generated/fixtures/session-scenarios.json';
@@ -26,7 +26,6 @@ export function replayInvoke(
 	const wanted: TauriCommandName = engine === 'session' ? 'session_dispatch' : 'settings_dispatch';
 	const attach: TauriCommandName = 'attach_frontend';
 	const mismatches: string[] = [];
-	const fallback = vi.mocked(invokeMock).getMockImplementation();
 	let delivered = 0;
 	let release: () => void = () => undefined;
 	const held = new Promise<void>((resolve) => {
@@ -42,7 +41,7 @@ export function replayInvoke(
 				workOperations: { revision: 0, order: [], operations: [] },
 			};
 		}
-		if (command !== wanted) return fallback?.(command, args);
+		if (command !== wanted) return defaultInvoke(command, args);
 		const sent = args as { sequence: number; intent: unknown };
 		const step = steps[delivered];
 		const number = delivered + 1;

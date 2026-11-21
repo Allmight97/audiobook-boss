@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { invokeMock } from '../../test/fixtures/invokeMock';
+import { defaultInvoke, invokeMock } from '../../test/fixtures/invokeMock';
 import { replayInvoke } from '../../test/fixtures/recordedInvoke';
 import { interpretFileListKeyDown } from '../inputSession';
 import { createAppRuntime, type AppRuntime } from './index';
@@ -12,14 +12,13 @@ const SINGLE = { multi: false, range: false };
 
 describe('workflows recorded from the real engine', () => {
 	let app: AppRuntime | undefined;
-	const original = vi.mocked(invokeMock).getMockImplementation();
 
 	beforeEach(() => {
 		app = undefined;
 	});
 	afterEach(() => {
 		app?.dispose();
-		vi.mocked(invokeMock).mockImplementation(original ?? (() => Promise.resolve(undefined)));
+		invokeMock.mockImplementation(defaultInvoke);
 	});
 
 	async function open(): Promise<AppRuntime> {

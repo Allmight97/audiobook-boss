@@ -2,7 +2,6 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { fakeEngine, resetFakeEngine } from './fixtures/fakeEngine';
 import { invokeMock } from './fixtures/invokeMock';
-import type { TauriCommandName } from './tauriCommandNames';
 
 type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
 const eventListeners = new Map<string, Set<TestEventHandler>>();
@@ -18,32 +17,7 @@ function emitTestEvent(event: string, payload: unknown): void {
 vi.mock('@tauri-apps/api/core', () => ({
 	convertFileSrc: (path: string, protocol: string) =>
 		`${protocol}://localhost/${encodeURIComponent(path)}`,
-	invoke: invokeMock.mockImplementation((cmd: TauriCommandName, _args?: unknown) => {
-		const engineArgs = _args as {
-			client: number;
-			sequence: number;
-			intent: never;
-			filePaths: string[];
-		};
-		switch (cmd) {
-			case 'attach_frontend':
-				return fakeEngine().attach();
-			case 'session_dispatch':
-				return fakeEngine().sessionDispatch(
-					engineArgs.client,
-					engineArgs.sequence,
-					engineArgs.intent,
-				);
-			case 'settings_dispatch':
-				return fakeEngine().settingsDispatch(
-					engineArgs.client,
-					engineArgs.sequence,
-					engineArgs.intent,
-				);
-			default:
-				throw new Error(`[Test Mock] Unhandled Tauri invoke: ${cmd}`);
-		}
-	}),
+	invoke: invokeMock,
 }));
 
 vi.mock('@tauri-apps/api/event', () => ({
