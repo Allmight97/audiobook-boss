@@ -18,18 +18,10 @@
   there. `release.yml` only builds a dry-run DMG, so it cancels a superseded
   pull request. That dry-run runs when `release.yml` or `release-publish.yml`
   changed, because `workflow_dispatch` exists only on the default branch.
-- A release is a pull request that bumps the version files and renames
-  `## [Unreleased]` to `## [x.y.z] - YYYY-MM-DD`. Patch for fixes, minor for
-  added capability, major for a breaking contract. Guidance, tests, and
-  plans alone need no release. Write the section for users from the
-  change's user-visible effect, not from the commit list.
 - The app statically links FAAC, FAAD3, and FFmpeg under LGPL-2.1-or-later.
-  The bundled-license check confirms the shipped license files and the
-  FFmpeg notice. Before merging the version bump, judge what that check
-  cannot: a recipient can get the matching source and build materials,
-  change the library, and rebuild the app, as each
-  `vendor/*/ABB-PROVENANCE.md` describes. A new Apache-2.0 dependency with
-  a NOTICE file ships that text too.
+  Before merging a version bump, judge what the bundled-license check cannot:
+  a recipient can get the matching source and rebuild the app, as each
+  `vendor/*/ABB-PROVENANCE.md` describes.
 - `rust-toolchain.toml` pins the compiler, and rustup installs it on first
   use.
 - rust-cache keys on every installed toolchain, so an image's extra stable
