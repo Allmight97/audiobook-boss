@@ -135,6 +135,12 @@
 - `dev-tauri-log.sh`: a later process substitution makes the tee's pid
   unwaitable in bash, so the drain signal is liveness plus the exit-status
   sidecar; a tee that died on a write error must not pass as drained.
+- `github-release.sh`: a GitHub draft release does not create its tag until
+  the draft is published. `gh release view <tag>` still finds that draft,
+  because gh lists releases and matches the tag name when
+  `releases/tags/<tag>` is absent. A rerun finishes the draft that targets
+  this commit. The publish runner is macos-26, which is arm64, so the asset
+  name is `aarch64`.
 - `ffmpeg-upstream.ts --issue` uses `gh api` REST only, because cloud
   sessions block GraphQL.
 - `lane-paths.test.ts` uses dorny/paths-filter's matcher options, so a pass

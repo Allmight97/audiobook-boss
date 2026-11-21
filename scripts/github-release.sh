@@ -77,13 +77,15 @@ tag_lc="$(printf '%s' "$tag_sha" | tr '[:upper:]' '[:lower:]')"
 
 read_release() {
 	assets=""
-	if gh release view "$tag" --repo "$repo" --json isDraft,assets >"$out" 2>"$err"; then
+	target=""
+	if gh release view "$tag" --repo "$repo" --json isDraft,assets,targetCommitish >"$out" 2>"$err"; then
 		if [[ "$(jq -r '.isDraft' "$out")" == true ]]; then
 			release_state="draft"
 		else
 			release_state="published"
 		fi
 		assets="$(jq -r '.assets[].name' "$out")"
+		target="$(jq -r '.targetCommitish // empty' "$out")"
 	elif grep -Eqi 'not found' "$err"; then
 		release_state="missing"
 	else
@@ -123,8 +125,13 @@ elif [[ "$release_state" == published ]]; then
 	printf '%s\n' "Published release ${tag} is immutable and is missing ${missing}. Fix: delete that release by hand, then rerun. This workflow will not publish a second release." >&2
 	exit 1
 elif [[ "$release_state" == draft && -z "$tag_sha" ]]; then
-	printf '%s\n' "A draft ${tag} exists without the tag. Fix: delete the draft, then rerun." >&2
-	exit 1
+	target_lc="$(printf '%s' "$target" | tr '[:upper:]' '[:lower:]')"
+	if [[ "$target_lc" == "$head_lc" ]]; then
+		printf '%s\n' "Draft ${tag} has no tag yet and targets this commit. Finishing that draft."
+	else
+		printf '%s\n' "A draft ${tag} exists without the tag and targets ${target:-nothing}, not ${head}. Fix: delete the draft, then rerun." >&2
+		exit 1
+	fi
 elif [[ -z "$tag_sha" ]]; then
 	create_tag=true
 	printf '%s\n' "No tag ${tag}. Building the DMG, then tagging this commit and publishing."
@@ -149,9 +156,21 @@ if [[ "$action" != build ]]; then
 	exit 0
 fi
 
-dmg="${dir%/}/${asset}"
+shopt -s nullglob
+staged_dmgs=("${dir%/}"/*.dmg)
+shopt -u nullglob
+if [[ "${#staged_dmgs[@]}" -ne 1 ]]; then
+	printf '%s\n' "Expected one staged DMG in ${dir}, found ${#staged_dmgs[@]}. Fix: stage the arm64 DMG ${asset}." >&2
+	exit 1
+fi
+dmg="${staged_dmgs[0]}"
+staged_name="$(basename "$dmg")"
+if [[ "$staged_name" != "$asset" ]]; then
+	printf '%s\n' "Staged DMG ${staged_name} is not ${asset}. The publish runner is macos-26, which is arm64. Fix: stage that asset." >&2
+	exit 1
+fi
 sum="${dmg}.sha256"
-if [[ ! -f "$dmg" || ! -f "$sum" ]]; then
+if [[ ! -f "$sum" ]]; then
 	printf '%s\n' "Staged assets ${asset} and ${checksum} are missing in ${dir}. Fix: build and stage the DMG before publishing." >&2
 	exit 1
 fi
