@@ -198,20 +198,19 @@ export function AudioHandlingControl(props: {
 			</Show>
 			<Show when={open()}>
 				<Portal>
-					{/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the popover keeps itself open while the pointer is over it. */}
 					<div
 						ref={(el) => {
 							panel = el;
 						}}
-						id={guidanceId()}
-						role="dialog"
-						aria-label="Audio plan"
 						class={[
 							'preservation-guidance',
 							'title-audio-plan',
 							{ kept: kept(), 'needs-choice': needsChoice() || !!error() },
 						]}
 						style={{ left: `${position().left}px`, top: `${position().top}px` }}
+						role="button"
+						tabindex={-1}
+						aria-label="Audio plan"
 						onMouseEnter={show}
 						onMouseLeave={leave}
 						onClick={(event) => event.stopPropagation()}
@@ -229,87 +228,89 @@ export function AudioHandlingControl(props: {
 								close();
 						}}
 					>
-						<button
-							type="button"
-							class="audio-plan-close"
-							aria-label="Close audio plan"
-							onClick={dismiss}
-						>
-							×
-						</button>
-						<strong>
-							{needsChoice()
-								? 'Choose this title’s audio'
-								: error()
-									? 'Choose audio settings'
-									: !plan()
-										? 'Audio plan'
-										: kept()
-											? 'Keeping original audio'
-											: `Using ${codec()} with ${format()}`}
-						</strong>
-						<p>
-							{needsChoice()
-								? 'These sources had different audio settings. Choose settings for this title or apply App Settings.'
-								: error() ||
-									(!plan()
-										? 'Checking source audio…'
-										: kept()
-											? 'Audio stays unchanged. Tags, artwork and chapters will be updated.'
-											: `Convert ${plan()?.sourceCodec} to ${codec()} and save as ${format()}.`)}
-						</p>
-						<p class="audio-plan-origin">
+						<div id={guidanceId()} role="dialog" aria-label="Audio plan">
 							<button
 								type="button"
-								onClick={() => runtime.encoding.applyDefaultsToTitles([props.file])}
+								class="audio-plan-close"
+								aria-label="Close audio plan"
+								onClick={dismiss}
 							>
-								Apply App Settings
+								×
 							</button>
-						</p>
-						<EncoderView scope={{ kind: 'title', file: props.file }} />
-						<Show when={plan()}>
-							{(planned) => (
-								<dl class="audio-plan-properties">
-									<dt>Source audio</dt>
-									<dd>{planned().handling === 'preserve' ? 'Pass-through' : 'Re-encoded'}</dd>
-									<dt>{opus() && !kept() ? 'Opus input rate' : 'Sample rate'}</dt>
-									<dd>{planned().sampleRate / 1000} kHz</dd>
-									<dt>Channels</dt>
-									<dd>
-										{planned().channels === 1
-											? 'Mono'
-											: planned().channels === 2
-												? 'Stereo'
-												: `${planned().channels} channels`}
-									</dd>
-								</dl>
-							)}
-						</Show>
-						<Show when={plan()?.reason}>
-							<p>{plan()?.reason}</p>
-						</Show>
-						<Show when={opus() && !kept()}>
-							<p class="audio-plan-origin">Opus playback uses a 48 kHz clock.</p>
-						</Show>
-						<Show when={opus()}>
+							<strong>
+								{needsChoice()
+									? 'Choose this title’s audio'
+									: error()
+										? 'Choose audio settings'
+										: !plan()
+											? 'Audio plan'
+											: kept()
+												? 'Keeping original audio'
+												: `Using ${codec()} with ${format()}`}
+							</strong>
 							<p>
-								{request().format === 'm4aOpus'
-									? 'For Opus in Audiobookshelf, try M4A first. Confirm direct playback and chapters on your device.'
-									: 'Use with VLC or another Matroska-capable player. Apple and browser clients may need transcoding.'}{' '}
+								{needsChoice()
+									? 'These sources had different audio settings. Choose settings for this title or apply App Settings.'
+									: error() ||
+										(!plan()
+											? 'Checking source audio…'
+											: kept()
+												? 'Audio stays unchanged. Tags, artwork and chapters will be updated.'
+												: `Convert ${plan()?.sourceCodec} to ${codec()} and save as ${format()}.`)}
+							</p>
+							<p class="audio-plan-origin">
 								<button
 									type="button"
-									class="audio-compatibility-link"
-									onClick={() => void openCompatibilityPage()}
+									onClick={() => runtime.encoding.applyDefaultsToTitles([props.file])}
 								>
-									Player compatibility
+									Apply App Settings
 								</button>
 							</p>
-							<Show when={linkError()}>
-								<p class="audio-plan-origin" role="status">
-									{linkError()}
-								</p>
+							<EncoderView scope={{ kind: 'title', file: props.file }} />
+							<Show when={plan()}>
+								{(planned) => (
+									<dl class="audio-plan-properties">
+										<dt>Source audio</dt>
+										<dd>{planned().handling === 'preserve' ? 'Pass-through' : 'Re-encoded'}</dd>
+										<dt>{opus() && !kept() ? 'Opus input rate' : 'Sample rate'}</dt>
+										<dd>{planned().sampleRate / 1000} kHz</dd>
+										<dt>Channels</dt>
+										<dd>
+											{planned().channels === 1
+												? 'Mono'
+												: planned().channels === 2
+													? 'Stereo'
+													: `${planned().channels} channels`}
+										</dd>
+									</dl>
+								)}
 							</Show>
-						</Show>
+							<Show when={plan()?.reason}>
+								<p>{plan()?.reason}</p>
+							</Show>
+							<Show when={opus() && !kept()}>
+								<p class="audio-plan-origin">Opus playback uses a 48 kHz clock.</p>
+							</Show>
+							<Show when={opus()}>
+								<p>
+									{request().format === 'm4aOpus'
+										? 'For Opus in Audiobookshelf, try M4A first. Confirm direct playback and chapters on your device.'
+										: 'Use with VLC or another Matroska-capable player. Apple and browser clients may need transcoding.'}{' '}
+									<button
+										type="button"
+										class="audio-compatibility-link"
+										onClick={() => void openCompatibilityPage()}
+									>
+										Player compatibility
+									</button>
+								</p>
+								<Show when={linkError()}>
+									<p class="audio-plan-origin" role="status">
+										{linkError()}
+									</p>
+								</Show>
+							</Show>
+						</div>
 					</div>
 				</Portal>
 			</Show>

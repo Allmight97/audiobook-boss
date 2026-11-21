@@ -30,7 +30,7 @@ export const ALLOWLIST: readonly AllowEntry[] = [
 	{
 		id: 'lint-directive',
 		reason:
-			'A lint or TypeScript suppression is a directive the tool reads, and it has to carry the reason the tool or this repo requires.',
+			'A lint suppression is a directive the tool reads. It stays only when every rule it names is in ALLOWED_SUPPRESSIONS.',
 	},
 	{
 		id: 'safety',
@@ -50,7 +50,36 @@ export const ALLOWLIST: readonly AllowEntry[] = [
 	{
 		id: 'shellcheck',
 		reason:
-			'`# shellcheck disable=SC<id> # <why>` and `# shellcheck shell=bash` are directives shellcheck reads; a disable has to say why.',
+			'`# shellcheck shell=bash` selects the shell, and `# shellcheck disable=SC<id>` stays only when that id is in ALLOWED_SUPPRESSIONS.',
+	},
+];
+
+export type SuppressionKind = 'faulty' | 'pedantic' | 'style-only';
+
+export interface AllowedSuppression {
+	readonly rule: string;
+	readonly kind: SuppressionKind;
+	readonly reason: string;
+}
+
+export const ALLOWED_SUPPRESSIONS: readonly AllowedSuppression[] = [
+	{
+		rule: 'typescript/no-extraneous-class',
+		kind: 'style-only',
+		reason:
+			'The generated Channel class is an empty value the tests never construct. The rule objects to the empty class, not to a missing behavior.',
+	},
+	{
+		rule: 'typescript/unbound-method',
+		kind: 'faulty',
+		reason:
+			'Saving a prototype method so a spy can call it with apply keeps the original this. The rule treats that save as a lost this.',
+	},
+	{
+		rule: 'import/default',
+		kind: 'faulty',
+		reason:
+			'A Vite ?raw import default-exports the file text. The import resolver does not see that default.',
 	},
 ];
 
@@ -58,7 +87,13 @@ const PLAIN =
 	'is a comment, and a comment does not hold a constraint. Fix: delete it. If it names a constraint, encode that constraint in the API, a type, a lint rule, or a test, and put the fix in the failure text. A comment may stay only when its shape is an entry in ALLOWLIST in scripts/comment-policy.ts. Root cause: prose in code goes stale and gets copied as an excuse.';
 
 const BARE =
-	'is a directive with no reason. Fix: add the reason its form requires (` -- why` on a lint suppression, text after `// SAFETY:` or `@ts-nocheck`, `# shellcheck disable=SC<id> # why`), or delete it and satisfy the check. Root cause: a suppression without a reason hides the constraint.';
+	'is a directive with no reason. Fix: add the reason its form requires (` -- why` on a lint suppression, text after `// SAFETY:`, `# shellcheck disable=SC<id> # why`), or delete it and satisfy the check. Root cause: a suppression without a reason hides the constraint.';
+
+const UNLISTED =
+	'Fix: satisfy the rule, or add it to ALLOWED_SUPPRESSIONS in scripts/comment-policy.ts with a reason, and only if the rule is style-only or faulty. Root cause: a suppression of a correctness rule hides a bug the rule would catch.';
+
+const NO_RULE =
+	'names no rule. Fix: satisfy the check. @ts-ignore and @ts-nocheck name no rule, so they cannot be listed. Root cause: a suppression without a rule id can hide any error.';
 
 const LICENSE =
 	/SPDX-License-Identifier:|Copyright\s+(?:\(c\)|©|\d{4})|Permission is hereby granted|licensed under the/i;
@@ -66,7 +101,7 @@ const SENTENCE_END = /[.!?][)"'`]*$/;
 const LINK_END = /https?:\/\/\S+$/;
 const SAFETY = /(?:^|\s)\/\/\s*SAFETY:\s+\S|\/\*\s*SAFETY:\s+\S/;
 const LINT_DIRECTIVE = /\b(?:(?:ox|es)lint-disable(?:-next-line|-line)?|biome-ignore)\b/;
-const TS_DIRECTIVE = /@ts-(?:expect-error|ignore|nocheck|check)\b/;
+const TS_SUPPRESSION = /@ts-(?:expect-error|ignore|nocheck)\b/;
 const RUSTDOC_TEST_ATTRIBUTE =
 	/^(?:rust|compile_fail|should_panic|no_run|test_harness|standalone_crate|edition\d{4}|E\d{4})$/;
 
@@ -102,12 +137,51 @@ interface Mark {
 	keep: boolean;
 	id?: string;
 	bare?: boolean;
+	unlisted?: readonly string[];
+	noRule?: boolean;
 }
 
 const BARE_MARK: Mark = { keep: false, bare: true };
+const NO_RULE_MARK: Mark = { keep: false, noRule: true };
 
 function entry(id: string): Mark {
 	return { keep: true, id };
+}
+
+function allowedRule(rule: string): boolean {
+	return ALLOWED_SUPPRESSIONS.some((suppression) => suppression.rule === rule);
+}
+
+function lintRules(text: string): string[] {
+	const listed = text.match(
+		/\b(?:(?:ox|es)lint-disable(?:-next-line|-line)?|biome-ignore)\s+([^]*?)(?:\s--|\*\/|$)/,
+	);
+	const body = listed?.[1]?.trim() ?? '';
+	if (body.length === 0) return [];
+	return body
+		.split(',')
+		.map((rule) => rule.trim())
+		.filter((rule) => rule.length > 0);
+}
+
+function shellcheckRules(text: string): string[] | undefined {
+	const disable = text.match(/#\s*shellcheck\s+disable=([A-Za-z0-9,]+)/);
+	if (!disable?.[1]) return undefined;
+	return disable[1]
+		.split(',')
+		.map((rule) => rule.trim())
+		.filter((rule) => rule.length > 0);
+}
+
+function reasoned(text: string): boolean {
+	return /--\s*\S/.test(text) || /#\s*shellcheck\s+disable=\S+\s+#\s+\S/.test(text);
+}
+
+function suppressionMark(text: string, rules: readonly string[]): Mark {
+	if (rules.length === 0) return NO_RULE_MARK;
+	const missing = rules.filter((rule) => !allowedRule(rule));
+	if (missing.length > 0) return { keep: false, unlisted: missing };
+	return reasoned(text) ? entry('lint-directive') : BARE_MARK;
 }
 
 function commentBody(text: string): string {
@@ -119,16 +193,17 @@ function commentBody(text: string): string {
 
 function classify(text: string): Mark {
 	if (/#\s*shellcheck\b/.test(text)) {
-		const reasoned = /#\s*shellcheck disable=SC\d+\s+#\s+\S/.test(text);
-		const sourced = /#\s*shellcheck shell=bash\s*$/.test(text);
-		return reasoned || sourced ? entry('shellcheck') : BARE_MARK;
+		if (/#\s*shellcheck\s+shell=bash\s*$/.test(text)) return entry('shellcheck');
+		const rules = shellcheckRules(text);
+		if (!rules) return BARE_MARK;
+		const missing = rules.filter((rule) => !allowedRule(rule));
+		if (missing.length > 0) return { keep: false, unlisted: missing };
+		return reasoned(text) ? entry('shellcheck') : BARE_MARK;
 	}
-	if (LINT_DIRECTIVE.test(text)) return /--\s*\S/.test(text) ? entry('lint-directive') : BARE_MARK;
-	if (/@ts-check\b/.test(text)) return entry('lint-directive');
-	if (!TS_DIRECTIVE.test(text)) return { keep: false };
-	return /@ts-(?:expect-error|ignore|nocheck)\s+\S/.test(commentBody(text))
-		? entry('lint-directive')
-		: BARE_MARK;
+	if (LINT_DIRECTIVE.test(text)) return suppressionMark(text, lintRules(text));
+	if (/@ts-check\b/.test(text) && !TS_SUPPRESSION.test(text)) return entry('lint-directive');
+	if (!TS_SUPPRESSION.test(text)) return { keep: false };
+	return NO_RULE_MARK;
 }
 
 function isPlain(text: string): boolean {
@@ -168,6 +243,8 @@ interface Decision {
 	keep: boolean;
 	id?: string;
 	bare?: boolean;
+	unlisted?: readonly string[];
+	noRule?: boolean;
 }
 
 function decideSpan(span: Span, mark: Mark): Decision {
@@ -179,6 +256,8 @@ function decideSpan(span: Span, mark: Mark): Decision {
 		keep: mark.keep,
 		id: mark.id,
 		bare: mark.bare,
+		unlisted: mark.unlisted,
+		noRule: mark.noRule,
 	};
 }
 
@@ -280,6 +359,11 @@ function decisions(file: string, source: string): Decision[] {
 
 function messageFor(decision: Decision): string {
 	const shown = decision.text.trim().replace(/\s+/g, ' ').slice(0, 80);
+	if (decision.noRule) return `\`${shown}\` ${NO_RULE}`;
+	if (decision.unlisted && decision.unlisted.length > 0) {
+		const names = decision.unlisted.map((rule) => `\`${rule}\``).join(', ');
+		return `\`${shown}\` suppresses ${names}. ${UNLISTED}`;
+	}
 	return `\`${shown}\` ${decision.bare ? BARE : PLAIN}`;
 }
 

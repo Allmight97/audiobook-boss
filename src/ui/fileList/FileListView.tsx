@@ -197,7 +197,6 @@ export function FileListView(props: {
 							const failed = () => file.status === 'failed';
 							const selected = () => input.isSelected(file);
 							return (
-								// oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the listbox owns the keyboard; rows are not tab stops.
 								<div
 									data-file-index={index()}
 									data-file-key={fileIdentityKey(file)}
@@ -222,6 +221,11 @@ export function FileListView(props: {
 									aria-label={file.label}
 									tabindex={-1}
 									onClick={(event) => handleFileListClick(index(), event)}
+									onKeyDown={(event) => {
+										if (event.currentTarget !== document.activeElement) return;
+										handleListKeyDown(event);
+										event.stopPropagation();
+									}}
 								>
 									<div class={['file-item-content', { expanded: grouped() && expanded() }]}>
 										<button

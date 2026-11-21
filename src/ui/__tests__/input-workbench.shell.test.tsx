@@ -347,7 +347,7 @@ describe('Solid input workbench', () => {
 		await user.hover(indicator);
 		const popup = await screen.findByRole('dialog', { name: 'Audio plan' });
 		expect(popup).toHaveTextContent('Choose this title’s audio');
-		expect(popup.parentElement).toBe(document.body);
+		expect(popup.parentElement?.parentElement).toBe(document.body);
 		await user.click(indicator);
 		await user.click(within(popup).getByRole('button', { name: 'Apply App Settings' }));
 		await waitFor(() => expect(runtime.encoding.plan(files[0]).kind).not.toBe('choiceRequired'));

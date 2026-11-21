@@ -92,12 +92,14 @@ function DialogRoot(props: DialogProps): JSX.Element {
 	});
 
 	return (
-		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- a backdrop click closes the dialog; Escape is the keyboard path.
 		<div
 			id={props.id}
 			class={['abb-dialog-backdrop', { open: props.open }]}
 			data-testid={props.testId}
 			aria-hidden={props.open ? undefined : 'true'}
+			role="button"
+			tabindex={-1}
+			aria-label="Close dialog"
 			ref={(element) => {
 				backdropEl = element;
 			}}
@@ -105,6 +107,12 @@ function DialogRoot(props: DialogProps): JSX.Element {
 				if (event.target === event.currentTarget) {
 					props.onClose();
 				}
+			}}
+			onKeyDown={(event) => {
+				if (event.target !== event.currentTarget) return;
+				if (event.key !== 'Enter' && event.key !== ' ') return;
+				event.preventDefault();
+				props.onClose();
 			}}
 		>
 			<div

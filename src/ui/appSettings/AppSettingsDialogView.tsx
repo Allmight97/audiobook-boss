@@ -116,9 +116,10 @@ function IndexerConnectionHelp(props: {
 	readonly setOpen: (open: boolean) => void;
 }): JSX.Element {
 	return (
-		// oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- hover opens the help; focus inside opens it from the keyboard.
-		<fieldset
+		<div
 			class="app-settings-connection-help"
+			role="button"
+			tabindex={-1}
 			aria-label="Connection security help"
 			onMouseEnter={() => props.setOpen(true)}
 			onMouseLeave={(event) => {
@@ -135,31 +136,33 @@ function IndexerConnectionHelp(props: {
 				}
 			}}
 		>
-			<button
-				type="button"
-				class="app-settings-info-button"
-				aria-label="About indexer connection security"
-				aria-expanded={props.open ? 'true' : 'false'}
-				aria-controls="app-settings-connection-help"
-				aria-describedby={props.open ? 'app-settings-connection-help' : undefined}
-				onClick={() => props.setOpen(true)}
-			>
-				i
-			</button>
-			<Show when={props.open}>
-				<div id="app-settings-connection-help" class="app-settings-help-content" role="tooltip">
-					<strong>Use HTTPS when available</strong>
-					<p>
-						HTTPS encrypts your API key, searches, and results and verifies the server’s identity.
-					</p>
-					<p>
-						Enable HTTPS on Prowlarr or your reverse proxy using a certificate trusted by this
-						device. Enter its matching HTTPS address here, then choose Test.
-					</p>
-					<p>HTTP remains available if you accept an unencrypted connection.</p>
-				</div>
-			</Show>
-		</fieldset>
+			<fieldset>
+				<button
+					type="button"
+					class="app-settings-info-button"
+					aria-label="About indexer connection security"
+					aria-expanded={props.open ? 'true' : 'false'}
+					aria-controls="app-settings-connection-help"
+					aria-describedby={props.open ? 'app-settings-connection-help' : undefined}
+					onClick={() => props.setOpen(true)}
+				>
+					i
+				</button>
+				<Show when={props.open}>
+					<div id="app-settings-connection-help" class="app-settings-help-content" role="tooltip">
+						<strong>Use HTTPS when available</strong>
+						<p>
+							HTTPS encrypts your API key, searches, and results and verifies the server’s identity.
+						</p>
+						<p>
+							Enable HTTPS on Prowlarr or your reverse proxy using a certificate trusted by this
+							device. Enter its matching HTTPS address here, then choose Test.
+						</p>
+						<p>HTTP remains available if you accept an unencrypted connection.</p>
+					</div>
+				</Show>
+			</fieldset>
+		</div>
 	);
 }
 

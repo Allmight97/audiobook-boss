@@ -364,6 +364,15 @@
 			}
 		},
 		{
+			"files": [
+				"src/test/fixtures/recordedInvoke.ts",
+				"src/app/runtime/recordedWorkflows.contract.test.ts"
+			],
+			"rules": {
+				"eslint/no-restricted-imports": "off"
+			}
+		},
+		{
 			"files": ["src/lib/tauri/client.ts"],
 			"rules": {
 				"eslint/no-restricted-imports": [

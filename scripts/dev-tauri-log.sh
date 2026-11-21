@@ -222,8 +222,8 @@ finish_run() {
 	local status="$?"
 	set +e
 	if [[ -n "${tee_pid:-}" ]]; then
-		# shellcheck disable=SC2261 # restores stdout, then stderr, on purpose
-		exec >&"$orig_stdout_fd" 2>&"$orig_stderr_fd"
+		exec >&"$orig_stdout_fd"
+		exec 2>&"$orig_stderr_fd"
 		wait_for_tee_exit_within_ten_seconds
 		if kill -0 "$tee_pid" 2>/dev/null; then
 			tee_drain_failed="true"
