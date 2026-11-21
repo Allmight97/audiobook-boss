@@ -22,6 +22,26 @@ describe('Dialog', () => {
 		expect(onClose).toHaveBeenCalledTimes(1);
 	});
 
+	it('closes from Enter or Space on the backdrop and ignores those keys inside the dialog', () => {
+		const onClose = vi.fn();
+		const [open] = createSignal(true);
+		render(() => (
+			<Dialog open={open()} onClose={onClose} labelledBy="title" testId="sample-dialog">
+				<Dialog.Header>
+					<h3 id="title">Title</h3>
+				</Dialog.Header>
+				<Dialog.Body>Body</Dialog.Body>
+			</Dialog>
+		));
+		const backdrop = screen.getByRole('button', { name: 'Close dialog' });
+		fireEvent.keyDown(backdrop, { key: 'Enter' });
+		fireEvent.keyDown(backdrop, { key: ' ' });
+		expect(onClose).toHaveBeenCalledTimes(2);
+		fireEvent.keyDown(screen.getByRole('dialog', { name: 'Title' }), { key: 'Enter' });
+		fireEvent.keyDown(screen.getByRole('dialog', { name: 'Title' }), { key: ' ' });
+		expect(onClose).toHaveBeenCalledTimes(2);
+	});
+
 	it('calls onClose on Escape after opening post-mount, with focus outside the dialog', () => {
 		const onClose = vi.fn();
 		const [open, setOpen] = createSignal(false);

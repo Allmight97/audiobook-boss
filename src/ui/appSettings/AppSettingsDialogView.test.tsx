@@ -340,6 +340,13 @@ describe('AppSettingsDialogView', () => {
 	it('opens connection help by click or focus and dismisses it before Settings on Escape', async () => {
 		const r = await renderOpenDialog();
 		const help = screen.getByRole('button', { name: 'About indexer connection security' });
+		const region = screen.getByRole('button', { name: 'Connection security help' });
+		expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+		fireEvent.mouseEnter(region);
+		flush();
+		expect(screen.getByRole('tooltip')).toHaveTextContent('Use HTTPS when available');
+		fireEvent.mouseLeave(region);
+		flush();
 		expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
 		fireEvent.click(help);
 		flush();

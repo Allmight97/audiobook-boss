@@ -347,7 +347,13 @@ describe('Solid input workbench', () => {
 		await user.hover(indicator);
 		const popup = await screen.findByRole('dialog', { name: 'Audio plan' });
 		expect(popup).toHaveTextContent('Choose this title’s audio');
-		expect(popup.parentElement?.parentElement).toBe(document.body);
+		const shell = popup.parentElement;
+		expect(shell?.parentElement).toBe(document.body);
+		expect(shell).toHaveAttribute('role', 'button');
+		fireEvent.keyDown(shell ?? popup, { key: 'Enter' });
+		fireEvent.keyDown(popup, { key: ' ' });
+		expect(screen.getByRole('dialog', { name: 'Audio plan' })).toBe(popup);
+		expect(runtime.encoding.plan(files[0]).kind).toBe('choiceRequired');
 		await user.click(indicator);
 		await user.click(within(popup).getByRole('button', { name: 'Apply App Settings' }));
 		await waitFor(() => expect(runtime.encoding.plan(files[0]).kind).not.toBe('choiceRequired'));
@@ -404,7 +410,12 @@ describe('Solid input workbench', () => {
 			],
 		});
 		engine.respond = (intent) => {
-			if (intent.kind === 'selectFile') return selects([0], 0);
+			if (intent.kind === 'selectFile') {
+				const index = runtime.input
+					.view()
+					.files.findIndex((file) => file.inputId === intent.titleId);
+				return selects([index], index);
+			}
 			if (intent.kind === 'selectAll') return selects([0, 1], 0);
 			return undefined;
 		};
@@ -421,8 +432,18 @@ describe('Solid input workbench', () => {
 			expect(runtime.input.view().selectedIndices).toEqual([0]);
 		});
 
+		const [first] = within(listbox).getAllByRole('option');
+		first.focus();
+		const selections = () => engine.sessionIntents.filter((intent) => intent.kind === 'selectFile');
+		const before = selections().length;
+		fireEvent.keyDown(first, { key: 'ArrowDown' });
+		await waitFor(() => {
+			expect(runtime.input.view().selectedIndices).toEqual([1]);
+		});
+		expect(selections()).toHaveLength(before + 1);
+
 		fireEvent.keyDown(document.body, { key: 'ArrowDown' });
-		expect(runtime.input.view().selectedIndices).toEqual([0]);
+		expect(runtime.input.view().selectedIndices).toEqual([1]);
 
 		fireEvent.keyDown(listbox, { key: 'a', ctrlKey: true });
 		await waitFor(() => {

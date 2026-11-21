@@ -49,12 +49,13 @@ describe('comment policy', () => {
 		expect(message[0]).toContain('scripts/comment-policy.ts');
 	});
 
-	it('keeps a listed style suppression and rejects a correctness rule or a suppression with no rule id', () => {
-		const style = ALLOWED_SUPPRESSIONS.find((suppression) => suppression.kind === 'style-only');
-		expect(style).toBeDefined();
-		const kept = `// oxlint-disable-next-line ${style?.rule} -- ${style?.reason}\n`;
+	it('keeps a listed suppression and rejects a correctness rule or a suppression with no rule id', () => {
+		const listed = ALLOWED_SUPPRESSIONS[0];
+		expect(listed).toBeDefined();
+		const kept = `// oxlint-disable-next-line ${listed?.rule} -- ${listed?.reason}\n`;
 		expect(messages('src/app/x.ts', kept)).toEqual([]);
-		const bareListed = `// oxlint-disable-next-line ${style?.rule}\n`;
+		const marker = ['oxlint', 'disable-next-line'].join('-');
+		const bareListed = `// ${marker} ${listed?.rule}\n`;
 		expect(messages('src/app/x.ts', bareListed)).toEqual([
 			expect.stringContaining('directive with no reason'),
 		]);
@@ -214,10 +215,26 @@ describe('comment policy', () => {
 		expect(stripComments('scripts/golden-path/lib.sh', sourced)).toBe(sourced);
 	});
 
-	it('keeps a license header', () => {
+	it('keeps a license header and drops a narration sentence beside it', () => {
 		const header =
 			'/*\n * Copyright (c) 2026 Ada Lovelace\n * SPDX-License-Identifier: MIT\n */\nexport const n = 1;\n';
 		expect(stripComments('scripts/x.ts', header)).toBe(header);
+		const rust = [
+			'//! What this module does.',
+			'//! Ported from `audible_api` 0.1.0 (MIT OR Apache-2.0).',
+			'//! Copyright (c) 2024 the audible_api author.',
+			'fn kept() {}',
+			'',
+		].join('\n');
+		expect(stripComments('crates/x/src/lib.rs', rust)).toBe(
+			[
+				'//! Ported from `audible_api` 0.1.0 (MIT OR Apache-2.0).',
+				'//! Copyright (c) 2024 the audible_api author.',
+				'fn kept() {}',
+				'',
+			].join('\n'),
+		);
+		expect(messages('crates/x/src/lib.rs', rust)[0]).toContain('What this module does');
 	});
 
 	it('reads a URL in JSX text as text', () => {

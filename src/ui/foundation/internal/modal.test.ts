@@ -146,10 +146,8 @@ describe('ModalController', () => {
 	it('retries initial focus on the next animation frame when the first attempt is refused', async () => {
 		const { container, first } = dialogWithFields();
 		const modal = new ModalController();
-		// oxlint-disable-next-line typescript/unbound-method -- the spy calls the native focus with its own `this`.
-		const nativeFocus = HTMLElement.prototype.focus;
 		let refusals = 1;
-		const focusSpy = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (
+		const focusSpy = vi.spyOn(first, 'focus').mockImplementation(function (
 			this: HTMLElement,
 			...args
 		) {
@@ -157,7 +155,7 @@ describe('ModalController', () => {
 				refusals -= 1;
 				return;
 			}
-			nativeFocus.apply(this, args);
+			HTMLElement.prototype.focus.apply(this, args);
 		});
 
 		modal.sync(true, { container }, { onEscape: vi.fn() });

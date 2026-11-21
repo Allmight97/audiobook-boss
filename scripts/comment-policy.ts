@@ -25,7 +25,7 @@ export const ALLOWLIST: readonly AllowEntry[] = [
 	{
 		id: 'license',
 		reason:
-			'A required license header (SPDX, copyright, or the permission notice) has to stay in the file the license names.',
+			'A required license header stays in the file it names: the copyright, SPDX or permission notice, and a port provenance sentence. A narration sentence in that block does not.',
 	},
 	{
 		id: 'lint-directive',
@@ -63,18 +63,6 @@ export interface AllowedSuppression {
 }
 
 export const ALLOWED_SUPPRESSIONS: readonly AllowedSuppression[] = [
-	{
-		rule: 'typescript/no-extraneous-class',
-		kind: 'style-only',
-		reason:
-			'The generated Channel class is an empty value the tests never construct. The rule objects to the empty class, not to a missing behavior.',
-	},
-	{
-		rule: 'typescript/unbound-method',
-		kind: 'faulty',
-		reason:
-			'Saving a prototype method so a spy can call it with apply keeps the original this. The rule treats that save as a lost this.',
-	},
 	{
 		rule: 'import/default',
 		kind: 'faulty',
@@ -305,9 +293,36 @@ function fenceClaims(file: string, group: Span[]): Claims {
 	});
 }
 
+function lineComment(span: Span): boolean {
+	return /^\s*(?:\/\/|#)/.test(span.text);
+}
+
+function licenseDecisions(group: Span[], rest: (span: Span) => Mark): Decision[] {
+	if (!group.every(lineComment)) {
+		return group.map((span) => decideSpan(span, entry('license')));
+	}
+	const decisions: Decision[] = [];
+	let sentence: Span[] = [];
+	const flush = (): void => {
+		if (sentence.length === 0) return;
+		const text = sentence.map((span) => commentBody(span.text)).join(' ');
+		const keep = LICENSE.test(text) || /Ported from\b/i.test(text);
+		for (const span of sentence) {
+			decisions.push(decideSpan(span, keep ? entry('license') : rest(span)));
+		}
+		sentence = [];
+	};
+	for (const span of group) {
+		sentence.push(span);
+		if (endsSentence(span)) flush();
+	}
+	flush();
+	return decisions;
+}
+
 function markGroup(group: Span[], claims: Claims, rest: (span: Span) => Mark): Decision[] {
 	if (LICENSE.test(group.map((span) => span.text).join('\n'))) {
-		return group.map((span) => decideSpan(span, entry('license')));
+		return licenseDecisions(group, rest);
 	}
 	return group.map((span, index) => {
 		const claim = claims[index];

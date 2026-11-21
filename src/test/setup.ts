@@ -43,8 +43,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 				throw new Error(`[Test Mock] Unhandled Tauri invoke: ${cmd}`);
 		}
 	}),
-	// oxlint-disable-next-line typescript/no-extraneous-class -- the generated bindings import Channel; tests never construct one.
-	Channel: class MockChannel {},
 }));
 
 vi.mock('@tauri-apps/api/event', () => ({

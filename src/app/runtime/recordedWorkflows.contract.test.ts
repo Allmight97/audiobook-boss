@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { invoke } from '@tauri-apps/api/core';
+import { rawInvoke } from '../../lib/tauri/rawInvoke';
 import { replayInvoke } from '../../test/fixtures/recordedInvoke';
 import { interpretFileListKeyDown } from '../inputSession';
 import { createAppRuntime, type AppRuntime } from './index';
@@ -12,6 +12,7 @@ const SINGLE = { multi: false, range: false };
 
 describe('workflows recorded from the real engine', () => {
 	let app: AppRuntime | undefined;
+	const invoke = rawInvoke();
 	const original = vi.mocked(invoke).getMockImplementation();
 
 	beforeEach(() => {
