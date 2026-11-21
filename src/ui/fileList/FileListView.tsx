@@ -199,6 +199,15 @@ export function FileListView(props: {
 						fileListContent = element;
 					}}
 					onKeyDown={handleListKeyDown}
+					onClick={(event) => {
+						const node = event.target instanceof Node ? event.target : null;
+						const hit = node instanceof Element ? node : node?.parentElement;
+						const row = hit?.closest<HTMLElement>('[data-file-index]');
+						if (!row || row.parentElement !== event.currentTarget) return;
+						const index = Number(row.dataset.fileIndex);
+						if (!Number.isInteger(index)) return;
+						handleFileListClick(index, event);
+					}}
 				>
 					<For each={view().files}>
 						{(file, index) => {
@@ -231,12 +240,6 @@ export function FileListView(props: {
 									aria-selected={selected() ? 'true' : 'false'}
 									aria-label={file.label}
 									tabindex={-1}
-									onClick={(event) => handleFileListClick(index(), event)}
-									onKeyDown={(event) => {
-										if (event.currentTarget !== document.activeElement) return;
-										handleListKeyDown(event);
-										event.stopPropagation();
-									}}
 								>
 									<div class={['file-item-content', { expanded: grouped() && expanded() }]}>
 										<button

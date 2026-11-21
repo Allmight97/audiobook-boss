@@ -52,8 +52,10 @@ describe('comment policy', () => {
 	it('keeps a listed suppression and rejects a correctness rule or a suppression with no rule id', () => {
 		const listed = ALLOWED_SUPPRESSIONS[0];
 		expect(listed).toBeDefined();
-		const kept = `// oxlint-disable-next-line ${listed?.rule} -- ${listed?.reason}\n`;
+		const kept = `// oxlint-disable-next-line ${listed?.rule} -- ${listed?.reason}\nimport file from './fixture.ts?raw';\n`;
 		expect(messages('src/app/x.ts', kept)).toEqual([]);
+		const wide = `// oxlint-disable-next-line ${listed?.rule} -- ${listed?.reason}\nimport file from './fixture';\n`;
+		expect(messages('src/app/x.ts', wide)[0]).toContain('?raw');
 		const marker = ['oxlint', 'disable-next-line'].join('-');
 		const bareListed = `// ${marker} ${listed?.rule}\n`;
 		expect(messages('src/app/x.ts', bareListed)).toEqual([
@@ -65,7 +67,7 @@ describe('comment policy', () => {
 		expect(rejected).toHaveLength(1);
 		expect(rejected[0]).toContain('eslint/no-restricted-imports');
 		expect(rejected[0]).toContain('satisfy the rule');
-		expect(rejected[0]).toContain('style-only, pedantic, or faulty');
+		expect(rejected[0]).toContain('style-only or faulty');
 		for (const directive of [
 			'// @ts-expect-error process is a nodejs global\n',
 			'// @ts-ignore the types are wrong here\n',

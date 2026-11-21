@@ -54,7 +54,7 @@ export const ALLOWLIST: readonly AllowEntry[] = [
 	},
 ];
 
-export type SuppressionKind = 'faulty' | 'pedantic' | 'style-only';
+export type SuppressionKind = 'faulty' | 'style-only';
 
 export interface AllowedSuppression {
 	readonly rule: string;
@@ -67,7 +67,7 @@ export const ALLOWED_SUPPRESSIONS: readonly AllowedSuppression[] = [
 		rule: 'import/default',
 		kind: 'faulty',
 		reason:
-			'A Vite ?raw import default-exports the file text. The import resolver does not see that default.',
+			'A Vite ?raw import default-exports the file text. The import resolver does not see that default. The suppression stays only on the line before an import whose specifier ends in ?raw.',
 	},
 ];
 
@@ -78,10 +78,13 @@ const BARE =
 	'is a directive with no reason. Fix: add the reason its form requires (` -- why` on a lint suppression, text after `// SAFETY:`, `# shellcheck disable=SC<id> # why`), or delete it and satisfy the check. Root cause: a suppression without a reason hides the constraint.';
 
 const UNLISTED =
-	'Fix: satisfy the rule, or add it to ALLOWED_SUPPRESSIONS in scripts/comment-policy.ts with a reason, and only if the rule is style-only, pedantic, or faulty. Root cause: a suppression of a correctness rule hides a bug the rule would catch.';
+	'Fix: satisfy the rule, or add it to ALLOWED_SUPPRESSIONS in scripts/comment-policy.ts with a reason, and only if the rule is style-only or faulty. Root cause: a suppression of a correctness rule hides a bug the rule would catch.';
 
 const NO_RULE =
 	'names no rule. Fix: satisfy the check. @ts-ignore and @ts-nocheck name no rule, so they cannot be listed. Root cause: a suppression without a rule id can hide any error.';
+
+const RAW_IMPORT =
+	'suppresses `import/default` away from a Vite ?raw import. Fix: delete it, or keep it only on the line before an import whose specifier ends in ?raw. Root cause: import/default catches a real missing default export on every other import.';
 
 const LICENSE =
 	/SPDX-License-Identifier:|Copyright\s+(?:\(c\)|©|\d{4})|Permission is hereby granted|licensed under the/i;
@@ -127,6 +130,7 @@ interface Mark {
 	bare?: boolean;
 	unlisted?: readonly string[];
 	noRule?: boolean;
+	scope?: string;
 }
 
 const BARE_MARK: Mark = { keep: false, bare: true };
@@ -138,6 +142,13 @@ function entry(id: string): Mark {
 
 function allowedRule(rule: string): boolean {
 	return ALLOWED_SUPPRESSIONS.some((suppression) => suppression.rule === rule);
+}
+
+function rawImportFollows(source: string, end: number): boolean {
+	const next = source.slice(end).replace(/^\s*/, '').split('\n')[0] ?? '';
+	if (!/^\s*import\s/.test(next)) return false;
+	const specifier = next.match(/\bfrom\s+['"]([^'"]+)['"]/);
+	return specifier !== null && specifier[1].endsWith('?raw');
 }
 
 function lintRules(text: string): string[] {
@@ -165,11 +176,20 @@ function reasoned(text: string): boolean {
 	return /--\s*\S/.test(text) || /#\s*shellcheck\s+disable=\S+\s+#\s+\S/.test(text);
 }
 
-function suppressionMark(text: string, rules: readonly string[]): Mark {
+function suppressionMark(
+	text: string,
+	rules: readonly string[],
+	source: string,
+	end: number,
+): Mark {
 	if (rules.length === 0) return NO_RULE_MARK;
 	const missing = rules.filter((rule) => !allowedRule(rule));
 	if (missing.length > 0) return { keep: false, unlisted: missing };
-	return reasoned(text) ? entry('lint-directive') : BARE_MARK;
+	if (!reasoned(text)) return BARE_MARK;
+	if (rules.includes('import/default') && !rawImportFollows(source, end)) {
+		return { keep: false, scope: RAW_IMPORT };
+	}
+	return entry('lint-directive');
 }
 
 function commentBody(text: string): string {
@@ -179,7 +199,7 @@ function commentBody(text: string): string {
 		.trim();
 }
 
-function classify(text: string): Mark {
+function classify(text: string, source = '', end = 0): Mark {
 	if (/#\s*shellcheck\b/.test(text)) {
 		if (/#\s*shellcheck\s+shell=bash\s*$/.test(text)) return entry('shellcheck');
 		const rules = shellcheckRules(text);
@@ -188,7 +208,7 @@ function classify(text: string): Mark {
 		if (missing.length > 0) return { keep: false, unlisted: missing };
 		return reasoned(text) ? entry('shellcheck') : BARE_MARK;
 	}
-	if (LINT_DIRECTIVE.test(text)) return suppressionMark(text, lintRules(text));
+	if (LINT_DIRECTIVE.test(text)) return suppressionMark(text, lintRules(text), source, end);
 	if (/@ts-check\b/.test(text) && !TS_SUPPRESSION.test(text)) return entry('lint-directive');
 	if (!TS_SUPPRESSION.test(text)) return { keep: false };
 	return NO_RULE_MARK;
@@ -233,6 +253,7 @@ interface Decision {
 	bare?: boolean;
 	unlisted?: readonly string[];
 	noRule?: boolean;
+	scope?: string;
 }
 
 function decideSpan(span: Span, mark: Mark): Decision {
@@ -246,6 +267,7 @@ function decideSpan(span: Span, mark: Mark): Decision {
 		bare: mark.bare,
 		unlisted: mark.unlisted,
 		noRule: mark.noRule,
+		scope: mark.scope,
 	};
 }
 
@@ -351,12 +373,12 @@ function markDocGroup(file: string, source: string, group: Span[]): Decision[] {
 	return markGroup(group, claimAnchors(group, claims), () => ({ keep: false }));
 }
 
-function markPlainGroup(group: Span[]): Decision[] {
+function markPlainGroup(source: string, group: Span[]): Decision[] {
 	const claims = claimAnchors(
 		group,
 		group.map(() => null),
 	);
-	return markGroup(group, claims, (span) => classify(span.text));
+	return markGroup(group, claims, (span) => classify(span.text, source, span.end));
 }
 
 function decisions(file: string, source: string): Decision[] {
@@ -370,7 +392,7 @@ function decisions(file: string, source: string): Decision[] {
 	}
 	const plain = spans.filter((span) => !claimed.has(span));
 	for (const group of groupSpans(source, plain, () => true)) {
-		marked.push(...markPlainGroup(group));
+		marked.push(...markPlainGroup(source, group));
 	}
 	return marked.toSorted((left, right) => left.start - right.start);
 }
@@ -378,6 +400,7 @@ function decisions(file: string, source: string): Decision[] {
 function messageFor(decision: Decision): string {
 	const shown = decision.text.trim().replace(/\s+/g, ' ').slice(0, 80);
 	if (decision.noRule) return `\`${shown}\` ${NO_RULE}`;
+	if (decision.scope) return `\`${shown}\` ${decision.scope}`;
 	if (decision.unlisted && decision.unlisted.length > 0) {
 		const names = decision.unlisted.map((rule) => `\`${rule}\``).join(', ');
 		return `\`${shown}\` suppresses ${names}. ${UNLISTED}`;
