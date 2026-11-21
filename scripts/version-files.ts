@@ -48,15 +48,23 @@ export function versionReleaseFindings(input: VersionReleaseInput): VersionFindi
 	const version = input.versions[0]?.version;
 	if (!version) return versions;
 	const latest = latestStableTag(input.tags);
+	if (latest === null) {
+		return [
+			{
+				file: 'CHANGELOG.md',
+				line: 1,
+				message: `No vX.Y.Z tag is in this checkout, so the version check cannot tell whether ${version} is already released. Fix: fetch the tags. A depth-1 checkout omits them.`,
+			},
+		];
+	}
 	if (latest === `v${version}`) return [];
 	const section = changelogSection(input.changelog, version);
-	const latestLabel = latest ?? 'none';
 	if (!section) {
 		return [
 			{
 				file: 'CHANGELOG.md',
 				line: 1,
-				message: `Version ${version} differs from the latest tag ${latestLabel}, and CHANGELOG.md has no non-empty '## [${version}]' section. Fix: rename '## [Unreleased]' to '## [${version}] - YYYY-MM-DD' and write the user-facing notes under that heading.`,
+				message: `Version ${version} differs from the latest tag ${latest}, and CHANGELOG.md has no non-empty '## [${version}]' section. Fix: rename '## [Unreleased]' to '## [${version}] - YYYY-MM-DD' and write the user-facing notes under that heading.`,
 			},
 		];
 	}
@@ -65,7 +73,7 @@ export function versionReleaseFindings(input: VersionReleaseInput): VersionFindi
 		{
 			file: 'CHANGELOG.md',
 			line: section.line,
-			message: section.problem.replace('latest tag', `latest tag ${latestLabel}`),
+			message: section.problem.replace('latest tag', `latest tag ${latest}`),
 		},
 	];
 }

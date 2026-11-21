@@ -86,6 +86,17 @@ describe('version release check', () => {
 		expect(findings[0]?.message).toContain('Fix:');
 	});
 
+	it('a checkout with no vX.Y.Z tags fails', () => {
+		const findings = versionReleaseFindings({
+			versions: versions('1.19.2'),
+			changelog: older,
+			tags: [],
+		});
+		expect(findings).toHaveLength(1);
+		expect(findings[0]?.message).toContain('Fix: fetch the tags');
+		expect(findings[0]?.message).toContain('depth-1');
+	});
+
 	it('an unchanged version needs no changelog section', () => {
 		expect(
 			versionReleaseFindings({
