@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
+import userEvent from '@testing-library/user-event';
 import { createSignal, flush } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Dialog } from './Dialog';
@@ -18,8 +19,32 @@ describe('Dialog', () => {
 			</Dialog>
 		));
 		expect(screen.getByRole('dialog', { name: 'Title' })).toHaveAttribute('data-state', 'open');
-		screen.getByTestId('sample-dialog').click();
+		screen.getByRole('button', { name: 'Close dialog' }).click();
 		expect(onClose).toHaveBeenCalledTimes(1);
+		screen.getByRole('dialog', { name: 'Title' }).click();
+		expect(onClose).toHaveBeenCalledTimes(1);
+	});
+
+	it('closes from Enter or Space on the dismiss control and ignores those keys inside the dialog', async () => {
+		const user = userEvent.setup();
+		const onClose = vi.fn();
+		const [open] = createSignal(true);
+		render(() => (
+			<Dialog open={open()} onClose={onClose} labelledBy="title" testId="sample-dialog">
+				<Dialog.Header>
+					<h3 id="title">Title</h3>
+				</Dialog.Header>
+				<Dialog.Body>Body</Dialog.Body>
+			</Dialog>
+		));
+		const dismiss = screen.getByRole('button', { name: 'Close dialog' });
+		dismiss.focus();
+		await user.keyboard('{Enter}');
+		await user.keyboard(' ');
+		expect(onClose).toHaveBeenCalledTimes(2);
+		fireEvent.keyDown(screen.getByRole('dialog', { name: 'Title' }), { key: 'Enter' });
+		fireEvent.keyDown(screen.getByRole('dialog', { name: 'Title' }), { key: ' ' });
+		expect(onClose).toHaveBeenCalledTimes(2);
 	});
 
 	it('calls onClose on Escape after opening post-mount, with focus outside the dialog', () => {

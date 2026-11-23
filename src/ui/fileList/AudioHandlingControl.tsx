@@ -86,6 +86,37 @@ export function AudioHandlingControl(props: {
 	onCleanup(() => {
 		clearTimeout(closeTimer);
 	});
+	createEffect(open, (isOpen) => {
+		const node = panel;
+		if (!isOpen || !node) return;
+		const keepOpen = () => show();
+		const onLeave = () => leave();
+		const pin = () => {
+			pinned = true;
+		};
+		let focusFrame = 0;
+		const onFocusOut = () => {
+			cancelAnimationFrame(focusFrame);
+			focusFrame = requestAnimationFrame(() => {
+				const active = document.activeElement;
+				if (!(active instanceof HTMLElement)) return;
+				if (active === document.body || active === document.documentElement) return;
+				if (node.contains(active) || trigger?.contains(active)) return;
+				close();
+			});
+		};
+		node.addEventListener('mouseenter', keepOpen);
+		node.addEventListener('mouseleave', onLeave);
+		node.addEventListener('pointerdown', pin);
+		node.addEventListener('focusout', onFocusOut);
+		return () => {
+			cancelAnimationFrame(focusFrame);
+			node.removeEventListener('mouseenter', keepOpen);
+			node.removeEventListener('mouseleave', onLeave);
+			node.removeEventListener('pointerdown', pin);
+			node.removeEventListener('focusout', onFocusOut);
+		};
+	});
 	createEffect(
 		() => [open(), plan(), error()] as const,
 		([isOpen]) => {
@@ -198,7 +229,6 @@ export function AudioHandlingControl(props: {
 			</Show>
 			<Show when={open()}>
 				<Portal>
-					{/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the popover keeps itself open while the pointer is over it. */}
 					<div
 						ref={(el) => {
 							panel = el;
@@ -212,22 +242,6 @@ export function AudioHandlingControl(props: {
 							{ kept: kept(), 'needs-choice': needsChoice() || !!error() },
 						]}
 						style={{ left: `${position().left}px`, top: `${position().top}px` }}
-						onMouseEnter={show}
-						onMouseLeave={leave}
-						onClick={(event) => event.stopPropagation()}
-						onKeyDown={(event) => event.stopPropagation()}
-						onPointerDown={(event) => {
-							event.stopPropagation();
-							pinned = true;
-						}}
-						onFocusOut={(event) => {
-							if (
-								event.relatedTarget instanceof Node &&
-								!panel?.contains(event.relatedTarget) &&
-								!trigger?.contains(event.relatedTarget)
-							)
-								close();
-						}}
 					>
 						<button
 							type="button"

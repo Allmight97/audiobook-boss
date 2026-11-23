@@ -14,6 +14,15 @@ import { TitleSources } from './TitleSources';
 import { AudioHandlingControl } from './AudioHandlingControl';
 import './fileList.css';
 
+function eventInList(event: Event): boolean {
+	const target = event.target;
+	return (
+		event.currentTarget instanceof Node &&
+		target instanceof Node &&
+		event.currentTarget.contains(target)
+	);
+}
+
 function isInteractiveListTarget(target: EventTarget | null): boolean {
 	return (
 		target instanceof HTMLElement && !!target.closest('button, input, select, textarea, a, label')
@@ -81,6 +90,7 @@ export function FileListView(props: {
 	}
 
 	function handleListKeyDown(event: KeyboardEvent): void {
+		if (!eventInList(event)) return;
 		if (isInteractiveListTarget(event.target)) return;
 		const command = interpretFileListKeyDown(event, {
 			fileCount: view().fileCount,
@@ -188,6 +198,14 @@ export function FileListView(props: {
 						fileListContent = element;
 					}}
 					onKeyDown={handleListKeyDown}
+					onClick={(event) => {
+						const hit = event.target instanceof Element ? event.target : null;
+						const row = hit?.closest('[data-file-index]');
+						if (!(row instanceof HTMLElement) || row.parentElement !== event.currentTarget) return;
+						const index = Number(row.dataset.fileIndex);
+						if (!Number.isInteger(index)) return;
+						handleFileListClick(index, event);
+					}}
 				>
 					<For each={view().files}>
 						{(file, index) => {
@@ -197,7 +215,6 @@ export function FileListView(props: {
 							const failed = () => file.status === 'failed';
 							const selected = () => input.isSelected(file);
 							return (
-								// oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the listbox owns the keyboard; rows are not tab stops.
 								<div
 									data-file-index={index()}
 									data-file-key={fileIdentityKey(file)}
@@ -221,7 +238,6 @@ export function FileListView(props: {
 									aria-selected={selected() ? 'true' : 'false'}
 									aria-label={file.label}
 									tabindex={-1}
-									onClick={(event) => handleFileListClick(index(), event)}
 								>
 									<div class={['file-item-content', { expanded: grouped() && expanded() }]}>
 										<button

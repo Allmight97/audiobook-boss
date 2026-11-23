@@ -25,12 +25,12 @@ export const ALLOWLIST: readonly AllowEntry[] = [
 	{
 		id: 'license',
 		reason:
-			'A required license header (SPDX, copyright, or the permission notice) has to stay in the file the license names.',
+			'A required license header stays in the file it names: the copyright, SPDX or permission notice, and a port provenance sentence. A narration sentence in that block does not.',
 	},
 	{
 		id: 'lint-directive',
 		reason:
-			'A lint or TypeScript suppression is a directive the tool reads, and it has to carry the reason the tool or this repo requires.',
+			'A lint suppression is a directive the tool reads. It stays only when every rule it names is in ALLOWED_SUPPRESSIONS.',
 	},
 	{
 		id: 'safety',
@@ -50,7 +50,24 @@ export const ALLOWLIST: readonly AllowEntry[] = [
 	{
 		id: 'shellcheck',
 		reason:
-			'`# shellcheck disable=SC<id> # <why>` and `# shellcheck shell=bash` are directives shellcheck reads; a disable has to say why.',
+			'`# shellcheck shell=bash` selects the shell, and `# shellcheck disable=SC<id>` stays only when that id is in ALLOWED_SUPPRESSIONS.',
+	},
+];
+
+export type SuppressionKind = 'faulty' | 'style-only';
+
+export interface AllowedSuppression {
+	readonly rule: string;
+	readonly kind: SuppressionKind;
+	readonly reason: string;
+}
+
+export const ALLOWED_SUPPRESSIONS: readonly AllowedSuppression[] = [
+	{
+		rule: 'import/default',
+		kind: 'faulty',
+		reason:
+			'A Vite ?raw import default-exports the file text. The import resolver does not see that default. The suppression stays only on the line before an import whose specifier ends in ?raw.',
 	},
 ];
 
@@ -58,15 +75,27 @@ const PLAIN =
 	'is a comment, and a comment does not hold a constraint. Fix: delete it. If it names a constraint, encode that constraint in the API, a type, a lint rule, or a test, and put the fix in the failure text. A comment may stay only when its shape is an entry in ALLOWLIST in scripts/comment-policy.ts. Root cause: prose in code goes stale and gets copied as an excuse.';
 
 const BARE =
-	'is a directive with no reason. Fix: add the reason its form requires (` -- why` on a lint suppression, text after `// SAFETY:` or `@ts-nocheck`, `# shellcheck disable=SC<id> # why`), or delete it and satisfy the check. Root cause: a suppression without a reason hides the constraint.';
+	'is a directive with no reason. Fix: add the reason its form requires (` -- why` on a lint suppression, text after `// SAFETY:`, `# shellcheck disable=SC<id> # why`), or delete it and satisfy the check. Root cause: a suppression without a reason hides the constraint.';
+
+const UNLISTED =
+	'Fix: satisfy the rule, or add it to ALLOWED_SUPPRESSIONS in scripts/comment-policy.ts with a reason, and only if the rule is style-only or faulty. Root cause: a suppression of a correctness rule hides a bug the rule would catch.';
+
+const NO_RULE =
+	'names no rule. Fix: satisfy the check, or name the one rule it suppresses so ALLOWED_SUPPRESSIONS can decide it. @ts-expect-error, @ts-ignore, and @ts-nocheck cannot name a rule. Root cause: a suppression without a rule id can hide any error.';
+
+const RAW_IMPORT =
+	'suppresses `import/default` beyond one Vite ?raw import. Fix: delete it, or keep it only as a next-line suppression on the line before an import whose specifier ends in ?raw. Root cause: import/default catches a real missing default export on every other import, and a file-wide disable turns it off for all of them.';
 
 const LICENSE =
 	/SPDX-License-Identifier:|Copyright\s+(?:\(c\)|©|\d{4})|Permission is hereby granted|licensed under the/i;
+const LICENSE_TERM = /\bLicen[cs]e\b|\bSoftware\b/;
+const LICENSE_PHRASE =
+	/copyright|warrant(?:y|ies)|all rights reserved|ported from|this product includes|SPDX-License-Identifier:/i;
 const SENTENCE_END = /[.!?][)"'`]*$/;
 const LINK_END = /https?:\/\/\S+$/;
 const SAFETY = /(?:^|\s)\/\/\s*SAFETY:\s+\S|\/\*\s*SAFETY:\s+\S/;
 const LINT_DIRECTIVE = /\b(?:(?:ox|es)lint-disable(?:-next-line|-line)?|biome-ignore)\b/;
-const TS_DIRECTIVE = /@ts-(?:expect-error|ignore|nocheck|check)\b/;
+const TS_SUPPRESSION = /@ts-(?:expect-error|ignore|nocheck)\b/;
 const RUSTDOC_TEST_ATTRIBUTE =
 	/^(?:rust|compile_fail|should_panic|no_run|test_harness|standalone_crate|edition\d{4}|E\d{4})$/;
 
@@ -102,12 +131,71 @@ interface Mark {
 	keep: boolean;
 	id?: string;
 	bare?: boolean;
+	unlisted?: readonly string[];
+	noRule?: boolean;
+	scope?: string;
 }
 
 const BARE_MARK: Mark = { keep: false, bare: true };
+const NO_RULE_MARK: Mark = { keep: false, noRule: true };
 
 function entry(id: string): Mark {
 	return { keep: true, id };
+}
+
+function allowedRule(rule: string): boolean {
+	return ALLOWED_SUPPRESSIONS.some((suppression) => suppression.rule === rule);
+}
+
+function rawImportFollows(source: string, end: number): boolean {
+	const next = source.slice(end).replace(/^\s*/, '').split('\n')[0] ?? '';
+	if (!/^\s*import\s/.test(next)) return false;
+	const specifier = next.match(/\bfrom\s+['"]([^'"]+)['"]/);
+	return specifier !== null && specifier[1].endsWith('?raw');
+}
+
+function lintRules(text: string): string[] {
+	const listed = text.match(
+		/\b(?:(?:ox|es)lint-disable(?:-next-line|-line)?|biome-ignore)\s+([^]*?)(?:\s--|\*\/|$)/,
+	);
+	const body = listed?.[1]?.trim() ?? '';
+	if (body.length === 0) return [];
+	return body
+		.split(',')
+		.map((rule) => rule.trim())
+		.filter((rule) => rule.length > 0);
+}
+
+function shellcheckRules(text: string): string[] | undefined {
+	const disable = text.match(/#\s*shellcheck\s+disable=([A-Za-z0-9,]+)/);
+	if (!disable?.[1]) return undefined;
+	return disable[1]
+		.split(',')
+		.map((rule) => rule.trim())
+		.filter((rule) => rule.length > 0);
+}
+
+function reasoned(text: string): boolean {
+	return /--\s*\S/.test(text) || /#\s*shellcheck\s+disable=\S+\s+#\s+\S/.test(text);
+}
+
+function suppressionMark(
+	text: string,
+	rules: readonly string[],
+	source: string,
+	end: number,
+): Mark {
+	if (rules.length === 0) return NO_RULE_MARK;
+	const missing = rules.filter((rule) => !allowedRule(rule));
+	if (missing.length > 0) return { keep: false, unlisted: missing };
+	if (!reasoned(text)) return BARE_MARK;
+	if (
+		rules.includes('import/default') &&
+		!(/\b(?:ox|es)lint-disable-next-line\b/.test(text) && rawImportFollows(source, end))
+	) {
+		return { keep: false, scope: RAW_IMPORT };
+	}
+	return entry('lint-directive');
 }
 
 function commentBody(text: string): string {
@@ -117,18 +205,19 @@ function commentBody(text: string): string {
 		.trim();
 }
 
-function classify(text: string): Mark {
+function classify(text: string, source = '', end = 0): Mark {
 	if (/#\s*shellcheck\b/.test(text)) {
-		const reasoned = /#\s*shellcheck disable=SC\d+\s+#\s+\S/.test(text);
-		const sourced = /#\s*shellcheck shell=bash\s*$/.test(text);
-		return reasoned || sourced ? entry('shellcheck') : BARE_MARK;
+		if (/#\s*shellcheck\s+shell=bash\s*$/.test(text)) return entry('shellcheck');
+		const rules = shellcheckRules(text);
+		if (!rules) return BARE_MARK;
+		const missing = rules.filter((rule) => !allowedRule(rule));
+		if (missing.length > 0) return { keep: false, unlisted: missing };
+		return reasoned(text) ? entry('shellcheck') : BARE_MARK;
 	}
-	if (LINT_DIRECTIVE.test(text)) return /--\s*\S/.test(text) ? entry('lint-directive') : BARE_MARK;
-	if (/@ts-check\b/.test(text)) return entry('lint-directive');
-	if (!TS_DIRECTIVE.test(text)) return { keep: false };
-	return /@ts-(?:expect-error|ignore|nocheck)\s+\S/.test(commentBody(text))
-		? entry('lint-directive')
-		: BARE_MARK;
+	if (LINT_DIRECTIVE.test(text)) return suppressionMark(text, lintRules(text), source, end);
+	if (/@ts-check\b/.test(text) && !TS_SUPPRESSION.test(text)) return entry('lint-directive');
+	if (!TS_SUPPRESSION.test(text)) return { keep: false };
+	return NO_RULE_MARK;
 }
 
 function isPlain(text: string): boolean {
@@ -168,6 +257,9 @@ interface Decision {
 	keep: boolean;
 	id?: string;
 	bare?: boolean;
+	unlisted?: readonly string[];
+	noRule?: boolean;
+	scope?: string;
 }
 
 function decideSpan(span: Span, mark: Mark): Decision {
@@ -179,6 +271,9 @@ function decideSpan(span: Span, mark: Mark): Decision {
 		keep: mark.keep,
 		id: mark.id,
 		bare: mark.bare,
+		unlisted: mark.unlisted,
+		noRule: mark.noRule,
+		scope: mark.scope,
 	};
 }
 
@@ -226,9 +321,39 @@ function fenceClaims(file: string, group: Span[]): Claims {
 	});
 }
 
+function lineComment(span: Span): boolean {
+	return /^\s*(?:\/\/|#)/.test(span.text);
+}
+
+function licenseDecisions(group: Span[], rest: (span: Span) => Mark): Decision[] {
+	if (!group.every(lineComment)) {
+		return group.map((span) => decideSpan(span, entry('license')));
+	}
+	const marked: Decision[] = [];
+	let sentence: Span[] = [];
+	const flush = (): void => {
+		if (sentence.length === 0) return;
+		const text = sentence.map((span) => commentBody(span.text)).join(' ');
+		const keep = text
+			.split(/(?<=[.!?])[)"'`]*\s+/)
+			.filter((part) => part.trim() !== '')
+			.every((part) => LICENSE_TERM.test(part) || LICENSE_PHRASE.test(part));
+		for (const span of sentence) {
+			marked.push(decideSpan(span, keep ? entry('license') : rest(span)));
+		}
+		sentence = [];
+	};
+	for (const span of group) {
+		sentence.push(span);
+		if (endsSentence(span)) flush();
+	}
+	flush();
+	return marked;
+}
+
 function markGroup(group: Span[], claims: Claims, rest: (span: Span) => Mark): Decision[] {
 	if (LICENSE.test(group.map((span) => span.text).join('\n'))) {
-		return group.map((span) => decideSpan(span, entry('license')));
+		return licenseDecisions(group, rest);
 	}
 	return group.map((span, index) => {
 		const claim = claims[index];
@@ -254,12 +379,12 @@ function markDocGroup(file: string, source: string, group: Span[]): Decision[] {
 	return markGroup(group, claimAnchors(group, claims), () => ({ keep: false }));
 }
 
-function markPlainGroup(group: Span[]): Decision[] {
+function markPlainGroup(source: string, group: Span[]): Decision[] {
 	const claims = claimAnchors(
 		group,
 		group.map(() => null),
 	);
-	return markGroup(group, claims, (span) => classify(span.text));
+	return markGroup(group, claims, (span) => classify(span.text, source, span.end));
 }
 
 function decisions(file: string, source: string): Decision[] {
@@ -273,13 +398,19 @@ function decisions(file: string, source: string): Decision[] {
 	}
 	const plain = spans.filter((span) => !claimed.has(span));
 	for (const group of groupSpans(source, plain, () => true)) {
-		marked.push(...markPlainGroup(group));
+		marked.push(...markPlainGroup(source, group));
 	}
 	return marked.toSorted((left, right) => left.start - right.start);
 }
 
 function messageFor(decision: Decision): string {
 	const shown = decision.text.trim().replace(/\s+/g, ' ').slice(0, 80);
+	if (decision.noRule) return `\`${shown}\` ${NO_RULE}`;
+	if (decision.scope) return `\`${shown}\` ${decision.scope}`;
+	if (decision.unlisted && decision.unlisted.length > 0) {
+		const names = decision.unlisted.map((rule) => `\`${rule}\``).join(', ');
+		return `\`${shown}\` suppresses ${names}. ${UNLISTED}`;
+	}
 	return `\`${shown}\` ${decision.bare ? BARE : PLAIN}`;
 }
 

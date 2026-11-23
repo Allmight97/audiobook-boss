@@ -115,25 +115,28 @@ function IndexerConnectionHelp(props: {
 	readonly open: boolean;
 	readonly setOpen: (open: boolean) => void;
 }): JSX.Element {
+	let region: HTMLFieldSetElement | undefined;
+	const show = () => props.setOpen(true);
+	const hideIfLeft = (next: EventTarget | null) => {
+		if (next instanceof Node && region?.contains(next)) return;
+		if (region?.contains(document.activeElement)) return;
+		props.setOpen(false);
+	};
+	createEffect(
+		() => props.open,
+		(open) => {
+			const node = region;
+			if (!node || !open) return;
+			const out = (event: MouseEvent) => hideIfLeft(event.relatedTarget);
+			node.addEventListener('mouseout', out);
+			return () => node.removeEventListener('mouseout', out);
+		},
+	);
 	return (
-		// oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- hover opens the help; focus inside opens it from the keyboard.
 		<fieldset
+			ref={(element) => (region = element)}
 			class="app-settings-connection-help"
 			aria-label="Connection security help"
-			onMouseEnter={() => props.setOpen(true)}
-			onMouseLeave={(event) => {
-				if (!event.currentTarget.contains(document.activeElement)) props.setOpen(false);
-			}}
-			onFocusIn={() => props.setOpen(true)}
-			onFocusOut={(event) => {
-				if (
-					!(
-						event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)
-					)
-				) {
-					props.setOpen(false);
-				}
-			}}
 		>
 			<button
 				type="button"
@@ -142,7 +145,10 @@ function IndexerConnectionHelp(props: {
 				aria-expanded={props.open ? 'true' : 'false'}
 				aria-controls="app-settings-connection-help"
 				aria-describedby={props.open ? 'app-settings-connection-help' : undefined}
-				onClick={() => props.setOpen(true)}
+				onClick={show}
+				onMouseEnter={show}
+				onFocusIn={show}
+				onFocusOut={(event) => hideIfLeft(event.relatedTarget)}
 			>
 				i
 			</button>

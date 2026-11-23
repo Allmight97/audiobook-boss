@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-// oxlint-disable-next-line eslint/no-restricted-imports -- the recorded workflows replay the raw IPC wire.
-import { invoke } from '@tauri-apps/api/core';
+import { defaultInvoke, invokeMock } from '../../test/fixtures/invokeMock';
 import { replayInvoke } from '../../test/fixtures/recordedInvoke';
 import { interpretFileListKeyDown } from '../inputSession';
 import { createAppRuntime, type AppRuntime } from './index';
@@ -13,14 +12,13 @@ const SINGLE = { multi: false, range: false };
 
 describe('workflows recorded from the real engine', () => {
 	let app: AppRuntime | undefined;
-	const original = vi.mocked(invoke).getMockImplementation();
 
 	beforeEach(() => {
 		app = undefined;
 	});
 	afterEach(() => {
 		app?.dispose();
-		vi.mocked(invoke).mockImplementation(original ?? (() => Promise.resolve(undefined)));
+		invokeMock.mockImplementation(defaultInvoke);
 	});
 
 	async function open(): Promise<AppRuntime> {

@@ -41,13 +41,14 @@ describe('encoder panel behavior controls', () => {
 		await renderEncoder(() => undefined);
 		await vi.waitFor(() => expect(screen.getByLabelText('Encoder')).toBeTruthy());
 
-		for (const intent of ['auto', 'preserve'] as const) {
-			engine.change((state) => {
-				state.audio.defaults.choice.intent = intent;
-			});
-			// oxlint-disable-next-line eslint/no-await-in-loop -- each intent must render before the next one is set.
-			await vi.waitFor(() => expect(screen.queryByLabelText('Encoder')).toBeNull());
-		}
+		engine.change((state) => {
+			state.audio.defaults.choice.intent = 'auto';
+		});
+		await vi.waitFor(() => expect(screen.queryByLabelText('Encoder')).toBeNull());
+		engine.change((state) => {
+			state.audio.defaults.choice.intent = 'preserve';
+		});
+		await vi.waitFor(() => expect(screen.queryByLabelText('Encoder')).toBeNull());
 		changeSelectValue(screen.getByLabelText('Audio handling'), 'encode');
 		await vi.waitFor(() =>
 			expect(sent().slice(-1)[0]).toEqual({

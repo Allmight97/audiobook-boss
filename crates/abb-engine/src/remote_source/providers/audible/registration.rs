@@ -1,4 +1,4 @@
-//! Device registration with the current Audible for iPhone profile. Ported
+//! Ported
 //! from `audible_api` 0.1.0 `auth::register` (MIT OR Apache-2.0).
 //! Copyright (c) 2024 the audible_api author (github.com/cmarkh/audible_api).
 

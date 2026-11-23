@@ -1,4 +1,4 @@
-//! Audible API request signing. Ported from `audible_api` 0.1.0
+//! Ported from `audible_api` 0.1.0
 //! `auth::auth_headers` (MIT OR Apache-2.0).
 //! Copyright (c) 2024 the audible_api author (github.com/cmarkh/audible_api).
 

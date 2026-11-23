@@ -348,6 +348,14 @@ describe('Solid input workbench', () => {
 		const popup = await screen.findByRole('dialog', { name: 'Audio plan' });
 		expect(popup).toHaveTextContent('Choose this title’s audio');
 		expect(popup.parentElement).toBe(document.body);
+		fireEvent.mouseLeave(indicator);
+		fireEvent.mouseEnter(popup);
+		await new Promise((resolve) => setTimeout(resolve, 250));
+		expect(popup).toBeInTheDocument();
+		const selections = () => engine.sessionIntents.filter((intent) => intent.kind === 'selectFile');
+		const beforeHeadingClick = selections().length;
+		await user.click(within(popup).getByText('Choose this title’s audio'));
+		expect(selections()).toHaveLength(beforeHeadingClick);
 		await user.click(indicator);
 		await user.click(within(popup).getByRole('button', { name: 'Apply App Settings' }));
 		await waitFor(() => expect(runtime.encoding.plan(files[0]).kind).not.toBe('choiceRequired'));
@@ -364,6 +372,9 @@ describe('Solid input workbench', () => {
 				edit: { field: 'format', value: 'm4aOpus' },
 			}),
 		);
+		await user.click(within(popup).getByText('Audio plan'));
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(popup).toBeInTheDocument();
 		await user.keyboard('{Escape}');
 		fireEvent.focus(indicator);
 		fireEvent.mouseEnter(indicator);
@@ -404,7 +415,12 @@ describe('Solid input workbench', () => {
 			],
 		});
 		engine.respond = (intent) => {
-			if (intent.kind === 'selectFile') return selects([0], 0);
+			if (intent.kind === 'selectFile') {
+				const index = runtime.input
+					.view()
+					.files.findIndex((file) => file.inputId === intent.titleId);
+				return selects([index], index);
+			}
 			if (intent.kind === 'selectAll') return selects([0, 1], 0);
 			return undefined;
 		};
@@ -421,8 +437,18 @@ describe('Solid input workbench', () => {
 			expect(runtime.input.view().selectedIndices).toEqual([0]);
 		});
 
+		const [first] = within(listbox).getAllByRole('option');
+		first.focus();
+		const selections = () => engine.sessionIntents.filter((intent) => intent.kind === 'selectFile');
+		const before = selections().length;
+		fireEvent.keyDown(first, { key: 'ArrowDown' });
+		await waitFor(() => {
+			expect(runtime.input.view().selectedIndices).toEqual([1]);
+		});
+		expect(selections()).toHaveLength(before + 1);
+
 		fireEvent.keyDown(document.body, { key: 'ArrowDown' });
-		expect(runtime.input.view().selectedIndices).toEqual([0]);
+		expect(runtime.input.view().selectedIndices).toEqual([1]);
 
 		fireEvent.keyDown(listbox, { key: 'a', ctrlKey: true });
 		await waitFor(() => {
