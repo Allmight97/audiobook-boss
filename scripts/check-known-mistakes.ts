@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { commentFindings, isPolicyFile } from './comment-policy';
+import { repoVersionReleaseFindings } from './version-files';
 
 export interface Finding {
 	file: string;
@@ -828,6 +829,7 @@ function main(): number {
 			permissionFakeFindings(file, readFileSync(path.join(repoRoot, file), 'utf8')),
 		),
 		...sampleFindings(repoRoot, values.against),
+		...repoVersionReleaseFindings(repoRoot),
 	];
 	for (const finding of findings) {
 		console.error(`${finding.file}:${finding.line}: ${finding.message}`);

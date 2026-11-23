@@ -139,9 +139,9 @@
   sessions block GraphQL.
 - `lane-paths.test.ts` uses dorny/paths-filter's matcher options, so a pass
   there means CI selects the lane.
-- `release.ts`: `gh run list --commit` matches only a full SHA. The tag waits
-  for CI, because CI is the release's only Linux proof.
 - `ci-timing.ts`: a `closed` run is a pull request's closed event.
+- `github-release.sh`: a draft release has no tag until it is published, and
+  `gh release view <tag>` still finds it by that pending tag name.
 - `golden-path/features/corpus.sh` measures raw ADTS length by decoding,
   because ffprobe estimates it from the bit rate (1.1% short on a 5-minute
   probe). Its 0.25 s length tolerance covers 2112 AAC priming samples at

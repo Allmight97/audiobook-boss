@@ -82,7 +82,7 @@ describe('plan --explain', () => {
 			{ lane: 'tooling', pattern: 'docs/**' },
 		]);
 		expect(formatExplanation('CHANGELOG.md', explainPath(yaml, laneNames, 'CHANGELOG.md'))).toBe(
-			'CHANGELOG.md\n  no-lane  CHANGELOG.md  release history, written by hand before scripts/release.ts runs',
+			'CHANGELOG.md\n  no-lane  CHANGELOG.md  release history, written by hand',
 		);
 	});
 });

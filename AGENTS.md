@@ -8,8 +8,6 @@
   `src/lib/tauri/client.ts`, and the generated bindings.
 - Cargo commands run from the repository root. Verification:
   `scripts/AGENTS.md`.
-- Repository skills live in `.agents/skills/<name>/SKILL.md`; read the one
-  whose description fits the task.
 - "Public API Strip" means an owned module's allowed import/export surface;
   callers use it instead of private implementation files. `abb-*-core` crates
   are package boundaries, not further strips.
@@ -188,6 +186,25 @@ reader.
   yes.
 - Roadmaps are the owner's call, announced case by case. Link an issue when
   one exists; one is not required.
+
+## Releasing
+
+A push to `main` whose version has no `vX.Y.Z` tag is the release:
+`release-publish.yml` waits for that push's `ci`, then tags it and publishes
+the GitHub Release with its `## [x.y.z]` changelog section as the notes.
+
+- Choose patch for fixes, minor for added capability, major for a broken
+  contract. Guidance, tests, or plans alone need no release. An owner-chosen
+  version stands; say when it does not match the change's impact.
+- Write the `## [x.y.z]` section for users, from each change's user-visible
+  effect, not from the commit list.
+- The app statically links FAAC, FAAD3, and FFmpeg under LGPL-2.1-or-later.
+  Before a version bump lands, judge what `check-bundled-licenses.ts`
+  cannot: a recipient can get the matching source and rebuild the app, as
+  each `vendor/*/ABB-PROVENANCE.md` describes.
+- Push nothing else to `main` until the release finishes. A later push
+  cancels the release push's `ci`, and the release then fails, or publishes
+  from the later push without the earlier push's lanes.
 
 ## Review Guidelines
 

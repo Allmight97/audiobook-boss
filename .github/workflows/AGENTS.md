@@ -7,6 +7,9 @@
   Workflows and shell job checks out full history, because the file-size
   ratchet merge-bases a stacked pull request and a depth-1 base has no
   ancestry.
+- The owner's admin role bypasses `gate` and required checks, so
+  `release-publish.yml`'s CI wait is the only gate on a direct push.
+- `release-publish.yml`: `gh run list --commit` matches only a full SHA.
 - `rust-toolchain.toml` pins the compiler, and rustup installs it on first
   use.
 - rust-cache keys on every installed toolchain, so an image's extra stable

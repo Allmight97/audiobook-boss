@@ -1,0 +1,146 @@
+name: release
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Build the DMG and upload it as an artifact without tagging or publishing
+        required: true
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  select:
+    name: Select dry run
+    if: github.event.pull_request.draft != true && github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      build: ${{ steps.files.outputs.build }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - id: files
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ ! "$BASE" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            printf 'release dry-run: pull request base is not a commit sha\n' >&2
+            exit 1
+          fi
+          git cat-file -e "$BASE^{commit}" || git fetch --no-tags --depth=1 origin "$BASE"
+          git cat-file -e "$BASE^{commit}"
+          if git diff --name-only "$BASE" HEAD | grep -Eq '^\.github/workflows/release(-publish)?\.yml$'; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  dispatch:
+    name: Dry run is the only manual run
+    if: github.event.pull_request.draft != true && github.event_name == 'workflow_dispatch' && inputs.dry-run != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - run: |
+          printf '%s\n' 'This workflow only builds the DMG. Publishing happens on the push to main.'
+          printf '%s\n' 'Run it again with dry-run set to build the DMG without tagging or publishing.'
+          exit 1
+
+  dry-run:
+    name: Dry run DMG
+    needs: select
+    if: github.event.pull_request.draft != true && ((github.event_name == 'workflow_dispatch' && inputs.dry-run == true) || (github.event_name == 'pull_request' && needs.select.outputs.build == 'true')) && (success() || needs.select.result == 'skipped')
+    runs-on: macos-26
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Keep only the pinned Rust toolchain
+        run: |
+          rustup toolchain install
+          pinned="$(rustup show active-toolchain | cut -d' ' -f1)"
+          rustup default "$pinned"
+          rustup toolchain list --quiet | while read -r toolchain; do
+            [ "$toolchain" = "$pinned" ] || rustup toolchain uninstall "$toolchain"
+          done
+          [ "$(rustup toolchain list --quiet)" = "$pinned" ]
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          cache-workspace-crates: true
+          cache-on-failure: true
+      - run: bash scripts/setup.sh frontend
+      - run: bun scripts/version-files.ts
+      - run: bash scripts/setup.sh rust
+      - id: toolchain
+        run: echo "id=$( (cc --version; xcrun --show-sdk-version; pkg-config --modversion opus) | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      - run: touch "$RUNNER_TEMP/ffmpeg-job-start"
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        id: ffmpeg
+        with:
+          path: target/abb-ffmpeg-cache
+          key: ffmpeg-portable-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'vendor/opus/**') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ffmpeg-portable-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('vendor/ffmpeg-sys-next-*/**', 'vendor/opus/**') }}-
+            ffmpeg-portable-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-
+      - run: bun run app:build:dmg
+      - run: bun scripts/check-bundled-licenses.ts
+      - id: dmg
+        run: |
+          dir="$RUNNER_TEMP/release-assets"
+          version="$(bun scripts/version-files.ts --print)"
+          bun scripts/resolve-release-dmg.ts --version "$version" --stage "$dir" > "$RUNNER_TEMP/release-stage.txt"
+          while IFS= read -r line; do
+            printf '%s\n' "$line"
+            printf '%s\n' "$line" >> "$GITHUB_OUTPUT"
+            case "$line" in
+              sha256=*) sha="${line#sha256=}" ;;
+              asset=*) asset="${line#asset=}" ;;
+            esac
+          done < "$RUNNER_TEMP/release-stage.txt"
+          printf 'dir=%s\n' "$dir" >> "$GITHUB_OUTPUT"
+          {
+            printf '### DMG\n\n'
+            printf '%s\n\n' "$asset"
+            printf 'SHA-256 %s\n' "$sha"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: ${{ steps.dmg.outputs.asset }}
+          path: ${{ steps.dmg.outputs.dir }}
+          if-no-files-found: error
+          retention-days: 14
+      - id: ffmpeg-trees
+        if: always()
+        run: |
+          for tree in target/abb-ffmpeg-cache/*/; do
+            [ -d "$tree" ] || continue
+            [ "$tree/abb-last-used" -nt "$RUNNER_TEMP/ffmpeg-job-start" ] || rm -rf "$tree"
+          done
+          compiled=$(find target/abb-ffmpeg-cache -path '*/dist/abb-build-inputs' -newer "$RUNNER_TEMP/ffmpeg-job-start" 2>/dev/null | wc -l | tr -d " ")
+          echo "abb-ffmpeg-cache: compiled $compiled tree(s)"
+          echo "compiled=$compiled" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        if: always() && steps.ffmpeg-trees.outputs.compiled != '0' && steps.ffmpeg-trees.outputs.compiled != '' && steps.ffmpeg.outputs.cache-primary-key != ''
+        with:
+          path: target/abb-ffmpeg-cache
+          key: ${{ steps.ffmpeg.outputs.cache-primary-key }}
+      - if: always()
+        run: rm -rf target/abb-ffmpeg-cache
