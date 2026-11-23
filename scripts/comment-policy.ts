@@ -81,13 +81,16 @@ const UNLISTED =
 	'Fix: satisfy the rule, or add it to ALLOWED_SUPPRESSIONS in scripts/comment-policy.ts with a reason, and only if the rule is style-only or faulty. Root cause: a suppression of a correctness rule hides a bug the rule would catch.';
 
 const NO_RULE =
-	'names no rule. Fix: satisfy the check. @ts-ignore and @ts-nocheck name no rule, so they cannot be listed. Root cause: a suppression without a rule id can hide any error.';
+	'names no rule. Fix: satisfy the check, or name the one rule it suppresses so ALLOWED_SUPPRESSIONS can decide it. @ts-expect-error, @ts-ignore, and @ts-nocheck cannot name a rule. Root cause: a suppression without a rule id can hide any error.';
 
 const RAW_IMPORT =
-	'suppresses `import/default` away from a Vite ?raw import. Fix: delete it, or keep it only on the line before an import whose specifier ends in ?raw. Root cause: import/default catches a real missing default export on every other import.';
+	'suppresses `import/default` beyond one Vite ?raw import. Fix: delete it, or keep it only as a next-line suppression on the line before an import whose specifier ends in ?raw. Root cause: import/default catches a real missing default export on every other import, and a file-wide disable turns it off for all of them.';
 
 const LICENSE =
 	/SPDX-License-Identifier:|Copyright\s+(?:\(c\)|©|\d{4})|Permission is hereby granted|licensed under the/i;
+const LICENSE_TERM = /\bLicen[cs]e\b|\bSoftware\b/;
+const LICENSE_PHRASE =
+	/copyright|warrant(?:y|ies)|all rights reserved|ported from|this product includes|SPDX-License-Identifier:/i;
 const SENTENCE_END = /[.!?][)"'`]*$/;
 const LINK_END = /https?:\/\/\S+$/;
 const SAFETY = /(?:^|\s)\/\/\s*SAFETY:\s+\S|\/\*\s*SAFETY:\s+\S/;
@@ -186,7 +189,10 @@ function suppressionMark(
 	const missing = rules.filter((rule) => !allowedRule(rule));
 	if (missing.length > 0) return { keep: false, unlisted: missing };
 	if (!reasoned(text)) return BARE_MARK;
-	if (rules.includes('import/default') && !rawImportFollows(source, end)) {
+	if (
+		rules.includes('import/default') &&
+		!(/\b(?:ox|es)lint-disable-next-line\b/.test(text) && rawImportFollows(source, end))
+	) {
 		return { keep: false, scope: RAW_IMPORT };
 	}
 	return entry('lint-directive');
@@ -331,7 +337,7 @@ function licenseDecisions(group: Span[], rest: (span: Span) => Mark): Decision[]
 		const keep = text
 			.split(/(?<=[.!?])[)"'`]*\s+/)
 			.filter((part) => part.trim() !== '')
-			.every((part) => LICENSE.test(part) || /Ported from\b/i.test(part));
+			.every((part) => LICENSE_TERM.test(part) || LICENSE_PHRASE.test(part));
 		for (const span of sentence) {
 			marked.push(decideSpan(span, keep ? entry('license') : rest(span)));
 		}

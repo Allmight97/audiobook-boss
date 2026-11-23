@@ -56,6 +56,12 @@ describe('comment policy', () => {
 		expect(messages('src/app/x.ts', kept)).toEqual([]);
 		const wide = `// oxlint-disable-next-line ${listed?.rule} -- ${listed?.reason}\nimport file from './fixture';\n`;
 		expect(messages('src/app/x.ts', wide)[0]).toContain('?raw');
+		for (const fileWide of [
+			`// oxlint-disable ${listed?.rule} -- ${listed?.reason}\nimport file from './fixture.ts?raw';\n`,
+			`/* oxlint-disable ${listed?.rule} -- ${listed?.reason} */\nimport file from './fixture.ts?raw';\n`,
+		]) {
+			expect(messages('src/app/x.ts', fileWide)[0]).toContain('?raw');
+		}
 		const marker = ['oxlint', 'disable-next-line'].join('-');
 		const bareListed = `// ${marker} ${listed?.rule}\n`;
 		expect(messages('src/app/x.ts', bareListed)).toEqual([
@@ -240,6 +246,35 @@ describe('comment policy', () => {
 		const sharedLine =
 			'//! The saved sign-in helpers. Ported from `audible_api` 0.1.0 (MIT OR Apache-2.0).\nfn kept() {}\n';
 		expect(messages('crates/x/src/lib.rs', sharedLine)[0]).toContain('saved sign-in helpers');
+	});
+
+	it('keeps every sentence of an MIT or Apache header written as line comments', () => {
+		const mit = [
+			'// Ported from `example` 1.2.3 (https://github.com/example/example), MIT License.',
+			'// Copyright (c) 2024 Example Inc. All rights reserved.',
+			'// The above copyright notice and this permission notice shall be included in all',
+			'// copies or substantial portions of the Software.',
+			'// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.',
+			'export const n = 1;',
+			'',
+		].join('\n');
+		expect(messages('scripts/x.ts', mit)).toEqual([]);
+		const apache = [
+			'// Copyright 2024 Example Authors.',
+			'// Licensed under the Apache License, Version 2.0 (the "License").',
+			'// You may not use this file except in compliance with the License.',
+			'// This product includes software developed at Example (https://example.com/).',
+			'export const n = 1;',
+			'',
+		].join('\n');
+		expect(messages('scripts/x.ts', apache)).toEqual([]);
+		const narrated = [
+			'// Copyright 2024 Example Authors.',
+			'// Decrypts the license key.',
+			'export const n = 1;',
+			'',
+		].join('\n');
+		expect(messages('scripts/x.ts', narrated)[0]).toContain('Decrypts the license key');
 	});
 
 	it('reads a URL in JSX text as text', () => {
