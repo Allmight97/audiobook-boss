@@ -86,6 +86,37 @@ export function AudioHandlingControl(props: {
 	onCleanup(() => {
 		clearTimeout(closeTimer);
 	});
+	createEffect(open, (isOpen) => {
+		const node = panel;
+		if (!isOpen || !node) return;
+		const keepOpen = () => show();
+		const onLeave = () => leave();
+		const pin = () => {
+			pinned = true;
+		};
+		let focusFrame = 0;
+		const onFocusOut = () => {
+			cancelAnimationFrame(focusFrame);
+			focusFrame = requestAnimationFrame(() => {
+				const active = document.activeElement;
+				if (!(active instanceof HTMLElement)) return;
+				if (active === document.body || active === document.documentElement) return;
+				if (node.contains(active) || trigger?.contains(active)) return;
+				close();
+			});
+		};
+		node.addEventListener('mouseenter', keepOpen);
+		node.addEventListener('mouseleave', onLeave);
+		node.addEventListener('pointerdown', pin);
+		node.addEventListener('focusout', onFocusOut);
+		return () => {
+			cancelAnimationFrame(focusFrame);
+			node.removeEventListener('mouseenter', keepOpen);
+			node.removeEventListener('mouseleave', onLeave);
+			node.removeEventListener('pointerdown', pin);
+			node.removeEventListener('focusout', onFocusOut);
+		};
+	});
 	createEffect(
 		() => [open(), plan(), error()] as const,
 		([isOpen]) => {
@@ -124,40 +155,14 @@ export function AudioHandlingControl(props: {
 				if (panel) resize?.observe(panel);
 				place();
 			});
-			const node = panel;
-			const keepOpen = () => show();
-			const onLeave = () => leave();
-			const pin = () => {
-				pinned = true;
-			};
-			let focusFrame = 0;
-			const onFocusOut = () => {
-				cancelAnimationFrame(focusFrame);
-				focusFrame = requestAnimationFrame(() => {
-					const active = document.activeElement;
-					if (!(active instanceof HTMLElement)) return;
-					if (active === document.body || active === document.documentElement) return;
-					if (node?.contains(active) || trigger?.contains(active)) return;
-					close();
-				});
-			};
-			node?.addEventListener('mouseenter', keepOpen);
-			node?.addEventListener('mouseleave', onLeave);
-			node?.addEventListener('pointerdown', pin);
-			node?.addEventListener('focusout', onFocusOut);
 			place();
 			document.addEventListener('keydown', onEscape, true);
 			document.addEventListener('pointerdown', outside, true);
 			window.addEventListener('resize', place);
 			window.addEventListener('scroll', place, true);
 			return () => {
-				cancelAnimationFrame(focusFrame);
 				cancelAnimationFrame(frame);
 				resize?.disconnect();
-				node?.removeEventListener('mouseenter', keepOpen);
-				node?.removeEventListener('mouseleave', onLeave);
-				node?.removeEventListener('pointerdown', pin);
-				node?.removeEventListener('focusout', onFocusOut);
 				document.removeEventListener('keydown', onEscape, true);
 				document.removeEventListener('pointerdown', outside, true);
 				window.removeEventListener('resize', place);

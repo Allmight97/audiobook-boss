@@ -76,7 +76,6 @@ export function FileListView(props: {
 	);
 
 	function handleFileListClick(index: number, event: MouseEvent): void {
-		if (!eventInList(event)) return;
 		if (isInteractiveListTarget(event.target)) return;
 		if (reorderHandlers.consumePostDragClick()) return;
 		fileListContent?.focus({ preventScroll: true });
