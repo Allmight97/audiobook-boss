@@ -4,7 +4,6 @@ import {
 	type GuidanceContext,
 	isGuidanceFile,
 	markdownHomeFindings,
-	skillFrontmatterFindings,
 } from './check-guidance';
 
 const context: GuidanceContext = {
@@ -21,7 +20,6 @@ function messages(text: string, file = 'scripts/AGENTS.md'): string[] {
 describe('check-guidance', () => {
 	it('selects agent guidance, not upstream or history files', () => {
 		expect(isGuidanceFile('crates/abb-engine/AGENTS.md')).toBe(true);
-		expect(isGuidanceFile('.agents/skills/probe/SKILL.md')).toBe(true);
 		expect(isGuidanceFile('README.md')).toBe(true);
 		expect(isGuidanceFile('CHANGELOG.md')).toBe(false);
 		expect(isGuidanceFile('vendor/ffmpeg-sys-next-9.0.1/README.md')).toBe(false);
@@ -36,7 +34,6 @@ describe('check-guidance', () => {
 				'crates/abb-engine/src/session/NOTES.md',
 				'docs/specs/export-rework.md',
 				'docs/DECISIONS.md',
-				'.agents/skills/probe/SKILL.md',
 				'crates/abb-engine/AGENTS.md',
 				'CHANGELOG.md',
 				'vendor/opus/README.md',
@@ -45,25 +42,6 @@ describe('check-guidance', () => {
 		).toEqual(['PLAN.md', 'docs/export-rework.md', 'crates/abb-engine/src/session/NOTES.md']);
 		expect(markdownHomeFindings(['NOTES.md'])[0]?.message).toContain('Fix:');
 		expect(markdownHomeFindings(['NOTES.md'])[0]?.message).toContain('Root cause:');
-	});
-
-	it('rejects skill frontmatter that is not valid YAML', () => {
-		const file = '.agents/skills/probe/SKILL.md';
-		expect(
-			skillFrontmatterFindings(
-				file,
-				'---\nname: probe\ndescription: Work: do a thing\n---\n# Probe',
-			),
-		).toEqual([
-			expect.objectContaining({ line: 2, message: expect.stringMatching(/not valid YAML/) }),
-		]);
-		expect(
-			skillFrontmatterFindings(
-				file,
-				'---\nname: probe\ndescription: "Work: do a thing"\n---\n# Probe',
-			),
-		).toEqual([]);
-		expect(skillFrontmatterFindings(file, '# Probe')).toHaveLength(1);
 	});
 
 	it('passes guidance that names lanes and scripts', () => {

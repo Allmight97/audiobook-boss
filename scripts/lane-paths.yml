@@ -95,7 +95,6 @@ tooling:
   - .githooks/**
   - .claude/**
   - .cursor/**
-  - .agents/**
   - docs/**
   - "**/AGENTS.md"
   - CLAUDE.md

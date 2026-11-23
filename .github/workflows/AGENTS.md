@@ -9,10 +9,7 @@
   ancestry.
 - The owner's admin role bypasses `gate` and required checks, so
   `release-publish.yml`'s CI wait is the only gate on a direct push.
-- The app statically links FAAC, FAAD3, and FFmpeg under LGPL-2.1-or-later.
-  Before merging a version bump, judge what the bundled-license check cannot:
-  a recipient can get the matching source and rebuild the app, as each
-  `vendor/*/ABB-PROVENANCE.md` describes.
+- `release-publish.yml`: `gh run list --commit` matches only a full SHA.
 - `rust-toolchain.toml` pins the compiler, and rustup installs it on first
   use.
 - rust-cache keys on every installed toolchain, so an image's extra stable
