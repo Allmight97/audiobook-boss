@@ -20,7 +20,7 @@ it('restores the accepted select value and shows the engine rejection', async ()
 			<SettingsPersistenceNotice />
 		</AppRuntimeProvider>
 	));
-	const select = screen.getByRole('combobox', { name: 'Number of Jobs:' }) as HTMLSelectElement;
+	const select = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Number of Jobs:' });
 	expect(select).toHaveValue('auto');
 	expect(select.options[0]?.textContent).toBe('Auto · 4 jobs');
 

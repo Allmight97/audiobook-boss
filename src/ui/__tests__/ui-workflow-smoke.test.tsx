@@ -153,9 +153,7 @@ describe('UI workflow intents', () => {
 			});
 			await user.click(await within(audioEditor).findByText(/Encoding settings/));
 			await user.selectOptions(within(audioEditor).getByLabelText('Encoder'), 'native_aac');
-			const targetBitrate = within(audioEditor).getByLabelText(
-				'Bitrate (kbps)',
-			) as HTMLInputElement;
+			const targetBitrate = within(audioEditor).getByLabelText<HTMLInputElement>('Bitrate (kbps)');
 			await user.clear(targetBitrate);
 			await user.type(targetBitrate, '96');
 			await user.tab();
