@@ -42,10 +42,6 @@ function matchesReleaseDmg(name: string, productName: string, version: string): 
 	return name.startsWith(`${productName}_${version}_`) && name.endsWith('.dmg');
 }
 
-export function predictedReleaseAssetName(productName: string, version: string): string {
-	return `${productName.replaceAll(' ', '.')}_${version}_aarch64.dmg`;
-}
-
 export function releaseAssetFileName(dmgPath: string): string {
 	return path.basename(dmgPath).replaceAll(' ', '.');
 }

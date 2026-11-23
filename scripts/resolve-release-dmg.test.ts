@@ -5,7 +5,6 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
-	predictedReleaseAssetName,
 	releaseAssetFileName,
 	resolveReleaseDmgArtifact,
 	stageReleaseDmg,
@@ -64,8 +63,7 @@ describe('release asset name', () => {
 			mkdirSync(bundleDir, { recursive: true });
 			const built = path.join(bundleDir, 'AudioBook Boss_1.0.5_aarch64.dmg');
 			writeFileSync(built, 'dmg-bytes');
-			const asset = predictedReleaseAssetName('AudioBook Boss', '1.0.5');
-			expect(asset).toBe('AudioBook.Boss_1.0.5_aarch64.dmg');
+			const asset = 'AudioBook.Boss_1.0.5_aarch64.dmg';
 			expect(releaseAssetFileName(built)).toBe(asset);
 
 			const staged = stageReleaseDmg(built, stageDir);
