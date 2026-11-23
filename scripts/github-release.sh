@@ -29,7 +29,7 @@ if [[ "$command" == create && -z "$dir" ]]; then
 	exit 1
 fi
 if [[ "$command" == create && ( "${GITHUB_EVENT_NAME:-}" != push || "${GITHUB_REF:-}" != refs/heads/main ) ]]; then
-	printf '%s\n' 'Refusing to tag or publish outside a push to main. Fix: merge a pull request that bumps the version; that push publishes the release.' >&2
+	printf '%s\n' 'Refusing to tag or publish outside a push to main. Fix: push the version bump to main; that push publishes the release.' >&2
 	exit 1
 fi
 
@@ -107,14 +107,12 @@ fi
 action="build"
 create_tag=false
 if [[ -n "$tag_sha" && "$tag_lc" != "$head_lc" ]]; then
-	action="skip"
-	if [[ "$release_state" == published && "$complete" != true ]]; then
-		printf '%s\n' "Tag ${tag} points at ${tag_sha}, not this commit, and the published release is missing assets. Not tagging or publishing. Fix: delete that release by hand, then rerun the workflow of ${tag_sha}."
-	elif [[ "$complete" == true ]]; then
-		printf '%s\n' "${tag} is already published from ${tag_sha}. Not building."
-	else
-		printf '%s\n' "Tag ${tag} points at ${tag_sha}, not ${head}. Not tagging or publishing. Rerun the workflow of ${tag_sha} if that release did not finish."
+	if [[ "$complete" != true ]]; then
+		printf '%s\n' "Tag ${tag} points at ${tag_sha}, not ${head}, and its release is not published with ${asset} and ${checksum}. Not tagging or publishing. Fix: delete a published release that is missing assets by hand, then rerun the release-publish workflow of ${tag_sha}." >&2
+		exit 1
 	fi
+	action="skip"
+	printf '%s\n' "${tag} is already published from ${tag_sha}. Not building."
 elif [[ "$complete" == true ]]; then
 	action="skip"
 	printf '%s\n' "${tag} is already published with its DMG and SHA-256. Not building."
