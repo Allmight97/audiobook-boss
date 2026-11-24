@@ -4,6 +4,15 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.19.4] - 2026-11-24
+
+### Changed
+
+- Updated the bundled FFmpeg provenance notice included in the app bundle and decoupled Linux
+  development and CI media-test tooling from the bundled FFmpeg commit by pinning a long-lived
+  month-end FFmpeg 9 build. No changes to audio encoding, metadata handling, or app behavior since
+  1.19.3.
+
 ## [1.19.3] - 2026-11-23
 
 ### Fixed
