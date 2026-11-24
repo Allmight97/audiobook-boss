@@ -7,8 +7,9 @@ use crate::errors::{AppError, AppErrorEnvelope};
 use crate::output_artifact::{publish_supplemental_pdf, SupplementalOutputAssetCommitRequest};
 use crate::processing::SupplementalProcessingAsset;
 use crate::remote_source::{
-    AcquiredContent, AcquiredJob, AcquisitionHandoff, Handoff, HandoffRefusal,
-    MaterializedSourceFile, PdfHandoff, PdfTitle, StagedPdf, SupplementalAsset, TitlesHandoff,
+    AcquiredContent, AcquiredJob, AcquisitionHandoff, Handoff, HandoffOutcome, HandoffRefusal,
+    MaterializedSourceFile, PdfHandoff, PdfTitle, RemoteAcquisitionFailureKind,
+    RemoteSourceDiagnostic, StagedPdf, SupplementalAsset, TitlesHandoff,
 };
 use crate::session::output::OutputPlan;
 use crate::session::state::SessionState;
@@ -25,26 +26,27 @@ impl Session {
                 match (session, &job.content) {
                     (Some(session), _) => session.import_acquired(job).await,
                     (None, AcquiredContent::Titles { .. }) => {
-                        AcquisitionHandoff::Titles(TitlesHandoff::Removed {
+                        HandoffOutcome::from(AcquisitionHandoff::Titles(TitlesHandoff::Removed {
                             reason: HandoffRefusal::NothingAdded,
-                        })
+                        }))
                     }
                     (None, AcquiredContent::Pdf { .. }) => {
-                        AcquisitionHandoff::Pdf(PdfHandoff::NotSaved {
+                        HandoffOutcome::from(AcquisitionHandoff::Pdf(PdfHandoff::NotSaved {
                             error: AppErrorEnvelope::from(&AppError::General(
                                 SESSION_GONE.to_string(),
                             )),
-                        })
+                        }))
                     }
                 }
             })
         })
     }
 
-    pub(super) async fn import_acquired(&self, job: AcquiredJob) -> AcquisitionHandoff {
-        let (handoff, leftovers) = match &job.content {
+    pub(super) async fn import_acquired(&self, job: AcquiredJob) -> HandoffOutcome {
+        let (outcome, leftovers) = match &job.content {
             AcquiredContent::Titles { files, assets } => {
-                let handoff = self.import_acquired_files(&job.job_id, files, assets).await;
+                let (handoff, diagnostics) =
+                    self.import_acquired_files(&job.job_id, files, assets).await;
                 let leftovers = match handoff {
                     TitlesHandoff::Removed { .. } => files
                         .iter()
@@ -53,17 +55,23 @@ impl Session {
                         .collect(),
                     TitlesHandoff::Imported { .. } => Vec::new(),
                 };
-                (AcquisitionHandoff::Titles(handoff), leftovers)
+                (
+                    HandoffOutcome {
+                        handoff: AcquisitionHandoff::Titles(handoff),
+                        diagnostics,
+                    },
+                    leftovers,
+                )
             }
             AcquiredContent::Pdf { pdf, title } => (
-                AcquisitionHandoff::Pdf(self.save_pdf(pdf, title).await),
+                HandoffOutcome::from(AcquisitionHandoff::Pdf(self.save_pdf(pdf, title).await)),
                 vec![pdf.path.clone()],
             ),
         };
         if !leftovers.is_empty() {
             self.transition(|state| state.staged.register_leftovers(&job.job_id, leftovers));
         }
-        handoff
+        outcome
     }
 
     async fn save_pdf(&self, pdf: &StagedPdf, title: &PdfTitle) -> PdfHandoff {
@@ -101,9 +109,9 @@ impl Session {
         job_id: &str,
         files: &[MaterializedSourceFile],
         assets: &[SupplementalAsset],
-    ) -> TitlesHandoff {
+    ) -> (TitlesHandoff, Vec<RemoteSourceDiagnostic>) {
         let _in_order = self.inner.imports.wait(self.inner.imports.take()).await;
-        let removed = |reason| TitlesHandoff::Removed { reason };
+        let removed = |reason| (TitlesHandoff::Removed { reason }, Vec::new());
         let grouped = group_files_by_title(files);
         let aac_decoder = self.inner.deps.settings.aac_decoder();
         let analyzed = blocking(move || {
@@ -120,7 +128,7 @@ impl Session {
                     }
                     Err(error) => {
                         log::warn!("Refused incomplete Audible title {title_id}: {error}");
-                        refused_titles.push(error);
+                        refused_titles.push((title_id, error));
                     }
                 }
             }
@@ -136,13 +144,25 @@ impl Session {
             }
         };
         if admitted_analyzed.is_empty() {
-            let error = refused_titles.into_iter().next().unwrap_or_else(|| {
-                AppError::InvalidInput("Acquired titles could not be imported.".into())
-            });
+            let error = refused_titles
+                .into_iter()
+                .next()
+                .map(|(_, error)| error)
+                .unwrap_or_else(|| {
+                    AppError::InvalidInput("Acquired titles could not be imported.".into())
+                });
             return removed(HandoffRefusal::ImportFailed {
                 error: AppErrorEnvelope::from(&error),
             });
         }
+        let diagnostics: Vec<RemoteSourceDiagnostic> = refused_titles
+            .into_iter()
+            .map(|(title_id, error)| RemoteSourceDiagnostic {
+                kind: RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
+                title_id: Some(title_id),
+                message: error.to_string(),
+            })
+            .collect();
         let listed = self
             .when_list_unlocked(|state| {
                 list_acquired(
@@ -158,7 +178,7 @@ impl Session {
             Ok((bound, count)) => {
                 self.complete_reads(bound).await;
                 self.publish();
-                TitlesHandoff::Imported { count }
+                (TitlesHandoff::Imported { count }, diagnostics)
             }
             Err(reason) => {
                 self.publish();

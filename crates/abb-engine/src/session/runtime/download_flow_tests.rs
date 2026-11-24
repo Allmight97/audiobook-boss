@@ -40,11 +40,12 @@ async fn an_acquired_title_is_listed_with_its_companions_and_its_download_goes_w
     let handoff = rig.session.import_acquired(acquired("job-1", &audio)).await;
 
     assert_eq!(
-        handoff,
+        handoff.handoff,
         crate::remote_source::AcquisitionHandoff::Titles(
             crate::remote_source::TitlesHandoff::Imported { count: 1 }
         )
     );
+    assert!(handoff.diagnostics.is_empty());
     let titles = rig.session.snapshot().titles.expect("titles");
     let input_id = titles.files[0].input_id.clone();
     assert_eq!(titles.companions[&input_id], ["Guide.pdf"]);
@@ -78,7 +79,7 @@ async fn a_download_with_an_unreadable_file_is_not_listed_at_all() {
 
     assert!(
         matches!(
-            handoff,
+            handoff.handoff,
             crate::remote_source::AcquisitionHandoff::Titles(
                 crate::remote_source::TitlesHandoff::Removed {
                     reason: crate::remote_source::HandoffRefusal::ImportFailed { .. }
@@ -225,7 +226,7 @@ async fn a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_u
     rig.session
         .end_submission(&draft, SubmissionStatus::Cancelled);
     assert_eq!(
-        handoff.await.expect("handoff"),
+        handoff.await.expect("handoff").handoff,
         crate::remote_source::AcquisitionHandoff::Titles(
             crate::remote_source::TitlesHandoff::Imported { count: 1 }
         )
@@ -256,13 +257,23 @@ async fn a_partial_acquisition_admits_only_complete_valid_titles_with_their_comp
     bad_asset.file_name = "Bad Guide.pdf".to_string();
     assets.push(bad_asset);
 
-    let handoff = rig.session.import_acquired(job).await;
+    let outcome = rig.session.import_acquired(job).await;
 
     assert_eq!(
-        handoff,
+        outcome.handoff,
         crate::remote_source::AcquisitionHandoff::Titles(
             crate::remote_source::TitlesHandoff::Imported { count: 1 }
         )
+    );
+    assert_eq!(outcome.diagnostics.len(), 1);
+    assert_eq!(
+        outcome.diagnostics[0].title_id.as_deref(),
+        Some("title-bad")
+    );
+    assert!(
+        outcome.diagnostics[0].message.contains("title-bad"),
+        "{:?}",
+        outcome.diagnostics[0]
     );
     let titles = rig.session.snapshot().titles.expect("titles");
     assert_eq!(titles.files.len(), 1);
@@ -284,18 +295,18 @@ async fn an_acquisition_whose_only_title_fails_analysis_is_refused_with_title_re
     };
     files[0].title_id = "ASIN-BAD".to_string();
 
-    let handoff = rig.session.import_acquired(job).await;
+    let outcome = rig.session.import_acquired(job).await;
 
     assert!(
         matches!(
-            handoff,
+            outcome.handoff,
             crate::remote_source::AcquisitionHandoff::Titles(
                 crate::remote_source::TitlesHandoff::Removed {
                     reason: crate::remote_source::HandoffRefusal::ImportFailed { ref error }
                 }
             ) if error.message.contains("ASIN-BAD")
         ),
-        "{handoff:?}"
+        "{outcome:?}"
     );
     assert!(rig.listed_paths().is_empty());
     assert_eq!(rig.removed_jobs().await, ["job-corrupt"]);

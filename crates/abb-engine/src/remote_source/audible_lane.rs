@@ -191,15 +191,18 @@ impl UiState {
         }
     }
 
+    pub(super) fn is_current_library_request(&self, request: u64) -> bool {
+        request == self.audible.library_request
+            && self.snapshot.lane == ProviderId::Audible
+            && !self.audible.disconnecting()
+    }
+
     pub(super) fn library_result(
         &mut self,
         request: u64,
         result: &std::result::Result<super::super::RemoteLibraryResponse, AudibleRequestError>,
     ) -> bool {
-        if request != self.audible.library_request
-            || self.snapshot.lane != ProviderId::Audible
-            || self.audible.disconnecting()
-        {
+        if !self.is_current_library_request(request) {
             return false;
         }
         match result {
@@ -467,6 +470,9 @@ impl RemoteSourceRuntime {
                 .await?
         }
         .await;
+        if !self.ui().is_current_library_request(request) {
+            return Ok(RemoteUiResult::Superseded);
+        }
         if matches!(result, Err(AudibleRequestError::AuthRejected)) {
             if let Err(persist_error) = self
                 .vault_blocking(|runtime| {
@@ -480,14 +486,14 @@ impl RemoteSourceRuntime {
                 let message = format!(
                     "{SIGN_IN_REJECTED_MESSAGE} Also could not save that status: {persist_error}"
                 );
-                let reported = Err(AudibleRequestError::Failed(AppError::ResourceCleanup(
+                let reported = Err(AudibleRequestError::Failed(AppError::General(
                     message.clone(),
                 )));
                 if self.ui().library_result(request, &reported) {
                     self.ui().reject_sign_in();
                     self.publish_ui();
                 }
-                return Err(AppError::ResourceCleanup(message));
+                return Err(AppError::General(message));
             }
         }
         if !self.ui().library_result(request, &result) {

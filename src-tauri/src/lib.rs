@@ -100,16 +100,16 @@ fn start_engine(app: &tauri::App) -> abb_engine::Result<abb_engine::Engine> {
     })
 }
 
-fn quit_as_second_copy(app: &tauri::App, message: String) {
+fn quit_with_startup_dialog(app: &tauri::App, title: &str, message: String) {
     if let Some(window) = app.get_webview_window("main") {
         if let Err(error) = window.hide() {
-            log::warn!("The second ABB window stayed visible: {error}");
+            log::warn!("The ABB startup window stayed visible: {error}");
         }
     }
     let handle = app.handle().clone();
     app.dialog()
         .message(message)
-        .title("ABB is already running")
+        .title(title)
         .show(move |_| handle.exit(0));
 }
 
@@ -500,10 +500,13 @@ pub fn run() {
                     app.manage(engine)
                 }
                 Err(error @ abb_engine::AppError::AlreadyRunning(_)) => {
-                    quit_as_second_copy(app, error.to_string());
+                    quit_with_startup_dialog(app, "ABB is already running", error.to_string());
                     return Ok(());
                 }
-                Err(error) => return Err(error.into()),
+                Err(error) => {
+                    quit_with_startup_dialog(app, "ABB could not start", error.to_string());
+                    return Ok(());
+                }
             };
 
             if let Some(main_window) = app.get_webview_window("main") {

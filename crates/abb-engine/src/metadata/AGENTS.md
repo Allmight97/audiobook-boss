@@ -138,9 +138,10 @@
   iTunes technical `COMM` records through untouched.
 - The sinks write Author to both artist and album artist, because
   Audiobookshelf and Plex group books by album artist.
-- `mod.rs` save check: FFmpeg reads a joined MP3's duration as a bitrate
-  estimate but measures its remuxed copy, and raw ADTS has no comparable
-  duration, so durations count only when both sides were measured or both
-  estimated.
+- `mod.rs` save check: before swapping a Save, ABB compares per-stream audio
+  packet counts and compressed payload bytes to EOF (any packet-read error
+  other than EOF refuses the Save), applies the 0.5 s duration check only when
+  both durations are measured, and rechecks the source file fingerprint taken
+  before the copy.
 - `cue_tests.rs`: two CUE names that differ only in case are two candidates
   on a case-sensitive volume and one file on a case-insensitive one.

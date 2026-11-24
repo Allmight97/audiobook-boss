@@ -21,7 +21,7 @@ fn a_saved_copy_shorter_than_the_original_is_refused_and_the_original_kept() {
 }
 
 #[test]
-fn a_saved_copy_missing_a_single_packet_is_refused_even_within_duration_tolerance() {
+fn a_truncated_saved_copy_is_refused_even_within_duration_tolerance() {
     let dir = tempfile::TempDir::new().expect("temp dir");
     let original = dir.path().join("book.wav");
     write_sine_wav(&original, 2.0, 440.0);
@@ -34,7 +34,10 @@ fn a_saved_copy_missing_a_single_packet_is_refused_even_within_duration_toleranc
     let error =
         commit_checked_save(&original, saved, &fingerprint).expect_err("truncated copy refused");
 
-    assert!(error.to_string().contains("payload bytes"), "{error}");
+    assert!(
+        error.to_string().contains("packets") && error.to_string().contains("vs"),
+        "{error}"
+    );
     assert_eq!(std::fs::read(&original).expect("reread original"), before);
     assert!(!saved_path.exists(), "the refused copy is removed");
 }
@@ -62,7 +65,7 @@ fn save_refuses_swap_when_source_changes_between_copy_and_commit() {
     .expect_err("changed source must refuse swap");
 
     assert!(
-        error.to_string().contains("changed"),
+        error.to_string().contains("changed since inspection"),
         "expected fingerprint mismatch error, got: {error}"
     );
     let entries: Vec<_> = std::fs::read_dir(dir.path())

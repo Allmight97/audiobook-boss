@@ -56,8 +56,23 @@ pub(crate) struct RemoteSourceConfig {
     pub(crate) tasks: crate::engine_tasks::EngineTasks,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct HandoffOutcome {
+    pub(crate) handoff: AcquisitionHandoff,
+    pub(crate) diagnostics: Vec<RemoteSourceDiagnostic>,
+}
+
+impl From<AcquisitionHandoff> for HandoffOutcome {
+    fn from(handoff: AcquisitionHandoff) -> Self {
+        Self {
+            handoff,
+            diagnostics: Vec::new(),
+        }
+    }
+}
+
 pub(crate) type Handoff = Arc<
-    dyn Fn(types::AcquiredJob) -> Pin<Box<dyn Future<Output = AcquisitionHandoff> + Send>>
+    dyn Fn(types::AcquiredJob) -> Pin<Box<dyn Future<Output = HandoffOutcome> + Send>>
         + Send
         + Sync,
 >;

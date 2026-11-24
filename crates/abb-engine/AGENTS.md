@@ -4,9 +4,9 @@
   need the host's runtime. `open_audio_files` is async only so its caller
   supplies one (the macOS opened-files thread in `src-tauri`).
 - `Engine::start` holds a lock on its cache folder, because a second engine's
-  startup cleanup would delete the first one's live exports and downloads. A
-  folder on a filesystem without `flock` is used unlocked; only another
-  engine holding the lock stops a start.
+  startup cleanup would delete the first one's live exports and downloads. If
+  the lock cannot be taken for any reason, `Engine::start` refuses before
+  abandoned-work cleanup runs.
 - A new host need (a directory, a platform service, an event) goes into
   `EngineConfig`, `EventSink`, or `Engine`; engine code never reaches a host
   type.

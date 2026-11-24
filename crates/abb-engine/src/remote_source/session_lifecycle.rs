@@ -59,7 +59,7 @@ pub(super) fn audible_acquire() -> AcquireTitles {
                     ));
                 }
             };
-            super::providers::audible::AudibleProvider::acquire(
+            let mut outcome = super::providers::audible::AudibleProvider::acquire(
                 auth,
                 &work,
                 &job_id,
@@ -70,7 +70,25 @@ pub(super) fn audible_acquire() -> AcquireTitles {
                 },
                 || lifecycle.job_is_cancelled(&job_id),
             )
-            .await
+            .await?;
+            if outcome.has_auth_required() {
+                if let Err(error) = runtime
+                    .vault_blocking(|runtime| {
+                        super::providers::audible::AudibleProvider::mark_sign_in_rejected(
+                            runtime.inner.vault.as_ref(),
+                        )
+                    })
+                    .await
+                {
+                    log::error!("Failed to persist Audible sign-in rejection: {error}");
+                    outcome.push_diagnostic(types::RemoteSourceDiagnostic {
+                        kind: types::RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
+                        title_id: None,
+                        message: format!("Could not save Audible sign-in status: {error}"),
+                    });
+                }
+            }
+            Ok(outcome)
         })
     })
 }
@@ -311,11 +329,11 @@ impl RemoteAcquisitionLifecycle {
             return;
         };
         let result = handoff(job).await;
-        let updated = self
-            .jobs
-            .lock()
-            .ok()
-            .and_then(|mut jobs| jobs.get_mut(job_id)?.handoff_done(result).then_some(()));
+        let updated = self.jobs.lock().ok().and_then(|mut jobs| {
+            jobs.get_mut(job_id)?
+                .handoff_done_with_diagnostics(result.handoff, result.diagnostics)
+                .then_some(())
+        });
         if updated.is_some() {
             self.publish(job_id);
         }
