@@ -448,8 +448,8 @@ print_path_line() {
 	fi
 }
 
-ffmpeg_cli_release=autobuild-2026-11-13-12-43
-ffmpeg_cli_build=N-128889-g88c46fce27
+ffmpeg_cli_release=autobuild-2026-11-23-12-43
+ffmpeg_cli_build=N-129241-g05c674c913
 
 if [[ "${print_env_only}" -eq 1 ]]; then
 	print_env

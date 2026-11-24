@@ -2,7 +2,7 @@
 
 AudioBook Boss statically links FFmpeg's libraries under the LGPL 2.1 or
 later (`COPYING.LGPLv2.1` here; no `build-license-*` feature is enabled),
-built from FFmpeg commit `88c46fce27e311c73772d9b83db4047dd83b1294` with the
+built from FFmpeg commit `05c674c9132eb13e65e3fb6e9b4cf1cad1219fd5` with the
 patches in `patches/` and the `configure` lists in `build.rs`. The app bundle
 ships this file and that license.
 
