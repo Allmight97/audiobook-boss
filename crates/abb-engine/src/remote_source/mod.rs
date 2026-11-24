@@ -56,8 +56,23 @@ pub(crate) struct RemoteSourceConfig {
     pub(crate) tasks: crate::engine_tasks::EngineTasks,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct HandoffOutcome {
+    pub(crate) handoff: AcquisitionHandoff,
+    pub(crate) diagnostics: Vec<RemoteSourceDiagnostic>,
+}
+
+impl From<AcquisitionHandoff> for HandoffOutcome {
+    fn from(handoff: AcquisitionHandoff) -> Self {
+        Self {
+            handoff,
+            diagnostics: Vec::new(),
+        }
+    }
+}
+
 pub(crate) type Handoff = Arc<
-    dyn Fn(types::AcquiredJob) -> Pin<Box<dyn Future<Output = AcquisitionHandoff> + Send>>
+    dyn Fn(types::AcquiredJob) -> Pin<Box<dyn Future<Output = HandoffOutcome> + Send>>
         + Send
         + Sync,
 >;
@@ -293,6 +308,19 @@ impl RemoteSourceRuntime {
             IndexerProvider::api_key_configured(&connection, runtime.inner.vault.as_ref())
         })
         .await
+    }
+
+    pub(in crate::remote_source) async fn persist_audible_sign_in_rejection(&self) -> Result<()> {
+        if let Err(error) = self
+            .vault_blocking(|runtime| {
+                AudibleProvider::mark_sign_in_rejected(runtime.inner.vault.as_ref())
+            })
+            .await
+        {
+            log::error!("Failed to persist Audible sign-in rejection: {error}");
+            return Err(error);
+        }
+        Ok(())
     }
 
     async fn vault_blocking<T: Send + 'static>(

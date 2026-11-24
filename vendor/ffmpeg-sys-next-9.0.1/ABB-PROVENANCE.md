@@ -2,7 +2,7 @@
 
 AudioBook Boss statically links FFmpeg's libraries under the LGPL 2.1 or
 later (`COPYING.LGPLv2.1` here; no `build-license-*` feature is enabled),
-built from FFmpeg commit `88c46fce27e311c73772d9b83db4047dd83b1294` with the
+built from FFmpeg commit `05c674c9132eb13e65e3fb6e9b4cf1cad1219fd5` with the
 patches in `patches/` and the `configure` lists in `build.rs`. The app bundle
 ships this file and that license.
 
@@ -20,8 +20,10 @@ The upstream manifest declares WTFPL. 9.0.1 adds `-fno-builtin` to bindgen so
 the generated bindings do not declare libc runtime symbols, and it parses
 `libavutil/spherical.h`.
 
-`ffmpeg-revision` holds the FFmpeg commit ABB builds: a `master` commit,
-because Native AAC's NMR coder is not in a release. The Rust build fetches
+`ffmpeg-revision` holds the FFmpeg commit ABB builds: a `master` commit.
+Although `n9.1` carries Native AAC's NMR coder, `release/9.1` branched before
+master fixes ABB relies on (including Apple AudioToolbox `aac_at` tail trimming)
+and BtbN publishes no `9.1` autobuild yet. The Rust build fetches
 that commit and checks the checkout. `scripts/setup.sh` names it again:
 `ffmpeg_cli_build` is the BtbN describe id, and its `g` suffix is that commit;
 `ffmpeg_cli_release` is the autobuild tag that publishes it.

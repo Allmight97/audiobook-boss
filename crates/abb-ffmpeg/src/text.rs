@@ -2,6 +2,7 @@ use std::ffi::{c_char, CStr, CString};
 use std::ptr;
 
 use ffmpeg_sys_next as sys;
+use zeroize::Zeroizing;
 
 use crate::error::{Error, Result, Step};
 
@@ -41,11 +42,12 @@ impl Text {
         self.0.as_ptr()
     }
 
-    /// # Safety
-    /// `ptr` is a valid NUL-terminated string.
-    pub(crate) unsafe fn copied_from(ptr: *const c_char) -> Self {
-        // SAFETY: the caller guarantees a valid NUL-terminated string.
-        Self(unsafe { CStr::from_ptr(ptr) }.to_owned())
+    pub(crate) fn as_c_str(&self) -> &CStr {
+        &self.0
+    }
+
+    pub(crate) fn copied_from(text: &CStr) -> Self {
+        Self(text.to_owned())
     }
 }
 
@@ -82,30 +84,30 @@ impl Tags {
         Ok(())
     }
 
-    pub(crate) fn read(dictionary: *const sys::AVDictionary) -> Self {
+    pub(crate) fn read(dictionary: Option<&sys::AVDictionary>) -> Self {
+        let Some(dictionary) = dictionary else {
+            return Self(Vec::new());
+        };
         let mut tags = Vec::new();
         let mut entry = ptr::null();
         loop {
-            // SAFETY: `dictionary` is null or a live dictionary its owner keeps
-            // unchanged during this loop; `entry` is null or its previous entry.
+            // SAFETY: `dictionary` is live and unchanged during this loop; `entry`
+            // is null or the previous entry returned by FFmpeg.
             entry = unsafe { sys::av_dict_iterate(dictionary, entry) };
             if entry.is_null() {
                 return Self(tags);
             }
             // SAFETY: a non-null entry has NUL-terminated key and value strings.
-            tags.push(unsafe {
-                (
-                    Text::copied_from((*entry).key),
-                    Text::copied_from((*entry).value),
-                )
-            });
+            let (key, value) =
+                unsafe { (CStr::from_ptr((*entry).key), CStr::from_ptr((*entry).value)) };
+            tags.push((Text::copied_from(key), Text::copied_from(value)));
         }
     }
 
     pub(crate) fn to_dictionary(&self, step: Step) -> Result<Dictionary> {
         let mut dictionary = Dictionary::default();
         for (key, value) in &self.0 {
-            dictionary.set(key.as_ptr(), value.as_ptr(), step)?;
+            dictionary.set(key.as_c_str(), value.as_c_str(), step)?;
         }
         Ok(dictionary)
     }
@@ -120,15 +122,10 @@ impl Default for Dictionary {
 }
 
 impl Dictionary {
-    pub(crate) fn set(
-        &mut self,
-        key: *const c_char,
-        value: *const c_char,
-        step: Step,
-    ) -> Result<()> {
+    pub(crate) fn set(&mut self, key: &CStr, value: &CStr, step: Step) -> Result<()> {
         // SAFETY: `self.0` is null or an owned dictionary; FFmpeg copies both
-        // NUL-terminated strings the caller passes.
-        let code = unsafe { sys::av_dict_set(&mut self.0, key, value, 0) };
+        // NUL-terminated strings.
+        let code = unsafe { sys::av_dict_set(&mut self.0, key.as_ptr(), value.as_ptr(), 0) };
         Error::check(step, code).map(drop)
     }
 
@@ -137,7 +134,8 @@ impl Dictionary {
     }
 
     pub(crate) fn keys(&self) -> Vec<String> {
-        Tags::read(self.0)
+        // SAFETY: `self.0` is null or an owned live dictionary.
+        Tags::read(unsafe { self.0.as_ref() })
             .0
             .into_iter()
             .map(|(key, _)| key.display())
@@ -157,7 +155,7 @@ impl Drop for Dictionary {
 }
 
 #[derive(Default)]
-pub struct SecretOptions(Vec<(CString, Vec<u8>)>);
+pub struct SecretOptions(Vec<(CString, Zeroizing<Vec<u8>>)>);
 
 impl SecretOptions {
     pub fn push(&mut self, name: &str, value: &str) -> Result<()> {
@@ -166,7 +164,7 @@ impl SecretOptions {
         if value.as_bytes().contains(&0) {
             return Err(Error::NulInText { step });
         }
-        let mut stored = Vec::with_capacity(value.len() + 1);
+        let mut stored = Zeroizing::new(Vec::with_capacity(value.len() + 1));
         stored.extend_from_slice(value.as_bytes());
         stored.push(0);
         self.0.push((name, stored));
@@ -174,21 +172,12 @@ impl SecretOptions {
     }
 
     pub(crate) fn to_dictionary(&self) -> Result<Dictionary> {
+        let step = Step::OpenInput;
         let mut dictionary = Dictionary::default();
         for (name, value) in &self.0 {
-            dictionary.set(name.as_ptr(), value.as_ptr().cast(), Step::OpenInput)?;
+            let value = CStr::from_bytes_with_nul(value).map_err(|_| Error::NulInText { step })?;
+            dictionary.set(name, value, step)?;
         }
         Ok(dictionary)
-    }
-}
-
-impl Drop for SecretOptions {
-    fn drop(&mut self) {
-        for (_, value) in &mut self.0 {
-            for byte in value.iter_mut() {
-                // SAFETY: `byte` is a valid exclusive reference into the vector.
-                unsafe { ptr::write_volatile(byte, 0) };
-            }
-        }
     }
 }

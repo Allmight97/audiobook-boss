@@ -40,11 +40,12 @@ async fn an_acquired_title_is_listed_with_its_companions_and_its_download_goes_w
     let handoff = rig.session.import_acquired(acquired("job-1", &audio)).await;
 
     assert_eq!(
-        handoff,
+        handoff.handoff,
         crate::remote_source::AcquisitionHandoff::Titles(
             crate::remote_source::TitlesHandoff::Imported { count: 1 }
         )
     );
+    assert!(handoff.diagnostics.is_empty());
     let titles = rig.session.snapshot().titles.expect("titles");
     let input_id = titles.files[0].input_id.clone();
     assert_eq!(titles.companions[&input_id], ["Guide.pdf"]);
@@ -78,7 +79,7 @@ async fn a_download_with_an_unreadable_file_is_not_listed_at_all() {
 
     assert!(
         matches!(
-            handoff,
+            handoff.handoff,
             crate::remote_source::AcquisitionHandoff::Titles(
                 crate::remote_source::TitlesHandoff::Removed {
                     reason: crate::remote_source::HandoffRefusal::ImportFailed { .. }
@@ -225,10 +226,109 @@ async fn a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_u
     rig.session
         .end_submission(&draft, SubmissionStatus::Cancelled);
     assert_eq!(
-        handoff.await.expect("handoff"),
+        handoff.await.expect("handoff").handoff,
         crate::remote_source::AcquisitionHandoff::Titles(
             crate::remote_source::TitlesHandoff::Imported { count: 1 }
         )
     );
     assert!(rig.removed.lock().expect("removed").is_empty());
+}
+
+#[tokio::test]
+async fn a_partial_acquisition_admits_only_complete_valid_titles_with_their_companions() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    let good_audio = staged_wav(staging.path(), "good-book");
+    let corrupt_audio = staging.path().join("bad-book.wav");
+    std::fs::write(&corrupt_audio, b"not a valid wav").expect("write corrupt wav");
+
+    let mut job = acquired("job-partial", &good_audio);
+    let crate::remote_source::AcquiredContent::Titles { files, assets } = &mut job.content else {
+        unreachable!("acquired builds a titles job");
+    };
+    let mut bad_file = files[0].clone();
+    bad_file.input_id = "input-bad".to_string();
+    bad_file.title_id = "title-bad".to_string();
+    bad_file.path = corrupt_audio.clone();
+    files.push(bad_file);
+    let mut bad_asset = assets[0].clone();
+    bad_asset.asset_id = "asset-bad".to_string();
+    bad_asset.title_id = "title-bad".to_string();
+    bad_asset.path = staging.path().join("Bad Guide.pdf");
+    bad_asset.file_name = "Bad Guide.pdf".to_string();
+    let bad_asset_path = bad_asset.path.clone();
+    assets.push(bad_asset);
+
+    let outcome = rig.session.import_acquired(job).await;
+
+    assert_eq!(
+        outcome.handoff,
+        crate::remote_source::AcquisitionHandoff::Titles(
+            crate::remote_source::TitlesHandoff::Imported { count: 1 }
+        )
+    );
+    assert_eq!(outcome.diagnostics.len(), 1);
+    assert_eq!(
+        outcome.diagnostics[0].kind,
+        crate::remote_source::RemoteAcquisitionFailureKind::ValidationFailed
+    );
+    assert_eq!(
+        outcome.diagnostics[0].title_id.as_deref(),
+        Some("title-bad")
+    );
+    assert!(
+        outcome.diagnostics[0].message.contains("title-bad"),
+        "{:?}",
+        outcome.diagnostics[0]
+    );
+    let titles = rig.session.snapshot().titles.expect("titles");
+    assert_eq!(titles.files.len(), 1);
+    assert_eq!(
+        titles.files[0].path,
+        good_audio.canonicalize().expect("canonical good audio")
+    );
+    let input_id = titles.files[0].input_id.clone();
+    assert_eq!(titles.companions[&input_id], ["Guide.pdf"]);
+    let staged_paths = rig.session.lock().staged.paths("job-partial");
+    assert!(
+        staged_paths.contains(&corrupt_audio),
+        "refused audio path should be tracked as a job leftover: {staged_paths:?}"
+    );
+    assert!(
+        staged_paths.contains(&bad_asset_path),
+        "refused companion asset should be tracked as a job leftover: {staged_paths:?}"
+    );
+
+    rig.send(SessionIntent::ClearAll).await;
+    assert_eq!(rig.removed_jobs().await, ["job-partial"]);
+}
+
+#[tokio::test]
+async fn an_acquisition_whose_only_title_fails_analysis_is_refused_with_title_reason() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    let corrupt_audio = staging.path().join("bad-book.wav");
+    std::fs::write(&corrupt_audio, b"not a valid wav").expect("write corrupt wav");
+
+    let mut job = acquired("job-corrupt", &corrupt_audio);
+    let crate::remote_source::AcquiredContent::Titles { files, .. } = &mut job.content else {
+        unreachable!("acquired builds a titles job");
+    };
+    files[0].title_id = "ASIN-BAD".to_string();
+
+    let outcome = rig.session.import_acquired(job).await;
+
+    assert!(
+        matches!(
+            outcome.handoff,
+            crate::remote_source::AcquisitionHandoff::Titles(
+                crate::remote_source::TitlesHandoff::Removed {
+                    reason: crate::remote_source::HandoffRefusal::ImportFailed { ref error }
+                }
+            ) if error.message.contains("ASIN-BAD")
+        ),
+        "{outcome:?}"
+    );
+    assert!(rig.listed_paths().is_empty());
+    assert_eq!(rig.removed_jobs().await, ["job-corrupt"]);
 }

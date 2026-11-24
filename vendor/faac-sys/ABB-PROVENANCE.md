@@ -3,8 +3,8 @@
 AudioBook Boss statically links the FAAC encoder (libfaac) and the FAAD3
 decoder (libfaad3) from
 [FreewareAdvancedAudio/faac](https://github.com/FreewareAdvancedAudio/faac),
-`master` at commit `4d6d038ed164648e5a5924293f4e522820ddd137`, which declares
-version 3.0.0 and is not yet a tagged release.
+`master` at commit `af49a893f1745610aaaba9ee8166749d10f6ebb3` (post-`faac-3.0`,
+declaring version 3.0.0).
 
 `upstream/` holds that commit's portable library sources listed in
 `libfaac/meson.build`, `libfaad/meson.build`, and `common/meson.build`, their

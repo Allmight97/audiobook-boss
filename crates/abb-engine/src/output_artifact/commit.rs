@@ -82,6 +82,14 @@ fn classify_link_failure(error: &std::io::Error, final_path: &Path) -> Result<bo
 }
 
 fn publish_by_placeholder(destination_temp: SiblingTemp, final_path: &Path) -> Result<()> {
+    publish_by_placeholder_with(destination_temp, final_path, |_| {})
+}
+
+fn publish_by_placeholder_with(
+    destination_temp: SiblingTemp,
+    final_path: &Path,
+    before_rename: impl FnOnce(&Path),
+) -> Result<()> {
     std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -92,8 +100,16 @@ fn publish_by_placeholder(destination_temp: SiblingTemp, final_path: &Path) -> R
             }
             destination_refused_commit_error(final_path, error)
         })?;
+    before_rename(final_path);
     destination_temp
         .commit_with(final_path, |temp, destination| {
+            let meta = std::fs::symlink_metadata(destination)?;
+            if meta.file_type().is_symlink() || !meta.is_file() || meta.len() != 0 {
+                return Err(std::io::Error::new(
+                    ErrorKind::AlreadyExists,
+                    "destination placeholder was modified before commit",
+                ));
+            }
             #[expect(
                 clippy::disallowed_methods,
                 reason = "installs over this job's own empty placeholder, never over a user's file"
@@ -121,6 +137,7 @@ fn publish_without_replacing(temp_output: &Path, final_path: &Path) -> Result<Pa
     }
     flush_staged_output(temp_output)?;
     if link_without_replacing(temp_output, final_path)? {
+        remove_stale_replacement_temps(final_path);
         log::info!(
             "finalize_move method=hard-link status=ok elapsed_ms={} dest={}",
             started.elapsed().as_millis(),
@@ -136,11 +153,13 @@ pub(super) fn publish_copy_without_replacing(source: &Path, final_path: &Path) -
     let destination_temp = replacement_temp(final_path)?;
     copy_staged_output_to_new_file(source, destination_temp.path())?;
     let method = if link_without_replacing(destination_temp.path(), final_path)? {
+        drop(destination_temp);
         "copy-link"
     } else {
         publish_by_placeholder(destination_temp, final_path)?;
         "copy-placeholder-rename"
     };
+    remove_stale_replacement_temps(final_path);
     log::info!(
         "finalize_move method={method} status=ok elapsed_ms={} dest={}",
         started.elapsed().as_millis(),
@@ -169,7 +188,7 @@ fn replacement_temp(final_path: &Path) -> Result<SiblingTemp> {
     })
 }
 
-pub(super) fn remove_stale_replacement_temps(final_path: &Path) {
+fn remove_stale_replacement_temps(final_path: &Path) {
     let (Some(parent), Ok(tag)) = (final_path.parent(), replacement_temp_tag(final_path)) else {
         return;
     };
@@ -216,6 +235,7 @@ where
     flush_staged_output(temp_output)?;
     match replace_file(temp_output, final_path) {
         Ok(()) => {
+            remove_stale_replacement_temps(final_path);
             log::info!(
                 "finalize_move method=rename-replace status=ok elapsed_ms={} dest={}",
                 started.elapsed().as_millis(),
@@ -245,6 +265,7 @@ where
     destination_temp
         .commit_with(final_path, &mut replace_file)
         .map_err(|error| destination_refused_commit_error(final_path, error))?;
+    remove_stale_replacement_temps(final_path);
     log::info!(
         "finalize_move method=copy-replace status=ok elapsed_ms={} dest={}",
         started.elapsed().as_millis(),
@@ -272,20 +293,20 @@ fn commit_temp_output_to_artifact(
             ))
         })?;
     }
-    remove_stale_replacement_temps(final_path);
     match action {
         PlannedOutputAction::Write | PlannedOutputAction::RenameNew => {
-            return publish_without_replacing(&temp_output, final_path);
+            publish_without_replacing(&temp_output, final_path)
         }
-        PlannedOutputAction::ReplaceExisting => {}
+        PlannedOutputAction::ReplaceExisting => {
+            replace_existing_from_staged_output(&temp_output, final_path)
+        }
         PlannedOutputAction::SkipExisting | PlannedOutputAction::ReviewRequired => {
-            return Err(AppError::FileValidation(format!(
+            Err(AppError::FileValidation(format!(
                 "Output commit is not allowed for '{}'. Review the output plan and retry.",
                 sanitize_path_for_display(final_path)
-            )));
+            )))
         }
     }
-    replace_existing_from_staged_output(&temp_output, final_path)
 }
 
 pub(crate) struct OutputCommitRequest<'a> {
@@ -345,6 +366,15 @@ pub(crate) fn finalized_output_success(
         success.result_message.push_str(warning);
     }
     success
+}
+
+#[cfg(test)]
+pub(super) fn replacement_temp_named(final_path: &Path, suffix: &str) -> PathBuf {
+    let tag = replacement_temp_tag(final_path).expect("final_path has a file name");
+    final_path
+        .parent()
+        .expect("final_path has a parent")
+        .join(format!("{}{suffix}", SiblingTemp::name_prefix(&tag)))
 }
 
 #[cfg(test)]

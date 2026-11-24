@@ -68,6 +68,23 @@ impl AcquisitionOutcome {
             diagnostics: Vec::new(),
         }
     }
+
+    pub(crate) fn has_auth_required(&self) -> bool {
+        let diagnostics = match self {
+            Self::Acquired { diagnostics, .. } | Self::Failed { diagnostics } => diagnostics,
+        };
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.kind == RemoteAcquisitionFailureKind::AuthRequired)
+    }
+
+    pub(crate) fn push_diagnostic(&mut self, diagnostic: RemoteSourceDiagnostic) {
+        match self {
+            Self::Acquired { diagnostics, .. } | Self::Failed { diagnostics } => {
+                diagnostics.push(diagnostic);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -193,11 +210,15 @@ impl Registered {
         matches!(self.state, JobState::Validated(_))
     }
 
-    pub(super) fn handoff_done(&mut self, handoff: AcquisitionHandoff) -> bool {
+    pub(super) fn handoff_done(&mut self, outcome: impl Into<super::HandoffOutcome>) -> bool {
         if !self.awaits_handoff() {
             return false;
         }
-        self.state = JobState::Done(JobEnding::Handoff { handoff });
+        let outcome = outcome.into();
+        self.job.diagnostics.extend(outcome.diagnostics);
+        self.state = JobState::Done(JobEnding::Handoff {
+            handoff: outcome.handoff,
+        });
         true
     }
 

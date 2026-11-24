@@ -304,6 +304,7 @@ void SbrContextProcessFrame(SBRContext *sCtx, int numChannels, const bool *isLfe
             heHalfRate[channel] = rs->halfRate[channel];
         }
         sbr_frame_silence(fd, numChannels);
+        if (PsIsActive(sCtx->sbrInfo)) PsNoteSilence(sCtx->sbrInfo, fd);
     } else {
         for (channel = 0; channel < (unsigned int)numChannels; channel++) {
             /* SBR finishes before the FIR overwrites the consumed FIFO front. */

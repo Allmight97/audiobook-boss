@@ -86,6 +86,9 @@ typedef struct CoderInfo {
     uint8_t book[MAX_SCFAC_BANDS]; /* HCB_ZERO through HCB_NONE (0..16) */
     int bandcnt;
     int sfbn;
+    /* Bands from this index up are forced to HCB_ZERO: the last-resort size
+     * cut once quality is already at its floor. Past the coded bands = off. */
+    int zeroFrom;
     /* Points at the encoder's prebuilt long or short table (frame.c); the
      * contents depend only on the sample rate and the coded bandwidth, so
      * there is one of each per encoder rather than one per channel. */

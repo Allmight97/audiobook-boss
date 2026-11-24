@@ -106,7 +106,9 @@ where
 {
     match rename(source, destination) {
         Ok(()) => return Ok(()),
-        Err(error) if !destination.exists() => return Err(error),
+        Err(error) if error.kind() == io::ErrorKind::CrossesDevices || !destination.exists() => {
+            return Err(error);
+        }
         Err(error) => {
             let destination_type = std::fs::symlink_metadata(destination)?.file_type();
             if !destination_type.is_file() {

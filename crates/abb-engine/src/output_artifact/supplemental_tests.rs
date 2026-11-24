@@ -156,3 +156,33 @@ fn a_renamed_pdf_whose_suffix_would_overrun_the_name_limit_is_refused() {
     assert!(error.to_string().contains("can be at most"), "{error}");
     assert_eq!(std::fs::read_dir(root.path()).expect("list").count(), 2);
 }
+
+#[test]
+fn supplemental_commit_sweeps_stale_temp_only_after_publish_succeeds() {
+    let root = TempDir::new().expect("temp root");
+    let source = root.path().join("source.pdf");
+    std::fs::write(&source, b"%PDF-1.7\nbody").expect("write pdf");
+    let destination = root.path().join("Book One - Supplemental PDF.pdf");
+    let stale_temp = super::super::commit::replacement_temp_named(&destination, "0000-crashed");
+    std::fs::write(&stale_temp, b"stranded pdf").expect("write stale temp");
+
+    let missing_source = root.path().join("missing.pdf");
+    super::super::commit::publish_copy_without_replacing(&missing_source, &destination)
+        .expect_err("failed copy publish must leave stale temp");
+    assert_eq!(
+        std::fs::read(&stale_temp).expect("stale temp stays when publish fails"),
+        b"stranded pdf"
+    );
+
+    commit_supplemental_output_asset(SupplementalOutputAssetCommitRequest::new(
+        &source,
+        destination.clone(),
+    ))
+    .expect("commit pdf");
+
+    assert!(!stale_temp.exists(), "stale temp swept after publish");
+    assert_eq!(
+        std::fs::read(&destination).expect("read destination"),
+        b"%PDF-1.7\nbody"
+    );
+}

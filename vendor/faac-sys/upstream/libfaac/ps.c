@@ -27,6 +27,9 @@
 #include "util.h"
 #include "fft.h"
 
+/* Energy-weighted coherence-minus-real-ICC above which a frame sends IPD/OPD. */
+#define PS_PHASE_GAP 0.15f
+
 #define SBR_PS_BANDS PS_BANDS
 #define PHASE_BANDS PS_PHASE_BANDS
 #define SBR_PS_ICC_LEVELS 8
@@ -49,6 +52,39 @@ static int put_huff(BitStream *bs, const PsHuffPackedEntry *table, int nsyms, in
                       ((uint32_t)table[sym].byte[2] << 16);
     PutBit(bs, packed >> 5, len);
     return len;
+}
+
+static int ps_param_bits(BitStream *bs, const int8_t *cur, const int8_t *prev, int bands, int wrap,
+                         const PsHuffPackedEntry *table, int nsyms, int offset)
+{
+    int bits = 0, ref = 0;
+    for (int b = 0; b < bands; b++) {
+        int delta = cur[b] - (prev ? prev[b] : ref);
+        if (wrap)
+            delta &= 7;
+        bits += put_huff(bs, table, nsyms, offset, delta);
+        ref = cur[b];
+    }
+    return bits;
+}
+
+/* Use temporal deltas only when they shorten the payload; headers stay self-contained. */
+static int write_ps_params(BitStream *bs, const int8_t *cur, const int8_t *prev, int bands, int wrap,
+                           const PsHuffPackedEntry *df, const PsHuffPackedEntry *dt, int nsyms,
+                           int offset)
+{
+    BitStream count;
+    ps_counter(&count);
+    int freq = ps_param_bits(&count, cur, NULL, bands, wrap, df, nsyms, offset);
+    int time = freq;
+    if (prev) {
+        ps_counter(&count);
+        time = ps_param_bits(&count, cur, prev, bands, wrap, dt, nsyms, offset);
+    }
+    bool temporal = prev && time < freq;
+    PutBit(bs, temporal, 1);
+    return 1 + ps_param_bits(bs, cur, temporal ? prev : NULL, bands, wrap, temporal ? dt : df,
+                             nsyms, offset);
 }
 
 /* The low three QMF bands need finer stereo resolution (ISO/IEC 14496-3 8.6.4.3).
@@ -135,6 +171,28 @@ typedef struct {
     int enable_icc, enable_phase;
 } PsFrameParams;
 
+/* Energy-weighted amount by which the coherence magnitude exceeds the real-part ICC over the
+ * bands that could carry a phase difference. The extension costs about 10 bits a frame, and the
+ * real-part ICC already turns most phase offsets into lower coherence, so it is worth sending
+ * only where this gap is large (inter-channel delay, as in spaced-microphone speech). */
+static float ps_phase_gap(const float energy[2][64], const float crossReal[64],
+                          const float crossImag[64], int phases, float l, float r)
+{
+    float gap = 0;
+    for (int b = 0; b < phases; b++) {
+        float eL = energy[0][b], eR = energy[1][b];
+        if (eL + eR < 1e-6f * (l + r))
+            continue;
+        float denom = sqrtf(eL * eR) + SBR_ENERGY_FLOOR;
+        float coherence = hypotf(crossReal[b], crossImag[b]) / denom;
+        int ipd = ps_phase(crossReal[b], crossImag[b]);
+        if (coherence < 0.7f || ipd == 0 || ipd == 4)
+            continue;
+        gap += (eL + eR) * (fminf(coherence, 1.0f) - fmaxf(-1.0f, fminf(crossReal[b] / denom, 1.0f)));
+    }
+    return gap;
+}
+
 static void ps_analyze_frame(float energy[2][64], const float crossReal[64],
                              const float crossImag[64], PsFrameParams *fd, int bands, int phases)
 {
@@ -147,6 +205,8 @@ static void ps_analyze_frame(float energy[2][64], const float crossReal[64],
     float rho = cross / (sqrtf(l * r) + SBR_ENERGY_FLOOR);
     float w = 0.5f + 0.5f * fmaxf(0, fminf(1, -rho));
     fd->enable_phase = 0;
+    int keep_phase = ps_phase_gap(energy, crossReal, crossImag, phases, l, r) >=
+                     PS_PHASE_GAP * (l + r + SBR_ENERGY_FLOOR);
 
     for (int b = 0; b < bands; b++) {
         float eL = energy[0][b], eR = energy[1][b];
@@ -163,7 +223,7 @@ static void ps_analyze_frame(float energy[2][64], const float crossReal[64],
         float icc = eLR / denom;
         if (b < phases) {
             fd->ipd[b] = fd->opd[b] = 0;
-            if (eL + eR >= 1e-6f * (l + r)) {
+            if (keep_phase && eL + eR >= 1e-6f * (l + r)) {
                 float coherence = hypotf(eLR, eLRi) / denom;
                 if (coherence >= 0.7f) {
                     int ipd = ps_phase(eLR, eLRi);
@@ -199,6 +259,72 @@ static void ps_analyze_frame(float energy[2][64], const float crossReal[64],
     }
 }
 
+/* The last envelope of a frame is what the next frame's temporal deltas reference. */
+static void ps_capture_ref(PsRef *cur, const SbrFrameData *fd)
+{
+    int e = fd->ps_num_env == 2;
+    memcpy(cur->iid, e ? fd->ps_env2.iid : fd->iid, sizeof(cur->iid));
+    if (fd->enable_icc)
+        memcpy(cur->icc, e ? fd->ps_env2.icc : fd->icc, sizeof(cur->icc));
+    else
+        memset(cur->icc, 0, sizeof(cur->icc));
+    if (fd->enable_phase) {
+        memcpy(cur->ipd, e ? fd->ps_env2.ipd : fd->ipd, sizeof(cur->ipd));
+        memcpy(cur->opd, e ? fd->ps_env2.opd : fd->opd, sizeof(cur->opd));
+    } else {
+        memset(cur->ipd, 0, sizeof(cur->ipd));
+        memset(cur->opd, 0, sizeof(cur->opd));
+    }
+    cur->band_mode = fd->ps_band_mode;
+    cur->icc_on = fd->enable_icc;
+    cur->ext_on = fd->ps_ext;
+    cur->valid = 1;
+}
+
+/* What the decoder holds from the last header it saw, packed for comparison. */
+static uint8_t ps_state_of(const PsRef *ref)
+{
+    return (uint8_t)(ref->icc_on | ref->ext_on << 1 | ref->band_mode << 2);
+}
+
+/* The extension is dropped only after a frame that carried an explicit enable_phase = 0:
+ * decoders latch that flag, so they must see it cleared before the extension disappears.
+ * Holding longer only wastes bits (corpus sweep over 1-8 frames: one is best). */
+#define PS_EXT_HOLD 1
+
+/* A payload is emitted SBR_FRAME_FIFO - 1 ticks after it is analyzed, but the core
+ * produces no access unit for the first LOOKAHEAD_DEPTH ticks, so frame k is written
+ * as access unit k + 1 and that is the frameCount whose header cadence it sees. */
+#define PS_WRITE_LAG (SBR_FRAME_FIFO - 1 - LOOKAHEAD_DEPTH)
+static int ps_header_due(const SBRInfo *sbr)
+{
+    return (sbr->psAnalyzed + PS_WRITE_LAG) % SBR_HEADER_PERIOD == 0;
+}
+
+/* A temporal reference is unusable across headers and band-mode changes. */
+static const PsRef *ps_usable_ref(const PsRef *ref, int header, const SbrFrameData *fd)
+{
+    return (ref->valid && !header && ref->band_mode == fd->ps_band_mode) ? ref : NULL;
+}
+
+/* Drain frames skip analysis but are still written and counted. A silent payload carries no
+ * header, so it must restate the state the decoder holds -- same grid and band count, ICC and
+ * extension as they stand -- with flat parameters and no phase, or the next frame's header-less
+ * bits would be read under the wrong layout. */
+void PsNoteSilence(SBRInfo *sbr, SbrFrameData *fd)
+{
+    const PsRef *held = &sbr->psPred;
+    if (held->valid) {
+        fd->ps_band_mode = held->band_mode;
+        fd->enable_icc = held->icc_on;
+        fd->ps_ext = held->ext_on;
+    }
+    fd->enable_phase = 0;
+    fd->ps_send_header = 0;
+    ps_capture_ref(&sbr->psPred, fd);
+    sbr->psAnalyzed++;
+}
+
 void PsAnalyze(SBRInfo *sbr, struct SignalAnalysis *sa, SbrFrameData *fd)
 {
     fd->ps_band_mode = sbr->psNumEnv == 1 ? 0 : 1;
@@ -229,21 +355,53 @@ void PsAnalyze(SBRInfo *sbr, struct SignalAnalysis *sa, SbrFrameData *fd)
         memcpy(e ? fd->ps_env2.ipd : fd->ipd, params.ipd, sizeof(params.ipd));
         memcpy(e ? fd->ps_env2.opd : fd->opd, params.opd, sizeof(params.opd));
     }
+
+    /* The first analyzed frame follows the silent priming payloads, not nothing. */
+    if (sbr->psAnalyzed == 0 && !sbr->psPred.valid)
+        sbr->psPred.valid = 1; /* the silent priming payload has no ICC and no extension */
+    const PsRef held = sbr->psPred;
+    const PsRef *prev_ref = ps_usable_ref(&sbr->psPred, ps_header_due(sbr), fd);
+
+    fd->ps_pred_used = prev_ref != NULL;
+    fd->ps_pred_state = ps_state_of(&held);
+    /* The first analyzed frame also restates the state, so the chain never depends on the
+     * seed matching the priming payloads. */
+    int mandatory = ps_header_due(sbr) || sbr->psAnalyzed == 0;
+
+    /* ICC follows the frame outright (holding it on and sending zeros measured no better);
+     * the extension lingers one frame so the decoder sees phase cleared first. */
+    int icc = fd->enable_icc, want_ext = fd->enable_phase;
+    int ext = want_ext || (held.ext_on && sbr->psExtIdle < PS_EXT_HOLD);
+    sbr->psExtIdle = ext && !want_ext ? sbr->psExtIdle + 1 : 0;
+    fd->ps_ext = ext;
+    fd->ps_send_header = mandatory || fd->ps_band_mode != held.band_mode || icc != held.icc_on ||
+                         ext != held.ext_on;
+    ps_capture_ref(&sbr->psPred, fd);
+    sbr->psAnalyzed++;
 }
 
 /* Avoid cancellation in the mono sum while preserving mean stereo energy. */
 static void ps_stereo_energy(const float *left, const float *right, int n, double *el,
                              double *er, double *ec)
 {
-    double l = 0, r = 0, cross = 0;
-    for (int i = 0; i < n; i++) {
-        l += (double)left[i] * left[i];
-        r += (double)right[i] * right[i];
-        cross += (double)left[i] * right[i];
+    /* The products are exact in double; the sums are what is latency-bound. Four independent
+     * accumulators break that chain and vectorize, at the cost of regrouping the rounding. */
+    double l[4] = {0}, r[4] = {0}, cross[4] = {0};
+    int i = 0;
+    for (; i + 4 <= n; i += 4)
+        for (int j = 0; j < 4; j++) {
+            l[j] += (double)left[i + j] * left[i + j];
+            r[j] += (double)right[i + j] * right[i + j];
+            cross[j] += (double)left[i + j] * right[i + j];
+        }
+    for (int j = 0; i < n; i++, j++) {
+        l[j] += (double)left[i] * left[i];
+        r[j] += (double)right[i] * right[i];
+        cross[j] += (double)left[i] * right[i];
     }
-    *el = l;
-    *er = r;
-    *ec = cross;
+    *el = (l[0] + l[1]) + (l[2] + l[3]);
+    *er = (r[0] + r[1]) + (r[2] + r[3]);
+    *ec = (cross[0] + cross[1]) + (cross[2] + cross[3]);
 }
 
 static float ps_downmix_gain(double l, double r, double cross, float *weight)
@@ -264,44 +422,64 @@ void PsDownmix(float *left, const float *right, int n)
         left[i] = gain * (w * left[i] + (1 - w) * right[i]);
 }
 
-static bool ps_carrier_spectrum(const float *lf, const float *rf, float *work, bool packed)
+/* Per-bin magnitude correction of the carrier spectrum. Squared magnitudes keep the loops free
+ * of libm calls and branches so they vectorize; every threshold stays in the normal float range
+ * (1e-20 squared would be subnormal, which is slow on x86 without FTZ). Returns 1 when
+ * cancellation makes the packed transform unreliable for this bin. */
+static inline int ps_carrier_bin(float lr, float li, float rr, float ri, float *__restrict re,
+                                 float *__restrict im, int packed)
 {
-    for (int k = 0; k < (packed ? 257 : 512); k++) {
-        int mirror = (512 - k) & 511;
-        float lr, li, rr, ri;
-        if (packed) {
-            lr = 0.5f * (lf[k] + lf[mirror]);
-            li = 0.5f * (lf[k + 512] - lf[mirror + 512]);
-            rr = 0.5f * (lf[k + 512] + lf[mirror + 512]);
-            ri = 0.5f * (lf[mirror] - lf[k]);
-        } else {
-            lr = lf[k];
-            li = lf[k + 512];
-            rr = rf[k];
-            ri = rf[k + 512];
-        }
-        float real = 0.5f * (lr + rr);
-        float imag = 0.5f * (li + ri);
-        float target = sqrtf(0.5f * (lr * lr + rr * rr + li * li + ri * ri));
-        float magnitude = hypotf(real, imag);
-        /* Cancelling channels amplify FFT rounding and can change the
-         * phase fallback below. Recompute this hop with separate FFTs. */
-        if (packed && magnitude < 1e-3f * target)
-            return false;
-        if (magnitude < 1e-5f * target) {
-            real = lr;
-            imag = li;
-            magnitude = hypotf(real, imag);
-        }
-        float gain = magnitude > 1e-20f ? target / magnitude : 0;
-        work[k] = real * gain;
-        work[k + 512] = -imag * gain;
-        if (packed && k > 0 && k < 256) {
-            work[mirror] = work[k];
-            work[mirror + 512] = -work[k + 512];
-        }
+    float real = 0.5f * (lr + rr);
+    float imag = 0.5f * (li + ri);
+    float target2 = 0.5f * (lr * lr + rr * rr + li * li + ri * ri);
+    float mag2 = real * real + imag * imag;
+    /* Cancelling channels amplify FFT rounding and can change the phase fallback below. */
+    int unreliable = packed & (mag2 < 1e-6f * target2);
+    int fallback = mag2 < 1e-10f * target2;
+    real = fallback ? lr : real;
+    imag = fallback ? li : imag;
+    mag2 = fallback ? lr * lr + li * li : mag2;
+    float gain = mag2 > 1e-30f ? sqrtf(target2) / sqrtf(mag2) : 0;
+    *re = real * gain;
+    *im = -imag * gain;
+    return unreliable;
+}
+
+/* Returns false, with work undefined, when the packed transform is unreliable; the caller then
+ * rebuilds work with separate transforms. */
+static bool ps_carrier_spectrum(const float *__restrict lf, const float *__restrict rf,
+                                float *__restrict work, bool packed)
+{
+    int unreliable = 0;
+    if (!packed) {
+        for (int k = 0; k < 512; k++)
+            unreliable |= ps_carrier_bin(lf[k], lf[k + 512], rf[k], rf[k + 512], &work[k],
+                                         &work[k + 512], 0);
+        return true;
     }
-    return true;
+    /* Bins 0 and 256 are their own mirrors: purely real and imaginary sums, no pairing. */
+    for (int k = 0; k <= 256; k += 256)
+        unreliable |= ps_carrier_bin(lf[k], 0.0f, lf[k + 512], 0.0f, &work[k], &work[k + 512], 1);
+    /* The rest pair k with 512 - k, and the output spectrum is conjugate-symmetric. The bins go
+     * through scratch so each loop has a single store stream and vectorizes. */
+    float re[256], im[256];
+    for (int k = 1; k < 256; k++) {
+        int m = 512 - k;
+        float lr = 0.5f * (lf[k] + lf[m]);
+        float li = 0.5f * (lf[k + 512] - lf[m + 512]);
+        float rr = 0.5f * (lf[k + 512] + lf[m + 512]);
+        float ri = 0.5f * (lf[m] - lf[k]);
+        unreliable |= ps_carrier_bin(lr, li, rr, ri, &re[k], &im[k], 1);
+    }
+    for (int k = 1; k < 256; k++) {
+        work[k] = re[k];
+        work[k + 512] = im[k];
+    }
+    for (int k = 1; k < 256; k++) {
+        work[512 - k] = re[k];
+        work[1024 - k] = -im[k];
+    }
+    return !unreliable;
 }
 
 void PsSpectralDownmix(PsCarrier *state, float *left, float *right, float *carrier, int n)
@@ -356,39 +534,6 @@ void PsSpectralDownmix(PsCarrier *state, float *left, float *right, float *carri
     }
 }
 
-static int ps_param_bits(BitStream *bs, const int8_t *cur, const int8_t *prev, int bands, int wrap,
-                         const PsHuffPackedEntry *table, int nsyms, int offset)
-{
-    int bits = 0, ref = 0;
-    for (int b = 0; b < bands; b++) {
-        int delta = cur[b] - (prev ? prev[b] : ref);
-        if (wrap)
-            delta &= 7;
-        bits += put_huff(bs, table, nsyms, offset, delta);
-        ref = cur[b];
-    }
-    return bits;
-}
-
-/* Use temporal deltas only when they shorten the payload; headers stay self-contained. */
-static int write_ps_params(BitStream *bs, const int8_t *cur, const int8_t *prev, int bands, int wrap,
-                           const PsHuffPackedEntry *df, const PsHuffPackedEntry *dt, int nsyms,
-                           int offset)
-{
-    BitStream count;
-    ps_counter(&count);
-    int freq = ps_param_bits(&count, cur, NULL, bands, wrap, df, nsyms, offset);
-    int time = freq;
-    if (prev) {
-        ps_counter(&count);
-        time = ps_param_bits(&count, cur, prev, bands, wrap, dt, nsyms, offset);
-    }
-    bool temporal = prev && time < freq;
-    PutBit(bs, temporal, 1);
-    return 1 + ps_param_bits(bs, cur, temporal ? prev : NULL, bands, wrap, temporal ? dt : df,
-                             nsyms, offset);
-}
-
 static int ps_phase_body(const SbrFrameData *fd, BitStream *bs, const PsRef *ref)
 {
     /* Two reserved zero bits, then the phase enable flag. */
@@ -435,31 +580,47 @@ static int ps_write_phase(const SbrFrameData *fd, BitStream *bs, const PsRef *re
     return bits;
 }
 
-int PsWrite(const SbrFrameData *fd, BitStream *bs, const PsRef *ref)
+/* Where the bits of one PS payload go; filled only when a caller asks (stats). */
+typedef struct {
+    int header, iid, icc, ext, pad;
+} PsBitSplit;
+
+static int ps_write(const SbrFrameData *fd, BitStream *bs, const PsRef *ref, PsBitSplit *split,
+                    int force_header)
 {
     /* Index 0 would mean no envelope, i.e. hold the previous image. */
     int n_env = fd->ps_num_env ? fd->ps_num_env : 1;
-    /* Extension ID, header flag, IID enable/mode, then ICC enable/mode. */
-    unsigned header = (SBR_EXT_ID_PS << 6) | (1 << 5) | (1 << 4) |
-                      ((fd->ps_band_mode + 3) << 1) | fd->enable_icc;
-    int header_bits = 8;
-    if (fd->enable_icc) {
-        header = (header << 3) | fd->ps_band_mode;
-        header_bits += 3;
+    /* Fine IID grid: iid_mode 3 (10 bands) or 4 (20 bands). */
+    int iid_mode = 3 + fd->ps_band_mode;
+    /* Extension ID and header flag; the header restates the held state only when it changed. */
+    int send_header = fd->ps_send_header || force_header;
+    PutBit(bs, (SBR_EXT_ID_PS << 1) | send_header, 3);
+    int n = 3;
+    if (send_header) {
+        /* IID enable/mode, ICC enable (and mode), then the extension flag. */
+        PutBit(bs, (1 << 4) | (iid_mode << 1) | fd->enable_icc, 5);
+        n += 5;
+        if (fd->enable_icc) {
+            PutBit(bs, fd->ps_band_mode, 3);
+            n += 3;
+        }
+        PutBit(bs, fd->ps_ext, 1);
+        n += 1;
     }
-    /* Phase extension present, fixed frame class, and envelope count. */
-    header = (header << 4) | (1 << 3) | (n_env == 2 ? 2 : 1);
-    PutBit(bs, header, header_bits + 4);
-    int n = header_bits + 4;
+    /* Fixed frame class and the envelope count. */
+    PutBit(bs, n_env == 2 ? 2 : 1, 3);
+    n += 3;
+    if (split) split->header = n;
 
     for (int e = 0; e < n_env; e++)
         n += write_ps_params(bs, e ? fd->ps_env2.iid : fd->iid,
                              e     ? fd->iid
                              : ref ? ref->iid
-                                   : NULL,
+                                       : NULL,
                              (fd->ps_band_mode ? PS_BANDS : PS_LOW_BANDS), 0,
                              faac_ps_huff_iid_df_fine_packed, faac_ps_huff_iid_dt_fine_packed,
                              PS_HUFF_IID_DF_FINE_NSYMS, PS_HUFF_IID_DF_FINE_OFFSET);
+    if (split) split->iid = n - split->header;
     if (fd->enable_icc)
         for (int e = 0; e < n_env; e++)
             n += write_ps_params(bs, e ? fd->ps_env2.icc : fd->icc,
@@ -470,12 +631,21 @@ int PsWrite(const SbrFrameData *fd, BitStream *bs, const PsRef *ref)
                                  faac_ps_huff_icc_df_packed, faac_ps_huff_icc_dt_packed,
                                  PS_HUFF_ICC_NSYMS, PS_HUFF_ICC_OFFSET);
 
-    n += ps_write_phase(fd, bs, ref);
+    if (split) split->icc = n - split->header - split->iid;
+    int ext = fd->ps_ext ? ps_write_phase(fd, bs, ref) : 0;
+    if (split) split->ext = ext;
+    n += ext;
 
     /* The extension size is byte-based, so pad the payload to a byte boundary. */
     int pad = (8 - (n & 7)) & 7;
     PutBit(bs, 0, pad);
+    if (split) split->pad = pad;
     return n + pad;
+}
+
+int PsWrite(const SbrFrameData *fd, BitStream *bs, const PsRef *ref)
+{
+    return ps_write(fd, bs, ref, NULL, 0);
 }
 
 /* Configuration and carrier work run once per frame, outside the QMF kernels. */
@@ -517,47 +687,44 @@ void PsWriteExtension(SBRInfo *sbr, const SbrFrameData *fd, BitStream *bs)
 {
     /* Mirror the SBR envelope reference parity: dry runs and core retries
      * may overwrite the current slot but never the previous access unit. */
-    const PsRef *ref = &sbr->psRef[~sbr->frameCount & 1];
-    if (!ref->valid || sbr->sendHeaderThisFrame || ref->band_mode != fd->ps_band_mode)
-        ref = NULL;
+    const PsRef *ref = ps_usable_ref(&sbr->psRef[~sbr->frameCount & 1], sbr->sendHeaderThisFrame, fd);
     BitStream count;
     ps_counter(&count);
-    int psBits = PsWrite(fd, &count, ref);
+    int psBits = ps_write(fd, &count, ref, NULL, sbr->sendHeaderThisFrame);
     int psBytes = (psBits + 7) / 8;
     PutBit(bs, 1, 1); /* bs_extended_data */
     PutBit(bs, psBytes < 15 ? psBytes : 15, 4);
     if (psBytes >= 15) PutBit(bs, psBytes - 15, 8);
-    PsWrite(fd, bs, ref);
-    PsRef *cur = &sbr->psRef[sbr->frameCount & 1];
-    int e = fd->ps_num_env == 2;
-    memcpy(cur->iid, e ? fd->ps_env2.iid : fd->iid, sizeof(cur->iid));
-    if (fd->enable_icc)
-        memcpy(cur->icc, e ? fd->ps_env2.icc : fd->icc, sizeof(cur->icc));
-    else
-        memset(cur->icc, 0, sizeof(cur->icc));
-    if (fd->enable_phase) {
-        memcpy(cur->ipd, e ? fd->ps_env2.ipd : fd->ipd, sizeof(cur->ipd));
-        memcpy(cur->opd, e ? fd->ps_env2.opd : fd->opd, sizeof(cur->opd));
-    } else {
-        memset(cur->ipd, 0, sizeof(cur->ipd));
-        memset(cur->opd, 0, sizeof(cur->opd));
-    }
-    cur->band_mode = fd->ps_band_mode;
-    cur->valid = 1;
+    ps_write(fd, bs, ref, NULL, sbr->sendHeaderThisFrame);
+    ps_capture_ref(&sbr->psRef[sbr->frameCount & 1], fd);
 }
 
 #ifdef FAAC_STATS
 void PsCountFrame(const SBRInfo *sbr, const SbrFrameData *fd, int id_aac)
 {
-    if (!PsIsActive(sbr) || id_aac != ID_CPE) return;
-    const PsRef *ref = &sbr->psRef[~sbr->frameCount & 1];
-    if (!ref->valid || sbr->sendHeaderThisFrame ||
-        ref->band_mode != fd->ps_band_mode)
-        ref = NULL;
+    /* The PS core is a mono SCE, so the element type says nothing about PS here. */
+    (void)id_aac;
+    if (!PsIsActive(sbr)) return;
+    const PsRef *ref = ps_usable_ref(&sbr->psRef[~sbr->frameCount & 1], sbr->sendHeaderThisFrame, fd);
     g_faacStats.psFrames++;
+    /* Analysis chose its quantizer against the predecessor it assumed; the writer must agree. */
+    const PsRef *raw = &sbr->psRef[~sbr->frameCount & 1];
+    if ((ref != NULL) != fd->ps_pred_used ||
+        (!sbr->sendHeaderThisFrame && raw->valid && ps_state_of(raw) != fd->ps_pred_state))
+        g_faacStats.psRefMismatchFrames++;
+    if (fd->ps_send_header || sbr->sendHeaderThisFrame) g_faacStats.psHeaderFrames++;
     BitStream count;
     ps_counter(&count);
-    g_faacStats.psPayloadBits += PsWrite(fd, &count, ref);
+    PsBitSplit split = {0};
+    int payload = ps_write(fd, &count, ref, &split, sbr->sendHeaderThisFrame);
+    g_faacStats.psPayloadBits += payload;
+    g_faacStats.psHdrBits += split.header;
+    g_faacStats.psIidBits += split.iid;
+    g_faacStats.psIccBits += split.icc;
+    g_faacStats.psExtBits += split.ext;
+    g_faacStats.psPadBits += split.pad;
+    /* bs_extended_data flag, 4-bit count, optional 8-bit escape: the SBR-side wrapper. */
+    g_faacStats.psWrapBits += (payload / 8 >= 15) ? 13 : 5;
     if (fd->ps_band_mode == 0) g_faacStats.psLowBandFrames++;
     if (fd->ps_num_env == 1) g_faacStats.psOneEnvelopeFrames++;
     if (fd->enable_icc) g_faacStats.psIccFrames++;
@@ -566,6 +733,9 @@ void PsCountFrame(const SBRInfo *sbr, const SbrFrameData *fd, int id_aac)
 
 void PsStatsPrint(void)
 {
+    if (g_faacStats.psRefMismatchFrames)
+        fprintf(stderr, " PS Reference Skew  : %u of %u frames analyzed against a different predecessor than written\n",
+                g_faacStats.psRefMismatchFrames, g_faacStats.psFrames);
     if (g_faacStats.psFrames > 0)
     {
         unsigned int psf = g_faacStats.psFrames;
@@ -575,6 +745,11 @@ void PsStatsPrint(void)
                 100.0 * g_faacStats.psOneEnvelopeFrames / psf,
                 100.0 * g_faacStats.psIccFrames / psf,
                 100.0 * g_faacStats.psPhaseFrames / psf);
+        fprintf(stderr, " PS Bits/frame       : hdr %.1f | iid %.1f | icc %.1f | ext %.1f | pad %.1f | wrapper %.1f | PS headers %5.1f%%\n",
+                (double)g_faacStats.psHdrBits / psf, (double)g_faacStats.psIidBits / psf,
+                (double)g_faacStats.psIccBits / psf, (double)g_faacStats.psExtBits / psf,
+                (double)g_faacStats.psPadBits / psf, (double)g_faacStats.psWrapBits / psf,
+                100.0 * g_faacStats.psHeaderFrames / psf);
     }
 }
 #endif

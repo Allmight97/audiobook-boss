@@ -67,6 +67,12 @@ typedef struct SbrFrameData {
     uint8_t enable_phase;
     uint8_t ps_num_env;
     uint8_t ps_band_mode;
+    /* Predecessor PsAnalyze costed against; PsCountFrame checks the writer agrees. */
+    uint8_t ps_pred_used, ps_pred_state;
+    /* Decoder-held PS header state (IID grid, ICC data, extension) is restated only when
+     * it changes or at a random-access point; ps_send_header says this frame does so.
+     * enable_icc and ps_ext are that held state, not whether the frame has anything to say. */
+    uint8_t ps_send_header, ps_ext;
     /* Second envelope; the first lives in the arrays above. */
     struct {
         int8_t iid[PS_BANDS], icc[PS_BANDS];
@@ -84,6 +90,14 @@ struct SBRInfo {
     int is_he_v2;
     PsHybrid psHybrid;
     PsRef psRef[2];
+    /* Analysis-side predecessor: the frame analyzed just before this one. Payloads are
+     * written through the frame FIFO several access units later, so psRef (updated at
+     * write time) is stale by then; the writer emits in analysis order, so this is the
+     * reference it will use. psAnalyzed mirrors frameCount for the header cadence. */
+    PsRef psPred;
+    int psAnalyzed;
+    /* Frames the held extension went unused, for turn-off hysteresis. */
+    int psExtIdle;
     int psNumEnv;
 #endif
     /* Coupled rendition of a conventional stereo SBR pair: level, then balance. */

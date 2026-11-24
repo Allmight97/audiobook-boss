@@ -61,9 +61,11 @@
 - Acquisition admission and disconnect share the remote UI guard, so a late
   library reply or terminal publication cannot restore disconnected choices or
   jobs.
-- An Audible `AuthRejected` reply marks the sign-in rejected until a completed
-  sign-in or a disconnect; a later keychain read cannot show Connected, and ABB
-  never deletes the stored sign-in on a refusal.
+- An Audible `AuthRejected` reply (from library refresh or acquisition) marks
+  the sign-in rejected and persists that state in the vault until a completed
+  sign-in or a disconnect; a later keychain read cannot show Connected, ABB
+  never deletes the stored sign-in on a refusal, and a vault write failure is
+  reported rather than swallowed.
 - A license reply whose `content_license.status_code` is Denied fails that
   title as `LicenseDenied` even with a download URL. A `CustomerThrottled`
   reason means a temporary limit or an outdated device registration, so the

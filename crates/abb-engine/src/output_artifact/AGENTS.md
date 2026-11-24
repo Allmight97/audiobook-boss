@@ -15,10 +15,13 @@
   entry.
 - Any hard-link failure except a taken name falls back to an empty placeholder
   plus a rename, because network and FUSE disks report a missing hard-link
-  feature with many different errors.
+  feature with many different errors; the rename is refused unless the
+  placeholder is still a zero-length regular file.
 - Replacement temps carry a key from the final name's hash and never embed the
   name, so the stale-temp sweep removes only that title's temps and any name
-  that passes preflight commits.
+  that passes preflight commits. The sweep runs only after a successful
+  publish, and `replace_file` returns `CrossesDevices` before moving an
+  existing destination aside.
 - A rename alternative that would be too long removes only the rename option,
   so a valid ReplaceExisting still plans.
 - Publication fixes final artifact truth: a staged-source cleanup failure

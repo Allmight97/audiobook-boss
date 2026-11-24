@@ -4,14 +4,6 @@ use std::io;
 use std::path::Path;
 use tempfile::TempDir;
 
-fn replacement_temp_named(final_path: &Path, suffix: &str) -> std::path::PathBuf {
-    let tag = replacement_temp_tag(final_path).expect("final path has a name");
-    final_path
-        .parent()
-        .expect("final path has a folder")
-        .join(format!(".abb_{tag}_{suffix}"))
-}
-
 #[test]
 fn finalized_output_success_keeps_success_messages_after_post_commit_cancel() {
     let output = Path::new("/tmp/final-output.m4b");
@@ -443,4 +435,51 @@ fn a_taken_name_is_a_collision_and_any_other_link_failure_copies() {
             "{kind:?}"
         );
     }
+}
+
+#[test]
+fn commit_keeps_stale_replacement_temp_when_publish_fails() {
+    let root = TempDir::new().expect("temp root");
+    let temp_output = root.path().join("temp-output.m4b");
+    let final_output = root.path().join("book.m4b");
+    std::fs::write(&temp_output, b"new").expect("write temp output");
+    std::fs::create_dir(&final_output).expect("block replace with directory");
+    let stale_temp = replacement_temp_named(&final_output, "0000-crashed");
+    std::fs::write(&stale_temp, b"stranded copy").expect("write stale temp");
+
+    commit_temp_output_to_artifact(
+        temp_output,
+        &final_output,
+        PlannedOutputAction::ReplaceExisting,
+    )
+    .expect_err("replace over directory should fail");
+
+    assert_eq!(
+        std::fs::read(&stale_temp).expect("stale temp stays when publish fails"),
+        b"stranded copy"
+    );
+}
+
+#[test]
+fn placeholder_publish_refuses_rename_when_placeholder_is_no_longer_empty() {
+    let root = TempDir::new().expect("temp root");
+    let final_output = root.path().join("book.m4b");
+    let temp = replacement_temp(&final_output).expect("temp");
+    std::fs::write(temp.path(), b"complete book").expect("write temp");
+    let temp_path = temp.path().to_path_buf();
+
+    let error = publish_by_placeholder_with(temp, &final_output, |placeholder| {
+        std::fs::write(placeholder, b"other app wrote here").expect("clobber placeholder");
+    })
+    .expect_err("non-empty placeholder must be refused");
+
+    assert!(
+        error.to_string().contains("placeholder was modified"),
+        "{error}"
+    );
+    assert_eq!(
+        std::fs::read(&final_output).expect("read final"),
+        b"other app wrote here"
+    );
+    assert!(!temp_path.exists(), "the refused temp is removed");
 }

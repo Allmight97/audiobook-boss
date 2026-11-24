@@ -21,7 +21,7 @@
 
 #include "atomic.h"
 #include "bits.h"
-#include "endian.h"
+#include "faac_endian.h"
 
 /* Baselines end at the last field so appended fields remain optional. */
 #define CONFIG_BASELINE_SIZE ((uint32_t)FAAD_CONFIG_BASELINE)

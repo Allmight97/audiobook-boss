@@ -359,7 +359,7 @@ async fn a_finished_job_records_its_handoff() {
         let answered = answer.clone();
         runtime.set_handoff(Arc::new(move |_| {
             let answered = answered.clone();
-            Box::pin(async move { answered })
+            Box::pin(async move { answered.into() })
         }));
 
         runtime.inner.lifecycle.hand_off(&runtime, job_id).await;
@@ -415,7 +415,7 @@ async fn a_sweep_that_finishes_before_the_handoff_returns_still_lets_the_job_set
     runtime.set_handoff(Arc::new(move |job| {
         sweeper.purge_session(&job.job_id).expect("sweep");
         let answered = answered.clone();
-        Box::pin(async move { answered })
+        Box::pin(async move { answered.into() })
     }));
 
     runtime.inner.lifecycle.hand_off(&runtime, job_id).await;

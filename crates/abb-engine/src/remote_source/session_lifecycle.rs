@@ -52,14 +52,15 @@ pub(super) fn audible_acquire() -> AcquireTitles {
                 .await
             {
                 Ok(auth) => auth,
-                Err(error) => {
+                Err(error @ AppError::InvalidInput(_)) => {
                     return Ok(AcquisitionOutcome::failed(
                         types::RemoteAcquisitionFailureKind::AuthRequired,
                         error.to_string(),
                     ));
                 }
+                Err(error) => return Err(error),
             };
-            super::providers::audible::AudibleProvider::acquire(
+            let mut outcome = super::providers::audible::AudibleProvider::acquire(
                 auth,
                 &work,
                 &job_id,
@@ -70,9 +71,27 @@ pub(super) fn audible_acquire() -> AcquireTitles {
                 },
                 || lifecycle.job_is_cancelled(&job_id),
             )
-            .await
+            .await?;
+            persist_acquisition_auth_rejection(&runtime, &mut outcome).await;
+            Ok(outcome)
         })
     })
+}
+
+async fn persist_acquisition_auth_rejection(
+    runtime: &RemoteSourceRuntime,
+    outcome: &mut AcquisitionOutcome,
+) {
+    if !outcome.has_auth_required() {
+        return;
+    }
+    if let Err(error) = runtime.persist_audible_sign_in_rejection().await {
+        outcome.push_diagnostic(types::RemoteSourceDiagnostic {
+            kind: types::RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
+            title_id: None,
+            message: format!("Could not save Audible sign-in status: {error}"),
+        });
+    }
 }
 
 async fn purge_cancelled_session(staging: &RemoteSourceStaging, job_id: &str) {

@@ -31,34 +31,17 @@ impl Resampler {
     pub fn for_decoder(decoder: &AudioDecoder, output: AudioShape, options: &Tags) -> Result<Self> {
         let step = Step::CreateResampler;
         let format = decoder.format().to_sys(step)?;
-        // SAFETY: the decoder's layout lives as long as the borrow of
-        // `decoder`, which outlasts this call; FFmpeg copies it.
-        unsafe {
-            Self::create_from(
-                decoder.layout_ptr(),
-                format,
-                decoder.rate(),
-                output,
-                options,
-            )
-        }
+        Self::create(
+            decoder.layout_ref(),
+            format,
+            decoder.rate(),
+            output,
+            options,
+        )
     }
 
     fn create(
         input_layout: &sys::AVChannelLayout,
-        input_format: sys::AVSampleFormat,
-        input_rate: u32,
-        output: AudioShape,
-        options: &Tags,
-    ) -> Result<Self> {
-        // SAFETY: `input_layout` is a live reference for the whole call.
-        unsafe { Self::create_from(input_layout, input_format, input_rate, output, options) }
-    }
-
-    /// # Safety
-    /// `input_layout` points to a live channel layout.
-    unsafe fn create_from(
-        input_layout: *const sys::AVChannelLayout,
         input_format: sys::AVSampleFormat,
         input_rate: u32,
         output: AudioShape,
@@ -70,9 +53,8 @@ impl Resampler {
         let out_format = output.format.to_sys(step)?;
         let (in_rate, out_rate) = (rate(input_rate)?, rate(output.rate)?);
         let mut ctx = ptr::null_mut();
-        // SAFETY: `ctx` is null, so FFmpeg allocates it; the output layout is
-        // a plain value that lives through the call, and the caller
-        // guarantees the input layout; FFmpeg copies both.
+        // SAFETY: `ctx` is null, so FFmpeg allocates it; both channel layouts
+        // live through the call and FFmpeg copies them.
         let code = unsafe {
             sys::swr_alloc_set_opts2(
                 &mut ctx,
@@ -125,21 +107,22 @@ impl Resampler {
     }
 
     pub fn convert(&mut self, input: &AudioFrame, output: &mut AudioFrame) -> Result<()> {
-        self.convert_frame(input.as_ptr(), output)
+        self.convert_frame(Some(input), output)
     }
 
     pub fn flush(&mut self, output: &mut AudioFrame) -> Result<()> {
-        self.convert_frame(ptr::null(), output)
+        self.convert_frame(None, output)
     }
 
-    fn convert_frame(&mut self, input: *const sys::AVFrame, output: &mut AudioFrame) -> Result<()> {
+    fn convert_frame(&mut self, input: Option<&AudioFrame>, output: &mut AudioFrame) -> Result<()> {
         let step = Step::Resample;
         let rate = c_int::try_from(self.output.rate).map_err(|_| Error::OutOfRange { step })?;
-        // SAFETY: `self` owns a live context; `output` is a live frame the
-        // caller holds exclusively; `input` is null or a live frame.
+        let input_ptr = input.map_or(ptr::null(), AudioFrame::as_ptr);
+        // SAFETY: swr_convert_frame accepts a null input frame to flush or a live
+        // input frame, and writes resampled audio into `output`.
         let code = unsafe {
             (*output.as_mut_ptr()).sample_rate = rate;
-            sys::swr_convert_frame(self.ctx.as_ptr(), output.as_mut_ptr(), input)
+            sys::swr_convert_frame(self.ctx.as_ptr(), output.as_mut_ptr(), input_ptr)
         };
         Error::check(step, code).map(drop)
     }

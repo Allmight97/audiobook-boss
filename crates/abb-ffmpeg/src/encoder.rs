@@ -1,5 +1,5 @@
 use std::ffi::{c_int, CString};
-use std::ptr::{self, NonNull};
+use std::ptr;
 
 use ffmpeg_sys_next as sys;
 
@@ -27,12 +27,12 @@ pub fn encoder_takes_options(name: &str, options: &Tags) -> bool {
     if codec.is_null() {
         return false;
     }
-    // SAFETY: a context allocated for `codec` holds that codec's private
-    // options with their defaults, or the result is null.
-    let Some(ctx) = NonNull::new(unsafe { sys::avcodec_alloc_context3(codec) }) else {
+    // SAFETY: a non-null codec returned by avcodec_find_encoder_by_name is static.
+    let codec = unsafe { &*codec };
+    let Ok(ctx) = CodecContext::for_codec(codec, Step::OpenEncoder) else {
         return false;
     };
-    let taken = options.iter().all(|(key, value)| {
+    options.iter().all(|(key, value)| {
         // SAFETY: the context is a live AVOptions object and both strings
         // are NUL-terminated.
         let code = unsafe {
@@ -44,11 +44,7 @@ pub fn encoder_takes_options(name: &str, options: &Tags) -> bool {
             )
         };
         code >= 0
-    });
-    let mut raw = ctx.as_ptr();
-    // SAFETY: this function owns the context and nothing uses it after this.
-    unsafe { sys::avcodec_free_context(&mut raw) };
-    taken
+    })
 }
 
 pub struct EncoderRequest<'a> {
@@ -125,13 +121,11 @@ impl AudioEncoder {
     }
 
     pub fn frame_size(&self) -> usize {
-        // SAFETY: `self` owns a live context.
-        usize::try_from(unsafe { (*self.0.as_ptr()).frame_size }).unwrap_or(0)
+        usize::try_from(self.0.raw().frame_size).unwrap_or(0)
     }
 
     pub fn time_base(&self) -> Rational {
-        // SAFETY: `self` owns a live context.
-        Rational::from_sys(unsafe { (*self.0.as_ptr()).time_base })
+        Rational::from_sys(self.0.raw().time_base)
     }
 
     pub fn bit_rate(&self) -> i64 {
@@ -139,9 +133,7 @@ impl AudioEncoder {
     }
 
     pub fn uses_quality_scale(&self) -> bool {
-        // SAFETY: `self` owns a live context.
-        let flags = unsafe { (*self.0.as_ptr()).flags };
-        flags & sys::AV_CODEC_FLAG_QSCALE as c_int != 0
+        self.0.raw().flags & sys::AV_CODEC_FLAG_QSCALE as c_int != 0
     }
 
     pub fn option_int(&self, name: &str) -> Result<i64> {

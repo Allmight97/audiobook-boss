@@ -23,6 +23,7 @@ fn compile_slice(
             },
         )
         .flag(out.join("config.h").to_str().expect("configuration path"))
+        .flag_if_supported("-fno-math-errno")
         .std("c11")
         .opt_level(3);
     for source in sources {

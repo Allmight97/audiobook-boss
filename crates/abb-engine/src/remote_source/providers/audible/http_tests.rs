@@ -22,6 +22,7 @@ pub(in crate::remote_source::providers::audible) fn signing_auth() -> Auth {
         },
         authorization_code: "authorization-code".to_string(),
         code_verifier: "code-verifier".to_string(),
+        sign_in_rejected: false,
     }
 }
 

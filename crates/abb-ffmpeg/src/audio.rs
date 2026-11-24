@@ -110,11 +110,8 @@ impl ChannelLayout {
     pub fn default_for(channels: u16) -> Self {
         let mut layout = empty_layout();
         // SAFETY: `layout` is a blank layout FFmpeg fills without allocating.
-        unsafe {
-            sys::av_channel_layout_default(&mut layout, c_int::from(channels));
-            Self::from_sys(&layout)
-        }
-        .unwrap_or(Self::Unspecified { channels })
+        unsafe { sys::av_channel_layout_default(&mut layout, c_int::from(channels)) };
+        Self::from_sys(&layout).unwrap_or(Self::Unspecified { channels })
     }
 
     pub fn from_mask(mask: u64) -> Option<Self> {
@@ -124,8 +121,7 @@ impl ChannelLayout {
         if code < 0 {
             return None;
         }
-        // SAFETY: `layout` is a live local layout.
-        unsafe { Self::from_sys(&layout) }.filter(|layout| !layout.is_unspecified())
+        Self::from_sys(&layout).filter(|layout| !layout.is_unspecified())
     }
 
     pub fn channels(self) -> u16 {
@@ -138,24 +134,21 @@ impl ChannelLayout {
         matches!(self, Self::Unspecified { .. })
     }
 
-    /// # Safety
-    /// `layout` points to a live channel layout.
-    pub(crate) unsafe fn from_sys(layout: *const sys::AVChannelLayout) -> Option<Self> {
-        // SAFETY: the caller guarantees `layout`; the order is read as the C
-        // int it is, and a native-order layout stores its speakers in `mask`.
-        unsafe {
-            let channels = u16::try_from((*layout).nb_channels).ok()?;
-            let order = std::ptr::addr_of!((*layout).order).cast::<c_int>().read();
-            if order == sys::AVChannelOrder::AV_CHANNEL_ORDER_NATIVE as c_int {
-                Some(Self::Native {
-                    channels,
-                    mask: (*layout).u.mask,
-                })
-            } else if order == sys::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC as c_int {
-                Some(Self::Unspecified { channels })
-            } else {
-                None
-            }
+    pub(crate) fn from_sys(layout: &sys::AVChannelLayout) -> Option<Self> {
+        let channels = u16::try_from(layout.nb_channels).ok()?;
+        // SAFETY: `order` is a C int enum; reading as c_int tolerates values this
+        // build does not name, and `u.mask` is a plain u64 valid for any bits.
+        let order = unsafe { std::ptr::from_ref(&layout.order).cast::<c_int>().read() };
+        if order == sys::AVChannelOrder::AV_CHANNEL_ORDER_NATIVE as c_int {
+            Some(Self::Native {
+                channels,
+                // SAFETY: native-order layouts store their speaker mask in `u.mask`.
+                mask: unsafe { layout.u.mask },
+            })
+        } else if order == sys::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC as c_int {
+            Some(Self::Unspecified { channels })
+        } else {
+            None
         }
     }
 
@@ -232,8 +225,7 @@ impl AudioFrame {
     }
 
     pub fn layout(&self) -> Option<ChannelLayout> {
-        // SAFETY: `self` owns a live frame.
-        unsafe { ChannelLayout::from_sys(std::ptr::addr_of!((*self.0.as_ptr()).ch_layout)) }
+        ChannelLayout::from_sys(&self.raw().ch_layout)
     }
 
     pub fn rate(&self) -> u32 {
@@ -277,46 +269,50 @@ impl AudioFrame {
     }
 
     pub fn plane_f32(&self, index: usize) -> Result<&[f32]> {
-        self.check_plane(index, SampleFormat::F32_PLANAR)?;
-        // SAFETY: `check_plane` confirmed the plane exists and holds f32
-        // samples; FFmpeg aligns and sizes it for `samples()` values.
-        Ok(unsafe { slice::from_raw_parts(self.plane_ptr(index).cast(), self.samples()) })
+        let ptr = self.plane_ptr_for(index, SampleFormat::F32_PLANAR)?;
+        // SAFETY: FFmpeg aligns and sizes each planar f32 buffer for `samples()` values.
+        Ok(unsafe { slice::from_raw_parts(ptr.cast(), self.samples()) })
     }
 
     pub fn plane_f32_mut(&mut self, index: usize) -> Result<&mut [f32]> {
-        self.check_plane(index, SampleFormat::F32_PLANAR)?;
+        let ptr = self.plane_ptr_for(index, SampleFormat::F32_PLANAR)?;
         let samples = self.samples();
         // SAFETY: as in `plane_f32`; `&mut self` makes the borrow exclusive.
-        Ok(unsafe { slice::from_raw_parts_mut(self.plane_ptr(index).cast(), samples) })
+        Ok(unsafe { slice::from_raw_parts_mut(ptr.cast(), samples) })
     }
 
     pub fn packed_bytes(&self) -> Result<&[u8]> {
         if self.planes() != 1 || self.format().is_planar() {
             return Err(Error::WrongFrameShape);
         }
+        let ptr = self.plane_ptr(0)?;
         // SAFETY: a packed frame's first plane holds every channel's samples.
-        Ok(unsafe { slice::from_raw_parts(self.plane_ptr(0), self.plane_bytes()) })
+        Ok(unsafe { slice::from_raw_parts(ptr, self.plane_bytes()) })
     }
 
     pub fn packed_bytes_mut(&mut self) -> Result<&mut [u8]> {
         if self.planes() != 1 || self.format().is_planar() {
             return Err(Error::WrongFrameShape);
         }
+        let ptr = self.plane_ptr(0)?;
         let length = self.plane_bytes();
         // SAFETY: as in `packed_bytes`; `&mut self` makes the borrow exclusive.
-        Ok(unsafe { slice::from_raw_parts_mut(self.plane_ptr(0), length) })
+        Ok(unsafe { slice::from_raw_parts_mut(ptr, length) })
     }
 
-    fn check_plane(&self, index: usize, format: SampleFormat) -> Result<()> {
-        if self.format() != format || index >= self.planes() {
+    fn plane_ptr_for(&self, index: usize, format: SampleFormat) -> Result<*mut u8> {
+        if self.format() != format {
             return Err(Error::WrongFrameShape);
         }
-        Ok(())
+        self.plane_ptr(index)
     }
 
-    fn plane_ptr(&self, index: usize) -> *mut u8 {
-        // SAFETY: callers checked `index < planes()`, so the entry exists.
-        unsafe { *self.raw().extended_data.add(index) }
+    fn plane_ptr(&self, index: usize) -> Result<*mut u8> {
+        if index >= self.planes() {
+            return Err(Error::WrongFrameShape);
+        }
+        // SAFETY: `index < planes()` implies `extended_data` has at least `index + 1` entries.
+        Ok(unsafe { *self.raw().extended_data.add(index) })
     }
 
     pub(crate) fn as_ptr(&self) -> *const sys::AVFrame {

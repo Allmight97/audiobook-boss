@@ -22,26 +22,26 @@ use crate::session::{
 };
 use crate::work_runtime::{OperationId, OperationSnapshot, WorkOperationsSnapshot, WorkRuntime};
 
-fn lock_cache_dir(cache_dir: &Path) -> Result<Option<File>> {
-    let unlocked = |error: std::io::Error| {
-        log::warn!("The working folder is not locked against a second ABB: {error}");
-        Ok(None)
+fn lock_cache_dir(cache_dir: &Path) -> Result<File> {
+    let failed = |error: std::io::Error| {
+        AppError::FileValidation(format!(
+            "Cannot lock the working folder '{}': {error}",
+            crate::errors::sanitize_path_for_display(cache_dir)
+        ))
     };
-    let opened = std::fs::create_dir_all(cache_dir).and_then(|()| {
-        OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(cache_dir.join("engine.lock"))
-    });
-    let file = match opened {
-        Ok(file) => file,
-        Err(error) => return unlocked(error),
-    };
+    let file = std::fs::create_dir_all(cache_dir)
+        .and_then(|()| {
+            OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .open(cache_dir.join("engine.lock"))
+        })
+        .map_err(failed)?;
     match file.try_lock() {
-        Ok(()) => Ok(Some(file)),
+        Ok(()) => Ok(file),
         Err(TryLockError::WouldBlock) => Err(AppError::AlreadyRunning(cache_dir.to_path_buf())),
-        Err(TryLockError::Error(error)) => unlocked(error),
+        Err(TryLockError::Error(error)) => Err(failed(error)),
     }
 }
 
@@ -65,7 +65,7 @@ struct EngineInner {
     session: Session,
     tasks: EngineTasks,
     quit_presses: QuitPresses,
-    _cache_dir_lock: Option<File>,
+    _cache_dir_lock: File,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

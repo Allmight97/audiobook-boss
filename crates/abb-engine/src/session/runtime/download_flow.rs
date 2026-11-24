@@ -7,8 +7,9 @@ use crate::errors::{AppError, AppErrorEnvelope};
 use crate::output_artifact::{publish_supplemental_pdf, SupplementalOutputAssetCommitRequest};
 use crate::processing::SupplementalProcessingAsset;
 use crate::remote_source::{
-    AcquiredContent, AcquiredJob, AcquisitionHandoff, Handoff, HandoffRefusal,
-    MaterializedSourceFile, PdfHandoff, PdfTitle, StagedPdf, SupplementalAsset, TitlesHandoff,
+    AcquiredContent, AcquiredJob, AcquisitionHandoff, Handoff, HandoffOutcome, HandoffRefusal,
+    MaterializedSourceFile, PdfHandoff, PdfTitle, RemoteAcquisitionFailureKind,
+    RemoteSourceDiagnostic, StagedPdf, SupplementalAsset, TitlesHandoff,
 };
 use crate::session::output::OutputPlan;
 use crate::session::state::SessionState;
@@ -25,45 +26,45 @@ impl Session {
                 match (session, &job.content) {
                     (Some(session), _) => session.import_acquired(job).await,
                     (None, AcquiredContent::Titles { .. }) => {
-                        AcquisitionHandoff::Titles(TitlesHandoff::Removed {
+                        HandoffOutcome::from(AcquisitionHandoff::Titles(TitlesHandoff::Removed {
                             reason: HandoffRefusal::NothingAdded,
-                        })
+                        }))
                     }
                     (None, AcquiredContent::Pdf { .. }) => {
-                        AcquisitionHandoff::Pdf(PdfHandoff::NotSaved {
+                        HandoffOutcome::from(AcquisitionHandoff::Pdf(PdfHandoff::NotSaved {
                             error: AppErrorEnvelope::from(&AppError::General(
                                 SESSION_GONE.to_string(),
                             )),
-                        })
+                        }))
                     }
                 }
             })
         })
     }
 
-    pub(super) async fn import_acquired(&self, job: AcquiredJob) -> AcquisitionHandoff {
-        let (handoff, leftovers) = match &job.content {
+    pub(super) async fn import_acquired(&self, job: AcquiredJob) -> HandoffOutcome {
+        let (outcome, leftovers) = match &job.content {
             AcquiredContent::Titles { files, assets } => {
-                let handoff = self.import_acquired_files(&job.job_id, files, assets).await;
-                let leftovers = match handoff {
-                    TitlesHandoff::Removed { .. } => files
+                let outcome = self.import_acquired_files(&job.job_id, files, assets).await;
+                let leftovers = match &outcome.handoff {
+                    AcquisitionHandoff::Titles(TitlesHandoff::Removed { .. }) => files
                         .iter()
                         .map(|file| file.path.clone())
                         .chain(assets.iter().map(|asset| asset.path.clone()))
                         .collect(),
-                    TitlesHandoff::Imported { .. } => Vec::new(),
+                    _ => Vec::new(),
                 };
-                (AcquisitionHandoff::Titles(handoff), leftovers)
+                (outcome, leftovers)
             }
             AcquiredContent::Pdf { pdf, title } => (
-                AcquisitionHandoff::Pdf(self.save_pdf(pdf, title).await),
+                HandoffOutcome::from(AcquisitionHandoff::Pdf(self.save_pdf(pdf, title).await)),
                 vec![pdf.path.clone()],
             ),
         };
         if !leftovers.is_empty() {
             self.transition(|state| state.staged.register_leftovers(&job.job_id, leftovers));
         }
-        handoff
+        outcome
     }
 
     async fn save_pdf(&self, pdf: &StagedPdf, title: &PdfTitle) -> PdfHandoff {
@@ -101,37 +102,92 @@ impl Session {
         job_id: &str,
         files: &[MaterializedSourceFile],
         assets: &[SupplementalAsset],
-    ) -> TitlesHandoff {
+    ) -> HandoffOutcome {
         let _in_order = self.inner.imports.wait(self.inner.imports.take()).await;
-        let removed = |reason| TitlesHandoff::Removed { reason };
-        let paths: Vec<PathBuf> = files.iter().map(|file| file.path.clone()).collect();
+        let removed = |reason| {
+            HandoffOutcome::from(AcquisitionHandoff::Titles(TitlesHandoff::Removed {
+                reason,
+            }))
+        };
+        let grouped = group_files_by_title(files);
         let aac_decoder = self.inner.deps.settings.aac_decoder();
         let analyzed = blocking(move || {
-            let discovery = audio::discover_audio_import_paths(&paths);
-            if let Some((_, error)) = discovery.skipped.into_iter().next() {
-                return Err(error);
+            let mut admitted_files = Vec::new();
+            let mut admitted_analyzed = Vec::new();
+            let mut refused_titles = Vec::new();
+            for (title_id, title_files) in grouped {
+                let paths: Vec<PathBuf> =
+                    title_files.iter().map(|file| file.path.clone()).collect();
+                match analyze_acquired_title(&title_id, &paths, aac_decoder) {
+                    Ok(analyzed) => {
+                        admitted_files.extend(title_files);
+                        admitted_analyzed.extend(analyzed);
+                    }
+                    Err(error) => {
+                        log::warn!("Refused incomplete Audible title {title_id}: {error}");
+                        refused_titles.push((title_id, paths, error));
+                    }
+                }
             }
-            audio::get_file_list_info(&discovery.paths, aac_decoder)
+            Ok((admitted_files, admitted_analyzed, refused_titles))
         })
         .await;
-        let analyzed = match analyzed {
-            Ok(analyzed) => analyzed.files,
+        let (admitted_files, admitted_analyzed, refused_titles) = match analyzed {
+            Ok(outcome) => outcome,
             Err(error) => {
                 return removed(HandoffRefusal::ImportFailed {
                     error: AppErrorEnvelope::from(&error),
                 });
             }
         };
+        if admitted_analyzed.is_empty() {
+            let error = refused_titles
+                .into_iter()
+                .next()
+                .map(|(_, _, error)| error)
+                .unwrap_or_else(|| {
+                    AppError::InvalidInput("Acquired titles could not be imported.".into())
+                });
+            return removed(HandoffRefusal::ImportFailed {
+                error: AppErrorEnvelope::from(&error),
+            });
+        }
+        let mut diagnostics = Vec::with_capacity(refused_titles.len());
+        let mut refused_paths = Vec::new();
+        for (title_id, paths, error) in refused_titles {
+            refused_paths.extend(paths);
+            refused_paths.extend(
+                assets
+                    .iter()
+                    .filter(|asset| asset.title_id == title_id)
+                    .map(|asset| asset.path.clone()),
+            );
+            diagnostics.push(RemoteSourceDiagnostic {
+                kind: RemoteAcquisitionFailureKind::ValidationFailed,
+                title_id: Some(title_id),
+                message: error.to_string(),
+            });
+        }
         let listed = self
             .when_list_unlocked(|state| {
-                list_acquired(state, job_id, files, assets, analyzed.clone())
+                list_acquired(
+                    state,
+                    job_id,
+                    &admitted_files,
+                    assets,
+                    admitted_analyzed.clone(),
+                    &refused_paths,
+                )
             })
             .await;
         match listed {
             Ok((bound, count)) => {
                 self.complete_reads(bound).await;
                 self.publish();
-                TitlesHandoff::Imported { count }
+                HandoffOutcome {
+                    handoff: AcquisitionHandoff::Titles(TitlesHandoff::Imported { count }),
+                    diagnostics,
+                }
             }
             Err(reason) => {
                 self.publish();
@@ -214,12 +270,66 @@ impl Session {
     }
 }
 
+fn group_files_by_title(
+    files: &[MaterializedSourceFile],
+) -> Vec<(String, Vec<MaterializedSourceFile>)> {
+    let mut grouped: Vec<(String, Vec<MaterializedSourceFile>)> = Vec::new();
+    for file in files {
+        if let Some((_, bucket)) = grouped
+            .iter_mut()
+            .find(|(title_id, _)| title_id == &file.title_id)
+        {
+            bucket.push(file.clone());
+        } else {
+            grouped.push((file.title_id.clone(), vec![file.clone()]));
+        }
+    }
+    grouped
+}
+
+fn analyze_acquired_title(
+    title_id: &str,
+    paths: &[PathBuf],
+    aac_decoder: crate::audio::AacDecoder,
+) -> crate::errors::Result<Vec<crate::audio::AudioFile>> {
+    let discovery = audio::discover_audio_import_paths(paths);
+    if let Some((_, error)) = discovery.skipped.into_iter().next() {
+        return Err(AppError::FileValidation(format!(
+            "Title '{title_id}' could not be imported: {error}"
+        )));
+    }
+    if discovery.paths.len() != paths.len() {
+        return Err(AppError::FileValidation(format!(
+            "Title '{title_id}' is missing one or more expected audio parts."
+        )));
+    }
+    let analyzed = audio::get_file_list_info(&discovery.paths, aac_decoder).map_err(|error| {
+        AppError::FileValidation(format!("Title '{title_id}' could not be analyzed: {error}"))
+    })?;
+    if analyzed.files.len() != paths.len() {
+        return Err(AppError::FileValidation(format!(
+            "Title '{title_id}' did not analyze every expected audio part."
+        )));
+    }
+    if let Some(invalid) = analyzed.files.iter().find(|file| !file.is_valid) {
+        let reason = invalid
+            .error
+            .as_deref()
+            .unwrap_or("audio analysis marked the part invalid");
+        return Err(AppError::FileValidation(format!(
+            "Title '{title_id}' could not be imported: {reason}"
+        )));
+    }
+    Ok(analyzed.files)
+}
+
 fn list_acquired(
     state: &mut SessionState,
     job_id: &str,
     files: &[MaterializedSourceFile],
     assets: &[SupplementalAsset],
     analyzed: Vec<crate::audio::AudioFile>,
+    refused_paths: &[PathBuf],
 ) -> std::result::Result<(Bound, usize), HandoffRefusal> {
     let before = state.working_set.source_paths();
     let default_audio = state.audio.request();
@@ -252,6 +362,11 @@ fn list_acquired(
     }
     if count == 0 {
         return Err(HandoffRefusal::NothingAdded);
+    }
+    if !refused_paths.is_empty() {
+        state
+            .staged
+            .register_leftovers(job_id, refused_paths.to_vec());
     }
     Ok((Bound::rebind(state), count))
 }

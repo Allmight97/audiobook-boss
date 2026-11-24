@@ -25,6 +25,7 @@ fn fixture_auth_without_pdf_cookies() -> Auth {
         },
         authorization_code: "authorization-code".to_string(),
         code_verifier: "code-verifier".to_string(),
+        sign_in_rejected: false,
     }
 }
 

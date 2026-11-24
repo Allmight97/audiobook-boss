@@ -39,7 +39,8 @@ typedef struct {
 
     /* Bit reservoir, AAC_MAX_BITS_PER_CH per channel. resMean == 0 outside
        CBR switches cap, floor and header declaration off together. */
-    int resMean;       /* bits arriving per frame */
+    int resMean;       /* bits arriving this frame: frameBudget, or one more when the remainder carries */
+    unsigned int resStep, resDen, resRem; /* fraction of a bit per frame: step/den, carried in rem */
     int resCap;        /* capacity: 6144 * channels - resMean */
     int resFill;       /* fill after the last frame, [0, resCap] */
     int resMinBits;    /* floor BuildFrame stuffs this frame up to; 0 = none */
