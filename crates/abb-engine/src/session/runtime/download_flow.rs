@@ -104,27 +104,54 @@ impl Session {
     ) -> TitlesHandoff {
         let _in_order = self.inner.imports.wait(self.inner.imports.take()).await;
         let removed = |reason| TitlesHandoff::Removed { reason };
-        let paths: Vec<PathBuf> = files.iter().map(|file| file.path.clone()).collect();
+        let grouped = group_files_by_title(files);
         let aac_decoder = self.inner.deps.settings.aac_decoder();
         let analyzed = blocking(move || {
-            let discovery = audio::discover_audio_import_paths(&paths);
-            if let Some((_, error)) = discovery.skipped.into_iter().next() {
-                return Err(error);
+            let mut admitted_files = Vec::new();
+            let mut admitted_analyzed = Vec::new();
+            let mut refused_titles = Vec::new();
+            for (title_id, title_files) in grouped {
+                let paths: Vec<PathBuf> =
+                    title_files.iter().map(|file| file.path.clone()).collect();
+                match analyze_acquired_title(&title_id, &paths, aac_decoder) {
+                    Ok(analyzed) => {
+                        admitted_files.extend(title_files);
+                        admitted_analyzed.extend(analyzed);
+                    }
+                    Err(error) => {
+                        log::warn!("Refused incomplete Audible title {title_id}: {error}");
+                        refused_titles.push(error);
+                    }
+                }
             }
-            audio::get_file_list_info(&discovery.paths, aac_decoder)
+            Ok((admitted_files, admitted_analyzed, refused_titles))
         })
         .await;
-        let analyzed = match analyzed {
-            Ok(analyzed) => analyzed.files,
+        let (admitted_files, admitted_analyzed, refused_titles) = match analyzed {
+            Ok(outcome) => outcome,
             Err(error) => {
                 return removed(HandoffRefusal::ImportFailed {
                     error: AppErrorEnvelope::from(&error),
                 });
             }
         };
+        if admitted_analyzed.is_empty() {
+            let error = refused_titles.into_iter().next().unwrap_or_else(|| {
+                AppError::InvalidInput("Acquired titles could not be imported.".into())
+            });
+            return removed(HandoffRefusal::ImportFailed {
+                error: AppErrorEnvelope::from(&error),
+            });
+        }
         let listed = self
             .when_list_unlocked(|state| {
-                list_acquired(state, job_id, files, assets, analyzed.clone())
+                list_acquired(
+                    state,
+                    job_id,
+                    &admitted_files,
+                    assets,
+                    admitted_analyzed.clone(),
+                )
             })
             .await;
         match listed {
@@ -212,6 +239,59 @@ impl Session {
     pub(super) fn export_finished(&self, snapshot: &OperationSnapshot) {
         self.transition(|state| state.staged.finish_export(&snapshot.children));
     }
+}
+
+fn group_files_by_title(
+    files: &[MaterializedSourceFile],
+) -> Vec<(String, Vec<MaterializedSourceFile>)> {
+    let mut grouped: Vec<(String, Vec<MaterializedSourceFile>)> = Vec::new();
+    for file in files {
+        if let Some((_, bucket)) = grouped
+            .iter_mut()
+            .find(|(title_id, _)| title_id == &file.title_id)
+        {
+            bucket.push(file.clone());
+        } else {
+            grouped.push((file.title_id.clone(), vec![file.clone()]));
+        }
+    }
+    grouped
+}
+
+fn analyze_acquired_title(
+    title_id: &str,
+    paths: &[PathBuf],
+    aac_decoder: crate::audio::AacDecoder,
+) -> crate::errors::Result<Vec<crate::audio::AudioFile>> {
+    let discovery = audio::discover_audio_import_paths(paths);
+    if let Some((_, error)) = discovery.skipped.into_iter().next() {
+        return Err(AppError::FileValidation(format!(
+            "Title '{title_id}' could not be imported: {error}"
+        )));
+    }
+    if discovery.paths.len() != paths.len() {
+        return Err(AppError::FileValidation(format!(
+            "Title '{title_id}' is missing one or more expected audio parts."
+        )));
+    }
+    let analyzed = audio::get_file_list_info(&discovery.paths, aac_decoder).map_err(|error| {
+        AppError::FileValidation(format!("Title '{title_id}' could not be analyzed: {error}"))
+    })?;
+    if analyzed.files.len() != paths.len() {
+        return Err(AppError::FileValidation(format!(
+            "Title '{title_id}' did not analyze every expected audio part."
+        )));
+    }
+    if let Some(invalid) = analyzed.files.iter().find(|file| !file.is_valid) {
+        let reason = invalid
+            .error
+            .as_deref()
+            .unwrap_or("audio analysis marked the part invalid");
+        return Err(AppError::FileValidation(format!(
+            "Title '{title_id}' could not be imported: {reason}"
+        )));
+    }
+    Ok(analyzed.files)
 }
 
 fn list_acquired(

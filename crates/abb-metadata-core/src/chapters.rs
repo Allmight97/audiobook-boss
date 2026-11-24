@@ -206,6 +206,17 @@ pub fn normalize_embedded_chapters(
 ) -> Result<Vec<ChapterSpec>> {
     let mut sorted: Vec<(usize, &ChapterSpec)> = chapters.iter().enumerate().collect();
     sorted.sort_by_key(|(_, chapter)| chapter.start_ms);
+    if let Some((position, (_, chapter))) = sorted
+        .iter()
+        .enumerate()
+        .find(|(_, (_, chapter))| chapter.end_ms < chapter.start_ms)
+    {
+        return Err(chapter_error(
+            position + 1,
+            chapter,
+            "ends before it starts",
+        ));
+    }
     let kept: Vec<_> = sorted
         .iter()
         .enumerate()

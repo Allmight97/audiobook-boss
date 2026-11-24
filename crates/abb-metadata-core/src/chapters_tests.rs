@@ -82,6 +82,18 @@ fn embedded_chapters_beyond_repair_are_refused_by_chapter() {
     .expect_err("a two-second gap is not drift")
     .to_string();
     assert!(gap.contains("Chapter 1") && gap.contains("One"), "{gap}");
+    let backwards = normalize_embedded_chapters(
+        &[chapter("One", 0, 5_000), chapter("Backwards", 6_000, 4_000)],
+        Some(10_000),
+    )
+    .expect_err("a backwards interval must be refused")
+    .to_string();
+    assert!(
+        backwards.contains("Chapter 2")
+            && backwards.contains("Backwards")
+            && backwards.contains("ends before it starts"),
+        "{backwards}"
+    );
 }
 #[test]
 fn chapter_validation_names_the_chapter() {
