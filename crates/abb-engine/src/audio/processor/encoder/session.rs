@@ -140,7 +140,7 @@ impl EncoderSession {
                 &mut self.stats,
             ),
             Backend::Faac(encoder) => {
-                if let Some(mut packet) = encoder.encode(Some(frame))? {
+                if let Some(mut packet) = encoder.encode(frame)? {
                     write::write_packet(
                         &mut packet,
                         output,
@@ -172,7 +172,7 @@ impl EncoderSession {
             )?,
             Backend::Faac(encoder) => {
                 let rate = encoder.rate;
-                while let Some(mut packet) = encoder.encode(None)? {
+                while let Some(mut packet) = encoder.flush()? {
                     write::write_packet(
                         &mut packet,
                         &mut output,

@@ -4,6 +4,7 @@ use faac_sys as faad;
 use std::collections::VecDeque;
 use std::ffi::CStr;
 use std::path::Path;
+use std::ptr::{self, NonNull};
 
 const FORMAT_DISCOVERY_PACKET_LIMIT: usize = 128;
 const SAMPLE_BYTES: usize = std::mem::size_of::<f32>();
@@ -28,12 +29,13 @@ pub(super) struct FaadCounts {
     pub degraded_frames: u64,
 }
 
-struct Handle(*mut faad::faad_decoder);
+pub(super) struct Handle(NonNull<faad::faad_decoder>);
 
 impl Drop for Handle {
     fn drop(&mut self) {
-        // SAFETY: the handle came from faad_decoder_open and is closed once here.
-        unsafe { faad::faad_decoder_close(&mut self.0) };
+        let mut handle = self.0.as_ptr();
+        // SAFETY: `self` exclusively owns this live handle and closes it once here.
+        unsafe { faad::faad_decoder_close(&mut handle) };
     }
 }
 
@@ -121,7 +123,7 @@ fn status_text(status: faad::faad_status) -> String {
         .into_owned()
 }
 
-fn open_handle(asc: Option<&[u8]>) -> Result<Handle> {
+pub(super) fn open_handle(asc: Option<&[u8]>) -> Result<Handle> {
     let mut cfg = faad::faad_config::default();
     // SAFETY: cfg is a live faad_config of the size passed.
     let status = unsafe {
@@ -139,28 +141,28 @@ fn open_handle(asc: Option<&[u8]>) -> Result<Handle> {
         faad::FAAD_STREAM_ADTS
     };
     cfg.output_format = faad::FAAD_OUTPUT_FLOAT;
-    let (asc_ptr, asc_len) = asc.map_or((std::ptr::null(), 0), |asc| {
-        (asc.as_ptr(), asc.len() as u32)
-    });
-    let mut handle = Handle(std::ptr::null_mut());
+    let (asc_ptr, asc_len) = asc.map_or((ptr::null(), 0), |asc| (asc.as_ptr(), asc.len() as u32));
+    let mut raw = ptr::null_mut();
     // SAFETY: cfg and the ASC slice outlive the call; FAAD copies what it keeps.
-    let status = unsafe { faad::faad_decoder_open(&cfg, asc_ptr, asc_len, &mut handle.0) };
+    let status = unsafe { faad::faad_decoder_open(&cfg, asc_ptr, asc_len, &mut raw) };
     if status != faad::FAAD_OK {
         return Err(AppError::General(format!(
             "FAAD3 could not open this stream: {}",
             status_text(status)
         )));
     }
-    Ok(handle)
+    NonNull::new(raw)
+        .map(Handle)
+        .ok_or_else(|| AppError::General("FAAD3 open returned a null handle.".into()))
 }
 
-fn stream_info(handle: &Handle) -> Result<faad::faad_stream_info> {
+pub(super) fn stream_info(handle: &Handle) -> Result<faad::faad_stream_info> {
     let mut info = faad::faad_stream_info {
         struct_size: std::mem::size_of::<faad::faad_stream_info>() as u32,
         ..Default::default()
     };
     // SAFETY: the handle is open and info carries its own size.
-    let status = unsafe { faad::faad_decoder_get_info(handle.0, &mut info) };
+    let status = unsafe { faad::faad_decoder_get_info(handle.0.as_ptr(), &mut info) };
     if status != faad::FAAD_OK {
         return Err(AppError::General(format!(
             "FAAD3 stream info failed: {}",
@@ -170,17 +172,17 @@ fn stream_info(handle: &Handle) -> Result<faad::faad_stream_info> {
     Ok(info)
 }
 
-struct DecodedUnit {
-    written: usize,
-    flags: u32,
+pub(super) struct DecodedUnit {
+    pub(super) written: usize,
+    pub(super) flags: u32,
 }
 
-fn decode_unit(handle: &Handle, data: &[u8], output: &mut [u8]) -> Result<DecodedUnit> {
+pub(super) fn decode_unit(handle: &Handle, data: &[u8], output: &mut [u8]) -> Result<DecodedUnit> {
     let (mut consumed, mut written, mut flags) = (0u32, 0u32, 0u32);
     // SAFETY: input and output slices are live for the call and their lengths are passed.
     let status = unsafe {
         faad::faad_decode_frame(
-            handle.0,
+            handle.0.as_ptr(),
             data.as_ptr(),
             data.len() as u32,
             &mut consumed,

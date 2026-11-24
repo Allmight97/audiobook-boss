@@ -2,12 +2,16 @@ use crate::audio::{BitrateMode, EncoderSettings, FaacProfile};
 use crate::errors::{AppError, Result};
 use abb_ffmpeg::{AacStream, AudioFrame, Packet, SampleFormat};
 use faac_sys as faac;
-use std::{ffi::CStr, mem::size_of, ptr};
+use std::{
+    ffi::CStr,
+    mem::size_of,
+    ptr::{self, NonNull},
+};
 
 use super::super::he_timing::CORE_PRIMING;
 
 pub(super) struct FaacEncoder {
-    handle: *mut faac::faac_encoder,
+    handle: NonNull<faac::faac_encoder>,
     pub info: faac::faac_encoder_info,
     pub rate: u32,
     pub channels: u32,
@@ -20,8 +24,9 @@ pub(super) struct FaacEncoder {
 
 impl Drop for FaacEncoder {
     fn drop(&mut self) {
-        // SAFETY: this session exclusively owns the handle, including failed setup.
-        unsafe { faac::faac_encoder_close(&mut self.handle) };
+        let mut handle = self.handle.as_ptr();
+        // SAFETY: `self` exclusively owns this live handle and closes it once here.
+        unsafe { faac::faac_encoder_close(&mut handle) };
     }
 }
 
@@ -49,8 +54,16 @@ impl FaacEncoder {
             ));
         }
         let params = Self::requested_params(rate, channels as u32, settings)?;
+        let mut raw = ptr::null_mut();
+        check(
+            // SAFETY: `params` stays live for the call; FAAC writes the new handle to `raw`.
+            unsafe { faac::faac_encoder_open(&params, &mut raw) },
+            "open",
+        )?;
+        let handle = NonNull::new(raw)
+            .ok_or_else(|| AppError::General("FAAC open returned a null handle.".into()))?;
         let mut encoder = Self {
-            handle: ptr::null_mut(),
+            handle,
             rate,
             channels: channels as u32,
             rate_control: params.rate_control,
@@ -63,12 +76,6 @@ impl FaacEncoder {
             output: Vec::new(),
             next_packet: 0,
         };
-        check(
-            // SAFETY: `params` stays live for the call, and the handle slot starts null. A successful open
-            // stores a handle that `encoder` owns and `Drop` closes.
-            unsafe { faac::faac_encoder_open(&params, &mut encoder.handle) },
-            "open",
-        )?;
         encoder.read_configuration(&params)?;
         Ok(encoder)
     }
@@ -111,9 +118,8 @@ impl FaacEncoder {
 
     fn read_configuration(&mut self, params: &faac::faac_params) -> Result<()> {
         check(
-            // SAFETY: `self.handle` came from a successful open and is still owned. `self.info` is a valid
-            // exclusive destination with its size tag set in `open`.
-            unsafe { faac::faac_encoder_get_info(self.handle, &mut self.info) },
+            // SAFETY: `self.info` carries its struct_size from the matching header binding.
+            unsafe { faac::faac_encoder_get_info(self.handle.as_ptr(), &mut self.info) },
             "read configuration",
         )?;
         let (frame_samples, delay) = match self.info.object_type {
@@ -139,9 +145,8 @@ impl FaacEncoder {
         let mut asc = ptr::null();
         let mut length = 0;
         check(
-            // SAFETY: `self.handle` is the open handle, and `asc` and `length` are valid local out-pointers. The
-            // returned ASC pointer stays borrowed from the live encoder.
-            unsafe { faac::faac_encoder_asc(self.handle, &mut asc, &mut length) },
+            // SAFETY: the returned ASC pointer stays borrowed from the live encoder until close.
+            unsafe { faac::faac_encoder_asc(self.handle.as_ptr(), &mut asc, &mut length) },
             "read stream configuration",
         )?;
         if asc.is_null() || length < 2 {
@@ -203,40 +208,43 @@ impl FaacEncoder {
         }
     }
 
-    pub fn encode(&mut self, frame: Option<&AudioFrame>) -> Result<Option<Packet>> {
+    pub fn encode(&mut self, frame: &AudioFrame) -> Result<Option<Packet>> {
         let mismatch =
             || AppError::General("FAAC input does not match its opened PCM configuration.".into());
+        if frame.format() != SampleFormat::F32_PLANAR
+            || frame.rate() != self.rate
+            || u32::from(frame.channels()) != self.channels
+            || frame.samples() > self.info.frame_samples as usize
+        {
+            return Err(mismatch());
+        }
+        let planes = (0..self.channels as usize)
+            .map(|channel| frame.plane_f32(channel))
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|_| mismatch())?;
         self.pcm.clear();
-        if let Some(frame) = frame {
-            if frame.format() != SampleFormat::F32_PLANAR
-                || frame.rate() != self.rate
-                || u32::from(frame.channels()) != self.channels
-                || frame.samples() > self.info.frame_samples as usize
-            {
-                return Err(mismatch());
-            }
-            let planes = (0..self.channels as usize)
-                .map(|channel| frame.plane_f32(channel))
-                .collect::<std::result::Result<Vec<_>, _>>()
-                .map_err(|_| mismatch())?;
-            for sample in 0..frame.samples() {
-                for plane in &planes {
-                    self.pcm.push(plane[sample]);
-                }
+        for sample in 0..frame.samples() {
+            for plane in &planes {
+                self.pcm.push(plane[sample]);
             }
         }
+        self.encode_pcm()
+    }
+
+    pub fn flush(&mut self) -> Result<Option<Packet>> {
+        self.pcm.clear();
+        self.encode_pcm()
+    }
+
+    fn encode_pcm(&mut self) -> Result<Option<Packet>> {
         let mut written = 0;
         check(
-            // SAFETY: `self.pcm` and `self.output` are owned buffers, and the call gets their exact lengths. With
-            // no frame, `pcm` is empty and the null input pointer is FAAC's documented flush request.
+            // SAFETY: `self.pcm` and `self.output` are live buffers passed with their exact lengths;
+            // `in_samples == 0` is FAAC's documented flush request.
             unsafe {
                 faac::faac_encoder_encode(
-                    self.handle,
-                    if frame.is_some() {
-                        self.pcm.as_ptr().cast()
-                    } else {
-                        ptr::null()
-                    },
+                    self.handle.as_ptr(),
+                    self.pcm.as_ptr().cast(),
                     self.pcm.len() as u32,
                     self.output.as_mut_ptr(),
                     self.output.len() as u32,
