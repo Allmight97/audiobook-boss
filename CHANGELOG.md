@@ -4,6 +4,33 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.19.3] - 2026-11-23
+
+### Fixed
+
+- Replacing an audiobook across drives no longer moves the existing file aside before detecting
+  the cross-drive rename, and leftover replacement temp files are removed only after a new
+  audiobook or companion PDF finishes publishing.
+- Exporting to network shares and USB drives (ExFAT, FAT32, SMB) checks that its empty
+  placeholder file is still untouched before moving the finished audiobook into place.
+- Saving metadata now verifies every audio stream's packet count and payload bytes to end of
+  file and checks that the source file did not change during the save, keeping the original
+  untouched if the saved copy is truncated or the source changed.
+- Embedded chapters whose end time comes before their start time are refused with the chapter
+  named, instead of being silently adjusted.
+- Partial Audible downloads import only complete, valid titles (with their own companion PDFs)
+  and report any refused title instead of dropping it silently or leaving its files behind.
+- When Audible rejects your sign-in (during a library refresh or a download), AudioBook Boss
+  remembers that status across restarts until you sign in again or disconnect, while a
+  temporary keychain lock no longer marks a working sign-in as rejected.
+- AudioBook Boss refuses to start with a clear dialog if it cannot lock its working folder,
+  instead of starting unlocked or crashing.
+
+### Changed
+
+- Updated bundled FAAC/FAAD3 to 3.0.0 (`af49a893f1`) and FFmpeg to a newer upstream build
+  (`05c674c913`). Encoded audio parity is unchanged.
+
 ## [1.19.2] - 2026-11-20
 
 ### Fixed
