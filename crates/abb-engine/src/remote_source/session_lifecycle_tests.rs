@@ -173,3 +173,43 @@ async fn a_failed_vault_write_on_acquisition_auth_rejection_adds_a_diagnostic() 
         "{diagnostics:?}"
     );
 }
+
+#[tokio::test]
+async fn a_locked_keychain_during_acquisition_does_not_reject_a_connected_account() {
+    let root = TempDir::new().expect("temp root");
+    let vault = crate::remote_source::test_support::MemoryVault::default()
+        .failing_reads(|| crate::errors::AppError::ResourceCleanup("keychain locked".to_string()));
+    let auth = crate::remote_source::providers::audible::tests::fixture_auth();
+    vault.seed(
+        "audible.us.auth",
+        &serde_json::to_string(&auth).expect("serialize auth"),
+    );
+    let runtime =
+        crate::remote_source::tests::test_runtime_with(&root, Some(Box::new(vault)), None);
+    runtime.ui().account_disconnected(Some(
+        crate::remote_source::types::RemoteSourceAccountState {
+            provider_id: crate::remote_source::types::ProviderId::Audible,
+            status: crate::remote_source::types::RemoteAccountStatus::Connected,
+            message: None,
+        },
+    ));
+
+    runtime
+        .start_acquisition(AcquisitionWork::Titles(AcquisitionPlan {
+            selections: vec![AcquisitionSelection {
+                title_id: "B000000001".to_string(),
+                include_supplemental_pdf: false,
+            }],
+        }))
+        .await
+        .expect("the job starts");
+
+    assert_eq!(
+        settled_diagnostics(&runtime).await,
+        [RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed]
+    );
+    assert_eq!(
+        runtime.ui_snapshot().account.expect("account").status,
+        crate::remote_source::types::RemoteAccountStatus::Connected
+    );
+}

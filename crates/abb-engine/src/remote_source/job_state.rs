@@ -210,21 +210,15 @@ impl Registered {
         matches!(self.state, JobState::Validated(_))
     }
 
-    #[cfg(test)]
-    pub(super) fn handoff_done(&mut self, handoff: AcquisitionHandoff) -> bool {
-        self.handoff_done_with_diagnostics(handoff, Vec::new())
-    }
-
-    pub(super) fn handoff_done_with_diagnostics(
-        &mut self,
-        handoff: AcquisitionHandoff,
-        diagnostics: Vec<RemoteSourceDiagnostic>,
-    ) -> bool {
+    pub(super) fn handoff_done(&mut self, outcome: impl Into<super::HandoffOutcome>) -> bool {
         if !self.awaits_handoff() {
             return false;
         }
-        self.job.diagnostics.extend(diagnostics);
-        self.state = JobState::Done(JobEnding::Handoff { handoff });
+        let outcome = outcome.into();
+        self.job.diagnostics.extend(outcome.diagnostics);
+        self.state = JobState::Done(JobEnding::Handoff {
+            handoff: outcome.handoff,
+        });
         true
     }
 

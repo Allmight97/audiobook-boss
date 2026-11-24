@@ -29,7 +29,7 @@ pub(super) struct FaadCounts {
     pub degraded_frames: u64,
 }
 
-pub(super) struct Handle(NonNull<faad::faad_decoder>);
+struct Handle(NonNull<faad::faad_decoder>);
 
 impl Drop for Handle {
     fn drop(&mut self) {
@@ -123,7 +123,7 @@ fn status_text(status: faad::faad_status) -> String {
         .into_owned()
 }
 
-pub(super) fn open_handle(asc: Option<&[u8]>) -> Result<Handle> {
+fn open_handle(asc: Option<&[u8]>) -> Result<Handle> {
     let mut cfg = faad::faad_config::default();
     // SAFETY: cfg is a live faad_config of the size passed.
     let status = unsafe {
@@ -156,7 +156,7 @@ pub(super) fn open_handle(asc: Option<&[u8]>) -> Result<Handle> {
         .ok_or_else(|| AppError::General("FAAD3 open returned a null handle.".into()))
 }
 
-pub(super) fn stream_info(handle: &Handle) -> Result<faad::faad_stream_info> {
+fn stream_info(handle: &Handle) -> Result<faad::faad_stream_info> {
     let mut info = faad::faad_stream_info {
         struct_size: std::mem::size_of::<faad::faad_stream_info>() as u32,
         ..Default::default()
@@ -172,12 +172,12 @@ pub(super) fn stream_info(handle: &Handle) -> Result<faad::faad_stream_info> {
     Ok(info)
 }
 
-pub(super) struct DecodedUnit {
-    pub(super) written: usize,
-    pub(super) flags: u32,
+struct DecodedUnit {
+    written: usize,
+    flags: u32,
 }
 
-pub(super) fn decode_unit(handle: &Handle, data: &[u8], output: &mut [u8]) -> Result<DecodedUnit> {
+fn decode_unit(handle: &Handle, data: &[u8], output: &mut [u8]) -> Result<DecodedUnit> {
     let (mut consumed, mut written, mut flags) = (0u32, 0u32, 0u32);
     // SAFETY: input and output slices are live for the call and their lengths are passed.
     let status = unsafe {
@@ -208,6 +208,25 @@ pub(super) fn decode_unit(handle: &Handle, data: &[u8], output: &mut [u8]) -> Re
         written: written as usize,
         flags,
     })
+}
+
+#[cfg(test)]
+pub(super) fn decode_aac_packets(asc: &[u8], packets: &[Packet]) -> Result<Vec<f32>> {
+    let handle = open_handle(Some(asc))?;
+    let info = stream_info(&handle)?;
+    let mut output = vec![0u8; info.max_output_bytes as usize];
+    let mut decoded = Vec::new();
+    for packet in packets {
+        let unit = decode_unit(&handle, packet.data(), &mut output)?;
+        decoded.extend(
+            output[..unit.written]
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|bytes| f32::from_ne_bytes(*bytes)),
+        );
+    }
+    Ok(decoded)
 }
 
 fn speaker_layout(format: &FaadFormat) -> Result<ChannelLayout> {

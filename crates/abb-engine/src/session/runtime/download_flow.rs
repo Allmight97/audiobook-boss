@@ -45,23 +45,16 @@ impl Session {
     pub(super) async fn import_acquired(&self, job: AcquiredJob) -> HandoffOutcome {
         let (outcome, leftovers) = match &job.content {
             AcquiredContent::Titles { files, assets } => {
-                let (handoff, diagnostics, refused_paths) =
-                    self.import_acquired_files(&job.job_id, files, assets).await;
-                let leftovers = match handoff {
-                    TitlesHandoff::Removed { .. } => files
+                let outcome = self.import_acquired_files(&job.job_id, files, assets).await;
+                let leftovers = match &outcome.handoff {
+                    AcquisitionHandoff::Titles(TitlesHandoff::Removed { .. }) => files
                         .iter()
                         .map(|file| file.path.clone())
                         .chain(assets.iter().map(|asset| asset.path.clone()))
                         .collect(),
-                    TitlesHandoff::Imported { .. } => refused_paths,
+                    _ => Vec::new(),
                 };
-                (
-                    HandoffOutcome {
-                        handoff: AcquisitionHandoff::Titles(handoff),
-                        diagnostics,
-                    },
-                    leftovers,
-                )
+                (outcome, leftovers)
             }
             AcquiredContent::Pdf { pdf, title } => (
                 HandoffOutcome::from(AcquisitionHandoff::Pdf(self.save_pdf(pdf, title).await)),
@@ -109,9 +102,13 @@ impl Session {
         job_id: &str,
         files: &[MaterializedSourceFile],
         assets: &[SupplementalAsset],
-    ) -> (TitlesHandoff, Vec<RemoteSourceDiagnostic>, Vec<PathBuf>) {
+    ) -> HandoffOutcome {
         let _in_order = self.inner.imports.wait(self.inner.imports.take()).await;
-        let removed = |reason| (TitlesHandoff::Removed { reason }, Vec::new(), Vec::new());
+        let removed = |reason| {
+            HandoffOutcome::from(AcquisitionHandoff::Titles(TitlesHandoff::Removed {
+                reason,
+            }))
+        };
         let grouped = group_files_by_title(files);
         let aac_decoder = self.inner.deps.settings.aac_decoder();
         let analyzed = blocking(move || {
@@ -179,6 +176,7 @@ impl Session {
                     &admitted_files,
                     assets,
                     admitted_analyzed.clone(),
+                    &refused_paths,
                 )
             })
             .await;
@@ -186,11 +184,10 @@ impl Session {
             Ok((bound, count)) => {
                 self.complete_reads(bound).await;
                 self.publish();
-                (
-                    TitlesHandoff::Imported { count },
+                HandoffOutcome {
+                    handoff: AcquisitionHandoff::Titles(TitlesHandoff::Imported { count }),
                     diagnostics,
-                    refused_paths,
-                )
+                }
             }
             Err(reason) => {
                 self.publish();
@@ -332,6 +329,7 @@ fn list_acquired(
     files: &[MaterializedSourceFile],
     assets: &[SupplementalAsset],
     analyzed: Vec<crate::audio::AudioFile>,
+    refused_paths: &[PathBuf],
 ) -> std::result::Result<(Bound, usize), HandoffRefusal> {
     let before = state.working_set.source_paths();
     let default_audio = state.audio.request();
@@ -364,6 +362,11 @@ fn list_acquired(
     }
     if count == 0 {
         return Err(HandoffRefusal::NothingAdded);
+    }
+    if !refused_paths.is_empty() {
+        state
+            .staged
+            .register_leftovers(job_id, refused_paths.to_vec());
     }
     Ok((Bound::rebind(state), count))
 }

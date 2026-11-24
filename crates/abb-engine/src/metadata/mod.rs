@@ -124,9 +124,42 @@ struct AudioStreamInventory {
     payload_bytes: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AudioDuration {
+    Measured(i64),
+    Estimated(i64),
+    Unknown,
+}
+
+impl AudioDuration {
+    fn from_input(input: &abb_ffmpeg::Input) -> Self {
+        match (input.duration_micros(), input.duration_is_estimated()) {
+            (Some(us), false) => Self::Measured(us),
+            (Some(us), true) => Self::Estimated(us),
+            (None, _) => Self::Unknown,
+        }
+    }
+
+    fn moved_beyond(self, saved: Self, tolerance_us: u64) -> bool {
+        match (self, saved) {
+            (Self::Measured(original_us), Self::Measured(saved_us)) => {
+                original_us.abs_diff(saved_us) > tolerance_us
+            }
+            (Self::Measured(_), Self::Unknown) => true,
+            _ => false,
+        }
+    }
+
+    fn display(self) -> String {
+        match self {
+            Self::Measured(us) | Self::Estimated(us) => format!("{:.1} s", us as f64 / 1_000_000.0),
+            Self::Unknown => "unknown".to_string(),
+        }
+    }
+}
+
 struct AudioShape {
-    duration_us: Option<i64>,
-    duration_estimated: bool,
+    duration: AudioDuration,
     audio_streams: Vec<AudioStreamInventory>,
 }
 
@@ -134,20 +167,12 @@ fn check_saved_audio(original: &std::path::Path, saved: &std::path::Path) -> Res
     const TOLERANCE_US: u64 = 500_000;
     let original_shape = audio_shape(original)?;
     let saved_shape = audio_shape(saved)?;
-    let both_measured = !original_shape.duration_estimated && !saved_shape.duration_estimated;
-    let duration_moved = both_measured
-        && original_shape.duration_us.is_some_and(|original_us| {
-            saved_shape
-                .duration_us
-                .is_none_or(|saved_us| original_us.abs_diff(saved_us) > TOLERANCE_US)
-        });
+    let duration_moved = original_shape
+        .duration
+        .moved_beyond(saved_shape.duration, TOLERANCE_US);
     if original_shape.audio_streams == saved_shape.audio_streams && !duration_moved {
         return Ok(());
     }
-    let seconds = |us: Option<i64>| match us {
-        None => "unknown".to_string(),
-        Some(us) => format!("{:.1} s", us as f64 / 1_000_000.0),
-    };
     let totals = |streams: &[AudioStreamInventory]| {
         streams.iter().fold((0u64, 0u64), |(packets, bytes), s| {
             (packets + s.packets, bytes + s.payload_bytes)
@@ -158,8 +183,8 @@ fn check_saved_audio(original: &std::path::Path, saved: &std::path::Path) -> Res
     Err(AppError::FileValidation(format!(
         "The original '{}' was kept unchanged: the saved copy's audio did not match it (length {} vs {}, audio streams {} vs {}, packets {saved_packets} vs {orig_packets}, payload bytes {saved_bytes} vs {orig_bytes}).",
         crate::errors::sanitize_path_for_display(original),
-        seconds(saved_shape.duration_us),
-        seconds(original_shape.duration_us),
+        saved_shape.duration.display(),
+        original_shape.duration.display(),
         saved_shape.audio_streams.len(),
         original_shape.audio_streams.len(),
     )))
@@ -180,8 +205,7 @@ fn audio_shape(path: &std::path::Path) -> Result<AudioShape> {
             });
         }
     }
-    let duration_us = input.duration_micros();
-    let duration_estimated = input.duration_is_estimated();
+    let duration = AudioDuration::from_input(&input);
     let mut packet = abb_ffmpeg::Packet::new()?;
     while input.read_packet(&mut packet)? {
         if let Some(ordinal) = stream_to_audio
@@ -194,8 +218,7 @@ fn audio_shape(path: &std::path::Path) -> Result<AudioShape> {
         }
     }
     Ok(AudioShape {
-        duration_us,
-        duration_estimated,
+        duration,
         audio_streams,
     })
 }

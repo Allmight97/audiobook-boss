@@ -310,6 +310,19 @@ impl RemoteSourceRuntime {
         .await
     }
 
+    pub(in crate::remote_source) async fn persist_audible_sign_in_rejection(&self) -> Result<()> {
+        if let Err(error) = self
+            .vault_blocking(|runtime| {
+                AudibleProvider::mark_sign_in_rejected(runtime.inner.vault.as_ref())
+            })
+            .await
+        {
+            log::error!("Failed to persist Audible sign-in rejection: {error}");
+            return Err(error);
+        }
+        Ok(())
+    }
+
     async fn vault_blocking<T: Send + 'static>(
         &self,
         work: impl FnOnce(&RemoteSourceRuntime) -> Result<T> + Send + 'static,

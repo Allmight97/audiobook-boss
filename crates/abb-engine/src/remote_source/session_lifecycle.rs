@@ -52,12 +52,13 @@ pub(super) fn audible_acquire() -> AcquireTitles {
                 .await
             {
                 Ok(auth) => auth,
-                Err(error) => {
+                Err(error @ AppError::InvalidInput(_)) => {
                     return Ok(AcquisitionOutcome::failed(
                         types::RemoteAcquisitionFailureKind::AuthRequired,
                         error.to_string(),
                     ));
                 }
+                Err(error) => return Err(error),
             };
             let mut outcome = super::providers::audible::AudibleProvider::acquire(
                 auth,
@@ -84,15 +85,7 @@ async fn persist_acquisition_auth_rejection(
     if !outcome.has_auth_required() {
         return;
     }
-    if let Err(error) = runtime
-        .vault_blocking(|runtime| {
-            super::providers::audible::AudibleProvider::mark_sign_in_rejected(
-                runtime.inner.vault.as_ref(),
-            )
-        })
-        .await
-    {
-        log::error!("Failed to persist Audible sign-in rejection: {error}");
+    if let Err(error) = runtime.persist_audible_sign_in_rejection().await {
         outcome.push_diagnostic(types::RemoteSourceDiagnostic {
             kind: types::RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
             title_id: None,
@@ -337,11 +330,11 @@ impl RemoteAcquisitionLifecycle {
             return;
         };
         let result = handoff(job).await;
-        let updated = self.jobs.lock().ok().and_then(|mut jobs| {
-            jobs.get_mut(job_id)?
-                .handoff_done_with_diagnostics(result.handoff, result.diagnostics)
-                .then_some(())
-        });
+        let updated = self
+            .jobs
+            .lock()
+            .ok()
+            .and_then(|mut jobs| jobs.get_mut(job_id)?.handoff_done(result).then_some(()));
         if updated.is_some() {
             self.publish(job_id);
         }

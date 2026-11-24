@@ -75,22 +75,8 @@ fn normalized_input_decodes_at_the_same_level() {
         packets.push(packet);
     }
 
-    let decoder = super::super::super::faad_decoder::open_handle(Some(&encoder.asc)).expect("open");
-    let info = super::super::super::faad_decoder::stream_info(&decoder).expect("info");
-    let mut output = vec![0u8; info.max_output_bytes as usize];
-    let mut decoded = Vec::new();
-    for packet in &packets {
-        let unit =
-            super::super::super::faad_decoder::decode_unit(&decoder, packet.data(), &mut output)
-                .expect("decode");
-        decoded.extend(
-            output[..unit.written]
-                .as_chunks::<4>()
-                .0
-                .iter()
-                .map(|bytes| f32::from_ne_bytes(*bytes)),
-        );
-    }
+    let decoded = super::super::super::faad_decoder::decode_aac_packets(&encoder.asc, &packets)
+        .expect("decode");
     let steady = &decoded[decoded.len() / 4..decoded.len() / 2];
     let rms = (steady.iter().map(|v| v * v).sum::<f32>() / steady.len() as f32).sqrt();
     let expected = 0.25 / std::f32::consts::SQRT_2;

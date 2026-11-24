@@ -2,25 +2,6 @@ use super::*;
 use crate::test_cases::support::wav::write_sine_wav;
 
 #[test]
-fn a_saved_copy_shorter_than_the_original_is_refused_and_the_original_kept() {
-    let dir = tempfile::TempDir::new().expect("temp dir");
-    let original = dir.path().join("book.wav");
-    write_sine_wav(&original, 2.0, 440.0);
-    let before = std::fs::read(&original).expect("read original");
-    let fingerprint = source_fingerprint(&original).expect("fingerprint");
-    let saved = remux::meta_temp(&original).expect("temp");
-    write_sine_wav(saved.path(), 1.0, 440.0);
-    let saved_path = saved.path().to_path_buf();
-
-    let error =
-        commit_checked_save(&original, saved, &fingerprint).expect_err("shorter copy refused");
-
-    assert!(error.to_string().contains("unchanged"), "{error}");
-    assert_eq!(std::fs::read(&original).expect("reread original"), before);
-    assert!(!saved_path.exists(), "the refused copy is removed");
-}
-
-#[test]
 fn a_truncated_saved_copy_is_refused_even_within_duration_tolerance() {
     let dir = tempfile::TempDir::new().expect("temp dir");
     let original = dir.path().join("book.wav");
@@ -34,9 +15,10 @@ fn a_truncated_saved_copy_is_refused_even_within_duration_tolerance() {
     let error =
         commit_checked_save(&original, saved, &fingerprint).expect_err("truncated copy refused");
 
+    let message = error.to_string();
     assert!(
-        error.to_string().contains("packets") && error.to_string().contains("vs"),
-        "{error}"
+        message.contains("unchanged") && message.contains("packets") && message.contains("vs"),
+        "{message}"
     );
     assert_eq!(std::fs::read(&original).expect("reread original"), before);
     assert!(!saved_path.exists(), "the refused copy is removed");

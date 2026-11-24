@@ -163,16 +163,19 @@ fn supplemental_commit_sweeps_stale_temp_only_after_publish_succeeds() {
     let source = root.path().join("source.pdf");
     std::fs::write(&source, b"%PDF-1.7\nbody").expect("write pdf");
     let destination = root.path().join("Book One - Supplemental PDF.pdf");
-    let hash = abb_media_core::sha256_hex(
-        destination
-            .file_name()
-            .expect("file name")
-            .as_encoded_bytes(),
-    );
-    let stale_temp = root
-        .path()
-        .join(format!(".abb_replace_install_{}_0000-crashed", &hash[..16]));
+    let stale_temp =
+        super::super::commit::stale_replacement_temp_path(&destination, "0000-crashed");
     std::fs::write(&stale_temp, b"stranded pdf").expect("write stale temp");
+
+    commit_supplemental_output_asset(
+        SupplementalOutputAssetCommitRequest::new(&source, destination.clone())
+            .with_expected_identity(13, "wrong-hash"),
+    )
+    .expect_err("failed commit must refuse before publish");
+    assert_eq!(
+        std::fs::read(&stale_temp).expect("stale temp stays when commit fails"),
+        b"stranded pdf"
+    );
 
     commit_supplemental_output_asset(SupplementalOutputAssetCommitRequest::new(
         &source,
