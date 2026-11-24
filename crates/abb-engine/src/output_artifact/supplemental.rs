@@ -214,8 +214,8 @@ pub(crate) fn commit_supplemental_output_asset(
     }
     let _file = super::lock_output_file(requested);
     let destination = next_available_supplemental_path(requested)?;
-    super::commit::remove_stale_replacement_temps(&destination);
     super::commit::publish_copy_without_replacing(request.source_path, &destination)?;
+    super::commit::remove_stale_replacement_temps(&destination);
 
     let committed_bytes = std::fs::metadata(&destination)
         .map(|metadata| metadata.len())

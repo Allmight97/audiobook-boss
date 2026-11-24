@@ -125,3 +125,38 @@ fn replace_file_reports_success_when_backup_cleanup_fails_after_install() {
         b"old"
     );
 }
+
+#[test]
+fn replace_file_returns_crosses_devices_without_moving_destination_aside() {
+    let root = TempDir::new().expect("temp root");
+    let source = root.path().join("source.m4b");
+    let destination = root.path().join("destination.m4b");
+    let backup = root.path().join("backup.m4b");
+    let calls = Cell::new(0);
+
+    std::fs::write(&source, b"new").expect("write source");
+    std::fs::write(&destination, b"old").expect("write destination");
+
+    let error = replace_file_with_ops(
+        &source,
+        &destination,
+        &backup,
+        |_from, _to| {
+            calls.set(calls.get() + 1);
+            Err(io::Error::new(
+                io::ErrorKind::CrossesDevices,
+                "cross-device",
+            ))
+        },
+        |_path| panic!("remove_file must not run on CrossesDevices"),
+    )
+    .expect_err("CrossesDevices should propagate");
+
+    assert_eq!(error.kind(), io::ErrorKind::CrossesDevices);
+    assert_eq!(calls.get(), 1, "destination must not be moved to backup");
+    assert_eq!(
+        std::fs::read(&destination).expect("read destination"),
+        b"old"
+    );
+    assert!(!backup.exists(), "no backup file should be created");
+}
