@@ -467,6 +467,29 @@ impl RemoteSourceRuntime {
                 .await?
         }
         .await;
+        if matches!(result, Err(AudibleRequestError::AuthRejected)) {
+            if let Err(persist_error) = self
+                .vault_blocking(|runtime| {
+                    super::super::AudibleProvider::mark_sign_in_rejected(
+                        runtime.inner.vault.as_ref(),
+                    )
+                })
+                .await
+            {
+                log::error!("Failed to persist Audible sign-in rejection: {persist_error}");
+                let message = format!(
+                    "{SIGN_IN_REJECTED_MESSAGE} Also could not save that status: {persist_error}"
+                );
+                let reported = Err(AudibleRequestError::Failed(AppError::ResourceCleanup(
+                    message.clone(),
+                )));
+                if self.ui().library_result(request, &reported) {
+                    self.ui().reject_sign_in();
+                    self.publish_ui();
+                }
+                return Err(AppError::ResourceCleanup(message));
+            }
+        }
         if !self.ui().library_result(request, &result) {
             return Ok(RemoteUiResult::Superseded);
         }

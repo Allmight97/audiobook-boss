@@ -30,6 +30,7 @@ fn fixture_auth_with_cookies(cookies: &[(&str, &str)], store_cookie: &str) -> Au
         },
         authorization_code: "authorization-code".to_string(),
         code_verifier: "code-verifier".to_string(),
+        sign_in_rejected: false,
     }
 }
 

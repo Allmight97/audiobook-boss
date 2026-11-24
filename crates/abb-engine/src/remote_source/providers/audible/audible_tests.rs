@@ -82,6 +82,7 @@ pub(in crate::remote_source) fn fixture_auth() -> Auth {
         },
         authorization_code: "authorization-code".to_string(),
         code_verifier: "code-verifier".to_string(),
+        sign_in_rejected: false,
     }
 }
 
@@ -225,4 +226,38 @@ fn corrupt_stored_auth_error_does_not_leak_secret_bytes() {
     let auth_error = auth_from_vault(&vault).expect_err("corrupt auth");
     assert!(!auth_error.to_string().contains("sensitive-token-value"));
     assert!(!auth_error.to_string().contains(secret_payload));
+}
+
+#[test]
+fn sign_in_rejection_persists_across_account_state_reads_until_sign_in_or_logout() {
+    let vault = MemoryVault::default();
+    let auth = fixture_auth();
+    AudibleProvider::persist_auth(&vault, &auth).expect("persist auth");
+
+    AudibleProvider::mark_sign_in_rejected(&vault).expect("mark rejected");
+    let rejected = AudibleProvider::account_state(&vault).expect("state after reject");
+    assert_eq!(rejected.status, RemoteAccountStatus::NeedsAuth);
+    assert_eq!(rejected.message.as_deref(), Some(SIGN_IN_REJECTED_MESSAGE));
+
+    AudibleProvider::persist_auth(&vault, &auth).expect("re-sign-in clears rejection");
+    let reconnected = AudibleProvider::account_state(&vault).expect("state after sign-in");
+    assert_eq!(reconnected.status, RemoteAccountStatus::Connected);
+
+    AudibleProvider::mark_sign_in_rejected(&vault).expect("mark rejected again");
+    AudibleProvider::logout(&vault).expect("logout clears rejection");
+    let logged_out = AudibleProvider::account_state(&vault).expect("state after logout");
+    assert_eq!(logged_out.status, RemoteAccountStatus::NeedsAuth);
+    assert!(logged_out
+        .message
+        .as_deref()
+        .is_some_and(|message| message.contains("Connect Audible")));
+}
+
+#[test]
+fn mark_sign_in_rejected_reports_vault_write_error() {
+    let vault = MemoryVault::default().failing_writes(keychain_locked);
+    seed_auth(&vault, AUTH_SECRET_KEY, &fixture_auth());
+
+    let error = AudibleProvider::mark_sign_in_rejected(&vault).expect_err("write failure reported");
+    assert!(matches!(error, AppError::ResourceCleanup(_)));
 }

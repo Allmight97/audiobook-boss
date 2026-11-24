@@ -100,6 +100,7 @@ impl AudibleProvider {
             device_registration: registration,
             authorization_code,
             code_verifier: pending.code_verifier,
+            sign_in_rejected: false,
         };
         Ok(auth)
     }
@@ -108,11 +109,30 @@ impl AudibleProvider {
         vault: &dyn SecretVault,
         auth: &Auth,
     ) -> Result<RemoteSourceAccountState> {
-        let serialized = serde_json::to_string(auth).map_err(|error| {
+        let mut auth = auth.clone();
+        auth.sign_in_rejected = false;
+        let serialized = serde_json::to_string(&auth).map_err(|error| {
             AppError::General(format!("Failed to serialize Audible auth: {error}"))
         })?;
         vault.set_secret(AUTH_SECRET_KEY, SecretString::from(serialized))?;
         Self::account_state(vault)
+    }
+
+    pub(in crate::remote_source) fn mark_sign_in_rejected(vault: &dyn SecretVault) -> Result<()> {
+        let Some(secret) = vault.get_secret(AUTH_SECRET_KEY)? else {
+            return Ok(());
+        };
+        let mut auth = serde_json::from_str::<Auth>(secret.expose_secret()).map_err(|error| {
+            AppError::ResourceCleanup(format!("Stored Audible auth is invalid: {error}"))
+        })?;
+        if auth.sign_in_rejected {
+            return Ok(());
+        }
+        auth.sign_in_rejected = true;
+        let serialized = serde_json::to_string(&auth).map_err(|error| {
+            AppError::General(format!("Failed to serialize Audible auth: {error}"))
+        })?;
+        vault.set_secret(AUTH_SECRET_KEY, SecretString::from(serialized))
     }
 
     pub(in crate::remote_source) fn account_state(
@@ -127,9 +147,17 @@ impl AudibleProvider {
             });
         };
 
-        serde_json::from_str::<Auth>(secret.expose_secret()).map_err(|error| {
+        let auth = serde_json::from_str::<Auth>(secret.expose_secret()).map_err(|error| {
             AppError::ResourceCleanup(format!("Stored Audible auth is invalid: {error}"))
         })?;
+
+        if auth.sign_in_rejected {
+            return Ok(RemoteSourceAccountState {
+                provider_id: ProviderId::Audible,
+                status: RemoteAccountStatus::NeedsAuth,
+                message: account_message(Some(SIGN_IN_REJECTED_MESSAGE), survives),
+            });
+        }
 
         Ok(RemoteSourceAccountState {
             provider_id: ProviderId::Audible,

@@ -26,6 +26,8 @@ pub(in crate::remote_source) struct Auth {
     pub(super) device_registration: Registration,
     pub(super) authorization_code: String,
     pub(super) code_verifier: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub(super) sign_in_rejected: bool,
 }
 
 impl fmt::Debug for Auth {

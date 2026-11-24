@@ -118,3 +118,27 @@ async fn starting_the_engine_keeps_ffmpeg_from_logging_at_info() {
 
     assert_eq!(abb_ffmpeg::log_level(), Some(abb_ffmpeg::LogLevel::Warning));
 }
+
+#[tokio::test]
+async fn engine_refuses_to_start_when_cache_lock_cannot_be_taken() {
+    let root = tempfile::TempDir::new().expect("engine root");
+    let blocked_cache = root.path().join("cache");
+    std::fs::write(&blocked_cache, b"not a directory").expect("block cache dir with file");
+
+    let error = match Engine::start(EngineConfig {
+        cache_dir: blocked_cache.clone(),
+        ..config(root.path())
+    }) {
+        Ok(_) => panic!("engine must refuse when cache lock cannot be taken"),
+        Err(error) => error,
+    };
+
+    assert!(
+        error.to_string().contains("Cannot lock the working folder"),
+        "{error}"
+    );
+    assert_eq!(
+        std::fs::read(&blocked_cache).expect("blocked path untouched"),
+        b"not a directory"
+    );
+}
