@@ -27,8 +27,9 @@ pub fn encoder_takes_options(name: &str, options: &Tags) -> bool {
     if codec.is_null() {
         return false;
     }
-    // SAFETY: `codec` is a registered static encoder returned above.
-    let Ok(ctx) = (unsafe { CodecContext::for_codec(codec, Step::OpenEncoder) }) else {
+    // SAFETY: a non-null codec returned by avcodec_find_encoder_by_name is static.
+    let codec = unsafe { &*codec };
+    let Ok(ctx) = CodecContext::for_codec(codec, Step::OpenEncoder) else {
         return false;
     };
     options.iter().all(|(key, value)| {

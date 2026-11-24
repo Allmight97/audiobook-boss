@@ -188,7 +188,7 @@ impl Output {
         parameters.bit_rate = aac.bit_rate;
         parameters.frame_size = frame;
         parameters.initial_padding = priming;
-        set_extradata(parameters, aac.config, step)?;
+        Self::set_extradata(parameters, aac.config, step)?;
         Ok(index)
     }
 
@@ -205,8 +205,8 @@ impl Output {
         let parameters = unsafe { &mut *stream.codecpar };
         parameters.codec_type = sys::AVMediaType::AVMEDIA_TYPE_ATTACHMENT;
         codec.write(&mut parameters.codec_id);
-        set_extradata(parameters, bytes, step)?;
-        replace_dictionary(&mut stream.metadata, dictionary);
+        Self::set_extradata(parameters, bytes, step)?;
+        Self::replace_stream_dictionary(stream, dictionary);
         Ok(index)
     }
 
@@ -269,7 +269,7 @@ impl Output {
     pub fn set_stream_tags(&mut self, index: usize, tags: &Tags) -> Result<()> {
         let dictionary = tags.to_dictionary(Step::SetTags)?;
         let stream = self.stream(index)?;
-        replace_dictionary(&mut stream.metadata, dictionary);
+        Self::replace_stream_dictionary(stream, dictionary);
         Ok(())
     }
 
@@ -287,7 +287,10 @@ impl Output {
 
     pub fn set_tags(&mut self, tags: &Tags) -> Result<()> {
         let dictionary = tags.to_dictionary(Step::SetTags)?;
-        replace_dictionary(&mut self.0.ctx.raw_mut().metadata, dictionary);
+        let metadata = &mut self.0.ctx.raw_mut().metadata;
+        // SAFETY: `metadata` is this live context's owned dictionary slot.
+        unsafe { sys::av_dict_free(metadata) };
+        *metadata = dictionary.into_raw();
         Ok(())
     }
 
@@ -343,6 +346,35 @@ impl Output {
     fn stream(&mut self, index: usize) -> Result<&mut sys::AVStream> {
         self.0.ctx.stream_mut(index, Step::AddStream)
     }
+
+    fn set_extradata(
+        parameters: &mut sys::AVCodecParameters,
+        bytes: &[u8],
+        step: Step,
+    ) -> Result<()> {
+        let size = c_int::try_from(bytes.len()).map_err(|_| Error::OutOfRange { step })?;
+        // SAFETY: av_mallocz returns zeroed memory of the padded size or null;
+        // av_freep frees any previous extradata buffer and nulls the pointer;
+        // the copy fills exactly `bytes.len()` bytes.
+        unsafe {
+            let data = sys::av_mallocz(bytes.len() + sys::AV_INPUT_BUFFER_PADDING_SIZE as usize)
+                .cast::<u8>();
+            if data.is_null() {
+                return Err(Error::OutOfMemory { step });
+            }
+            ptr::copy_nonoverlapping(bytes.as_ptr(), data, bytes.len());
+            sys::av_freep(ptr::addr_of_mut!(parameters.extradata).cast());
+            parameters.extradata = data;
+            parameters.extradata_size = size;
+        }
+        Ok(())
+    }
+
+    fn replace_stream_dictionary(stream: &mut sys::AVStream, dictionary: Dictionary) {
+        // SAFETY: `stream.metadata` is this stream's owned dictionary slot.
+        unsafe { sys::av_dict_free(&mut stream.metadata) };
+        stream.metadata = dictionary.into_raw();
+    }
 }
 
 impl Muxer {
@@ -387,29 +419,4 @@ impl Muxer {
         self.0.kept = true;
         Ok(())
     }
-}
-
-fn set_extradata(parameters: &mut sys::AVCodecParameters, bytes: &[u8], step: Step) -> Result<()> {
-    let size = c_int::try_from(bytes.len()).map_err(|_| Error::OutOfRange { step })?;
-    // SAFETY: av_mallocz returns zeroed memory of the padded size or null;
-    // av_freep frees any previous extradata buffer and nulls the pointer;
-    // the copy fills exactly `bytes.len()` bytes.
-    unsafe {
-        let data =
-            sys::av_mallocz(bytes.len() + sys::AV_INPUT_BUFFER_PADDING_SIZE as usize).cast::<u8>();
-        if data.is_null() {
-            return Err(Error::OutOfMemory { step });
-        }
-        ptr::copy_nonoverlapping(bytes.as_ptr(), data, bytes.len());
-        sys::av_freep(ptr::addr_of_mut!(parameters.extradata).cast());
-        parameters.extradata = data;
-        parameters.extradata_size = size;
-    }
-    Ok(())
-}
-
-fn replace_dictionary(slot: &mut *mut sys::AVDictionary, dictionary: Dictionary) {
-    // SAFETY: av_dict_free tolerates null or a live dictionary owned by `slot`.
-    unsafe { sys::av_dict_free(slot) };
-    *slot = dictionary.into_raw();
 }

@@ -90,11 +90,9 @@ impl CodecContext {
             .ok_or(Error::OutOfMemory { step })
     }
 
-    /// # Safety
-    /// `codec` is a registered static FFmpeg codec pointer.
-    pub(crate) unsafe fn for_codec(codec: *const sys::AVCodec, step: Step) -> Result<Self> {
-        // SAFETY: a context allocated for `codec` holds that codec's private
-        // options with their defaults, or the result is null.
+    pub(crate) fn for_codec(codec: &'static sys::AVCodec, step: Step) -> Result<Self> {
+        // SAFETY: `codec` is a registered static FFmpeg codec; avcodec_alloc_context3
+        // returns a context holding its private options or null.
         NonNull::new(unsafe { sys::avcodec_alloc_context3(codec) })
             .map(Self)
             .ok_or(Error::OutOfMemory { step })
