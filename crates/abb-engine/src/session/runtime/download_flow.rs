@@ -45,7 +45,7 @@ impl Session {
     pub(super) async fn import_acquired(&self, job: AcquiredJob) -> HandoffOutcome {
         let (outcome, leftovers) = match &job.content {
             AcquiredContent::Titles { files, assets } => {
-                let (handoff, diagnostics) =
+                let (handoff, diagnostics, refused_paths) =
                     self.import_acquired_files(&job.job_id, files, assets).await;
                 let leftovers = match handoff {
                     TitlesHandoff::Removed { .. } => files
@@ -53,7 +53,7 @@ impl Session {
                         .map(|file| file.path.clone())
                         .chain(assets.iter().map(|asset| asset.path.clone()))
                         .collect(),
-                    TitlesHandoff::Imported { .. } => Vec::new(),
+                    TitlesHandoff::Imported { .. } => refused_paths,
                 };
                 (
                     HandoffOutcome {
@@ -109,9 +109,9 @@ impl Session {
         job_id: &str,
         files: &[MaterializedSourceFile],
         assets: &[SupplementalAsset],
-    ) -> (TitlesHandoff, Vec<RemoteSourceDiagnostic>) {
+    ) -> (TitlesHandoff, Vec<RemoteSourceDiagnostic>, Vec<PathBuf>) {
         let _in_order = self.inner.imports.wait(self.inner.imports.take()).await;
-        let removed = |reason| (TitlesHandoff::Removed { reason }, Vec::new());
+        let removed = |reason| (TitlesHandoff::Removed { reason }, Vec::new(), Vec::new());
         let grouped = group_files_by_title(files);
         let aac_decoder = self.inner.deps.settings.aac_decoder();
         let analyzed = blocking(move || {
@@ -128,7 +128,7 @@ impl Session {
                     }
                     Err(error) => {
                         log::warn!("Refused incomplete Audible title {title_id}: {error}");
-                        refused_titles.push((title_id, error));
+                        refused_titles.push((title_id, paths, error));
                     }
                 }
             }
@@ -147,7 +147,7 @@ impl Session {
             let error = refused_titles
                 .into_iter()
                 .next()
-                .map(|(_, error)| error)
+                .map(|(_, _, error)| error)
                 .unwrap_or_else(|| {
                     AppError::InvalidInput("Acquired titles could not be imported.".into())
                 });
@@ -155,14 +155,22 @@ impl Session {
                 error: AppErrorEnvelope::from(&error),
             });
         }
-        let diagnostics: Vec<RemoteSourceDiagnostic> = refused_titles
-            .into_iter()
-            .map(|(title_id, error)| RemoteSourceDiagnostic {
-                kind: RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
+        let mut diagnostics = Vec::with_capacity(refused_titles.len());
+        let mut refused_paths = Vec::new();
+        for (title_id, paths, error) in refused_titles {
+            refused_paths.extend(paths);
+            refused_paths.extend(
+                assets
+                    .iter()
+                    .filter(|asset| asset.title_id == title_id)
+                    .map(|asset| asset.path.clone()),
+            );
+            diagnostics.push(RemoteSourceDiagnostic {
+                kind: RemoteAcquisitionFailureKind::ValidationFailed,
                 title_id: Some(title_id),
                 message: error.to_string(),
-            })
-            .collect();
+            });
+        }
         let listed = self
             .when_list_unlocked(|state| {
                 list_acquired(
@@ -178,7 +186,11 @@ impl Session {
             Ok((bound, count)) => {
                 self.complete_reads(bound).await;
                 self.publish();
-                (TitlesHandoff::Imported { count }, diagnostics)
+                (
+                    TitlesHandoff::Imported { count },
+                    diagnostics,
+                    refused_paths,
+                )
             }
             Err(reason) => {
                 self.publish();

@@ -254,7 +254,9 @@ async fn a_partial_acquisition_admits_only_complete_valid_titles_with_their_comp
     let mut bad_asset = assets[0].clone();
     bad_asset.asset_id = "asset-bad".to_string();
     bad_asset.title_id = "title-bad".to_string();
+    bad_asset.path = staging.path().join("Bad Guide.pdf");
     bad_asset.file_name = "Bad Guide.pdf".to_string();
+    let bad_asset_path = bad_asset.path.clone();
     assets.push(bad_asset);
 
     let outcome = rig.session.import_acquired(job).await;
@@ -267,6 +269,10 @@ async fn a_partial_acquisition_admits_only_complete_valid_titles_with_their_comp
     );
     assert_eq!(outcome.diagnostics.len(), 1);
     assert_eq!(
+        outcome.diagnostics[0].kind,
+        crate::remote_source::RemoteAcquisitionFailureKind::ValidationFailed
+    );
+    assert_eq!(
         outcome.diagnostics[0].title_id.as_deref(),
         Some("title-bad")
     );
@@ -277,9 +283,24 @@ async fn a_partial_acquisition_admits_only_complete_valid_titles_with_their_comp
     );
     let titles = rig.session.snapshot().titles.expect("titles");
     assert_eq!(titles.files.len(), 1);
-    assert_eq!(titles.files[0].path, good_audio);
+    assert_eq!(
+        titles.files[0].path,
+        good_audio.canonicalize().expect("canonical good audio")
+    );
     let input_id = titles.files[0].input_id.clone();
     assert_eq!(titles.companions[&input_id], ["Guide.pdf"]);
+    let staged_paths = rig.session.lock().staged.paths("job-partial");
+    assert!(
+        staged_paths.contains(&corrupt_audio),
+        "refused audio path should be tracked as a job leftover: {staged_paths:?}"
+    );
+    assert!(
+        staged_paths.contains(&bad_asset_path),
+        "refused companion asset should be tracked as a job leftover: {staged_paths:?}"
+    );
+
+    rig.send(SessionIntent::ClearAll).await;
+    assert_eq!(rig.removed_jobs().await, ["job-partial"]);
 }
 
 #[tokio::test]

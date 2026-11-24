@@ -117,3 +117,59 @@ async fn a_cancel_removes_the_staging_folder_even_when_the_first_purges_are_refu
         "a retry removes the folder once the refusal clears"
     );
 }
+
+#[tokio::test]
+async fn an_acquisition_auth_rejection_persists_needs_auth_in_the_vault() {
+    let root = TempDir::new().expect("temp root");
+    let vault = crate::remote_source::test_support::MemoryVault::default();
+    let auth = crate::remote_source::providers::audible::tests::fixture_auth();
+    crate::remote_source::providers::audible::AudibleProvider::persist_auth(&vault, &auth)
+        .expect("persist auth");
+    let runtime =
+        crate::remote_source::tests::test_runtime_with(&root, Some(Box::new(vault)), None);
+    let mut outcome = super::AcquisitionOutcome::failed(
+        RemoteAcquisitionFailureKind::AuthRequired,
+        "Audible rejected the sign-in (HTTP 401).".to_string(),
+    );
+
+    super::persist_acquisition_auth_rejection(&runtime, &mut outcome).await;
+
+    let state = crate::remote_source::providers::audible::AudibleProvider::account_state(
+        runtime.inner.vault.as_ref(),
+    )
+    .expect("read state after acquisition auth rejection");
+    assert_eq!(
+        state.status,
+        crate::remote_source::types::RemoteAccountStatus::NeedsAuth
+    );
+}
+
+#[tokio::test]
+async fn a_failed_vault_write_on_acquisition_auth_rejection_adds_a_diagnostic() {
+    let root = TempDir::new().expect("temp root");
+    let vault = crate::remote_source::test_support::MemoryVault::default()
+        .failing_writes(|| crate::errors::AppError::ResourceCleanup("keychain locked".to_string()));
+    let auth = crate::remote_source::providers::audible::tests::fixture_auth();
+    vault.seed(
+        "audible.us.auth",
+        &serde_json::to_string(&auth).expect("serialize auth"),
+    );
+    let runtime =
+        crate::remote_source::tests::test_runtime_with(&root, Some(Box::new(vault)), None);
+    let mut outcome = super::AcquisitionOutcome::failed(
+        RemoteAcquisitionFailureKind::AuthRequired,
+        "Audible rejected the sign-in (HTTP 401).".to_string(),
+    );
+
+    super::persist_acquisition_auth_rejection(&runtime, &mut outcome).await;
+
+    let super::AcquisitionOutcome::Failed { diagnostics } = outcome else {
+        panic!("expected failed outcome");
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("Could not save Audible sign-in status")),
+        "{diagnostics:?}"
+    );
+}

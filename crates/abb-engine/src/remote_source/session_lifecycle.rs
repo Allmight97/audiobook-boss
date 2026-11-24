@@ -71,26 +71,34 @@ pub(super) fn audible_acquire() -> AcquireTitles {
                 || lifecycle.job_is_cancelled(&job_id),
             )
             .await?;
-            if outcome.has_auth_required() {
-                if let Err(error) = runtime
-                    .vault_blocking(|runtime| {
-                        super::providers::audible::AudibleProvider::mark_sign_in_rejected(
-                            runtime.inner.vault.as_ref(),
-                        )
-                    })
-                    .await
-                {
-                    log::error!("Failed to persist Audible sign-in rejection: {error}");
-                    outcome.push_diagnostic(types::RemoteSourceDiagnostic {
-                        kind: types::RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
-                        title_id: None,
-                        message: format!("Could not save Audible sign-in status: {error}"),
-                    });
-                }
-            }
+            persist_acquisition_auth_rejection(&runtime, &mut outcome).await;
             Ok(outcome)
         })
     })
+}
+
+async fn persist_acquisition_auth_rejection(
+    runtime: &RemoteSourceRuntime,
+    outcome: &mut AcquisitionOutcome,
+) {
+    if !outcome.has_auth_required() {
+        return;
+    }
+    if let Err(error) = runtime
+        .vault_blocking(|runtime| {
+            super::providers::audible::AudibleProvider::mark_sign_in_rejected(
+                runtime.inner.vault.as_ref(),
+            )
+        })
+        .await
+    {
+        log::error!("Failed to persist Audible sign-in rejection: {error}");
+        outcome.push_diagnostic(types::RemoteSourceDiagnostic {
+            kind: types::RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
+            title_id: None,
+            message: format!("Could not save Audible sign-in status: {error}"),
+        });
+    }
 }
 
 async fn purge_cancelled_session(staging: &RemoteSourceStaging, job_id: &str) {
