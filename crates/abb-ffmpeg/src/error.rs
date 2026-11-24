@@ -1,4 +1,4 @@
-use std::ffi::{c_char, c_int, CStr};
+use std::ffi::{c_int, CStr};
 use std::fmt;
 
 use ffmpeg_sys_next as sys;
@@ -105,17 +105,17 @@ impl Error {
 }
 
 fn ffmpeg_text(code: c_int) -> String {
-    let mut buffer = [0 as c_char; 128];
+    let mut buffer = [0u8; 128];
     // SAFETY: `buffer` is writable for its full length, and av_strerror always
     // NUL-terminates within the size it is given.
-    let written = unsafe { sys::av_strerror(code, buffer.as_mut_ptr(), buffer.len()) };
+    let written = unsafe { sys::av_strerror(code, buffer.as_mut_ptr().cast(), buffer.len()) };
     if written < 0 {
         return format!("FFmpeg error {code}");
     }
-    // SAFETY: av_strerror wrote a NUL-terminated string into `buffer`.
-    unsafe { CStr::from_ptr(buffer.as_ptr()) }
-        .to_string_lossy()
-        .into_owned()
+    CStr::from_bytes_until_nul(&buffer).map_or_else(
+        |_| format!("FFmpeg error {code}"),
+        |text| text.to_string_lossy().into_owned(),
+    )
 }
 
 impl fmt::Display for Error {

@@ -24,30 +24,25 @@ impl CodecId {
     pub const MJPEG: Self = Self(sys::AVCodecID::AV_CODEC_ID_MJPEG as c_int);
     pub const PNG: Self = Self(sys::AVCodecID::AV_CODEC_ID_PNG as c_int);
 
-    /// # Safety
-    /// `id` points to a live codec-id field.
-    pub(crate) unsafe fn read(id: *const sys::AVCodecID) -> Self {
-        // SAFETY: the caller guarantees the field; it is read as the C int it is.
-        Self(unsafe { id.cast::<c_int>().read() })
+    pub(crate) fn read(id: &sys::AVCodecID) -> Self {
+        // SAFETY: FFmpeg defines AVCodecID as a C int; reading as c_int keeps
+        // values this build does not name valid.
+        Self(unsafe { std::ptr::from_ref(id).cast::<c_int>().read() })
     }
 
-    /// # Safety
-    /// `slot` points to a live, writable codec-id field.
-    pub(crate) unsafe fn write(self, slot: *mut sys::AVCodecID) {
-        // SAFETY: the caller guarantees the field; FFmpeg defines it as a C int.
-        unsafe { slot.cast::<c_int>().write(self.0) };
+    pub(crate) fn write(self, slot: &mut sys::AVCodecID) {
+        // SAFETY: FFmpeg defines AVCodecID as a C int.
+        unsafe { std::ptr::from_mut(slot).cast::<c_int>().write(self.0) };
     }
 
     pub fn name(self) -> String {
         let mut slot = sys::AVCodecID::AV_CODEC_ID_NONE;
-        // SAFETY: `slot` is a local codec-id field; avcodec_get_name takes any
-        // id and returns a static NUL-terminated string.
-        unsafe {
-            self.write(&mut slot);
-            CStr::from_ptr(sys::avcodec_get_name(slot))
-        }
-        .to_string_lossy()
-        .into_owned()
+        self.write(&mut slot);
+        // SAFETY: avcodec_get_name returns a static NUL-terminated string for
+        // any codec id this build names.
+        unsafe { CStr::from_ptr(sys::avcodec_get_name(slot)) }
+            .to_string_lossy()
+            .into_owned()
     }
 }
 
@@ -95,57 +90,70 @@ impl CodecContext {
             .ok_or(Error::OutOfMemory { step })
     }
 
+    /// # Safety
+    /// `codec` is a registered static FFmpeg codec pointer.
+    pub(crate) unsafe fn for_codec(codec: *const sys::AVCodec, step: Step) -> Result<Self> {
+        // SAFETY: a context allocated for `codec` holds that codec's private
+        // options with their defaults, or the result is null.
+        NonNull::new(unsafe { sys::avcodec_alloc_context3(codec) })
+            .map(Self)
+            .ok_or(Error::OutOfMemory { step })
+    }
+
     pub(crate) fn as_ptr(&self) -> *mut sys::AVCodecContext {
         self.0.as_ptr()
     }
 
-    pub(crate) fn rate(&self) -> u32 {
+    pub(crate) fn raw(&self) -> &sys::AVCodecContext {
         // SAFETY: `self` owns a live context.
-        u32::try_from(unsafe { self.0.as_ref() }.sample_rate).unwrap_or(0)
+        unsafe { self.0.as_ref() }
+    }
+
+    pub(crate) fn rate(&self) -> u32 {
+        u32::try_from(self.raw().sample_rate).unwrap_or(0)
     }
 
     pub(crate) fn bit_rate(&self) -> i64 {
-        // SAFETY: `self` owns a live context.
-        unsafe { self.0.as_ref() }.bit_rate
+        self.raw().bit_rate
     }
 
     pub(crate) fn format(&self) -> SampleFormat {
-        // SAFETY: `self` owns a live context; the field is read as the C int
-        // it is, so a format this build does not name stays a value.
+        // SAFETY: the field is read as the C int it is, so a format this build
+        // does not name stays a value.
         SampleFormat::from_raw(unsafe {
-            std::ptr::addr_of!((*self.as_ptr()).sample_fmt)
+            std::ptr::from_ref(&self.raw().sample_fmt)
                 .cast::<c_int>()
                 .read()
         })
     }
 
     pub(crate) fn layout(&self) -> Option<ChannelLayout> {
-        // SAFETY: `self` owns a live context.
-        unsafe { ChannelLayout::from_sys(std::ptr::addr_of!((*self.as_ptr()).ch_layout)) }
+        ChannelLayout::from_sys(&self.raw().ch_layout)
     }
 
     pub(crate) fn channels(&self) -> u16 {
-        // SAFETY: `self` owns a live context.
-        u16::try_from(unsafe { self.0.as_ref() }.ch_layout.nb_channels).unwrap_or(0)
+        u16::try_from(self.raw().ch_layout.nb_channels).unwrap_or(0)
     }
 
     pub(crate) fn codec_id(&self) -> CodecId {
-        // SAFETY: `self` owns a live context.
-        unsafe { CodecId::read(std::ptr::addr_of!((*self.as_ptr()).codec_id)) }
+        CodecId::read(&self.raw().codec_id)
     }
 
     pub(crate) fn profile(&self) -> i32 {
-        // SAFETY: `self` owns a live context.
-        unsafe { self.0.as_ref() }.profile
+        self.raw().profile
     }
 
     pub(crate) fn codec_name(&self) -> Option<String> {
-        // SAFETY: `self` owns a live context; a codec's name is a static
-        // NUL-terminated string.
-        unsafe {
-            let codec = self.0.as_ref().codec;
-            (!codec.is_null()).then(|| CStr::from_ptr((*codec).name).to_string_lossy().into_owned())
+        let codec = self.raw().codec;
+        if codec.is_null() {
+            return None;
         }
+        // SAFETY: a non-null codec carries a static NUL-terminated name.
+        Some(
+            unsafe { CStr::from_ptr((*codec).name) }
+                .to_string_lossy()
+                .into_owned(),
+        )
     }
 }
 

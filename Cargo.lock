@@ -75,6 +75,7 @@ version = "0.1.0"
 dependencies = [
  "ffmpeg-sys-next",
  "tempfile",
+ "zeroize",
 ]
 
 [[package]]

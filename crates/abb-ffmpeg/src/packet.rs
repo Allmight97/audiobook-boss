@@ -63,93 +63,87 @@ impl Packet {
         Ok(packet)
     }
 
+    fn raw(&self) -> &sys::AVPacket {
+        // SAFETY: `self` owns a live packet.
+        unsafe { self.0.as_ref() }
+    }
+
+    fn raw_mut(&mut self) -> &mut sys::AVPacket {
+        // SAFETY: `self` owns a live packet.
+        unsafe { self.0.as_mut() }
+    }
+
     pub fn key_frame_of(data: &[u8]) -> Result<Self> {
         let mut packet = Self::copy_of(data)?;
-        // SAFETY: `packet` owns a live packet.
-        unsafe { packet.0.as_mut() }.flags |= sys::AV_PKT_FLAG_KEY;
+        packet.raw_mut().flags |= sys::AV_PKT_FLAG_KEY;
         Ok(packet)
     }
 
     pub fn stream_index(&self) -> usize {
-        // SAFETY: `self` owns a live packet.
-        usize::try_from(unsafe { self.0.as_ref() }.stream_index).unwrap_or(usize::MAX)
+        usize::try_from(self.raw().stream_index).unwrap_or(usize::MAX)
     }
 
     pub fn set_stream_index(&mut self, index: usize) {
-        // SAFETY: `self` owns a live packet.
-        unsafe { self.0.as_mut() }.stream_index = i32::try_from(index).unwrap_or(i32::MAX);
+        self.raw_mut().stream_index = i32::try_from(index).unwrap_or(i32::MAX);
     }
 
     pub fn pts(&self) -> Option<i64> {
-        // SAFETY: `self` owns a live packet.
-        let pts = unsafe { self.0.as_ref() }.pts;
+        let pts = self.raw().pts;
         (pts != sys::AV_NOPTS_VALUE).then_some(pts)
     }
 
     pub fn data(&self) -> &[u8] {
-        // SAFETY: `self` owns a live packet whose `data` holds `size`
-        // readable bytes until the packet changes, which needs `&mut self`.
-        unsafe {
-            let packet = self.0.as_ref();
-            match usize::try_from(packet.size) {
-                Ok(size) if size > 0 && !packet.data.is_null() => {
-                    std::slice::from_raw_parts(packet.data, size)
-                }
-                _ => &[],
+        let packet = self.raw();
+        match usize::try_from(packet.size) {
+            Ok(size) if size > 0 && !packet.data.is_null() => {
+                // SAFETY: FFmpeg keeps `size` readable bytes at `packet.data`
+                // until the packet changes, which needs `&mut self`.
+                unsafe { std::slice::from_raw_parts(packet.data, size) }
             }
+            _ => &[],
         }
     }
 
     pub fn position(&self) -> Option<i64> {
-        // SAFETY: `self` owns a live packet.
-        let position = unsafe { self.0.as_ref() }.pos;
+        let position = self.raw().pos;
         (position >= 0).then_some(position)
     }
 
     pub fn clear_position(&mut self) {
-        // SAFETY: `self` owns a live packet.
-        unsafe { self.0.as_mut() }.pos = -1;
+        self.raw_mut().pos = -1;
     }
 
     pub fn dts(&self) -> Option<i64> {
-        // SAFETY: `self` owns a live packet.
-        let dts = unsafe { self.0.as_ref() }.dts;
+        let dts = self.raw().dts;
         (dts != sys::AV_NOPTS_VALUE).then_some(dts)
     }
 
     pub fn is_discard(&self) -> bool {
-        // SAFETY: `self` owns a live packet.
-        unsafe { self.0.as_ref() }.flags & sys::AV_PKT_FLAG_DISCARD != 0
+        self.raw().flags & sys::AV_PKT_FLAG_DISCARD != 0
     }
 
     pub fn set_pts(&mut self, pts: Option<i64>) {
-        // SAFETY: `self` owns a live packet.
-        unsafe { self.0.as_mut() }.pts = pts.unwrap_or(sys::AV_NOPTS_VALUE);
+        self.raw_mut().pts = pts.unwrap_or(sys::AV_NOPTS_VALUE);
     }
 
     pub fn set_dts(&mut self, dts: Option<i64>) {
-        // SAFETY: `self` owns a live packet.
-        unsafe { self.0.as_mut() }.dts = dts.unwrap_or(sys::AV_NOPTS_VALUE);
+        self.raw_mut().dts = dts.unwrap_or(sys::AV_NOPTS_VALUE);
     }
 
     pub fn duration(&self) -> i64 {
-        // SAFETY: `self` owns a live packet.
-        unsafe { self.0.as_ref() }.duration
+        self.raw().duration
     }
 
     pub fn set_duration(&mut self, duration: i64) {
-        // SAFETY: `self` owns a live packet.
-        unsafe { self.0.as_mut() }.duration = duration;
+        self.raw_mut().duration = duration;
     }
 
     pub fn size(&self) -> usize {
-        // SAFETY: `self` owns a live packet.
-        usize::try_from(unsafe { self.0.as_ref() }.size).unwrap_or(0)
+        usize::try_from(self.raw().size).unwrap_or(0)
     }
 
     pub fn mark_discard(&mut self) {
-        // SAFETY: `self` owns a live packet.
-        unsafe { self.0.as_mut() }.flags |= sys::AV_PKT_FLAG_DISCARD;
+        self.raw_mut().flags |= sys::AV_PKT_FLAG_DISCARD;
     }
 
     pub fn skip_samples(&self) -> Result<Option<SkipSamples>> {
@@ -203,8 +197,7 @@ impl Packet {
     }
 
     pub(crate) fn lacks_payload_and_side_data(&self) -> bool {
-        // SAFETY: `self` owns a live packet.
-        let packet = unsafe { self.0.as_ref() };
+        let packet = self.raw();
         packet.size == 0 && packet.side_data_elems == 0
     }
 

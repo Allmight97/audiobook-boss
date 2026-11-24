@@ -1,4 +1,5 @@
 use std::ffi::c_int;
+use std::ptr::NonNull;
 use std::slice;
 
 use ffmpeg_sys_next as sys;
@@ -126,32 +127,109 @@ impl Chapter {
     }
 }
 
-/// # Safety
-/// `ctx` is a live format context that nobody changes while the slice lives.
-pub(crate) unsafe fn streams<'a>(ctx: *const sys::AVFormatContext) -> &'a [*mut sys::AVStream] {
-    // SAFETY: the caller guarantees `ctx`; FFmpeg keeps `nb_streams` entries.
-    unsafe {
-        if (*ctx).streams.is_null() {
+pub(crate) struct FormatContext(NonNull<sys::AVFormatContext>);
+
+impl FormatContext {
+    pub(crate) fn new(ctx: NonNull<sys::AVFormatContext>) -> Self {
+        Self(ctx)
+    }
+
+    pub(crate) fn as_ptr(&self) -> *mut sys::AVFormatContext {
+        self.0.as_ptr()
+    }
+
+    pub(crate) fn raw(&self) -> &sys::AVFormatContext {
+        // SAFETY: `self` owns a live format context.
+        unsafe { self.0.as_ref() }
+    }
+
+    pub(crate) fn raw_mut(&mut self) -> &mut sys::AVFormatContext {
+        // SAFETY: `self` owns a live format context.
+        unsafe { self.0.as_mut() }
+    }
+
+    pub(crate) fn streams(&self) -> &[*mut sys::AVStream] {
+        let raw = self.raw();
+        if raw.streams.is_null() {
             return &[];
         }
-        slice::from_raw_parts((*ctx).streams, (*ctx).nb_streams as usize)
+        // SAFETY: FFmpeg keeps `nb_streams` stream pointers in `streams`.
+        unsafe { slice::from_raw_parts(raw.streams, raw.nb_streams as usize) }
     }
-}
 
-/// # Safety
-/// `ctx` is a live format context.
-pub(crate) unsafe fn stream(
-    ctx: *const sys::AVFormatContext,
-    index: usize,
-    step: Step,
-) -> Result<*mut sys::AVStream> {
-    // SAFETY: the caller guarantees `ctx`.
-    let streams = unsafe { streams(ctx) };
-    streams
-        .get(index)
-        .copied()
-        .filter(|stream| !stream.is_null())
-        .ok_or(Error::MissingStream { step, index })
+    pub(crate) fn stream(&self, index: usize, step: Step) -> Result<&sys::AVStream> {
+        let stream = self
+            .streams()
+            .get(index)
+            .copied()
+            .filter(|stream| !stream.is_null())
+            .ok_or(Error::MissingStream { step, index })?;
+        // SAFETY: each non-null stream pointer stays valid while `self` is borrowed.
+        Ok(unsafe { &*stream })
+    }
+
+    pub(crate) fn stream_mut(&mut self, index: usize, step: Step) -> Result<&mut sys::AVStream> {
+        let stream = self
+            .streams()
+            .get(index)
+            .copied()
+            .filter(|stream| !stream.is_null())
+            .ok_or(Error::MissingStream { step, index })?;
+        // SAFETY: `&mut self` grants exclusive access to the context and its streams.
+        Ok(unsafe { &mut *stream })
+    }
+
+    pub(crate) fn stream_facts(&self) -> Vec<StreamFacts> {
+        self.streams()
+            .iter()
+            .enumerate()
+            .map(|(index, &stream)| {
+                // SAFETY: each stream and its `codecpar` stay valid for the context's life.
+                unsafe {
+                    let parameters = &*(*stream).codecpar;
+                    StreamFacts {
+                        index,
+                        medium: medium(parameters.codec_type),
+                        time_base: Rational::from_sys((*stream).time_base),
+                        disposition: Disposition((*stream).disposition),
+                        codec: CodecId::read(&parameters.codec_id),
+                        profile: parameters.profile,
+                        sample_rate: parameters.sample_rate,
+                        channels: u16::try_from(parameters.ch_layout.nb_channels).unwrap_or(0),
+                        bit_rate: parameters.bit_rate,
+                        duration: Some((*stream).duration)
+                            .filter(|duration| *duration != sys::AV_NOPTS_VALUE),
+                        start_time: Some((*stream).start_time)
+                            .filter(|start| *start != sys::AV_NOPTS_VALUE),
+                        initial_padding: parameters.initial_padding,
+                        width: parameters.width,
+                        height: parameters.height,
+                        tags: Tags::read((*stream).metadata.as_ref()),
+                    }
+                }
+            })
+            .collect()
+    }
+
+    pub(crate) fn chapters(&self) -> Vec<Chapter> {
+        let raw = self.raw();
+        if raw.chapters.is_null() {
+            return Vec::new();
+        }
+        // SAFETY: FFmpeg keeps `nb_chapters` live chapter pointers.
+        unsafe {
+            slice::from_raw_parts(raw.chapters, raw.nb_chapters as usize)
+                .iter()
+                .map(|&chapter| Chapter {
+                    id: (*chapter).id,
+                    time_base: Rational::from_sys((*chapter).time_base),
+                    start: (*chapter).start,
+                    end: (*chapter).end,
+                    tags: Tags::read((*chapter).metadata.as_ref()),
+                })
+                .collect()
+        }
+    }
 }
 
 fn medium(kind: sys::AVMediaType) -> Medium {
@@ -161,62 +239,5 @@ fn medium(kind: sys::AVMediaType) -> Medium {
         sys::AVMediaType::AVMEDIA_TYPE_DATA => Medium::Data,
         sys::AVMediaType::AVMEDIA_TYPE_ATTACHMENT => Medium::Attachment,
         _ => Medium::Other,
-    }
-}
-
-/// # Safety
-/// `ctx` is a live format context.
-pub(crate) unsafe fn stream_facts(ctx: *const sys::AVFormatContext) -> Vec<StreamFacts> {
-    // SAFETY: the caller guarantees `ctx`; each stream and its `codecpar`
-    // stay valid for the context's life.
-    unsafe {
-        streams(ctx)
-            .iter()
-            .enumerate()
-            .map(|(index, &stream)| {
-                let parameters = (*stream).codecpar;
-                StreamFacts {
-                    index,
-                    medium: medium((*parameters).codec_type),
-                    time_base: Rational::from_sys((*stream).time_base),
-                    disposition: Disposition((*stream).disposition),
-                    codec: CodecId::read(std::ptr::addr_of!((*parameters).codec_id)),
-                    profile: (*parameters).profile,
-                    sample_rate: (*parameters).sample_rate,
-                    channels: u16::try_from((*parameters).ch_layout.nb_channels).unwrap_or(0),
-                    bit_rate: (*parameters).bit_rate,
-                    duration: Some((*stream).duration)
-                        .filter(|duration| *duration != sys::AV_NOPTS_VALUE),
-                    start_time: Some((*stream).start_time)
-                        .filter(|start| *start != sys::AV_NOPTS_VALUE),
-                    initial_padding: (*parameters).initial_padding,
-                    width: (*parameters).width,
-                    height: (*parameters).height,
-                    tags: Tags::read((*stream).metadata),
-                }
-            })
-            .collect()
-    }
-}
-
-/// # Safety
-/// `ctx` is a live format context.
-pub(crate) unsafe fn chapters(ctx: *const sys::AVFormatContext) -> Vec<Chapter> {
-    // SAFETY: the caller guarantees `ctx`; FFmpeg keeps `nb_chapters` live
-    // chapter pointers.
-    unsafe {
-        if (*ctx).chapters.is_null() {
-            return Vec::new();
-        }
-        slice::from_raw_parts((*ctx).chapters, (*ctx).nb_chapters as usize)
-            .iter()
-            .map(|&chapter| Chapter {
-                id: (*chapter).id,
-                time_base: Rational::from_sys((*chapter).time_base),
-                start: (*chapter).start,
-                end: (*chapter).end,
-                tags: Tags::read((*chapter).metadata),
-            })
-            .collect()
     }
 }

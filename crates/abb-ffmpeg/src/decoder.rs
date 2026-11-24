@@ -5,19 +5,16 @@ use ffmpeg_sys_next as sys;
 
 use crate::audio::{AudioFrame, ChannelLayout, SampleFormat};
 use crate::codec::{progress, CodecContext, CodecId, Progress};
-use crate::context::{self, Rational};
+use crate::context::Rational;
 use crate::error::{Error, Result, Step};
 use crate::input::Input;
 use crate::packet::Packet;
 
 pub fn has_decoder(codec: CodecId) -> bool {
     let mut id = sys::AVCodecID::AV_CODEC_ID_NONE;
-    // SAFETY: `id` is a local codec-id field; the lookup returns a static
-    // codec or null.
-    unsafe {
-        codec.write(&mut id);
-        !sys::avcodec_find_decoder(id).is_null()
-    }
+    codec.write(&mut id);
+    // SAFETY: the lookup returns a static codec or null for any codec id this build names.
+    !unsafe { sys::avcodec_find_decoder(id) }.is_null()
 }
 
 pub fn has_decoder_named(name: &str) -> bool {
@@ -33,21 +30,19 @@ pub struct AudioDecoder(CodecContext);
 impl AudioDecoder {
     pub fn open(input: &Input, stream_index: usize, named: Option<&str>) -> Result<Self> {
         let step = Step::OpenDecoder;
-        // SAFETY: `input` owns a live context.
-        let stream = unsafe { context::stream(input.as_ptr(), stream_index, step)? };
+        let stream = input.context().stream(stream_index, step)?;
         let ctx = CodecContext::allocate(step)?;
-        // SAFETY: `ctx` is a fresh context; the stream and its `codecpar`
-        // live as long as `input`, which this call borrows.
+        // SAFETY: `ctx` is a fresh context; `stream.codecpar` lives as long as `input`.
         let codec = unsafe {
-            let code = sys::avcodec_parameters_to_context(ctx.as_ptr(), (*stream).codecpar);
+            let code = sys::avcodec_parameters_to_context(ctx.as_ptr(), stream.codecpar);
             Error::check(step, code)?;
-            (*ctx.as_ptr()).pkt_timebase = (*stream).time_base;
+            (*ctx.as_ptr()).pkt_timebase = stream.time_base;
             match named {
                 Some(name) => {
                     let name = CString::new(name).map_err(|_| Error::NulInText { step })?;
                     sys::avcodec_find_decoder_by_name(name.as_ptr())
                 }
-                None => sys::avcodec_find_decoder((*ctx.as_ptr()).codec_id),
+                None => sys::avcodec_find_decoder(ctx.raw().codec_id),
             }
         };
         if codec.is_null() {
@@ -56,8 +51,7 @@ impl AudioDecoder {
         // SAFETY: `ctx` is an unopened context and `codec` a registered decoder.
         let code = unsafe { sys::avcodec_open2(ctx.as_ptr(), codec, ptr::null_mut()) };
         Error::check(step, code)?;
-        // SAFETY: `ctx` is live; the media type is one plain field.
-        if unsafe { (*ctx.as_ptr()).codec_type } != sys::AVMediaType::AVMEDIA_TYPE_AUDIO {
+        if ctx.raw().codec_type != sys::AVMediaType::AVMEDIA_TYPE_AUDIO {
             return Err(Error::NotAudio { step });
         }
         Ok(Self(ctx))
@@ -105,15 +99,12 @@ impl AudioDecoder {
         self.0.bit_rate()
     }
 
-    pub(crate) fn layout_ptr(&self) -> *const sys::AVChannelLayout {
-        // SAFETY: `self` owns a live context; the address of its layout
-        // field is valid while `self` lives.
-        unsafe { ptr::addr_of!((*self.0.as_ptr()).ch_layout) }
+    pub(crate) fn layout_ref(&self) -> &sys::AVChannelLayout {
+        &self.0.raw().ch_layout
     }
 
     pub fn packet_time_base(&self) -> Rational {
-        // SAFETY: `self` owns a live context.
-        Rational::from_sys(unsafe { (*self.0.as_ptr()).pkt_timebase })
+        Rational::from_sys(self.0.raw().pkt_timebase)
     }
 
     pub fn send_packet(&mut self, packet: &Packet) -> Result<()> {
