@@ -98,6 +98,7 @@ describe('tools folder', () => {
 const setupSh = readFileSync(path.join(repoRoot, 'scripts/setup.sh'), 'utf8');
 const pinnedFfmpegRelease = /^ffmpeg_cli_release=(\S+)$/m.exec(setupSh)?.[1];
 const pinnedFfmpegBuild = /^ffmpeg_cli_build=(\S+)$/m.exec(setupSh)?.[1];
+const pinnedFfmpegBranch = /^ffmpeg_cli_branch=(\S+)$/m.exec(setupSh)?.[1];
 
 function fakeCli(bin: string, name: string, version: string) {
 	mkdirSync(bin, { recursive: true });
@@ -131,26 +132,37 @@ function readbackCli(version: string) {
 }
 
 describe('FFmpeg readback CLI', () => {
-	it('names the BtbN autobuild of the bundled FFmpeg commit', () => {
-		const revision = readFileSync(
-			path.join(repoRoot, 'vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision'),
-			'utf8',
-		).trim();
-		const short = pinnedFfmpegBuild?.match(/g([0-9a-f]+)$/)?.[1];
-		expect(short && revision.startsWith(short)).toBe(true);
-		expect(pinnedFfmpegRelease).toMatch(/^autobuild-/);
+	it('pins a month-end FFmpeg-Builds release (2-year retention) on major 9', () => {
+		const match = /^autobuild-(\d{4})-(\d{2})-(\d{2})-\d{2}-\d{2}$/.exec(pinnedFfmpegRelease ?? '');
+		expect(match, `expected autobuild-YYYY-MM-DD-HH-MM, got ${pinnedFfmpegRelease}`).not.toBeNull();
+		const [, year, month, day] = match as RegExpExecArray;
+		const monthNumber = Number(month);
+		const dayNumber = Number(day);
+		expect(monthNumber).toBeGreaterThanOrEqual(1);
+		expect(monthNumber).toBeLessThanOrEqual(12);
+		expect(dayNumber).toBeGreaterThanOrEqual(28);
+		expect(dayNumber).toBeLessThanOrEqual(31);
+		const nextDay = new Date(Date.UTC(Number(year), monthNumber - 1, dayNumber + 1));
+		expect(
+			nextDay.getUTCDate(),
+			`daily FFmpeg-Builds releases expire after 14 days; ${pinnedFfmpegRelease} is not the last day of its month`,
+		).toBe(1);
+		expect(pinnedFfmpegBranch).toMatch(/^9\.\d+$/);
+		expect(pinnedFfmpegBuild).toMatch(
+			new RegExp(`^n${pinnedFfmpegBranch?.replace('.', '\\.')}[.-]`),
+		);
 	});
 
 	it('installs the pinned build when the tools folder has a different FFmpeg 9', () => {
-		const result = readbackCli('n9.0.2-39-g7adfbe40dc-20261031');
+		const result = readbackCli('n9.0.1-1-g0000000000-20261001');
 		expect(result.status, result.stderr).toBe(42);
 		expect(result.stdout).toContain(
-			`DOWNLOAD https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/${pinnedFfmpegRelease} ffmpeg-${pinnedFfmpegBuild}-linux64-gpl.tar.xz`,
+			`DOWNLOAD https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/${pinnedFfmpegRelease} ffmpeg-${pinnedFfmpegBuild}-linux64-gpl-${pinnedFfmpegBranch}.tar.xz`,
 		);
 	});
 
 	it('keeps the tools-folder CLI when its version is the pinned build', () => {
-		const result = readbackCli(`${pinnedFfmpegBuild}-20261109`);
+		const result = readbackCli(`${pinnedFfmpegBuild}-20261031`);
 		expect(result.status, result.stderr).toBe(0);
 		expect(result.stdout).not.toContain('DOWNLOAD');
 		expect(result.stdout).toContain(`Using FFmpeg readback CLI ${pinnedFfmpegBuild}`);

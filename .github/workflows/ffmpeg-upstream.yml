@@ -1,8 +1,8 @@
-name: ffmpeg upstream
+name: ffmpeg release check
 
 on:
   schedule:
-    - cron: "0 14 */2 * *"
+    - cron: "0 14 * * 1"
   workflow_dispatch:
 
 permissions: {}
@@ -12,8 +12,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  watch:
-    name: Keep the FFmpeg upstream issue current
+  release-check:
+    name: Check whether an FFmpeg release contains the pin
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -24,6 +24,6 @@ jobs:
         with:
           persist-credentials: false
       - run: bash scripts/setup.sh frontend
-      - run: bun run ffmpeg:upstream --issue
+      - run: bun run ffmpeg:upstream --release-check 669
         env:
           GH_TOKEN: ${{ github.token }}

@@ -83,7 +83,7 @@
 | `package.json` | `nanoid (override)` | pin: security floor for PostCSS's transitive dependency; unpin when PostCSS requires `^3.3.20` or newer |
 | `package.json` | `undici (override)` | pin: security floor for jsdom's transitive dependency; unpin when jsdom requires this version or newer |
 | `.node-version` | `node` | pin: CI and a fresh setup install this exact build; setup keeps any Node of this major or newer; unpin when the owner moves to a newer Node |
-| `scripts/setup.sh` | Linux FFmpeg CLI (`ffmpeg_cli_release`, `ffmpeg_cli_build`) | pin: `setup.sh rust` installs the BtbN master autobuild of the commit in `ffmpeg-revision`; `--check` and `--print-env` also accept a major-9 CLI; unpin when the owner moves that commit |
+| `scripts/setup.sh` | Linux FFmpeg CLI (`ffmpeg_cli_release`, `ffmpeg_cli_build`, `ffmpeg_cli_branch`) | pin: `setup.sh rust` installs a month-end FFmpeg-Builds major-9 CLI (retained 2 years; daily builds expire after 14 days), independent of `ffmpeg-revision`; `--check` and `--print-env` accept any major-9 CLI; unpin when moving the readback CLI to a newer month-end major-9 build |
 | `scripts/setup.sh` | `uv` (`uv_version`) | pin: setup downloads this release, checked against its published checksum, only when no `uvx` is on PATH and keeps any `uvx` it finds (`uvx` only runs the workflow and complexity linters); unpin when the owner moves the Python tools to a newer uv |
 | `scripts/setup.sh` | `cargo-deny` (`cargo_deny_version`) | pin: advisory, license, ban, and source verdicts stay the same between runs, and each download is checked against a pinned checksum; unpin when the owner bumps the tool |
 | `scripts/check-workflows.sh` | `zizmor` | pin: workflow findings stay the same between runs; unpin when the owner bumps zizmor |
@@ -114,9 +114,9 @@
 ## Outside facts
 
 - `setup.sh`: Homebrew's FFmpeg prints `-version` on stderr, and Homebrew may
-  leave it unlinked from `bin/`, so setup reads the formula prefix. BtbN
-  appends `-YYYYMMDD` to the describe id, and a master autobuild's version
-  token is `N-<count>-g<sha>`.
+  leave it unlinked from `bin/`, so setup reads the formula prefix.
+  FFmpeg-Builds appends `-YYYYMMDD` to the describe id in `ffmpeg_cli_build`,
+  keeps daily releases for 14 days, and keeps month-end releases for 2 years.
 - `setup.sh` parses with awk, because BSD sed reads `\?` literally.
 - `setup.sh` fetches Bun from GitHub releases, because some agent network
   policies deny bun.sh. A minimal Ubuntu image lacks curl, xz, and unzip, so
@@ -135,8 +135,8 @@
 - `dev-tauri-log.sh`: a later process substitution makes the tee's pid
   unwaitable in bash, so the drain signal is liveness plus the exit-status
   sidecar; a tee that died on a write error must not pass as drained.
-- `ffmpeg-upstream.ts --issue` uses `gh api` REST only, because cloud
-  sessions block GraphQL.
+- `ffmpeg-upstream.ts --release-check` and `--pin` use `gh api` REST only,
+  because cloud sessions block GraphQL.
 - `lane-paths.test.ts` uses dorny/paths-filter's matcher options, so a pass
   there means CI selects the lane.
 - `ci-timing.ts`: a `closed` run is a pull request's closed event.

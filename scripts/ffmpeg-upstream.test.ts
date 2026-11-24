@@ -5,22 +5,20 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
 	compareUsedFiles,
-	decideIssueAction,
 	dependencyPaths,
+	findContainingRelease,
 	type Gh,
-	ISSUE_TITLE,
-	issueBody,
-	masterAutobuilds,
 	movePin,
-	newestNmrRelease,
 	parseCommits,
+	parseReleaseTags,
 	parseUsedFiles,
+	releaseBranchForTag,
+	releaseCheckComment,
 	renderReport,
 	renderUsedFiles,
 	type Report,
-	syncIssue,
+	syncReleaseCheck,
 	watchedPaths,
-	withCliPins,
 	withNoticeCommit,
 } from './ffmpeg-upstream';
 
@@ -121,6 +119,7 @@ describe('the watched paths', () => {
 		expect(watchedPaths(['libavformat/movenc.c'], '')).toEqual([':(literal)libavformat/movenc.c']);
 	});
 });
+
 describe('commits', () => {
 	it('splits tab-separated log lines and keeps tabs in a subject', () => {
 		expect(
@@ -138,7 +137,6 @@ describe('the report', () => {
 		pin: '49a3b1f259e1c34033bf6cca4091a4cb07ebf90d',
 		head: '1111111111111111111111111111111111111111',
 		commits: [],
-		nmrRelease: null,
 	};
 
 	it('says so when nothing relevant changed', () => {
@@ -152,169 +150,139 @@ describe('the report', () => {
 		});
 		expect(text).toContain('| `abcdef0123` | 2026-11-10 | aac \\| fix |');
 		expect(text).not.toContain('no relevant upstream changes');
-		expect(text).not.toContain('BtbN');
 	});
 });
 
-describe('the first release with the NMR coder', () => {
-	const tags = (...names: string[]) =>
-		names.map((name, index) => `${index}${'0'.repeat(39)}\trefs/tags/${name}`).join('\n');
+describe('the weekly release-tag check', () => {
+	const pin = '05c674c9132eb13e65e3fb6e9b4cf1cad1219fd5';
+	const refs = (...tags: string[]) => tags.map((tag) => `refs/tags/${tag}`).join('\n');
 
-	it('is none while only releases before 9.1 and dev tags exist', () => {
-		expect(newestNmrRelease(tags('n8.1.3', 'n9.0', 'n9.0.2', 'n9.1-dev', 'n9.2-dev'))).toBeNull();
+	it('sorts formal release tags at or above major 9 newest-first and ignores dev tags', () => {
+		expect(
+			parseReleaseTags(
+				refs(
+					'n8.1.3',
+					'n9.0',
+					'n9.0.2',
+					'n9.1',
+					'n9.1-dev',
+					'n9.2-dev',
+					'n9.2',
+					'n9.2.10',
+					'n10.0',
+				),
+			),
+		).toEqual(['n10.0', 'n9.2.10', 'n9.2', 'n9.1', 'n9.0.2', 'n9.0']);
 	});
 
-	it('is the newest release at or after 9.1, point releases and later majors included', () => {
-		expect(newestNmrRelease(tags('n9.0.2', 'n9.1', 'n9.1-dev'))).toBe('n9.1');
-		expect(newestNmrRelease(tags('n9.1', 'n9.1.2', 'n9.1.10', 'n9.1^{}'))).toBe('n9.1.10');
-		expect(newestNmrRelease(tags('n9.1.2', 'n10.0'))).toBe('n10.0');
-	});
-});
-
-describe('the issue', () => {
-	const checkedAt = new Date('2026-11-11T17:37:45Z');
-	const commit = { hash: 'abcdef0123456789', date: '2026-11-10', subject: 'aac: fix' };
-	const report: Report = {
-		pin: '49a3b1f259e1c34033bf6cca4091a4cb07ebf90d',
-		head: '1111111111111111111111111111111111111111',
-		commits: [commit],
-		nmrRelease: null,
-	};
-	const open = (body: string) => ({ number: 634, title: ISSUE_TITLE, body });
-
-	it('opens with the check time and pin, then the next action, then the report', () => {
-		const lines = issueBody(report, checkedAt).split('\n');
-		expect(lines[0]).toBe('Checked 2026-11-11 17:37 UTC against pin 49a3b1f259.');
-		expect(lines[2]).toMatch(/^Next action: decide whether to move the pin/);
-		expect(lines[4]).toBe('# FFmpeg upstream watch');
+	it('maps release tags to their upstream release branch', () => {
+		expect(releaseBranchForTag('n9.2')).toBe('release/9.2');
+		expect(releaseBranchForTag('n9.2.1')).toBe('release/9.2');
+		expect(() => releaseBranchForTag('n9.2-dev')).toThrow("Not an FFmpeg release tag: 'n9.2-dev'");
 	});
 
-	it('creates the issue when commits exist and none is open', () => {
-		expect(decideIssueAction(report, undefined, checkedAt)).toEqual({
-			kind: 'create',
-			body: issueBody(report, checkedAt),
+	function fakeReleaseGh(options: {
+		issueState?: string;
+		tags: string[];
+		compareStatus: Record<string, string>;
+		comments?: string[];
+	}) {
+		const calls: { args: string[]; input?: string }[] = [];
+		const gh: Gh = (args, input) => {
+			calls.push({ args, input });
+			if (args.includes('POST')) return '{}';
+			const endpoint = args.find((arg) => arg.startsWith('repos/')) ?? '';
+			if (endpoint === 'repos/o/r/issues/669') return options.issueState ?? 'open';
+			if (endpoint === 'repos/FFmpeg/FFmpeg/git/matching-refs/tags/n') {
+				return refs(...options.tags);
+			}
+			const compareMatch = /repos\/FFmpeg\/FFmpeg\/compare\/[^.]+\.\.\.([^?]+)/.exec(endpoint);
+			if (compareMatch) {
+				return options.compareStatus[compareMatch[1]] ?? 'diverged';
+			}
+			if (endpoint.startsWith('repos/o/r/issues/669/comments')) {
+				return (options.comments ?? []).map((body) => JSON.stringify({ body })).join('\n');
+			}
+			throw new Error(`Unexpected gh call: ${args.join(' ')}`);
+		};
+		return { gh, calls };
+	}
+
+	it('returns null when every release tag is diverged or behind the pin', () => {
+		const { gh } = fakeReleaseGh({
+			tags: ['n9.0', 'n9.1', 'n9.2-dev'],
+			compareStatus: { 'n9.0': 'behind', 'n9.1': 'diverged' },
 		});
+		expect(findContainingRelease(pin, gh)).toBeNull();
 	});
 
-	it('leaves the issue alone when the pin and commits match, even if the head moved', () => {
-		const older = issueBody(
-			{ ...report, head: '2222222222222222222222222222222222222222' },
-			new Date('2026-11-09T00:00:00Z'),
+	it('returns the newest release tag whose compare status is ahead or identical', () => {
+		const { gh } = fakeReleaseGh({
+			tags: ['n9.1', 'n9.2', 'n9.2.1'],
+			compareStatus: { 'n9.1': 'diverged', 'n9.2': 'identical', 'n9.2.1': 'ahead' },
+		});
+		expect(findContainingRelease(pin, gh)).toBe('n9.2.1');
+	});
+
+	it('stays silent when no release tag contains the pin', () => {
+		const { gh, calls } = fakeReleaseGh({
+			tags: ['n9.1', 'n9.2-dev'],
+			compareStatus: { 'n9.1': 'diverged' },
+		});
+		expect(syncReleaseCheck(pin, 669, gh, 'o/r')).toBe(
+			`no FFmpeg release tag contains pin ${pin.slice(0, 10)}`,
 		);
-		expect(decideIssueAction(report, open(older), checkedAt)).toEqual({
-			kind: 'unchanged',
-			number: 634,
+		expect(calls.some((call) => call.args.includes('POST'))).toBe(false);
+	});
+
+	it('posts one comment on the tracking issue once a release tag contains the pin', () => {
+		const { gh, calls } = fakeReleaseGh({
+			tags: ['n9.1', 'n9.2'],
+			compareStatus: { 'n9.1': 'diverged', 'n9.2': 'ahead' },
 		});
-	});
-
-	it('updates the issue when a commit is added or the pin moves', () => {
-		const older = issueBody(report, checkedAt);
-		const more = { ...report, commits: [{ ...commit, hash: 'fff0001112223334' }, commit] };
-		expect(decideIssueAction(more, open(older), checkedAt).kind).toBe('update');
-		const moved = { ...report, pin: '9bee1e603c000000000000000000000000000000' };
-		expect(decideIssueAction(moved, open(older), checkedAt).kind).toBe('update');
-	});
-
-	it('closes an open issue when no commits remain, and does nothing when none is open', () => {
-		const clean = { ...report, commits: [] };
-		expect(decideIssueAction(clean, open('x'), checkedAt)).toEqual({ kind: 'close', number: 634 });
-		expect(decideIssueAction(clean, undefined, checkedAt)).toEqual({ kind: 'none' });
-	});
-
-	it('opens the issue once a release with the NMR coder exists, naming both changes the switch needs', () => {
-		const released = { ...report, commits: [], nmrRelease: 'n9.1' };
-		const action = decideIssueAction(released, undefined, checkedAt);
-		expect(action.kind).toBe('create');
-		const body = issueBody(released, checkedAt);
-		expect(body).toContain('Next action: FFmpeg n9.1 is released');
-		expect(body).toContain('BtbN build of n9.1');
-		expect(body).toContain('`release/9.1`');
-		expect(decideIssueAction(released, open(issueBody(report, checkedAt)), checkedAt).kind).toBe(
-			'update',
+		expect(syncReleaseCheck(pin, 669, gh, 'o/r')).toBe(
+			'commented on issue #669 for n9.2 (release/9.2)',
 		);
-		expect(decideIssueAction(released, open(body), checkedAt).kind).toBe('unchanged');
+		const post = calls.find((call) => call.args.includes('POST'));
+		expect(post?.args).toEqual([
+			'api',
+			'--method',
+			'POST',
+			'repos/o/r/issues/669/comments',
+			'--input',
+			'-',
+		]);
+		expect(JSON.parse(post?.input ?? '')).toEqual({
+			body: releaseCheckComment('n9.2', pin),
+		});
 	});
 
-	describe('through gh', () => {
-		function fakeGh(listing: string) {
-			const calls: { args: string[]; input?: string }[] = [];
-			const gh: Gh = (args, input) => {
-				calls.push({ args, input });
-				if (args.includes('POST')) return '{"number":700}';
-				return args.includes('--paginate') ? listing : '';
-			};
-			return { gh, calls };
-		}
-		const listing = (title: string, body: string) =>
-			`${JSON.stringify({ number: 5, title: 'other', body: '' })}\n${JSON.stringify({ number: 634, title, body })}\n`;
-
-		it('creates through REST when no open issue has the title', () => {
-			const { gh, calls } = fakeGh(listing('another title', ''));
-			expect(syncIssue(report, gh, 'o/r', checkedAt)).toBe('created issue #700');
-			expect(calls[1].args).toEqual([
-				'api',
-				'--method',
-				'POST',
-				'repos/o/r/issues',
-				'--input',
-				'-',
-			]);
-			expect(JSON.parse(calls[1].input ?? '')).toEqual({
-				title: ISSUE_TITLE,
-				body: issueBody(report, checkedAt),
-			});
+	it('skips commenting when the tracking issue already notes that release branch', () => {
+		const { gh, calls } = fakeReleaseGh({
+			tags: ['n9.2', 'n9.2.1'],
+			compareStatus: { 'n9.2': 'ahead', 'n9.2.1': 'ahead' },
+			comments: [releaseCheckComment('n9.2', pin)],
 		});
+		expect(syncReleaseCheck(pin, 669, gh, 'o/r')).toBe('issue #669 already notes release/9.2');
+		expect(calls.some((call) => call.args.includes('POST'))).toBe(false);
+	});
 
-		it('patches the body of the issue with the title when the commits differ', () => {
-			const { gh, calls } = fakeGh(listing(ISSUE_TITLE, 'Checked x UTC against pin 1.'));
-			expect(syncIssue(report, gh, 'o/r', checkedAt)).toBe('updated issue #634');
-			expect(calls[1].args.slice(0, 4)).toEqual([
-				'api',
-				'--method',
-				'PATCH',
-				'repos/o/r/issues/634',
-			]);
+	it('skips the check when the tracking issue is already closed', () => {
+		const { gh, calls } = fakeReleaseGh({
+			issueState: 'closed',
+			tags: ['n9.2'],
+			compareStatus: { 'n9.2': 'ahead' },
 		});
-
-		it('writes nothing when the issue is current', () => {
-			const { gh, calls } = fakeGh(listing(ISSUE_TITLE, issueBody(report, checkedAt)));
-			expect(syncIssue(report, gh, 'o/r', checkedAt)).toBe(
-				'issue #634 already lists these commits',
-			);
-			expect(calls).toHaveLength(1);
-		});
-
-		it('closes as completed when no commits remain', () => {
-			const { gh, calls } = fakeGh(listing(ISSUE_TITLE, 'x'));
-			syncIssue({ ...report, commits: [] }, gh, 'o/r', checkedAt);
-			expect(JSON.parse(calls[1].input ?? '')).toEqual({
-				state: 'closed',
-				state_reason: 'completed',
-			});
-		});
+		expect(syncReleaseCheck(pin, 669, gh, 'o/r')).toBe(
+			'issue #669 is closed; skipping release check',
+		);
+		expect(calls).toHaveLength(1);
 	});
 });
 
 describe('moving the pin', () => {
 	const repoRoot = path.resolve(import.meta.dirname, '..');
-	const setupSh = readFileSync(path.join(repoRoot, 'scripts/setup.sh'), 'utf8');
 	const revision = '49a3b1f259aa00bb11cc22dd33ee44ff55667788';
-	const releases = [
-		{ tag_name: 'latest', assets: ['checksums.sha256', 'ffmpeg-master-latest-linux64-gpl.tar.xz'] },
-		{
-			tag_name: 'autobuild-2026-11-10-12-39',
-			assets: [
-				'checksums.sha256',
-				'ffmpeg-N-128728-g49a3b1f259-linux64-gpl.tar.xz',
-				'ffmpeg-N-128728-g49a3b1f259-linuxarm64-gpl.tar.xz',
-				'ffmpeg-n8.0-12-gabcdef0123-linux64-gpl.tar.xz',
-			],
-		},
-		{
-			tag_name: 'autobuild-2026-11-09-12-42',
-			assets: ['checksums.sha256', 'ffmpeg-N-128718-gb2b543c079-linux64-gpl.tar.xz'],
-		},
-	];
 	const scratch: string[] = [];
 	afterEach(() => {
 		for (const dir of scratch.splice(0)) rmSync(dir, { recursive: true, force: true });
@@ -333,52 +301,38 @@ describe('moving the pin', () => {
 		return root;
 	}
 	const read = (root: string, file: string) => readFileSync(path.join(root, file), 'utf8');
-	const gh: Gh = (args) =>
-		args.includes('--paginate')
-			? releases.map((release) => JSON.stringify(release)).join('\n')
-			: args[1].endsWith('/49a3b1f259')
-				? revision
-				: 'ffffffffff00000000000000000000000000000';
+	const gh: Gh = () => revision;
 
-	it('keeps master autobuilds with both Linux archives and their checksums', () => {
-		expect(masterAutobuilds(releases)).toEqual([
-			{ release: 'autobuild-2026-11-10-12-39', build: 'N-128728-g49a3b1f259' },
-		]);
-	});
-
-	it('rewrites only the two CLI pin lines in setup.sh', () => {
-		const current = {
-			release: /^ffmpeg_cli_release=(\S+)$/m.exec(setupSh)?.[1] ?? '',
-			build: /^ffmpeg_cli_build=(\S+)$/m.exec(setupSh)?.[1] ?? '',
-		};
-		expect(withCliPins(setupSh, current)).toBe(setupSh);
-		const moved = withCliPins(setupSh, { release: 'autobuild-x', build: 'N-1-gabc' });
-		expect(moved).toContain('\nffmpeg_cli_release=autobuild-x\nffmpeg_cli_build=N-1-gabc\n');
-		expect(moved.split('\n').length).toBe(setupSh.split('\n').length);
-	});
-
-	it('sets the revision and both CLI pins from one commit', () => {
+	it('updates ffmpeg-revision and ABB-PROVENANCE.md without touching setup.sh', () => {
 		const root = fakeRepo();
-		expect(movePin(root, '49a3b1f259', gh)).toContain('ffmpeg_cli_build=N-128728-g49a3b1f259');
+		const setupBefore = read(root, 'scripts/setup.sh');
+		expect(movePin(root, '49a3b1f259', gh)).toBe(`Pinned FFmpeg ${revision}`);
 		expect(read(root, 'vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision')).toBe(`${revision}\n`);
-		expect(read(root, 'scripts/setup.sh')).toContain(
-			'ffmpeg_cli_release=autobuild-2026-11-10-12-39\nffmpeg_cli_build=N-128728-g49a3b1f259\n',
-		);
 		expect(read(root, 'vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md')).toContain(
 			`built from FFmpeg commit \`${revision}\``,
 		);
+		expect(read(root, 'scripts/setup.sh')).toBe(setupBefore);
 	});
 
-	it('changes nothing and names the commits that have an autobuild when none matches', () => {
+	it('accepts an FFmpeg release tag such as n9.2', () => {
 		const root = fakeRepo();
-		expect(() => movePin(root, 'ffffffffff', gh)).toThrow(
-			'No FFmpeg-Builds master autobuild names ffffffffff. Commits that have one: 49a3b1f259.',
+		const seen: string[][] = [];
+		const tagGh: Gh = (args) => {
+			seen.push(args);
+			return revision;
+		};
+		expect(movePin(root, 'n9.2', tagGh)).toBe(`Pinned FFmpeg ${revision}`);
+		expect(seen[0]).toEqual(['api', 'repos/FFmpeg/FFmpeg/commits/n9.2', '--jq', '.sha']);
+	});
+
+	it('rejects a non-commit, non-release ref without changing files', () => {
+		const root = fakeRepo();
+		expect(() => movePin(root, 'master', gh)).toThrow(
+			"ffmpeg:pin needs an FFmpeg commit hash or release tag (nX.Y or nX.Y.Z), got 'master'.",
 		);
-		expect(read(root, 'scripts/setup.sh')).toBe(setupSh);
 		expect(read(root, 'vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision')).toBe(
 			read(repoRoot, 'vendor/ffmpeg-sys-next-9.0.1/ffmpeg-revision'),
 		);
-		expect(read(root, 'vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md')).toBe(provenance);
 	});
 
 	it('names the pinned commit in the notice the app bundle ships, since the bundle lacks ffmpeg-revision', () => {

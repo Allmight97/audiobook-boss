@@ -20,19 +20,17 @@ The upstream manifest declares WTFPL. 9.0.1 adds `-fno-builtin` to bindgen so
 the generated bindings do not declare libc runtime symbols, and it parses
 `libavutil/spherical.h`.
 
-`ffmpeg-revision` holds the FFmpeg commit ABB builds: a `master` commit.
-Although `n9.1` carries Native AAC's NMR coder, `release/9.1` branched before
-master fixes ABB relies on (including Apple AudioToolbox `aac_at` tail trimming)
-and BtbN publishes no `9.1` autobuild yet. The Rust build fetches
-that commit and checks the checkout. `scripts/setup.sh` names it again:
-`ffmpeg_cli_build` is the BtbN describe id, and its `g` suffix is that commit;
-`ffmpeg_cli_release` is the autobuild tag that publishes it.
-`bun run ffmpeg:pin <commit>` sets all three from one FFmpeg commit, plus
-the commit this file names, because the bundle ships this file and not
-`ffmpeg-revision`. `scripts/setup-pins.test.ts` fails when the suffix is
-not a prefix of the revision. On macOS the build links only AudioToolbox,
-CoreAudio, and CoreFoundation; upstream's list adds video, OpenGL, OpenCL,
-and QTKit frameworks that the audio-only build never calls.
+`ffmpeg-revision` holds the FFmpeg commit ABB builds: currently a `master`
+commit. `n9.1` carries Native AAC's NMR coder, but `release/9.1` branched
+before fixes in ABB's compiled paths across Native AAC (`aacenc`/`aaccoder_nmr`),
+M4B UTF-8 chapter titles (`movenc`), and macOS Apple AudioToolbox `aac_at` tail
+handling; GitHub issue #669 tracks those reasons and the release-branch exit
+trigger. The Rust build fetches that commit and checks the checkout.
+`bun run ffmpeg:pin <commit-or-tag>` updates `ffmpeg-revision` and the commit
+this file names, because the bundle ships this file and not `ffmpeg-revision`.
+On macOS the build links only AudioToolbox, CoreAudio, and CoreFoundation;
+upstream's list adds video, OpenGL, OpenCL, and QTKit frameworks that the
+audio-only build never calls.
 
 What ABB relies on in that source:
 
@@ -57,23 +55,18 @@ file the list lacks or the list names a file the pinned source no longer has;
 `bun run ffmpeg:used update` on the platform that differs fixes it.
 
 `bun run ffmpeg:upstream` lists the commits after the pin that touch a listed
-file, or the file a rename moved it to. Read it before choosing the new
-commit. Blind spot: `configure`, `ffbuild/` and the Makefiles are not watched;
-a change there that matters shows when the pin moves (steps 2 and 5).
-The scheduled workflow `.github/workflows/ffmpeg-upstream.yml` runs it with
-`--issue`: one open GitHub issue titled "FFmpeg upstream: changes since the
-pin" holds the list while any commit is relevant, and the run closes it when
-none is. Once FFmpeg tags a release at or after 9.1, the first with the NMR
-coder, the issue stays open and its next action is to pin that release: first
-`ffmpeg:pin` must accept a BtbN release build (it takes master autobuilds
-only), and the watch must compare the pin against that release branch, not
-master. The workflow runs at 14:00 UTC on odd days of the month, about every
-48 hours.
+file, or the file a rename moved it to. Read it before choosing a new commit.
+Blind spot: `configure`, `ffbuild/` and the Makefiles are not watched; a change
+there that matters shows when the pin moves (steps 2 and 5).
+The weekly workflow `.github/workflows/ffmpeg-upstream.yml` runs
+`bun run ffmpeg:upstream --release-check 669` and stays silent until an
+upstream FFmpeg release tag (`nX.Y` / `nX.Y.Z`) contains `ffmpeg-revision`,
+at which point it posts one comment on issue #669 so ABB can switch off
+`master` onto that release line.
 
 1. Before moving, export the parity input with the current build (step 4).
-   Then run `bun run ffmpeg:pin <commit>`, which refuses a commit with no
-   BtbN master autobuild and lists the ones that have one, and
-   `bash scripts/setup.sh rust` to fetch the source and that CLI.
+   Then run `bun run ffmpeg:pin <commit-or-tag>` and
+   `bash scripts/setup.sh rust` to fetch the new FFmpeg source.
 2. Build the engine with its `bundled-ffmpeg` feature
    (`bash scripts/verify.sh engine`). `crates/abb-ffmpeg` is the only code
    that uses these bindings: an FFmpeg function or field it calls that
@@ -85,10 +78,9 @@ master. The workflow runs at 14:00 UTC on odd days of the month, about every
 3. Recheck each item in the list above against the upstream diff, and update
    the FAAD3 trim table if `api-skip-samples` changed.
 4. Prove a Native AAC encode kept its decoded audio with `abb-dev parity`:
-   export with the old pin (step 1), move the pin, and export again. Only
-   then `parity record` the old output and `parity check` the new one without
-   `--bytes`, because on Linux the pin also moves the ffmpeg CLI that reads
-   both. Packet bytes can change while the decoded audio stays identical. A decoded difference needs the real-media
+   export with the old pin (step 1), move the pin, export again, then
+   `parity record` the old output and `parity check` the new one without
+   `--bytes`. Packet bytes can change while the decoded audio stays identical. A decoded difference needs the real-media
    probe in `crates/abb-engine/src/audio/AGENTS.md`.
 5. Run `bash scripts/verify.sh engine media`.
 
@@ -190,8 +182,9 @@ plus the QuickTime edit and sample timing tables.
 Retire the chapter patch only when the same nonzero-first-chapter regression
 passes against unpatched upstream. Advance the source, the calls in
 `crates/abb-ffmpeg`, and header/runtime verification together. Unbundled builds must satisfy the same
-source/patch contract. Linux fixture readback is the BtbN autobuild named by
-`ffmpeg_cli_release` and `ffmpeg_cli_build`, the same commit as
-`ffmpeg-revision`. macOS readback stays Homebrew's major-9 ffmpeg. `--check`
-and `--print-env` accept that pinned build or a major-9 CLI; they do not
-install.
+source/patch contract. Linux fixture readback is the month-end FFmpeg-Builds
+major-9 CLI pinned by `ffmpeg_cli_release`, `ffmpeg_cli_build`, and
+`ffmpeg_cli_branch` in `scripts/setup.sh`, independent of `ffmpeg-revision`
+(month-end builds stay hosted for 2 years; daily builds expire after 14 days).
+macOS readback stays Homebrew's major-9 ffmpeg. `--check` and `--print-env`
+accept that pinned build or a major-9 CLI; they do not install.

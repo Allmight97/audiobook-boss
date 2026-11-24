@@ -4,13 +4,8 @@ import path from 'node:path';
 
 const SYS_CRATE = 'vendor/ffmpeg-sys-next-9.0.1';
 const UPSTREAM_URL = 'https://github.com/FFmpeg/FFmpeg.git';
-export const ISSUE_TITLE = 'FFmpeg upstream: changes since the pin';
-const NEXT_ACTION =
-	'Next action: decide whether to move the pin (procedure: vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md, Moving the pin).';
-const FIRST_RELEASE_WITH_NMR = [9, 1];
 const CACHE_DIRECTORY = 'target/abb-ffmpeg-upstream';
-const SETUP_SH = 'scripts/setup.sh';
-const AUTOBUILD_RELEASES = 'repos/FFmpeg-Builds/FFmpeg-Builds/releases?per_page=100';
+const MIN_RELEASE_MAJOR = 9;
 
 const USED_FILES = `${SYS_CRATE}/ffmpeg-used-files.txt`;
 const RENAME_ROOTS = ['compat', 'libavcodec', 'libavformat', 'libavutil', 'libswresample'];
@@ -25,8 +20,9 @@ export interface Report {
 	pin: string;
 	head: string;
 	commits: Commit[];
-	nmrRelease: string | null;
 }
+
+export type Gh = (args: string[], input?: string) => string;
 
 export function dependencyPaths(text: string): string[] {
 	return text
@@ -64,26 +60,84 @@ export function parseCommits(log: string): Commit[] {
 		});
 }
 
-export function newestNmrRelease(lsRemoteTags: string): string | null {
-	const releases = [...lsRemoteTags.matchAll(/refs\/tags\/(n(\d+)\.(\d+)(?:\.(\d+))?)$/gm)]
+export function parseReleaseTags(refsText: string, minMajor = MIN_RELEASE_MAJOR): string[] {
+	return [...refsText.matchAll(/^refs\/tags\/(n(\d+)\.(\d+)(?:\.(\d+))?)$/gm)]
 		.map(([, tag, major, minor, patch]) => ({
 			tag,
-			version: [Number(major), Number(minor), Number(patch ?? 0)],
+			version: [Number(major), Number(minor), Number(patch ?? 0)] as const,
 		}))
-		.filter(({ version: [major, minor] }) => {
-			const [nmrMajor, nmrMinor] = FIRST_RELEASE_WITH_NMR;
-			return major > nmrMajor || (major === nmrMajor && minor >= nmrMinor);
-		})
+		.filter(({ version: [major] }) => major >= minMajor)
 		.toSorted(
 			(a, b) =>
 				b.version[0] - a.version[0] || b.version[1] - a.version[1] || b.version[2] - a.version[2],
-		);
-	return releases[0]?.tag ?? null;
+		)
+		.map(({ tag }) => tag);
 }
 
-function switchAction(release: string): string {
-	const branch = `release/${release.slice(1).split('.').slice(0, 2).join('.')}`;
-	return `Next action: FFmpeg ${release} is released and carries the NMR coder, so ABB can pin the release instead of master. Two changes come first: \`ffmpeg:pin\` accepts only a BtbN master autobuild today and must accept the BtbN build of ${release}; the watch compares the pin against master and must compare it against \`${branch}\`.`;
+export function releaseBranchForTag(tag: string): string {
+	const match = /^n(\d+)\.(\d+)(?:\.\d+)?$/.exec(tag);
+	if (!match) throw new Error(`Not an FFmpeg release tag: '${tag}'.`);
+	return `release/${match[1]}.${match[2]}`;
+}
+
+export function findContainingRelease(pin: string, gh: Gh): string | null {
+	const refs = gh([
+		'api',
+		'--paginate',
+		'repos/FFmpeg/FFmpeg/git/matching-refs/tags/n',
+		'--jq',
+		'.[].ref',
+	]);
+	for (const tag of parseReleaseTags(refs)) {
+		const status = gh([
+			'api',
+			`repos/FFmpeg/FFmpeg/compare/${pin}...${tag}?per_page=1`,
+			'--jq',
+			'.status',
+		]);
+		if (status === 'ahead' || status === 'identical') {
+			return tag;
+		}
+	}
+	return null;
+}
+
+export function releaseCheckComment(tag: string, pin: string): string {
+	const branch = releaseBranchForTag(tag);
+	return [
+		`FFmpeg \`${tag}\` contains the pinned commit \`${pin.slice(0, 10)}\`, so \`${branch}\` is eligible to replace the \`master\` pin.`,
+		`Next step: follow \`Moving the pin\` in \`vendor/ffmpeg-sys-next-9.0.1/ABB-PROVENANCE.md\` (export parity input first, then \`bun run ffmpeg:pin ${tag}\`), update or remove \`.github/workflows/ffmpeg-upstream.yml\`, and close this issue once landed.`,
+	].join('\n\n');
+}
+
+export function syncReleaseCheck(pin: string, issueNumber: number, gh: Gh, slug: string): string {
+	const state = gh(['api', `repos/${slug}/issues/${issueNumber}`, '--jq', '.state']);
+	if (state !== 'open') {
+		return `issue #${issueNumber} is ${state}; skipping release check`;
+	}
+	const tag = findContainingRelease(pin, gh);
+	if (!tag) {
+		return `no FFmpeg release tag contains pin ${pin.slice(0, 10)}`;
+	}
+	const branch = releaseBranchForTag(tag);
+	const comments = gh([
+		'api',
+		'--paginate',
+		`repos/${slug}/issues/${issueNumber}/comments?per_page=100`,
+		'--jq',
+		'.[] | {body: (.body // "")}',
+	])
+		.split('\n')
+		.filter((line) => line.length > 0)
+		.map((line) => (JSON.parse(line) as { body: string }).body);
+	if (comments.some((body) => body.includes(`\`${branch}\``))) {
+		return `issue #${issueNumber} already notes ${branch}`;
+	}
+	gh(
+		['api', '--method', 'POST', `repos/${slug}/issues/${issueNumber}/comments`, '--input', '-'],
+		JSON.stringify({ body: releaseCheckComment(tag, pin) }),
+	);
+	return `commented on issue #${issueNumber} for ${tag} (${branch})`;
 }
 
 export function renderReport(report: Report): string {
@@ -137,106 +191,6 @@ function ensureClone(cache: string): void {
 	]);
 }
 
-export type Gh = (args: string[], input?: string) => string;
-
-export interface OpenIssue {
-	number: number;
-	title: string;
-	body: string;
-}
-
-export type IssueAction =
-	| { kind: 'create'; body: string }
-	| { kind: 'update'; number: number; body: string }
-	| { kind: 'close'; number: number }
-	| { kind: 'unchanged'; number: number }
-	| { kind: 'none' };
-
-export function issueBody(report: Report, checkedAt: Date): string {
-	const stamp = checkedAt.toISOString().slice(0, 16).replace('T', ' ');
-	return [
-		`Checked ${stamp} UTC against pin ${report.pin.slice(0, 10)}.`,
-		report.nmrRelease ? switchAction(report.nmrRelease) : NEXT_ACTION,
-		renderReport(report),
-	].join('\n\n');
-}
-
-function listedState(body: string): {
-	pin: string | undefined;
-	release: string | undefined;
-	commits: string[];
-} {
-	return {
-		pin: /^Checked .* against pin (\w+)\./.exec(body)?.[1],
-		release: /^Next action: FFmpeg (\S+) is released/m.exec(body)?.[1],
-		commits: [...body.matchAll(/^\| `(\w+)` \|/gm)].map(([, hash]) => hash),
-	};
-}
-
-export function decideIssueAction(
-	report: Report,
-	issue: OpenIssue | undefined,
-	checkedAt: Date,
-): IssueAction {
-	if (report.commits.length === 0 && !report.nmrRelease) {
-		return issue ? { kind: 'close', number: issue.number } : { kind: 'none' };
-	}
-	const body = issueBody(report, checkedAt);
-	if (!issue) return { kind: 'create', body };
-	const listed = listedState(issue.body);
-	const current = listedState(body);
-	const same =
-		listed.pin === current.pin &&
-		listed.release === current.release &&
-		listed.commits.length === current.commits.length &&
-		listed.commits.every((hash, index) => hash === current.commits[index]);
-	return same
-		? { kind: 'unchanged', number: issue.number }
-		: { kind: 'update', number: issue.number, body };
-}
-
-export function syncIssue(report: Report, gh: Gh, slug: string, checkedAt: Date): string {
-	const openIssues = gh([
-		'api',
-		'--paginate',
-		`repos/${slug}/issues?state=open&per_page=100`,
-		'--jq',
-		'.[] | select(.pull_request == null) | {number, title, body: (.body // "")}',
-	])
-		.split('\n')
-		.filter((line) => line.length > 0)
-		.map((line) => JSON.parse(line) as OpenIssue);
-	const issue = openIssues.find((candidate) => candidate.title === ISSUE_TITLE);
-	const action = decideIssueAction(report, issue, checkedAt);
-	switch (action.kind) {
-		case 'create': {
-			const created = JSON.parse(
-				gh(
-					['api', '--method', 'POST', `repos/${slug}/issues`, '--input', '-'],
-					JSON.stringify({ title: ISSUE_TITLE, body: action.body }),
-				),
-			) as { number: number };
-			return `created issue #${created.number}`;
-		}
-		case 'update':
-			gh(
-				['api', '--method', 'PATCH', `repos/${slug}/issues/${action.number}`, '--input', '-'],
-				JSON.stringify({ body: action.body }),
-			);
-			return `updated issue #${action.number}`;
-		case 'close':
-			gh(
-				['api', '--method', 'PATCH', `repos/${slug}/issues/${action.number}`, '--input', '-'],
-				JSON.stringify({ state: 'closed', state_reason: 'completed' }),
-			);
-			return `closed issue #${action.number}`;
-		case 'unchanged':
-			return `issue #${action.number} already lists these commits`;
-		case 'none':
-			return 'no relevant upstream changes and no open issue';
-	}
-}
-
 function repoSlug(): string {
 	return (
 		process.env.GITHUB_REPOSITORY ||
@@ -272,8 +226,7 @@ function buildReport(repoRoot: string): Report {
 			cache,
 		),
 	);
-	const nmrRelease = newestNmrRelease(run('git', ['ls-remote', '--tags', 'origin'], cache));
-	return { pin, head, commits, nmrRelease };
+	return { pin, head, commits };
 }
 
 function gitBlobHash(file: string): string {
@@ -383,45 +336,6 @@ function usedFiles(repoRoot: string, mode: string): string {
 	);
 }
 
-export interface Release {
-	tag_name: string;
-	assets: string[];
-}
-
-export interface Autobuild {
-	release: string;
-	build: string;
-}
-
-export function masterAutobuilds(releases: Release[]): Autobuild[] {
-	return releases.flatMap(({ tag_name: release, assets }) => {
-		if (!release.startsWith('autobuild-') || !assets.includes('checksums.sha256')) return [];
-		return assets.flatMap((asset) => {
-			const build = /^ffmpeg-(N-\d+-g[0-9a-f]+)-linux64-gpl\.tar\.xz$/.exec(asset)?.[1];
-			return build && assets.includes(`ffmpeg-${build}-linuxarm64-gpl.tar.xz`)
-				? [{ release, build }]
-				: [];
-		});
-	});
-}
-
-function shortHash(build: string): string {
-	return build.slice(build.lastIndexOf('-g') + 2);
-}
-
-export function withCliPins(setupSh: string, autobuild: Autobuild): string {
-	let text = setupSh;
-	for (const [name, value] of [
-		['ffmpeg_cli_release', autobuild.release],
-		['ffmpeg_cli_build', autobuild.build],
-	]) {
-		const line = new RegExp(`^${name}=\\S*$`, 'm');
-		if (!line.test(text)) throw new Error(`${SETUP_SH} has no ${name}= line.`);
-		text = text.replace(line, `${name}=${value}`);
-	}
-	return text;
-}
-
 export function withNoticeCommit(notice: string, pinned: string, commit: string): string {
 	if (!notice.includes(pinned)) {
 		throw new Error(`${SYS_CRATE}/ABB-PROVENANCE.md does not name the pinned commit ${pinned}.`);
@@ -430,42 +344,25 @@ export function withNoticeCommit(notice: string, pinned: string, commit: string)
 }
 
 export function movePin(repoRoot: string, commitish: string, gh: Gh): string {
-	if (!/^[0-9a-f]{7,40}$/.test(commitish)) {
-		throw new Error(`ffmpeg:pin needs an FFmpeg commit hash, got '${commitish}'.`);
-	}
-	const commit = gh(['api', `repos/FFmpeg/FFmpeg/commits/${commitish}`, '--jq', '.sha']);
-	const autobuilds = masterAutobuilds(
-		gh([
-			'api',
-			'--paginate',
-			AUTOBUILD_RELEASES,
-			'--jq',
-			'.[] | {tag_name, assets: [.assets[].name]}',
-		])
-			.split('\n')
-			.filter((line) => line.length > 0)
-			.map((line) => JSON.parse(line) as Release),
-	);
-	const autobuild = autobuilds.find(({ build }) => commit.startsWith(shortHash(build)));
-	if (!autobuild) {
-		const built = autobuilds.map(({ build }) => shortHash(build)).join(', ');
+	if (!/^(?:[0-9a-f]{7,40}|n\d+\.\d+(?:\.\d+)?)$/.test(commitish)) {
 		throw new Error(
-			`No FFmpeg-Builds master autobuild names ${commit.slice(0, 10)}. Commits that have one: ${built}.`,
+			`ffmpeg:pin needs an FFmpeg commit hash or release tag (nX.Y or nX.Y.Z), got '${commitish}'.`,
 		);
 	}
-	const setupSh = path.join(repoRoot, SETUP_SH);
+	const commit = gh(['api', `repos/FFmpeg/FFmpeg/commits/${commitish}`, '--jq', '.sha']);
+	if (!/^[0-9a-f]{40}$/.test(commit)) {
+		throw new Error(`Expected 40-character SHA for '${commitish}', got '${commit}'.`);
+	}
 	const revision = path.join(repoRoot, SYS_CRATE, 'ffmpeg-revision');
 	const notice = path.join(repoRoot, SYS_CRATE, 'ABB-PROVENANCE.md');
-	const pinned = withCliPins(readFileSync(setupSh, 'utf8'), autobuild);
 	const named = withNoticeCommit(
 		readFileSync(notice, 'utf8'),
 		readFileSync(revision, 'utf8').trim(),
 		commit,
 	);
 	writeFileSync(revision, `${commit}\n`);
-	writeFileSync(setupSh, pinned);
 	writeFileSync(notice, named);
-	return `Pinned FFmpeg ${commit}: ffmpeg_cli_release=${autobuild.release} ffmpeg_cli_build=${autobuild.build}`;
+	return `Pinned FFmpeg ${commit}`;
 }
 
 if (import.meta.main) {
@@ -481,11 +378,16 @@ if (import.meta.main) {
 			extra.length === 0
 		) {
 			console.log(usedFiles(repoRoot, value));
-		} else if (flag === undefined || (flag === '--issue' && value === undefined)) {
-			const report = buildReport(repoRoot);
-			console.log(
-				flag === '--issue' ? syncIssue(report, gh, repoSlug(), new Date()) : renderReport(report),
-			);
+		} else if (
+			flag === '--release-check' &&
+			value !== undefined &&
+			/^\d+$/.test(value) &&
+			extra.length === 0
+		) {
+			const pin = readFileSync(path.join(repoRoot, SYS_CRATE, 'ffmpeg-revision'), 'utf8').trim();
+			console.log(syncReleaseCheck(pin, Number(value), gh, repoSlug()));
+		} else if (flag === undefined) {
+			console.log(renderReport(buildReport(repoRoot)));
 		} else {
 			throw new Error(`Unknown arguments: ${process.argv.slice(2).join(' ')}`);
 		}

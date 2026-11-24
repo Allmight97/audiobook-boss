@@ -207,9 +207,7 @@ ffmpeg_cli_matches_pin() {
 
 tools_readback_ok() {
 	local bin="$1"
-	[[ -x "${bin}" ]] || return 1
-	[[ "$(ffmpeg_major "${bin}")" == 9 ]] && return 0
-	ffmpeg_cli_matches_pin "$(ffmpeg_version_token "${bin}")"
+	[[ -x "${bin}" && "$(ffmpeg_major "${bin}")" == 9 ]]
 }
 
 ffmpeg_bin() {
@@ -448,8 +446,9 @@ print_path_line() {
 	fi
 }
 
-ffmpeg_cli_release=autobuild-2026-11-23-12-43
-ffmpeg_cli_build=N-129241-g05c674c913
+ffmpeg_cli_release=autobuild-2026-10-31-12-59
+ffmpeg_cli_build=n9.0.2-39-g7adfbe40dc
+ffmpeg_cli_branch=9.0
 
 if [[ "${print_env_only}" -eq 1 ]]; then
 	print_env
@@ -644,8 +643,8 @@ ensure_readback_cli() {
 	fi
 	local asset tmp
 	case "$(uname -m)" in
-		x86_64) asset="ffmpeg-${ffmpeg_cli_build}-linux64-gpl.tar.xz" ;;
-		aarch64 | arm64) asset="ffmpeg-${ffmpeg_cli_build}-linuxarm64-gpl.tar.xz" ;;
+		x86_64) asset="ffmpeg-${ffmpeg_cli_build}-linux64-gpl-${ffmpeg_cli_branch}.tar.xz" ;;
+		aarch64 | arm64) asset="ffmpeg-${ffmpeg_cli_build}-linuxarm64-gpl-${ffmpeg_cli_branch}.tar.xz" ;;
 		*)
 			printf 'error: no FFmpeg CLI build for CPU %s\n' "$(uname -m)" >&2
 			exit 1
