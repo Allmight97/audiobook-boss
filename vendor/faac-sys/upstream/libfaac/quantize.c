@@ -31,9 +31,10 @@ typedef int (*QuantizeFunc)(const float * __restrict xr, int * __restrict xi, in
 extern int quantize_sse2(const float * __restrict xr, int * __restrict xi, int n4, float sfacfix);
 #endif
 
-/* Written so the loop auto-vectorizes: fabsf() makes the sqrtf() argument
- * provably non-negative (no errno path), the sign is re-applied as a
- * two's-complement mask, and the width is a known multiple of four. */
+/* Written so the loop auto-vectorizes: sqrtf() inlines only because the build
+ * passes -fno-math-errno (the outer argument can be NaN, so fabsf() alone does
+ * not remove the libm call), the sign is re-applied as a two's-complement
+ * mask, and the width is a known multiple of four. */
 static int quantize_scalar(const float * __restrict xr, int * __restrict xi, int n4, float sfacfix)
 {
     int i, maxq = 0;
@@ -594,6 +595,11 @@ static void assign_band_codebooks(CoderInfo * __restrict ci, const float * __res
 #endif
 
         band_sf[sb] = INT_MIN;
+        if (sb >= ci->zeroFrom)
+        {
+            ci->book[band] = HCB_ZERO;
+            continue;
+        }
         if (ci->book[band] != HCB_NONE)
             continue;
 
@@ -698,6 +704,7 @@ void ResetCoderSections(CoderInfo *coder)
 {
     int i, n = coder->groups.n * coder->sfbn;
     coder->partner = NULL;
+    coder->zeroFrom = MAX_SCFAC_BANDS;
     coder->useRef = 0;
     coder->msUsed = NULL;
     coder->msPeer = NULL;
@@ -923,7 +930,7 @@ void BlocGroup(CoderInfo *coderInfo, float *xr, CoderInfo *ci_r, float *xr_r, AA
             if (run_max[sfb] > GROUP_ONSET_RATIO * run_min[sfb]) onset_votes++;
         }
 
-        if (onset_votes > onset_quorum)
+        if (onset_votes > onset_quorum && !cfg->mergeGroups)
         {
             coderInfo->groups.len[coderInfo->groups.n++] = win - group_start;
             group_start = win;

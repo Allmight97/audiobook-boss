@@ -63,12 +63,20 @@ void RateControlReset(RateControl *rc, unsigned int numChannels,
        refilled at the mean rate. ABR/VBR leave resMean 0: no cap, no floor,
        buffer_fullness stays 0x7FF. */
     rc->resMean = 0;
+    rc->resStep = rc->resDen = rc->resRem = 0;
     rc->resCap = 0;
     rc->resFill = 0;
     if (cbr)
     {
         rc->resMean = rc->frameBudget;
-        rc->resCap = (int)numChannels * AAC_MAX_BITS_PER_CH - rc->resMean;
+        /* A budget that is not a whole number of bits per frame still has to
+           average out, or the decoder buffer drifts by the fraction every
+           frame: the remainder is carried into the frames that follow. */
+        rc->resDen = (unsigned int)sampleRate;
+        rc->resStep = (unsigned int)((uint64_t)numChannels * bitRate * FRAME_LEN - (uint64_t)rc->frameBudget * sampleRate);
+        /* The carried bit makes the largest credit frameBudget + 1, which the
+           buffer must still hold. */
+        rc->resCap = (int)numChannels * AAC_MAX_BITS_PER_CH - rc->resMean - (rc->resStep ? 1 : 0);
         if (rc->resCap < 0)
             rc->resCap = 0;
         rc->resFill = (int)(rc->resCap * RC_RESERVOIR_START);
@@ -139,6 +147,13 @@ float RateControlUpdate(RateControl *rc, int payloadBits,
         }
 #endif
         rc->resFill = RateControlReservoirAfter(rc, sentBits);
+        rc->resRem += rc->resStep;
+        rc->resMean = rc->frameBudget;
+        if (rc->resRem >= rc->resDen)
+        {
+            rc->resRem -= rc->resDen;
+            rc->resMean++;
+        }
     }
 
     /* SBR payload is not fixed overhead: at 48 kHz it runs 135-255 bits against
@@ -159,8 +174,12 @@ float RateControlUpdate(RateControl *rc, int payloadBits,
        directions are kept: forgiving credit but not debt biases the loop by
        however much each clip drew. One CORE setpoint serves the account and
        `fix` alike -- the frame's budget less what SBR was charged, against
-       what the core actually spent. */
+       what the core actually spent. A stuffed CBR frame left the under-aim
+       as fill elements, so past half full the aim rises to spend it as signal.
+       Without stuffing a different aim only moves bits between frames. */
     int coreTarget = (int)(desbits * RC_BALANCE_AIM) - sbrCharge;
+    if (reservoir && rc->stuffedBits > 0 && rc->resFill > rc->resCap / 2)
+        coreTarget += (rc->resFill - rc->resCap / 2) / RC_BALANCE_AMORT;
     int coreBits = totalBits - sbrBits;
     int lend;
     int bound = RC_BALANCE_FRAMES * desbits;
@@ -288,6 +307,12 @@ void RateControlStatsPrint(FILE *out)
                 g_faacStats.minBalanceRatio, g_faacStats.maxBalanceRatio,
                 100.0 * g_faacStats.peakRetryFrames / g_faacStats.totalFrames,
                 g_faacStats.peakRetryFrames, g_faacStats.totalFrames);
+    }
+    /* Not under balanceFrames: capped VBR cuts bands without ever updating the balance. */
+    if (g_faacStats.totalFrames > 0)
+    {
+        fprintf(out, " Band Cuts           : %u of %u frames | refits = %u\n",
+                g_faacStats.peakZeroFrames, g_faacStats.totalFrames, g_faacStats.peakRefits);
     }
     if (g_faacStats.resFrames > 0)
     {

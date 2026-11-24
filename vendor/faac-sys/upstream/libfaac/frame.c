@@ -32,7 +32,7 @@
 #include "sbr.h"
 #include "ratecontrol.h"
 #include "atomic.h"
-#include "endian.h"
+#include "faac_endian.h"
 
 /* HE-AAC auto-mode thresholds; measured with ViSQOL and Zimtohrli. */
 #define HE_MIN_SAMPLE_RATE    32000  /* Fs/2 < 16 kHz below this → core too narrow for SBR */
@@ -681,6 +681,53 @@ static void doHEAACFrame(faacEncStruct *hEncoder, unsigned int realPerCh,
  * the same transient reads as a smaller jump with fewer, longer sub-blocks. */
 #define TNS_ATTACK_MIN 0.5f
 
+/* Quantize, code and write one frame at the current quality; the write doubles
+ * as the size probe. */
+static int EncodePass(faacEncStruct *hEncoder, CoderInfo *coderInfo, unsigned int numChannels,
+                      unsigned char *outputBuffer, unsigned int bufferSize)
+{
+    BitStream bitStream;
+    unsigned int channel;
+
+    for (channel = 0; channel < numChannels; channel++) {
+        BlocQuant(&coderInfo[channel], hEncoder->freqBuff[channel],
+                  &(hEncoder->aacquantCfg));
+    }
+
+    /* A common window shares one max_sfb between the two channels. */
+    for (channel = 0; channel < numChannels; channel++)
+    {
+        CoderInfo *cil = &coderInfo[channel], *cir = cil->partner;
+        if (cir)
+            cil->sfbn = cir->sfbn = max(cil->sfbn, cir->sfbn);
+    }
+
+    InitBitStream(&bitStream, outputBuffer, bufferSize);
+
+    if (WriteBitstream(hEncoder, coderInfo, hEncoder->elements, hEncoder->numElements, &bitStream) < 0)
+        return -1;
+
+    /* Round the written bits up to complete bytes. */
+    return (int)((bitStream.currentBit + 7) >> 3);
+}
+
+/* Put each channel back to the state AACstereo left it in, so a pass starts
+ * from identical input. */
+static void RestorePassState(faacEncStruct *hEncoder, CoderInfo *coderInfo,
+                             unsigned int numChannels, const int *sfbnSnap, int zeroFrom)
+{
+    unsigned int channel;
+
+    for (channel = 0; channel < numChannels; channel++) {
+        memcpy(coderInfo[channel].book, hEncoder->peakSnap[channel],
+               sizeof(coderInfo[channel].book));
+        memcpy(coderInfo[channel].sf, hEncoder->peakSnap[channel] + MAX_SCFAC_BANDS,
+               MAX_SCFAC_BANDS * sizeof(int));
+        coderInfo[channel].sfbn = sfbnSnap[channel];
+        coderInfo[channel].zeroFrom = zeroFrom;
+    }
+}
+
 int faacEncEncode(faacEncHandle hpEncoder,
                           int32_t *inputBuffer,
                           unsigned int samplesInput,
@@ -691,7 +738,6 @@ int faacEncEncode(faacEncHandle hpEncoder,
     faacEncStruct* hEncoder = (faacEncStruct*)hpEncoder;
     unsigned int channel;
     int frameBytes;
-    BitStream bitStream;
 
     CoderInfo *coderInfo = hEncoder->coderInfo;
     unsigned int numChannels = CoreChannels(hEncoder->config.aacObjectType, hEncoder->numChannels);
@@ -894,7 +940,7 @@ int faacEncEncode(faacEncHandle hpEncoder,
 
         if (a)
         {
-            BlocGroup(a, xa, b, xb, &hEncoder->aacquantCfg);
+                        BlocGroup(a, xa, b, xb, &hEncoder->aacquantCfg);
 #ifdef FAAC_STATS
             /* Everything downstream scales with groups.n * sfbn, so this one
              * number covers both the throughput and the bitrate axis. */
@@ -972,6 +1018,7 @@ int faacEncEncode(faacEncHandle hpEncoder,
      * accounting charge them along with audio; only the ADTS header is excluded. */
     int hdrBytes = (hEncoder->config.outputFormat == 1) ? ADTS_HEADER_SIZE : 0;
     int payloadBits = 0;
+    int cutting = 0, cutWritten = 0, cut = MAX_SCFAC_BANDS, cutLo = 0, cutHi = 0, sfbnMax = 0;
 #ifdef FAAC_STATS
     int resBound = 0;
 #endif
@@ -1018,60 +1065,71 @@ int faacEncEncode(faacEncHandle hpEncoder,
         memcpy(hEncoder->peakSnap[channel] + MAX_SCFAC_BANDS, coderInfo[channel].sf,
                MAX_SCFAC_BANDS * sizeof(int));
         sfbnSnap[channel] = coderInfo[channel].sfbn;
+        if (sfbnSnap[channel] > sfbnMax) sfbnMax = sfbnSnap[channel];
     }
 
     /* Retry while the frame busts peakBits. The search is bounded, not
-     * exact-fit: an exact fit can fail to terminate on pathological input. */
-    for (attempt = 0; attempt <= PEAK_MAX_RETRIES; attempt++)
+     * exact-fit: an exact fit can fail to terminate on pathological input.
+     * Quality has a floor and the retries a limit, so neither guarantees the
+     * frame fits, and a CBR stream that overruns the decoder buffer is not
+     * conformant however the average comes out. As a last resort the top bands
+     * are zeroed: the largest cut-off that fits wins, and a frame with no coded
+     * bands is only headers, section data and SBR. */
+    attempt = 0;
+    for (;;)
     {
-        for (channel = 0; channel < numChannels; channel++) {
-            BlocQuant(&coderInfo[channel], hEncoder->freqBuff[channel],
-                      &(hEncoder->aacquantCfg));
-        }
-
-        /* A common window shares one max_sfb between the two channels. */
-        for (channel = 0; channel < numChannels; channel++)
-        {
-            CoderInfo *cil = &coderInfo[channel], *cir = cil->partner;
-            if (cir)
-                cil->sfbn = cir->sfbn = max(cil->sfbn, cir->sfbn);
-        }
-
-        /* Write the AAC bitstream; the write doubles as the size probe. */
-        InitBitStream(&bitStream, outputBuffer, bufferSize);
-
-        if (WriteBitstream(hEncoder, coderInfo, hEncoder->elements, hEncoder->numElements, &bitStream) < 0) {
+        frameBytes = EncodePass(hEncoder, coderInfo, numChannels, outputBuffer, bufferSize);
+        if (frameBytes < 0)
             return -1;
-        }
-
-        /* Round the written bits up to complete bytes. */
-        frameBytes = (int)((bitStream.currentBit + 7) >> 3);
         payloadBits = (frameBytes - hdrBytes) * 8;
+        int fits = !peakBits || (unsigned long long)payloadBits <= peakBits;
 
-        if (!peakBits || (unsigned long long)payloadBits <= peakBits
-            || hEncoder->aacquantCfg.quality <= MINQUAL)
+        if (cutting) {
+            if (!cutWritten) {
+                if (fits) cutLo = cut; else cutHi = cut;
+            } else if (fits || !cut) {
+                break;
+            }
+        } else if (fits) {
             break;
-
-        /* Aim at the budget rather than stepping down by a fixed factor: rate
-         * control can park quality anywhere up to MAXQUAL (5000), and a fixed
-         * halving needs far more passes to cross that to MINQUAL than any
-         * sane retry budget. Frame bits grow sub-linearly with quality, so
-         * scaling by the bit ratio undershoots the budget and converges in a
-         * pass or two. */
-        float scale = (float)peakBits / (float)payloadBits;
-        if (scale > PEAK_BACKOFF_CEILING) scale = PEAK_BACKOFF_CEILING;
-        if (scale < PEAK_BACKOFF_FLOOR)   scale = PEAK_BACKOFF_FLOOR;
-        hEncoder->aacquantCfg.quality *= scale;
-        if (hEncoder->aacquantCfg.quality < MINQUAL)
-            hEncoder->aacquantCfg.quality = MINQUAL;
-
-        for (channel = 0; channel < numChannels; channel++) {
-            memcpy(coderInfo[channel].book, hEncoder->peakSnap[channel],
-                   sizeof(coderInfo[channel].book));
-            memcpy(coderInfo[channel].sf, hEncoder->peakSnap[channel] + MAX_SCFAC_BANDS,
-                   MAX_SCFAC_BANDS * sizeof(int));
-            coderInfo[channel].sfbn = sfbnSnap[channel];
+        } else if (hEncoder->aacquantCfg.quality <= MINQUAL || attempt >= PEAK_MAX_RETRIES) {
+            cutting = 1;
+            cutHi = sfbnMax;
+        } else {
+            /* Aim at the budget rather than stepping down by a fixed factor: rate
+             * control can park quality anywhere up to MAXQUAL (5000), and a fixed
+             * halving needs far more passes to cross that to MINQUAL than any
+             * sane retry budget. Frame bits grow sub-linearly with quality, so
+             * scaling by the bit ratio undershoots the budget and converges in a
+             * pass or two. */
+            float scale = (float)peakBits / (float)payloadBits;
+            if (scale > PEAK_BACKOFF_CEILING) scale = PEAK_BACKOFF_CEILING;
+            if (scale < PEAK_BACKOFF_FLOOR)   scale = PEAK_BACKOFF_FLOOR;
+            hEncoder->aacquantCfg.quality *= scale;
+            if (hEncoder->aacquantCfg.quality < MINQUAL)
+                hEncoder->aacquantCfg.quality = MINQUAL;
+            attempt++;
         }
+
+        if (cutting) {
+            if (cutWritten) {
+                /* The settled write is a fresh encode, and the M/S flags
+                 * latch across passes, so it is not guaranteed to match the
+                 * probe it came from: step down until it fits. */
+                cut--;
+#ifdef FAAC_STATS
+                g_faacStats.peakRefits++;
+#endif
+            } else if (cutHi - cutLo > 1) {
+                cut = (cutLo + cutHi) / 2;
+            } else {
+                /* Settled: write the winner. */
+                cut = cutLo;
+                cutWritten = 1;
+            }
+        }
+
+        RestorePassState(hEncoder, coderInfo, numChannels, sfbnSnap, cut);
     }
 
     /* The caps are per frame, so the backoff must not outlive the frame: left
@@ -1079,7 +1137,9 @@ int faacEncEncode(faacEncHandle hpEncoder,
      * bitRate == 0 nothing below ever claws the quality back. */
     hEncoder->aacquantCfg.quality = baseQuality;
 
+    hEncoder->aacquantCfg.mergeGroups = cutting;
 #ifdef FAAC_STATS
+    if (cutting) g_faacStats.peakZeroFrames++;
     if (attempt > 0)
     {
         g_faacStats.peakRetryFrames++;

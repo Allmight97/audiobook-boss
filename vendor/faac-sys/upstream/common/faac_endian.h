@@ -79,6 +79,20 @@ static inline bool host_is_big_endian(void) {
 # define FAAC_BIG_ENDIAN host_is_big_endian()
 #endif
 
+/* The C library may define these too once its <endian.h> is no longer shadowed. */
+#undef htobe16
+#undef htobe32
+#undef htobe64
+#undef htole16
+#undef htole32
+#undef htole64
+#undef be16toh
+#undef be32toh
+#undef be64toh
+#undef le16toh
+#undef le32toh
+#undef le64toh
+
 #define htobe16(x) ((uint16_t)(FAAC_BIG_ENDIAN ? (uint16_t)(x) : bswap16(x)))
 #define htobe32(x) ((uint32_t)(FAAC_BIG_ENDIAN ? (uint32_t)(x) : bswap32(x)))
 #define htobe64(x) ((uint64_t)(FAAC_BIG_ENDIAN ? (uint64_t)(x) : bswap64(x)))

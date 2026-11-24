@@ -236,11 +236,11 @@ typedef struct faac_params {
      * unsatisfiable) and <= FAAC_MAX_PEAK_BIT_RATE; open() rejects anything else.
      * More headroom means fewer retries.
      *
-     * Best-effort: enforced by backing off quality over bounded retries, which
-     * cannot beat the irreducible per-frame cost of side info and scalefactors.
-     * Measured on transient-heavy stereo, the cap holds for every frame at and
-     * above ~64 kbit/s; below that the floor starts to show (~48 kbit/s
-     * overshoots on a few percent of frames). */
+     * Guaranteed down to the size of an empty frame: quality is backed off
+     * over bounded retries and, if that is not enough, the top bands are
+     * dropped, so every frame fits. Only a cap below the headers, section data
+     * and (for HE-AAC) SBR a frame cannot do without is exceeded: about 290
+     * bits for stereo LC and 470 for stereo HE-AAC. */
     uint32_t                peak_bit_rate;  /* whole-stream peak bits/sec; 0 = unlimited */
 
     enum faac_rate_control  rate_control;  /* see enum; zero selects ABR */

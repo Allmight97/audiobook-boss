@@ -29,6 +29,10 @@ typedef struct
     float tilt_nyquist_khz; /* Nyquist in kHz; the tilt knots are physical kHz */
     int mask_tuned;
     int sf_nudge;
+    /* One short-window group for the frame: the frame after a size cut was
+     * needed is likely to need one too, and fewer groups mean fewer
+     * scalefactors. */
+    int mergeGroups;
     /* Masking-target shape, set by QuantizeConfigureMask(). Untuned (VBR, LC mono,
      * multichannel and low rates) keeps the original formula. */
     float avg_weight;
