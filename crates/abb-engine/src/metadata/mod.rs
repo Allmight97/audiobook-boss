@@ -80,8 +80,17 @@ pub(crate) fn save_metadata_with_plan(
     path: &std::path::Path,
     plan: &MetadataWritePlan,
 ) -> Result<()> {
+    save_metadata_with_plan_before_commit(path, plan, || {})
+}
+
+fn save_metadata_with_plan_before_commit(
+    path: &std::path::Path,
+    plan: &MetadataWritePlan,
+    before_commit: impl FnOnce(),
+) -> Result<()> {
     let route = crate::diagnostics::stage("metadata_classify", path, || container::classify(path))?;
     tag_support::refuse_unholdable_edits(&route, plan)?;
+    let expected_fingerprint = source_fingerprint(path)?;
     let saved = remux::meta_temp(path)?;
     match route {
         Container::Mp4 => {
@@ -92,56 +101,103 @@ pub(crate) fn save_metadata_with_plan(
         }
         route => remux::remux_into(path, saved.path(), Some(plan), None, &route)?,
     }
-    commit_checked_save(path, saved)
+    before_commit();
+    commit_checked_save(path, saved, &expected_fingerprint)
 }
 
 fn commit_checked_save(
     original: &std::path::Path,
     saved: crate::file_replace::SiblingTemp,
+    expected_fingerprint: &str,
 ) -> Result<()> {
     check_saved_audio(original, saved.path())?;
+    let stat = std::fs::metadata(original).map_err(AppError::Io)?;
+    validate_source_fingerprint(&stat, expected_fingerprint)?;
     crate::diagnostics::stage("metadata_replace", original, || {
         saved.commit(original).map_err(AppError::Io)
     })
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AudioStreamInventory {
+    packets: u64,
+    payload_bytes: u64,
+}
+
+struct AudioShape {
+    duration_us: Option<i64>,
+    duration_estimated: bool,
+    audio_streams: Vec<AudioStreamInventory>,
+}
+
 fn check_saved_audio(original: &std::path::Path, saved: &std::path::Path) -> Result<()> {
     const TOLERANCE_US: u64 = 500_000;
-    let (original_us, original_estimated, original_streams) = audio_shape(original)?;
-    let (saved_us, saved_estimated, saved_streams) = audio_shape(saved)?;
-    let duration_moved = original_us.is_some_and(|original_us| {
-        original_estimated == saved_estimated
-            && saved_us.is_none_or(|saved_us| original_us.abs_diff(saved_us) > TOLERANCE_US)
-    });
-    if original_streams == saved_streams && !duration_moved {
+    let original_shape = audio_shape(original)?;
+    let saved_shape = audio_shape(saved)?;
+    let both_measured = !original_shape.duration_estimated && !saved_shape.duration_estimated;
+    let duration_moved = both_measured
+        && original_shape.duration_us.is_some_and(|original_us| {
+            saved_shape
+                .duration_us
+                .is_none_or(|saved_us| original_us.abs_diff(saved_us) > TOLERANCE_US)
+        });
+    if original_shape.audio_streams == saved_shape.audio_streams && !duration_moved {
         return Ok(());
     }
     let seconds = |us: Option<i64>| match us {
         None => "unknown".to_string(),
         Some(us) => format!("{:.1} s", us as f64 / 1_000_000.0),
     };
+    let totals = |streams: &[AudioStreamInventory]| {
+        streams.iter().fold((0u64, 0u64), |(packets, bytes), s| {
+            (packets + s.packets, bytes + s.payload_bytes)
+        })
+    };
+    let (orig_packets, orig_bytes) = totals(&original_shape.audio_streams);
+    let (saved_packets, saved_bytes) = totals(&saved_shape.audio_streams);
     Err(AppError::FileValidation(format!(
-        "The original '{}' was kept unchanged: the saved copy's audio did not match it (length {} vs {}, audio streams {} vs {}).",
+        "The original '{}' was kept unchanged: the saved copy's audio did not match it (length {} vs {}, audio streams {} vs {}, packets {saved_packets} vs {orig_packets}, payload bytes {saved_bytes} vs {orig_bytes}).",
         crate::errors::sanitize_path_for_display(original),
-        seconds(saved_us),
-        seconds(original_us),
-        saved_streams,
-        original_streams
+        seconds(saved_shape.duration_us),
+        seconds(original_shape.duration_us),
+        saved_shape.audio_streams.len(),
+        original_shape.audio_streams.len(),
     )))
 }
 
-fn audio_shape(path: &std::path::Path) -> Result<(Option<i64>, bool, usize)> {
-    let input = open_input(path)?;
-    let audio_streams = input
-        .streams()
-        .iter()
-        .filter(|stream| stream.medium == abb_ffmpeg::Medium::Audio)
-        .count();
-    Ok((
-        input.duration_micros(),
-        input.duration_is_estimated(),
+fn audio_shape(path: &std::path::Path) -> Result<AudioShape> {
+    let mut input = open_input(path)?;
+    let streams = input.streams();
+    let mut stream_to_audio = vec![None; streams.len()];
+    let mut audio_streams = Vec::new();
+    for stream in &streams {
+        if stream.medium == abb_ffmpeg::Medium::Audio {
+            let ordinal = audio_streams.len();
+            stream_to_audio[stream.index] = Some(ordinal);
+            audio_streams.push(AudioStreamInventory {
+                packets: 0,
+                payload_bytes: 0,
+            });
+        }
+    }
+    let duration_us = input.duration_micros();
+    let duration_estimated = input.duration_is_estimated();
+    let mut packet = abb_ffmpeg::Packet::new()?;
+    while input.read_packet(&mut packet)? {
+        if let Some(ordinal) = stream_to_audio
+            .get(packet.stream_index())
+            .copied()
+            .flatten()
+        {
+            audio_streams[ordinal].packets += 1;
+            audio_streams[ordinal].payload_bytes += packet.data().len() as u64;
+        }
+    }
+    Ok(AudioShape {
+        duration_us,
+        duration_estimated,
         audio_streams,
-    ))
+    })
 }
 
 pub fn finalize_artifact_metadata(
