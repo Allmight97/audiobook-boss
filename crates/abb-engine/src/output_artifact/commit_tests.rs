@@ -4,14 +4,6 @@ use std::io;
 use std::path::Path;
 use tempfile::TempDir;
 
-fn replacement_temp_named(final_path: &Path, suffix: &str) -> std::path::PathBuf {
-    let tag = replacement_temp_tag(final_path).expect("final path has a name");
-    final_path
-        .parent()
-        .expect("final path has a folder")
-        .join(format!(".abb_{tag}_{suffix}"))
-}
-
 #[test]
 fn finalized_output_success_keeps_success_messages_after_post_commit_cancel() {
     let output = Path::new("/tmp/final-output.m4b");

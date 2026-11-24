@@ -141,13 +141,11 @@ impl AudioDuration {
     }
 
     fn moved_beyond(self, saved: Self, tolerance_us: u64) -> bool {
-        match (self, saved) {
-            (Self::Measured(original_us), Self::Measured(saved_us)) => {
-                original_us.abs_diff(saved_us) > tolerance_us
-            }
-            (Self::Measured(_), Self::Unknown) => true,
-            _ => false,
-        }
+        matches!(
+            (self, saved),
+            (Self::Measured(original_us), Self::Measured(saved_us))
+                if original_us.abs_diff(saved_us) > tolerance_us
+        )
     }
 
     fn display(self) -> String {

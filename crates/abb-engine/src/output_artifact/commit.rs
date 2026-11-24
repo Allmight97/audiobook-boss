@@ -153,6 +153,7 @@ pub(super) fn publish_copy_without_replacing(source: &Path, final_path: &Path) -
     let destination_temp = replacement_temp(final_path)?;
     copy_staged_output_to_new_file(source, destination_temp.path())?;
     let method = if link_without_replacing(destination_temp.path(), final_path)? {
+        drop(destination_temp);
         "copy-link"
     } else {
         publish_by_placeholder(destination_temp, final_path)?;
@@ -368,7 +369,7 @@ pub(crate) fn finalized_output_success(
 }
 
 #[cfg(test)]
-pub(super) fn stale_replacement_temp_path(final_path: &Path, suffix: &str) -> PathBuf {
+pub(super) fn replacement_temp_named(final_path: &Path, suffix: &str) -> PathBuf {
     let tag = replacement_temp_tag(final_path).expect("final_path has a file name");
     final_path
         .parent()

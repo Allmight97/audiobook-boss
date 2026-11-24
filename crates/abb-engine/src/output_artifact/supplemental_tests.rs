@@ -163,17 +163,14 @@ fn supplemental_commit_sweeps_stale_temp_only_after_publish_succeeds() {
     let source = root.path().join("source.pdf");
     std::fs::write(&source, b"%PDF-1.7\nbody").expect("write pdf");
     let destination = root.path().join("Book One - Supplemental PDF.pdf");
-    let stale_temp =
-        super::super::commit::stale_replacement_temp_path(&destination, "0000-crashed");
+    let stale_temp = super::super::commit::replacement_temp_named(&destination, "0000-crashed");
     std::fs::write(&stale_temp, b"stranded pdf").expect("write stale temp");
 
-    commit_supplemental_output_asset(
-        SupplementalOutputAssetCommitRequest::new(&source, destination.clone())
-            .with_expected_identity(13, "wrong-hash"),
-    )
-    .expect_err("failed commit must refuse before publish");
+    let missing_source = root.path().join("missing.pdf");
+    super::super::commit::publish_copy_without_replacing(&missing_source, &destination)
+        .expect_err("failed copy publish must leave stale temp");
     assert_eq!(
-        std::fs::read(&stale_temp).expect("stale temp stays when commit fails"),
+        std::fs::read(&stale_temp).expect("stale temp stays when publish fails"),
         b"stranded pdf"
     );
 
