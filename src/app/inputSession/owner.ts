@@ -21,7 +21,7 @@ import {
 
 export type InputOwner = {
 	readonly view: Accessor<InputView>;
-	readonly capability: Accessor<InputCapability>;
+	readonly capability: InputCapability;
 	sourcesFor: (file: AudioFile) => ReadonlyArray<AudioFile>;
 	totalsFor: (file: AudioFile) => TitleTotals | undefined;
 	detailsFor: (file: AudioFile) => string;
@@ -57,8 +57,7 @@ export type InputOwnerDeps = {
 
 export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 	const { link } = deps;
-	const capabilityValue = deps.capability ?? liveInputCapability;
-	const capability: Accessor<InputCapability> = () => capabilityValue;
+	const capability = deps.capability ?? liveInputCapability;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	let localError = '';
 	let isDragOver = false;
@@ -117,7 +116,7 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 			case 'pickFiles': {
 				const selected = await pick(
 					() =>
-						capabilityValue.openFiles({
+						capability.openFiles({
 							filters: [
 								{ name: 'Audio Files', extensions: [...SUPPORTED_AUDIO_IMPORT_EXTENSIONS] },
 							],
@@ -129,7 +128,7 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 			}
 			case 'pickFolder': {
 				const selected = await pick(
-					() => capabilityValue.openDirectory(),
+					() => capability.openDirectory(),
 					'Failed to open folder dialog. Please try again.',
 				);
 				if (selected) importPaths([selected]);

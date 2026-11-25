@@ -37,17 +37,17 @@ export function FileImportView(): JSX.Element {
 			});
 		};
 		subscribe(
-			capability().listenDragEnter(() => {
+			capability.listenDragEnter(() => {
 				setDragOver(true);
 			}),
 		);
 		subscribe(
-			capability().listenDragLeave(() => {
+			capability.listenDragLeave(() => {
 				setDragOver(false);
 			}),
 		);
 		subscribe(
-			capability().listenDragDrop((payload) => {
+			capability.listenDragDrop((payload) => {
 				setDragOver(false);
 				if (!isFileDropEvent(payload)) {
 					return;
