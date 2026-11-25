@@ -2,7 +2,7 @@ use super::save_flow::{apply_published, output_update_failure};
 use super::{blocking, Rest, Session};
 use crate::errors::{AppError, AppErrorEnvelope};
 use crate::output_artifact::CollisionPolicy;
-use crate::processing::run::inspect_processing_plan;
+use crate::processing::run::{inspect_processing_plan, InspectedRun};
 use crate::session::exports::ExportLink;
 use crate::session::intent::SessionOutcome;
 use crate::session::state::SessionState;
@@ -48,7 +48,7 @@ impl Session {
         {
             return self.end_submission(&draft, SubmissionStatus::Cancelled);
         }
-        let public = plan.plan.to_public();
+        let public = plan.inspected().plan.to_public();
         let collided: Vec<_> = public
             .outputs
             .iter()
@@ -99,15 +99,12 @@ impl Session {
         }
     }
 
-    async fn accept(
-        &self,
-        draft: Draft,
-        inspected: crate::processing::plan::InspectedProcessingPlan,
-    ) -> SessionOutcome {
+    async fn accept(&self, draft: Draft, inspected: InspectedRun) -> SessionOutcome {
         let deps = &self.inner.deps;
-        if draft.preview {
-            return self.run_preview(draft, inspected).await;
-        }
+        let inspected = match inspected {
+            InspectedRun::Preview(plan) => return self.run_preview(draft, plan).await,
+            InspectedRun::Export(plan) => plan,
+        };
         let submitted = deps
             .work
             .submit_processing_operation(

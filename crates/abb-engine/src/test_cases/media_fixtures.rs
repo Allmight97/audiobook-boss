@@ -154,7 +154,8 @@ pub(crate) async fn run_planned_title(
     workspace: &Path,
 ) -> Result<(PathBuf, crate::audio::AudioRunOutcome), AppError> {
     let inspected =
-        crate::processing::run::inspect_processing_plan(&payload, metadata.as_ref(), false)?;
+        crate::processing::run::inspect_processing_plan(&payload, metadata.as_ref(), false)?
+            .into_inspected();
     let job = inspected.plan.jobs.into_iter().next().expect("one title");
     let files: Vec<_> = job
         .source_paths
@@ -259,7 +260,7 @@ pub(crate) fn preflight_payload(
     preview: bool,
 ) -> crate::Result<crate::processing::ProcessingPreflightPlan> {
     crate::processing::run::inspect_processing_plan(&payload, metadata.as_ref(), preview)
-        .map(|inspected| inspected.plan.to_public())
+        .map(|inspected| inspected.inspected().plan.to_public())
 }
 
 pub(crate) fn ffmpeg<I, S>(args: I) -> Vec<u8>

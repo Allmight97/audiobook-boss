@@ -2,7 +2,7 @@ use super::snapshot::{new_metadata_save_snapshot, new_processing_snapshot};
 use super::state::WorkRuntimeState;
 use super::{ChildJobStatus, OperationId, WorkOperationStatus, WorkProgressStage};
 use crate::processing::{
-    EventStage, OperationKind, OperationResultSummary, ProcessCommandResult, ProcessResultEntry,
+    EventStage, OperationResultSummary, ProcessCommandResult, ProcessResultEntry,
     ProcessResultStatus, ProgressEvent,
 };
 
@@ -65,7 +65,6 @@ fn snapshots_revision_each_operation_independently() {
         .apply_progress_event(
             &metadata_id,
             &ProgressEvent {
-                operation_kind: OperationKind::MetadataSave,
                 stage: EventStage::Writing,
                 job_id: None,
                 ..converting_event(40.0, "Saving tags", 0)
@@ -144,7 +143,6 @@ fn late_progress_does_not_overwrite_pending_cancellation() {
         .apply_progress_event(
             &operation_id,
             &ProgressEvent {
-                operation_kind: OperationKind::ProcessingBatch,
                 stage: EventStage::Converting,
                 percentage: 60.0,
                 message: "Converting after cancel".to_string(),
@@ -258,7 +256,6 @@ fn apply_batch_progress_updates_matched_child_and_aggregates_operation_progress(
         .apply_progress_event(
             &operation_id,
             &ProgressEvent {
-                operation_kind: OperationKind::ProcessingBatch,
                 stage: EventStage::Converting,
                 percentage: 25.0,
                 message: "Converting file 1".to_string(),
@@ -284,7 +281,6 @@ fn apply_batch_progress_updates_matched_child_and_aggregates_operation_progress(
         .apply_progress_event(
             &operation_id,
             &ProgressEvent {
-                operation_kind: OperationKind::ProcessingBatch,
                 stage: EventStage::Completed,
                 percentage: 100.0,
                 message: "first complete".to_string(),
@@ -318,7 +314,6 @@ fn apply_batch_progress_failure_keeps_operation_running_for_child_event() {
         .apply_progress_event(
             &operation_id,
             &ProgressEvent {
-                operation_kind: OperationKind::ProcessingBatch,
                 stage: EventStage::Failed,
                 percentage: 0.0,
                 message: "first failed".to_string(),
@@ -455,7 +450,6 @@ fn metadata_save_progress_updates_only_the_title_it_names() {
     let (mut state, operation_id) = metadata_save_state();
     state.mark_running(&operation_id, 150).expect("running");
     let event = |stage, percentage, message: &str, input_index| ProgressEvent {
-        operation_kind: OperationKind::MetadataSave,
         stage,
         percentage,
         message: message.to_string(),
@@ -561,7 +555,6 @@ pub(super) fn converting_event(
     input_index: usize,
 ) -> ProgressEvent {
     ProgressEvent {
-        operation_kind: OperationKind::ProcessingBatch,
         stage: EventStage::Converting,
         percentage,
         message: message.to_string(),

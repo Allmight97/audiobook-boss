@@ -16,7 +16,9 @@ mod run_options;
 mod run_validation;
 
 pub(crate) use run_job::supplemental_assets_for_input;
-pub(crate) use run_options::{ExportTitle, ProcessingRun, RunMode};
+pub(crate) use run_options::{
+    ExportPlan, ExportTitle, InspectedRun, PreviewPlan, ProcessingRun, RunMode,
+};
 use run_validation::inspect_and_validate_external_processing_contract;
 
 #[derive(Debug, Clone)]
@@ -40,9 +42,14 @@ pub(crate) async fn process_inspected_with_options(
     registry: crate::ManagedJobRegistry,
     roots: ProcessingRoots,
     payload: ProcessPayload,
-    inspected: InspectedProcessingPlan,
     run: ProcessingRun,
 ) -> Result<ProcessCommandResult> {
+    let ProcessingRun {
+        operation_id,
+        listener,
+        mode,
+    } = run;
+    let (inspected, titles) = mode.into_parts();
     let result = async {
         #[expect(
             clippy::disallowed_methods,
@@ -60,7 +67,11 @@ pub(crate) async fn process_inspected_with_options(
             roots.workspace,
             &execution.0,
             execution.1,
-            run,
+            run_dispatch::TitleRun {
+                operation_id,
+                listener,
+                titles,
+            },
         )
         .await
     }
@@ -79,10 +90,13 @@ pub(crate) fn inspect_processing_plan(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
     preview: bool,
-) -> Result<InspectedProcessingPlan> {
+) -> Result<InspectedRun> {
     let file_info = inspect_and_validate_external_processing_contract(payload)?;
     let plan = resolve_processing_plan(payload, metadata, preview, &file_info)?;
-    Ok(InspectedProcessingPlan { plan, file_info })
+    Ok(InspectedRun::new(
+        InspectedProcessingPlan { plan, file_info },
+        preview,
+    ))
 }
 
 fn processing_request_rejected_record(error: &AppError) -> Option<String> {
@@ -100,8 +114,9 @@ fn processing_request_rejected_record(error: &AppError) -> Option<String> {
 pub(crate) fn preflight_title_outputs(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    inspected: &InspectedProcessingPlan,
+    plan: &ExportPlan,
 ) -> Result<Vec<Arc<TitleOutput>>> {
+    let inspected = plan.inspected();
     inspected
         .plan
         .jobs

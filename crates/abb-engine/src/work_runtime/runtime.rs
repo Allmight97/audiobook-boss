@@ -8,8 +8,8 @@ use super::types::{
 use crate::errors::{AppError, Result};
 use crate::host::{EngineEvent, Host};
 use crate::processing::run::{
-    preflight_title_outputs, process_inspected_with_options, ExportTitle, ProcessingRoots,
-    ProcessingRun, RunMode,
+    preflight_title_outputs, process_inspected_with_options, ExportPlan, ExportTitle,
+    ProcessingRoots, ProcessingRun, RunMode,
 };
 use crate::processing::ProgressEventListener;
 use crate::processing::TitleOutput;
@@ -83,7 +83,7 @@ impl WorkRuntime {
         roots: ProcessingRoots,
         request: SubmitProcessingOperationRequest,
         on_finished: Option<OnFinished>,
-        inspected: crate::processing::plan::InspectedProcessingPlan,
+        inspected: ExportPlan,
     ) -> Result<WorkSubmissionAccepted> {
         if request.title.trim().is_empty() {
             return Err(AppError::InvalidInput(
@@ -113,10 +113,7 @@ impl WorkRuntime {
         registry: crate::ManagedJobRegistry,
         roots: ProcessingRoots,
         request: SubmitProcessingOperationRequest,
-        planned: (
-            Vec<Arc<TitleOutput>>,
-            crate::processing::plan::InspectedProcessingPlan,
-        ),
+        planned: (Vec<Arc<TitleOutput>>, ExportPlan),
         on_finished: Option<OnFinished>,
     ) -> Result<WorkSubmissionAccepted> {
         let (titles, inspected) = planned;
@@ -187,11 +184,13 @@ impl WorkRuntime {
                     registry,
                     roots,
                     request.payload,
-                    inspected,
                     ProcessingRun {
                         operation_id: operation_id.to_string(),
                         listener,
-                        mode: RunMode::Export(export_titles),
+                        mode: RunMode::Export {
+                            plan: inspected,
+                            titles: export_titles,
+                        },
                     },
                 )
                 .await

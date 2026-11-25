@@ -57,7 +57,9 @@ async fn a_cancel_during_the_encode_reports_one_cancelled_event_after_the_staged
         supplemental_assets_by_input_id: None,
         aac_decoder: Some(AacDecoder::Auto),
     };
-    let inspected = inspect_processing_plan(&payload, None, false).expect("inspect");
+    let inspected = inspect_processing_plan(&payload, None, false)
+        .expect("inspect")
+        .expect_export();
     let outputs = preflight_title_outputs(&payload, None, &inspected).expect("title outputs");
 
     let cancel = CancellationToken::new();
@@ -84,19 +86,19 @@ async fn a_cancel_during_the_encode_reports_one_cancelled_event_after_the_staged
         Arc::clone(&registry),
         roots,
         payload,
-        inspected,
         ProcessingRun {
             operation_id: "cancel-events".to_string(),
             listener,
-            mode: RunMode::Export(
-                outputs
+            mode: RunMode::Export {
+                plan: inspected,
+                titles: outputs
                     .into_iter()
                     .map(|output| ExportTitle {
                         cancel: cancel.clone(),
                         output,
                     })
                     .collect(),
-            ),
+            },
         },
     );
     tokio::pin!(processing);
@@ -162,7 +164,9 @@ async fn a_title_that_fails_reports_failed_before_a_later_title_ends() {
         supplemental_assets_by_input_id: None,
         aac_decoder: Some(AacDecoder::Auto),
     };
-    let inspected = inspect_processing_plan(&payload, None, false).expect("inspect");
+    let inspected = inspect_processing_plan(&payload, None, false)
+        .expect("inspect")
+        .expect_export();
     let outputs = preflight_title_outputs(&payload, None, &inspected).expect("title outputs");
     fs::remove_file(&failing).expect("remove the first title's source");
 
@@ -191,17 +195,17 @@ async fn a_title_that_fails_reports_failed_before_a_later_title_ends() {
         Arc::clone(&registry),
         roots,
         payload,
-        inspected,
         ProcessingRun {
             operation_id: "failed-events".to_string(),
             listener,
-            mode: RunMode::Export(
-                outputs
+            mode: RunMode::Export {
+                plan: inspected,
+                titles: outputs
                     .into_iter()
                     .zip(cancels.iter().cloned())
                     .map(|(output, cancel)| ExportTitle { cancel, output })
                     .collect(),
-            ),
+            },
         },
     );
     tokio::pin!(processing);

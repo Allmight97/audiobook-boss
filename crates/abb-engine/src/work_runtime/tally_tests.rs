@@ -2,8 +2,7 @@ use super::snapshot::new_processing_snapshot;
 use super::state::WorkRuntimeState;
 use super::{ChildCounts, ChildJobStatus, OperationId, OperationSnapshot, WorkOperationStatus};
 use crate::processing::{
-    EventStage, OperationKind, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus,
-    ProgressEvent,
+    EventStage, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus, ProgressEvent,
 };
 
 fn three_title_batch() -> (WorkRuntimeState, OperationId) {
@@ -25,7 +24,6 @@ fn three_title_batch() -> (WorkRuntimeState, OperationId) {
 
 fn event(stage: EventStage, input_index: usize) -> ProgressEvent {
     ProgressEvent {
-        operation_kind: OperationKind::ProcessingBatch,
         stage,
         percentage: 0.0,
         message: String::new(),

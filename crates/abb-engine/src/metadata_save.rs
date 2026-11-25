@@ -3,8 +3,7 @@ use crate::errors::{sanitize_path_str_for_display, AppError, AppErrorEnvelope, R
 use crate::host::Host;
 use crate::metadata::MetadataIntentPatch;
 use crate::processing::{
-    CancellationChecker, EventStage, OperationKind, OperationResultSummary, ProcessResultStatus,
-    ProgressEvent,
+    CancellationChecker, EventStage, OperationResultSummary, ProcessResultStatus, ProgressEvent,
 };
 use crate::work_runtime::{InlineRunTerminal, WorkRuntime};
 use std::path::PathBuf;
@@ -280,7 +279,6 @@ fn save_metadata_item(
 
 fn metadata_save_progress_event(progress: MetadataSaveProgress) -> ProgressEvent {
     ProgressEvent {
-        operation_kind: OperationKind::MetadataSave,
         stage: progress.stage,
         percentage: progress.percentage,
         message: progress.message,

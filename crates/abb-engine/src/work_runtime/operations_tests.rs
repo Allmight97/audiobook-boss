@@ -1,8 +1,7 @@
 use super::operations::{CancelTokens, Live, Operations};
 use crate::errors::AppError;
 use crate::processing::{
-    EventStage, OperationKind, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus,
-    ProgressEvent,
+    EventStage, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus, ProgressEvent,
 };
 use crate::work_runtime::snapshot::new_processing_snapshot;
 use crate::work_runtime::{OperationId, WorkOperationStatus};
@@ -42,7 +41,6 @@ fn accepted() -> (Operations, OperationId) {
 
 fn completed(index: usize) -> ProgressEvent {
     ProgressEvent {
-        operation_kind: OperationKind::ProcessingBatch,
         stage: EventStage::Completed,
         percentage: 100.0,
         message: "done".to_string(),

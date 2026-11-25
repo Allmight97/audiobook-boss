@@ -3,7 +3,6 @@ use super::{
     PROGRESS_CONVERTING_START, PROGRESS_FINALIZING, PROGRESS_METADATA_START,
 };
 use crate::execution::JobIdentity;
-use abb_processing_core::OperationKind;
 use std::sync::Arc;
 
 pub(crate) type ProgressEventListener = Arc<dyn Fn(&ProgressEvent) + Send + Sync>;
@@ -119,7 +118,6 @@ impl ProgressEmitter {
             0.0
         };
         let event = ProgressEvent {
-            operation_kind: OperationKind::ProcessingBatch,
             stage,
             percentage,
             message: message.to_string(),

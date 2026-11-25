@@ -1,6 +1,5 @@
 mod emitter;
 
-use abb_processing_core::OperationKind;
 use serde::Serialize;
 
 pub const PROGRESS_ANALYZING_START: f32 = 0.0;
@@ -26,18 +25,14 @@ pub enum EventStage {
     Cancelled,
 }
 
-#[derive(Clone, Serialize, specta::Type)]
+#[derive(Clone)]
 pub struct ProgressEvent {
-    pub operation_kind: OperationKind,
     pub stage: EventStage,
-    #[specta(type = specta_typescript::Number)]
     pub percentage: f32,
     pub message: String,
     pub current_file: Option<String>,
     pub eta_seconds: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub job_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub input_index: Option<usize>,
 }
 

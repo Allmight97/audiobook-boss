@@ -3,20 +3,16 @@ use std::sync::Arc;
 use super::submission_flow::{closing, failed};
 use super::Session;
 use crate::errors::AppError;
-use crate::processing::run::{process_inspected_with_options, ProcessingRun, RunMode};
+use crate::processing::run::{process_inspected_with_options, PreviewPlan, ProcessingRun, RunMode};
 use crate::session::intent::SessionOutcome;
 use crate::session::submission::{Draft, SubmissionStatus};
 
 impl Session {
-    pub(super) async fn run_preview(
-        &self,
-        draft: Draft,
-        inspected: crate::processing::plan::InspectedProcessingPlan,
-    ) -> SessionOutcome {
+    pub(super) async fn run_preview(&self, draft: Draft, inspected: PreviewPlan) -> SessionOutcome {
         let deps = &self.inner.deps;
         let _active_run = deps.jobs.hold_run();
         let id = draft.operation_id.clone();
-        let artwork = crate::session::preview::PreviewArtwork::from_plan(&inspected);
+        let artwork = crate::session::preview::PreviewArtwork::from_plan(inspected.inspected());
         let Ok(cancels) = self.inner.deps.tasks.admit(|| {
             self.transition(|state| {
                 state.preview.artwork = artwork;
@@ -32,10 +28,12 @@ impl Session {
             deps.jobs.clone(),
             deps.roots.clone(),
             draft.payload.clone(),
-            inspected,
             ProcessingRun {
                 operation_id: id.to_string(),
-                mode: RunMode::Preview(cancels),
+                mode: RunMode::Preview {
+                    plan: inspected,
+                    cancels,
+                },
                 listener: Arc::new({
                     let session = self.clone();
                     let id = id.clone();

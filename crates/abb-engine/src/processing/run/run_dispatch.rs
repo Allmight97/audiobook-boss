@@ -1,5 +1,5 @@
 use super::run_job::{run_processing_job, supplemental_assets_for_input, ProcessingJobRequest};
-use super::ProcessingRun;
+use super::run_options::RunTitles;
 use crate::audio;
 use crate::errors::{AppError, Result};
 use crate::host::Host;
@@ -17,13 +17,19 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex, PoisonError};
 use tokio_util::sync::CancellationToken;
 
-pub(crate) async fn dispatch_title_jobs(
+pub(super) struct TitleRun {
+    pub(super) operation_id: String,
+    pub(super) listener: ProgressEventListener,
+    pub(super) titles: RunTitles,
+}
+
+pub(super) async fn dispatch_title_jobs(
     host: Host,
     registry: crate::ManagedJobRegistry,
     workspace_root: PathBuf,
     payload: &ProcessPayload,
     execution_plan: ExecutionProcessingPlan,
-    run: ProcessingRun,
+    run: TitleRun,
 ) -> Result<ProcessCommandResult> {
     let ExecutionProcessingPlan {
         plan,
@@ -55,7 +61,7 @@ async fn dispatch_batch_plan(
     workspace_root: PathBuf,
     payload: &ProcessPayload,
     batch: Batch,
-    run: ProcessingRun,
+    run: TitleRun,
 ) -> Result<ProcessCommandResult> {
     let Batch {
         plan,
@@ -69,7 +75,7 @@ async fn dispatch_batch_plan(
     let mut scheduled_jobs: Vec<(TitleFuture, Option<CancellationToken>)> = Vec::new();
     for planned_job in plan.jobs {
         let input_index = planned_job.input_index;
-        let title_output = run.mode.output(input_index);
+        let title_output = run.titles.output(input_index);
         let identity = JobIdentity {
             operation_id: run.operation_id.clone(),
             job_id: None,
@@ -95,7 +101,7 @@ async fn dispatch_batch_plan(
             sample_rate: planned_job.audio_plan.sample_rate,
             aac_decoder: payload.accepted_aac_decoder()?,
             identity,
-            title_cancel: run.mode.cancel(input_index),
+            title_cancel: run.titles.cancel(input_index),
             output_plan: planned_job.output.clone(),
             file_info: crate::processing::plan::title_file_info(
                 &file_info,

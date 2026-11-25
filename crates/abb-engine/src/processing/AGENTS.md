@@ -19,10 +19,15 @@
   between two titles not idle. Admission and reconfiguration share one lock:
   admission records the job and clones the semaphore together, and
   reconfiguration checks for tracked jobs and swaps it together.
-- A preview is `OutputKind::Preview`, set once when the plan resolves each
-  title's output; execution asks `ProcessingContext::is_preview()` and no
-  second flag carries it.
-- `RunMode` is one value per run, so an export title without an output record
-  cannot be built.
+- `inspect_processing_plan` decides preview or export once: it sets each
+  title's `OutputKind` and returns an `ExportPlan` or a `PreviewPlan`, and
+  each `RunMode` variant takes only its own plan, so a run's mode and its
+  outputs' kind cannot disagree. Execution asks
+  `ProcessingContext::is_preview()`.
+- An export title without an output record cannot be built, because
+  `RunMode::Export` pairs each title's cancel with its `TitleOutput`.
+- The run path names `OperationKind::ProcessingBatch` only in the
+  `processing_job` log record (`run_job.rs`); `ProgressEvent` carries no
+  kind, and `work_runtime` sets the kind of each operation it accepts.
 - Keep preflight side-effect-free, so a plan that review refuses leaves no
   folders or files behind.

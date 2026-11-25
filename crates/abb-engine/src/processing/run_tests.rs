@@ -205,7 +205,9 @@ fn execution_rejected_by_review_does_not_create_the_output_root() {
         payload.output_dir = missing_root.to_string_lossy().into_owned();
         payload.preflight_signature = Some("stale review".into());
     });
-    let inspected = super::inspect_processing_plan(&payload, None, false).expect("review source");
+    let inspected = super::inspect_processing_plan(&payload, None, false)
+        .expect("review source")
+        .into_inspected();
     std::fs::remove_dir(&missing_root).expect("delete library root");
 
     let records = OutputFolderRecords::for_cache(&temp.path().join("cache"));
@@ -278,8 +280,9 @@ fn stacked_title_plan_keeps_source_order_metadata_and_separate_outputs() {
             },
         ),
     ]);
-    let inspected =
-        super::inspect_processing_plan(&payload, Some(&metadata), false).expect("review titles");
+    let inspected = super::inspect_processing_plan(&payload, Some(&metadata), false)
+        .expect("review titles")
+        .into_inspected();
     payload.preflight_signature = Some(inspected.plan.plan_signature.clone());
     let records = OutputFolderRecords::for_cache(&temp.path().join("cache"));
     let execution =
@@ -310,7 +313,8 @@ async fn execute_reviewed_metadata_batch(
     use crate::audio::{execute_audio_engine, AudioExecutionRequest};
     use crate::processing::{OutputConfig, ProcessingContext};
     let inspected = super::inspect_processing_plan(&payload, Some(metadata), false)
-        .expect("review metadata batch");
+        .expect("review metadata batch")
+        .into_inspected();
     payload.preflight_signature = Some(inspected.plan.plan_signature.clone());
     let records = OutputFolderRecords::for_cache(&workspace.join("cache"));
     let execution =

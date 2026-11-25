@@ -314,8 +314,9 @@ async fn export_on(runtime: &WorkRuntime, host: Host, operation_id: &OperationId
             sample_rate: crate::audio::SampleRateConfig::Auto,
         },
     );
-    let inspected =
-        crate::processing::run::inspect_processing_plan(&payload, None, false).expect("inspect");
+    let inspected = crate::processing::run::inspect_processing_plan(&payload, None, false)
+        .expect("inspect")
+        .expect_export();
     let registry = Arc::new(crate::processing::JobRegistry::new(1));
     let settled = Arc::new(Mutex::new(Vec::new()));
     let on_finished: OnFinished = {

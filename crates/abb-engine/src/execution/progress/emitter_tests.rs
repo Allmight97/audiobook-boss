@@ -42,7 +42,6 @@ fn terminal_events_reach_the_listener_with_the_job_identity_and_reset_progress()
         ]
     );
     for event in events.iter() {
-        assert_eq!(event.operation_kind, OperationKind::ProcessingBatch);
         assert_eq!(event.job_id.as_deref(), Some("job-123"));
         assert_eq!(event.input_index, Some(7));
         assert_eq!(event.current_file, None);
