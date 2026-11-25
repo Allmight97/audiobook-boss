@@ -250,6 +250,7 @@ fn save_metadata_item(
 ) -> Result<Option<Rewrite>> {
     let path = PathBuf::from(file_path);
     let validated_path = validate_input_audio_path(&path)?;
+    let _file = crate::output_artifact::lock_output_file(&validated_path);
     log::info!("Saving metadata to: {}", validated_path.display());
 
     let before = crate::metadata::source_fingerprint(&validated_path)
