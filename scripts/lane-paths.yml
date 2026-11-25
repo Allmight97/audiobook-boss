@@ -50,8 +50,6 @@ engine:
 media:
   - *shared
   - crates/**
-  - scripts/abb-dev.sh
-  - scripts/golden-path/**
 apple:
   - *shared
   - crates/**

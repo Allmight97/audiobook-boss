@@ -1,3 +1,5 @@
+mod golden_path;
+
 use std::{
     path::{Path, PathBuf},
     process::Command,

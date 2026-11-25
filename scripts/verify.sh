@@ -173,7 +173,6 @@ lane_media() {
 	require_rust
 	check_rust_fmt
 	engine_lib_tests_matching test_cases::integration_media
-	bash scripts/golden-path/run.sh
 }
 
 lane_host() {
