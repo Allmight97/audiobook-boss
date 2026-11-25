@@ -52,6 +52,32 @@ fn content_range_mismatch_is_rejected() {
 }
 
 #[test]
+fn a_resumed_partial_reply_needs_a_content_range_at_the_offset() {
+    for content_range in [
+        None,
+        Some("garbage"),
+        Some("bytes 4096-/8192"),
+        Some("bytes 0-6143/8192"),
+        Some("bytes 4097-6143/8192"),
+        Some("bytes 4096-4095/8192"),
+    ] {
+        assert_eq!(
+            classify_download_response(HTTP_PARTIAL_CONTENT, true, 4096, Some(4096), content_range),
+            Err(DownloadResponseError::ContentRange),
+            "{content_range:?}"
+        );
+    }
+}
+
+#[test]
+fn a_fresh_partial_reply_without_a_content_range_uses_its_length() {
+    assert_eq!(
+        classify_download_response(HTTP_PARTIAL_CONTENT, true, 0, Some(4096), None),
+        Ok(Some(4096))
+    );
+}
+
+#[test]
 fn parses_star_total_as_unknown() {
     assert_eq!(
         parse_content_range("bytes 0-6143/*"),

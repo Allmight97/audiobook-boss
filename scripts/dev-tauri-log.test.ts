@@ -29,11 +29,13 @@ for (const exitCode of [0, 17]) {
 			});
 			writeFileSync(path.join(root, 'bin/lsof'), '#!/bin/bash\nexit 1\n', { mode: 0o755 });
 			const argsFile = path.join(root, 'launched-args');
+			const rustLogFile = path.join(root, 'launched-rust-log');
 			writeFileSync(
 				path.join(root, 'bin/bun'),
 				`#!/bin/bash
 if [[ "$1" == run && "$2" == tauri ]]; then
  printf '%s\\n' "$@" > "$VERIFY_TEST_ARGS"
+ printf '%s' "$RUST_LOG" > "$VERIFY_TEST_RUST_LOG"
  exit "$VERIFY_TEST_EXIT"
 fi
 if [[ "$1" == --version ]]; then printf '1.4.3\\n'; fi
@@ -47,6 +49,9 @@ if [[ "$1" == --version ]]; then printf '1.4.3\\n'; fi
 					...process.env,
 					PATH: `${root}/bin:${process.env.PATH}`,
 					VERIFY_TEST_ARGS: argsFile,
+					VERIFY_TEST_RUST_LOG: rustLogFile,
+					ABB_DEV_RUST_LOG: '',
+					ABB_DEV_USE_EXISTING_RUST_LOG: '',
 					VERIFY_TEST_EXIT: String(exitCode),
 				},
 			});
@@ -59,6 +64,13 @@ if [[ "$1" == --version ]]; then printf '1.4.3\\n'; fi
 				'--features',
 				'bundled-ffmpeg',
 			]);
+			expect(readFileSync(rustLogFile, 'utf8').split(',')).toEqual(
+				expect.arrayContaining([
+					'audiobook_boss=info',
+					'abb_engine=info',
+					'abb_media_pipeline=info',
+				]),
+			);
 			expect(readFileSync(path.join(root, '.logs/tauri-dev-summary.md'), 'utf8')).toContain(
 				`Exit status: \`${exitCode}\``,
 			);

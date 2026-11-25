@@ -12,6 +12,7 @@ enum Serve {
     Pause(usize),
     Close,
     Resized,
+    WrongSegment(Option<&'static str>),
 }
 
 struct Stub {
@@ -62,17 +63,25 @@ fn ranged_reply(serve: Serve, start: u64) -> Reply {
     } else {
         BODY_LEN
     };
+    let content_range = match serve {
+        Serve::WrongSegment(header) => header.map(str::to_string),
+        _ => Some(format!("bytes {}-{}/{}", start, BODY_LEN - 1, total)),
+    };
+    let remaining = match serve {
+        Serve::WrongSegment(_) => &body[..remaining.len()],
+        _ => remaining,
+    };
     let head = format!(
-        "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes {}-{}/{}\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\n{}Connection: close\r\n\r\n",
         remaining.len(),
-        start,
-        BODY_LEN - 1,
-        total
+        content_range
+            .map(|range| format!("Content-Range: {range}\r\n"))
+            .unwrap_or_default()
     );
     let with_head = |bytes: &[u8]| [head.as_bytes(), bytes].concat();
     match serve {
         Serve::Close => Reply::close_silently(),
-        Serve::Full | Serve::Resized => Reply::bytes(with_head(remaining)),
+        Serve::Full | Serve::Resized | Serve::WrongSegment(_) => Reply::bytes(with_head(remaining)),
         Serve::Truncate(sent) => Reply::bytes(with_head(&remaining[..sent.min(remaining.len())])),
         Serve::Pause(sent) => Reply::chunks(
             vec![with_head(&remaining[..sent]), remaining[sent..].to_vec()],
@@ -196,6 +205,35 @@ async fn a_resumed_reply_with_another_total_size_is_rejected() {
     );
     assert!(!target.exists());
     assert!(!partial_sibling(&target).exists());
+}
+
+#[tokio::test]
+async fn a_resumed_segment_without_a_matching_range_is_rejected() {
+    for header in [None, Some("bytes garbage")] {
+        let stub = start_stub(vec![Serve::Truncate(400), Serve::WrongSegment(header)]).await;
+        let root = tempfile::TempDir::new().expect("temp root");
+        let target = root.path().join("book.aaxc");
+
+        let error = download_to_path_with_client(
+            &stub.client,
+            &stub.url,
+            &target,
+            Duration::ZERO,
+            LOG,
+            &mut |_| {},
+            &|| false,
+        )
+        .await
+        .expect_err("a segment with no proven position");
+
+        assert!(
+            error.to_string().contains("content range"),
+            "{header:?}: unexpected error: {error}"
+        );
+        assert_eq!(stub.range_starts(), [0, 400]);
+        assert!(!target.exists());
+        assert!(!partial_sibling(&target).exists());
+    }
 }
 
 #[tokio::test]

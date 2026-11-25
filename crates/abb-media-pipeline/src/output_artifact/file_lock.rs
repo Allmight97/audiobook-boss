@@ -35,13 +35,15 @@ impl Drop for OutputFileLock {
 }
 
 fn lock_key(path: &Path) -> PathBuf {
-    let key = match (
-        path.parent().and_then(|parent| parent.canonicalize().ok()),
-        path.file_name(),
-    ) {
-        (Some(parent), Some(name)) => parent.join(name),
-        _ => path.to_path_buf(),
-    };
+    let key = path.canonicalize().unwrap_or_else(|_| {
+        match (
+            path.parent().and_then(|parent| parent.canonicalize().ok()),
+            path.file_name(),
+        ) {
+            (Some(parent), Some(name)) => parent.join(name),
+            _ => path.to_path_buf(),
+        }
+    });
     if cfg!(any(target_os = "macos", target_os = "windows")) {
         PathBuf::from(key.to_string_lossy().to_lowercase())
     } else {

@@ -457,7 +457,7 @@ trap finish_run EXIT
 cd "$repo_root"
 export ABB_RUN_ID="$run_id"
 export ABB_ENCODING_LOG="$encoding_log"
-default_rust_log="audiobook_boss=info,abb_engine=info,tauri=warn,wry=warn"
+default_rust_log="audiobook_boss=info,abb_engine=info,abb_media_pipeline=info,tauri=warn,wry=warn"
 if [[ -n "${ABB_DEV_RUST_LOG:-}" ]]; then
 	export RUST_LOG="$ABB_DEV_RUST_LOG"
 	rust_log_source="ABB_DEV_RUST_LOG"

@@ -106,6 +106,15 @@ fn refuses_production_identity(is_dev: bool, debug_build: bool, identifier: &str
     (is_dev || debug_build) && identifier == PRODUCTION_IDENTIFIER
 }
 
+fn production_identity_refusal() -> String {
+    format!(
+        "This development build carries the installed app's identity \
+         ({PRODUCTION_IDENTIFIER}), so it would use your real settings, stored \
+         credentials, and output folder. Launch it with `bun run tauri dev`, \
+         or build the app with `bun run app:build`."
+    )
+}
+
 fn quit_with_startup_dialog(app: &tauri::App, title: &str, message: String) {
     if let Some(window) = app.get_webview_window("main") {
         if let Err(error) = window.hide() {
@@ -470,7 +479,9 @@ pub fn run() {
         cfg!(debug_assertions),
         &context.config().identifier,
     );
-    if !identity_refused {
+    if identity_refused {
+        eprintln!("{}", production_identity_refusal());
+    } else {
         log_file::init_logger(&context.config().identifier);
     }
 
@@ -511,12 +522,7 @@ pub fn run() {
                 quit_with_startup_dialog(
                     app,
                     "Development build refused",
-                    format!(
-                        "This development build carries the installed app's identity \
-                         ({PRODUCTION_IDENTIFIER}), so it would use your real settings, stored \
-                         credentials, and output folder. Launch it with `bun run tauri dev`, \
-                         or build the app with `bun run app:build`."
-                    ),
+                    production_identity_refusal(),
                 );
                 return Ok(());
             }
