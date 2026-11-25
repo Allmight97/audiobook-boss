@@ -76,7 +76,7 @@ it('names the build revision by short commit, marks a dirty tree, and falls back
 		(head: number, porcelain: string, statusCode = 0) =>
 		(args: string[]) =>
 			args[0] === 'rev-parse'
-				? { status: head, stdout: '0123456789ab\n' }
+				? { status: head, stdout: '0123456789abcdef0123456789abcdef01234567\n' }
 				: { status: statusCode, stdout: porcelain };
 	expect(buildRevision(git(0, ''))).toBe('0123456789ab');
 	expect(buildRevision(git(0, ' M src/main.ts\n'))).toBe('0123456789ab-dirty');

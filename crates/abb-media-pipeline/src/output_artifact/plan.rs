@@ -1,4 +1,7 @@
-use super::collision::{detect_output_collision, next_rename_candidate, OutputCollisionCache};
+use super::collision::{
+    detect_output_collision, find_case_insensitive_claim_conflict, next_rename_candidate,
+    OutputCollisionCache,
+};
 use super::derive_output_artifact_path;
 use super::types::{CollisionPolicy, OutputKind, PlannedOutputAction, ResolvedOutputPlan};
 use crate::errors::{AppError, Result};
@@ -9,6 +12,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Default, Clone)]
 pub struct OutputPlanLedger {
     claimed: HashSet<PathBuf>,
+    reviewed: HashSet<PathBuf>,
     collision_cache: OutputCollisionCache,
 }
 
@@ -50,11 +54,19 @@ impl OutputPlanLedger {
             kind,
             policy,
             &self.claimed,
+            &self.reviewed,
             source_paths,
             &mut self.collision_cache,
         )?;
         if abb_output_artifact_core::action_requires_output_write(plan.action) {
             self.claimed.insert(plan.resolved_path.clone());
+        } else if plan.action == PlannedOutputAction::ReviewRequired {
+            let reviewed_target = plan
+                .collision
+                .as_ref()
+                .and_then(|value| value.conflicting_path.clone())
+                .unwrap_or_else(|| plan.resolved_path.clone());
+            self.reviewed.insert(reviewed_target);
         }
         Ok(plan)
     }
@@ -65,6 +77,7 @@ fn resolve_output_plan_with_cache(
     kind: OutputKind,
     policy: CollisionPolicy,
     claimed: &HashSet<PathBuf>,
+    reviewed: &HashSet<PathBuf>,
     source_paths: &[PathBuf],
     cache: &mut OutputCollisionCache,
 ) -> Result<ResolvedOutputPlan> {
@@ -80,6 +93,15 @@ fn resolve_output_plan_with_cache(
             .as_ref()
             .is_some_and(|path| claimed.contains(path))
     });
+    let review_claimed_conflict = claimed_conflict
+        || collision.as_ref().is_some_and(|value| {
+            value
+                .conflicting_path
+                .as_ref()
+                .is_some_and(|path| reviewed.contains(path))
+        })
+        || reviewed.contains(&requested_path)
+        || find_case_insensitive_claim_conflict(&requested_path, reviewed).is_some();
     let rename = if collision.is_some() && !hard_block {
         next_rename_candidate(&requested_path, claimed, source_paths, cache)?
     } else {
@@ -103,7 +125,7 @@ fn resolve_output_plan_with_cache(
 
     let choices = abb_output_artifact_core::output_choices(
         collision.as_ref().map(|value| value.kind),
-        claimed_conflict,
+        review_claimed_conflict,
         &rename,
     );
 

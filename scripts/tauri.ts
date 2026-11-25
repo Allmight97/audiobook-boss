@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 
@@ -9,6 +9,12 @@ interface DevelopmentIdentity {
 }
 
 type GitRunner = (args: string[]) => { status: number | null; stdout: string };
+
+interface GitCheckoutState {
+	fullRevision: string;
+	dirty: boolean | 'unknown';
+	buildRevision: string;
+}
 
 export function developmentIdentity(repoRoot: string): DevelopmentIdentity {
 	const checkout = realpathSync(repoRoot);
@@ -22,11 +28,15 @@ export function developmentIdentity(repoRoot: string): DevelopmentIdentity {
 	};
 }
 
+export function hasDebugFlag(cliArgs: string[]): boolean {
+	return cliArgs.includes('--debug') || cliArgs.includes('-d');
+}
+
 export function withDevelopmentIdentity(repoRoot: string, args: string[]): string[] {
 	const boundary = args.indexOf('--');
 	const cliArgs = boundary < 0 ? args : args.slice(0, boundary);
 	const command = cliArgs.find((arg) => !arg.startsWith('-'));
-	const debugBuild = command === 'build' && (cliArgs.includes('--debug') || cliArgs.includes('-d'));
+	const debugBuild = command === 'build' && hasDebugFlag(cliArgs);
 	if (command !== 'dev' && !debugBuild) return args;
 
 	return [
@@ -42,26 +52,62 @@ const runGit: GitRunner = (args) => {
 	return { status: result.status, stdout: result.stdout ?? '' };
 };
 
-export function buildRevision(git: GitRunner = runGit): string {
-	const head = git(['rev-parse', '--short=12', 'HEAD']);
+function readCheckoutState(git: GitRunner = runGit): GitCheckoutState {
+	const head = git(['rev-parse', 'HEAD']);
 	const status = git(['status', '--porcelain']);
-	if (head.status !== 0 || status.status !== 0) return 'unknown';
-	return status.stdout.trim() ? `${head.stdout.trim()}-dirty` : head.stdout.trim();
+	const fullRevision = head.status === 0 ? head.stdout.trim() : 'unknown';
+	const dirty = status.status === 0 ? Boolean(status.stdout.trim()) : 'unknown';
+	const revision =
+		head.status !== 0 || status.status !== 0
+			? 'unknown'
+			: dirty
+				? `${fullRevision.slice(0, 12)}-dirty`
+				: fullRevision.slice(0, 12);
+	return { fullRevision, dirty, buildRevision: revision };
+}
+
+export function buildRevision(git: GitRunner = runGit): string {
+	return readCheckoutState(git).buildRevision;
+}
+
+async function runTauriCli(tauriBin: string, args: string[], revision: string): Promise<number> {
+	const child = spawn(process.execPath, [tauriBin, ...args], {
+		stdio: 'inherit',
+		env: { ...process.env, ABB_BUILD_REVISION: revision },
+	});
+	const ignoreSigint = () => {};
+	const forwardTerm = () => child.kill('SIGTERM');
+	const forwardHup = () => child.kill('SIGHUP');
+	process.on('SIGINT', ignoreSigint);
+	process.on('SIGTERM', forwardTerm);
+	process.on('SIGHUP', forwardHup);
+	try {
+		return await new Promise<number>((resolve) => {
+			child.on('error', (error) => {
+				console.error(error.message);
+				resolve(1);
+			});
+			child.on('exit', (code, signal) => {
+				if (code !== null) {
+					resolve(code);
+				} else {
+					resolve(signal === 'SIGINT' ? 130 : signal === 'SIGHUP' ? 129 : 143);
+				}
+			});
+		});
+	} finally {
+		process.off('SIGINT', ignoreSigint);
+		process.off('SIGTERM', forwardTerm);
+		process.off('SIGHUP', forwardHup);
+	}
 }
 
 if (import.meta.main) {
 	const args = withDevelopmentIdentity(process.cwd(), process.argv.slice(2));
-	const revision = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' });
-	const dirty = spawnSync('git', ['status', '--porcelain'], { encoding: 'utf8' });
+	const state = readCheckoutState();
 	console.info(
-		`build_checkout revision=${revision.status === 0 ? revision.stdout.trim() : 'unknown'} dirty=${dirty.status === 0 ? Boolean(dirty.stdout.trim()) : 'unknown'} checkout=${JSON.stringify(path.basename(realpathSync(process.cwd())))}`,
+		`build_checkout revision=${state.fullRevision} dirty=${state.dirty} checkout=${JSON.stringify(path.basename(realpathSync(process.cwd())))}`,
 	);
 	const tauriBin = path.join(import.meta.dir, '..', 'node_modules/.bin/tauri');
-	process.on('SIGINT', () => {});
-	const result = spawnSync(process.execPath, [tauriBin, ...args], {
-		stdio: 'inherit',
-		env: { ...process.env, ABB_BUILD_REVISION: buildRevision() },
-	});
-	if (result.error) console.error(result.error.message);
-	process.exitCode = result.status ?? 1;
+	process.exitCode = await runTauriCli(tauriBin, args, state.buildRevision);
 }

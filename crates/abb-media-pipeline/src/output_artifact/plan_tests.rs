@@ -273,3 +273,31 @@ fn two_full_length_titles_in_one_run_refuse_replace_and_rename_but_skip() {
         Ok((PlannedOutputAction::SkipExisting, choices))
     );
 }
+
+#[test]
+fn two_full_length_titles_over_an_existing_file_refuse_replace_and_rename_in_review() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    let requested = temp_dir.path().join(format!("{}.m4b", "t".repeat(251)));
+    std::fs::write(&requested, b"existing").expect("existing file");
+
+    let mut ledger = OutputPlanLedger::new();
+    let first = ledger
+        .resolve(&requested, OutputKind::Final, CollisionPolicy::Fail, &[])
+        .expect("first title reviews");
+    let second = ledger
+        .resolve(&requested, OutputKind::Final, CollisionPolicy::Fail, &[])
+        .expect("second title reviews");
+
+    let refused = ChoiceAvailability::Refused {
+        reason: RenameRefusal::TooLong,
+    };
+    assert_eq!(first.action, PlannedOutputAction::ReviewRequired);
+    assert_eq!(second.action, PlannedOutputAction::ReviewRequired);
+    assert_eq!(
+        first.choices.merge(second.choices),
+        CollisionChoices {
+            replace: refused,
+            rename: refused,
+        }
+    );
+}

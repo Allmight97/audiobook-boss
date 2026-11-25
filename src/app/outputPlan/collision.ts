@@ -21,7 +21,7 @@ const RENAME_REFUSALS: Record<RenameRefusal, string> = {
 
 function replaceRefusal(choice: ChoiceAvailability): string | null {
 	if (choice.kind === 'available') return null;
-	return `Overwrite Existing is unavailable: titles in this export share a name, so one must be renamed, and ${RENAME_REFUSALS[choice.reason]}.`;
+	return `Overwrite Existing is unavailable: ${RENAME_REFUSALS[choice.reason]}.`;
 }
 
 function renameRefusal(choice: ChoiceAvailability): string | null {

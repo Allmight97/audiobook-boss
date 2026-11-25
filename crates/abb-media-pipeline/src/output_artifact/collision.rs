@@ -125,7 +125,7 @@ fn compare_case_folded(path: &Path) -> String {
     path.to_string_lossy().to_lowercase()
 }
 
-fn find_case_insensitive_claim_conflict(
+pub(crate) fn find_case_insensitive_claim_conflict(
     candidate: &Path,
     claimed: &HashSet<PathBuf>,
 ) -> Option<PathBuf> {

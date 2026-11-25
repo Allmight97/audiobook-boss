@@ -321,7 +321,7 @@ fn every_collision_kind_under_every_policy_resolves_to_its_pinned_action() {
         (
             OutputCollisionKind::ExistingFile,
             true,
-            [Review, Replace, Rename, Skip],
+            [Review, Rename, Rename, Skip],
         ),
         (
             OutputCollisionKind::BatchDuplicate,
@@ -429,6 +429,13 @@ fn a_rename_that_cannot_be_made_refuses_every_choice_that_would_rename() {
             RenameOption::Exhausted,
             Available,
             exhausted,
+        ),
+        (
+            OutputCollisionKind::ExistingFile,
+            true,
+            RenameOption::TooLong,
+            too_long,
+            too_long,
         ),
         (
             OutputCollisionKind::BatchDuplicate,

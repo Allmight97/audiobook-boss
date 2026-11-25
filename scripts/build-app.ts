@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { developmentIdentity } from './tauri';
+import { developmentIdentity, hasDebugFlag } from './tauri';
 
 interface PackageJson {
 	name: string;
@@ -104,7 +104,7 @@ export function assertSupportedMacOsHost(platform = process.platform, arch = pro
 
 export function resolveBuildProfile(buildArgs: string[]): BuildProfile {
 	const [tauriArgs] = splitArgsAtBoundary(buildArgs);
-	return tauriArgs.includes('--debug') || tauriArgs.includes('-d') ? 'debug' : 'release';
+	return hasDebugFlag(tauriArgs) ? 'debug' : 'release';
 }
 
 export function resolveMacOsBundlePaths(

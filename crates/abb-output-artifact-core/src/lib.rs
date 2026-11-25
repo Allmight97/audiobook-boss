@@ -321,11 +321,7 @@ pub fn resolve_action(
     if kind.is_hard_block() {
         return PlannedOutputAction::ReviewRequired;
     }
-    let batch_like = match kind {
-        OutputCollisionKind::BatchDuplicate => true,
-        OutputCollisionKind::CaseInsensitiveMatch => claimed_conflict,
-        _ => false,
-    };
+    let batch_like = claimed_conflict || kind == OutputCollisionKind::BatchDuplicate;
     match policy {
         CollisionPolicy::Fail => PlannedOutputAction::ReviewRequired,
         CollisionPolicy::ReplaceExisting if batch_like => PlannedOutputAction::RenameNew,
