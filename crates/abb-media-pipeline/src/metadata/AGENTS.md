@@ -84,9 +84,6 @@
   across save, processing, naming, write plans, validation, and covers. Clear
   is the explicit blank action, never a sentinel value.
 - Publication-date and series sequence validation stay in this module.
-- Known bug, low priority (#635): a FLAC Save writes Comment and Description
-  under one Vorbis key, because FFmpeg maps `comment` to `DESCRIPTION`
-  (`libavformat/vorbiscomment.c`), so they read back joined.
 - `----:com.apple.iTunes:SERIES` and `SERIES-PART` are FFmpeg read and clear
   keys, never write keys, so a stray tag from an older ABB still reads and a
   series clear removes it; the mp4ameta sink writes them in MP4 beside the
@@ -143,5 +140,9 @@
   other than EOF refuses the Save), applies the 0.5 s duration check only when
   both durations are measured, and rechecks the source file fingerprint taken
   before the copy.
+- FLAC: FFmpeg matches Vorbis comment keys case-insensitively on write and
+  maps both `comment` and `COMMENT` to `DESCRIPTION` (`flacenc.c`), and on
+  read maps `DESCRIPTION` back to `comment` (`oggparsevorbis.c`), so a FLAC
+  Save joins Comment and Description under one key.
 - `cue_tests.rs`: two CUE names that differ only in case are two candidates
   on a case-sensitive volume and one file on a case-insensitive one.
