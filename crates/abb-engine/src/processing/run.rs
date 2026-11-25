@@ -1,6 +1,6 @@
 use crate::errors::{AppError, AppErrorCategory, AppErrorEnvelope, Result};
-use crate::host::Host;
 use crate::output_artifact::OutputFolderRecords;
+use crate::power::PowerManager;
 use crate::processing::plan::{
     prepare_inspected_execution, resolve_processing_plan, title_file_info, InspectedProcessingPlan,
 };
@@ -38,7 +38,7 @@ impl ProcessingRoots {
 
 pub(crate) async fn process_inspected_with_options(
     _run: &crate::processing::job_registry::ActiveRun,
-    host: Host,
+    power: PowerManager,
     registry: crate::ManagedJobRegistry,
     roots: ProcessingRoots,
     payload: ProcessPayload,
@@ -62,7 +62,7 @@ pub(crate) async fn process_inspected_with_options(
         .await
         .map_err(|error| AppError::General(format!("Execution preparation failed: {error}")))??;
         run_dispatch::dispatch_title_jobs(
-            host,
+            power,
             registry,
             roots.workspace,
             &execution.0,

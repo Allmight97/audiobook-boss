@@ -14,7 +14,7 @@ mod contract_tests;
 mod plan_table_tests;
 
 use crate::errors::{AppError, Result};
-use crate::metadata::NamingMetadata;
+use abb_metadata_core::NamingMetadata;
 use std::path::{Path, PathBuf};
 
 pub(crate) use commit::{

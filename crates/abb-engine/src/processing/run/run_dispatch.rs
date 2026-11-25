@@ -2,8 +2,8 @@ use super::run_job::{run_processing_job, supplemental_assets_for_input, Processi
 use super::run_options::RunTitles;
 use crate::audio;
 use crate::errors::{AppError, Result};
-use crate::host::Host;
 use crate::output_artifact::OutputParentDirCleanup;
+use crate::power::PowerManager;
 use crate::processing::plan::{ExecutionProcessingPlan, ResolvedProcessingPlan};
 use crate::processing::terminal_outcomes::{
     batch_results, build_all_skipped_batch_result, no_write_skip_message, report_skipped,
@@ -24,7 +24,7 @@ pub(super) struct TitleRun {
 }
 
 pub(super) async fn dispatch_title_jobs(
-    host: Host,
+    power: PowerManager,
     registry: crate::ManagedJobRegistry,
     workspace_root: PathBuf,
     payload: &ProcessPayload,
@@ -42,7 +42,7 @@ pub(super) async fn dispatch_title_jobs(
         file_info,
         folders: Arc::clone(&folders),
     };
-    let result = dispatch_batch_plan(host, registry, workspace_root, payload, batch, run).await;
+    let result = dispatch_batch_plan(power, registry, workspace_root, payload, batch, run).await;
     let mut folders = folders.lock().unwrap_or_else(PoisonError::into_inner);
     crate::processing::output_parent_cleanup::finalize_output_parent_cleanup(result, &mut folders)
 }
@@ -56,7 +56,7 @@ struct Batch {
 }
 
 async fn dispatch_batch_plan(
-    host: Host,
+    power: PowerManager,
     registry: crate::ManagedJobRegistry,
     workspace_root: PathBuf,
     payload: &ProcessPayload,
@@ -91,7 +91,7 @@ async fn dispatch_batch_plan(
         }
 
         let request = ProcessingJobRequest {
-            host: host.clone(),
+            power: power.clone(),
             registry: registry.clone(),
             workspace_root: workspace_root.clone(),
             audio_handling: planned_job.audio_plan.handling.clone(),

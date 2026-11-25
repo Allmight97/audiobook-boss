@@ -2,12 +2,12 @@ use crate::audio;
 use crate::audio::{AudioExecutionRequest, FileListInfo};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
 use crate::execution::{CancellationChecker, PublishGate};
-use crate::host::Host;
 use crate::metadata::CoverArtPassthroughPolicy;
 use crate::output_artifact::{
     commit_supplemental_output_assets_for_output, OutputKind, ResolvedOutputPlan,
     SupplementalOutputAssetsCommitRequest,
 };
+use crate::power::PowerManager;
 use crate::processing::job_registry::{JobId, RegisteredJob};
 use crate::processing::ProgressEventListener;
 use crate::processing::{
@@ -23,7 +23,7 @@ use tokio_util::sync::CancellationToken;
 use crate::processing::terminal_outcomes::TitleOutcome;
 
 pub(crate) struct ProcessingJobRequest {
-    pub(crate) host: Host,
+    pub(crate) power: PowerManager,
     pub(crate) registry: crate::ManagedJobRegistry,
     pub(crate) workspace_root: PathBuf,
     pub(crate) audio_handling: AudioHandling,
@@ -64,7 +64,7 @@ pub(crate) async fn run_processing_job(request: ProcessingJobRequest) -> TitleOu
     };
     let job_id = job.id();
     log_audio_decision(&request, job_id);
-    let _active_work = request.host.begin_active_work();
+    let _active_work = request.power.begin();
 
     let context = build_processing_context(ProcessingContextRequest {
         cancellation_checker,

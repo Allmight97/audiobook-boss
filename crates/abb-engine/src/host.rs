@@ -45,4 +45,8 @@ impl Host {
     pub(crate) fn begin_active_work(&self) -> ActiveWork {
         self.power.begin()
     }
+
+    pub(crate) fn power(&self) -> PowerManager {
+        self.power.clone()
+    }
 }

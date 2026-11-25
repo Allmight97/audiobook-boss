@@ -69,7 +69,7 @@ pub(super) fn region_to_tld(region: &str) -> &str {
 }
 
 pub(super) fn parse_publication_date(value: Option<&str>) -> Option<String> {
-    crate::metadata::normalize_publication_date(value?.trim())
+    abb_metadata_core::normalize_publication_date(value?.trim())
 }
 
 pub(super) fn clean_series_part(value: Option<String>) -> Option<String> {

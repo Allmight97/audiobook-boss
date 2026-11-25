@@ -3,7 +3,6 @@ use super::support::poll::until_true;
 use super::support::wav::write_sine_wav;
 use crate::audio::{AacDecoder, AudioIntent, OutputAudio, SampleRateConfig, TitleAudioRequest};
 use crate::errors::AppError;
-use crate::host::Host;
 use crate::power::PowerManager;
 use crate::processing::run::{
     inspect_processing_plan, preflight_title_outputs, process_inspected_with_options, ExportTitle,
@@ -79,10 +78,9 @@ async fn a_cancel_during_the_encode_reports_one_cancelled_event_after_the_staged
 
     let registry = Arc::new(JobRegistry::new(1));
     let run = registry.hold_run();
-    let host = Host::new(Arc::new(crate::DiscardEvents), PowerManager::default());
     let processing = process_inspected_with_options(
         &run,
-        host,
+        PowerManager::default(),
         Arc::clone(&registry),
         roots,
         payload,
@@ -188,10 +186,9 @@ async fn a_title_that_fails_reports_failed_before_a_later_title_ends() {
 
     let registry = Arc::new(JobRegistry::new(1));
     let run = registry.hold_run();
-    let host = Host::new(Arc::new(crate::DiscardEvents), PowerManager::default());
     let processing = process_inspected_with_options(
         &run,
-        host,
+        PowerManager::default(),
         Arc::clone(&registry),
         roots,
         payload,

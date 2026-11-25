@@ -180,7 +180,7 @@ impl WorkRuntime {
                 runtime.mark_running_and_emit(&host, &operation_id);
                 process_inspected_with_options(
                     &active_run,
-                    host,
+                    host.power(),
                     registry,
                     roots,
                     request.payload,

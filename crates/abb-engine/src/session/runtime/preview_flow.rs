@@ -24,7 +24,7 @@ impl Session {
         self.publish();
         let result = process_inspected_with_options(
             &_active_run,
-            deps.host.clone(),
+            deps.host.power(),
             deps.jobs.clone(),
             deps.roots.clone(),
             draft.payload.clone(),
