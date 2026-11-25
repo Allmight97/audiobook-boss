@@ -33,9 +33,6 @@ One bullet per view; a view without one has no trap beyond its owner.
   the drag (`pointerReorder.ts`). A browser can deliver focus and hover to
   the audio plan trigger after Escape closes its popover, so those late
   events must not reopen it.
-- `fileList/AudioHandlingControl.tsx` keeps its complexity exemption
-  (`.oxlintrc.json`): one view over the audio plan states with no rule of
-  its own; next trigger: it gains another control, then split it.
 - `metadataLookup`: result covers load eagerly, because the dialog is a
   decision surface. A provider-controlled URL never goes into a DOM attribute;
   covers load from the engine's `cover` addresses through `coverSrc`.

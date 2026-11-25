@@ -543,7 +543,7 @@ const OVERRIDE_REASONS: Readonly<Record<string, string>> = {
 		'Scripts parse JSON and YAML the repo writes and check it in the same run; a wrong shape fails the script loudly.',
 	'**/*.test.ts|**/*.test.tsx|src/test/**/*.ts':
 		'A test double stands in for part of a platform or engine object, so the cast is the point.',
-	'scripts/check-tauri-runtime-boundary.ts|scripts/dev-log-analysis.ts|scripts/verification.ts|src/app/encoding/project.ts|src/ui/fileList/AudioHandlingControl.tsx|src/ui/remoteSource/RemoteSourceAcquireView.tsx':
+	'scripts/check-tauri-runtime-boundary.ts|scripts/dev-log-analysis.ts|scripts/verification.ts|src/app/encoding/project.ts|src/ui/remoteSource/RemoteSourceAcquireView.tsx':
 		'Hotspot exemptions from the complexity limit; each gets a disposition when next changed (AGENTS.md, Refactor Discipline).',
 	'src/app/**|src/ui/foundation/**': 'App owners and foundation import the base list only.',
 	'src/ui/*.tsx|src/ui/*.ts': 'Top-level views import another view through its folder.',

@@ -1,11 +1,12 @@
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import { Portal, type JSX } from '@solidjs/web';
-import { codecFamilyLabel, formatLabel, intentLabel } from '../../app/encoding';
+import { codecFamilyLabel, formatLabel } from '../../app/encoding';
 import { useAppRuntime } from '../../app/runtime';
 import { EncoderView } from '../encoderPanel';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { tauriClient } from '../../lib/tauri/client';
 import type { AudioFile, TitleAudioPlan } from '../../lib/generated/tauri';
+import { audioPlanCopy, channelLabel } from './audioPlanCopy';
 
 export function AudioHandlingControl(props: {
 	readonly file: AudioFile;
@@ -31,13 +32,18 @@ export function AudioHandlingControl(props: {
 		const current = resolved();
 		return current.kind === 'failed' ? current.message : '';
 	};
-	const needsChoice = () => resolved().kind === 'choiceRequired';
-	const kept = () => plan()?.handling === 'preserve';
 	const guidanceId = () => `audio-plan-${props.index}`;
-	const format = () => formatLabel(request().format);
 	const family = () => runtime.encoding.titleView(props.file).codecFamily;
 	const opus = () => family() === 'opus';
-	const codec = () => codecFamilyLabel(family());
+	const copy = () =>
+		audioPlanCopy({
+			resolved: resolved(),
+			intent: request().intent,
+			codec: codecFamilyLabel(family()),
+			format: formatLabel(request().format),
+		});
+	const needsChoice = () => copy().needsChoice;
+	const kept = () => copy().kept;
 	async function openCompatibilityPage(): Promise<void> {
 		setLinkError('');
 		try {
@@ -177,10 +183,7 @@ export function AudioHandlingControl(props: {
 				ref={(el) => {
 					trigger = el;
 				}}
-				class={[
-					'preservation-info-trigger',
-					{ kept: kept(), 'needs-choice': needsChoice() || !!error() },
-				]}
+				class={['preservation-info-trigger', { kept: kept(), 'needs-choice': needsChoice() }]}
 				aria-label={`Audio plan for ${props.file.label}`}
 				aria-haspopup="dialog"
 				aria-expanded={open() ? 'true' : 'false'}
@@ -209,18 +212,10 @@ export function AudioHandlingControl(props: {
 					}
 				}}
 			>
-				{kept() ? '✓' : 'i'}
+				{copy().glyph}
 			</button>
-			<span class="title-audio-summary">
-				{needsChoice() || error()
-					? 'Choose audio'
-					: kept()
-						? `Pass-through · ${format()}`
-						: `${request().intent === 'encode' ? codec() : intentLabel(request().intent)} · ${format()}`}
-			</span>
-			<Show
-				when={needsChoice() || error() ? null : runtime.output.estimateTitleSizeText(props.file)}
-			>
+			<span class="title-audio-summary">{copy().summary}</span>
+			<Show when={needsChoice() ? null : runtime.output.estimateTitleSizeText(props.file)}>
 				{(size) => (
 					<span class="title-output-size" title="Estimated output size">
 						{size()}
@@ -239,7 +234,7 @@ export function AudioHandlingControl(props: {
 						class={[
 							'preservation-guidance',
 							'title-audio-plan',
-							{ kept: kept(), 'needs-choice': needsChoice() || !!error() },
+							{ kept: kept(), 'needs-choice': needsChoice() },
 						]}
 						style={{ left: `${position().left}px`, top: `${position().top}px` }}
 					>
@@ -251,27 +246,8 @@ export function AudioHandlingControl(props: {
 						>
 							×
 						</button>
-						<strong>
-							{needsChoice()
-								? 'Choose this title’s audio'
-								: error()
-									? 'Choose audio settings'
-									: !plan()
-										? 'Audio plan'
-										: kept()
-											? 'Keeping original audio'
-											: `Using ${codec()} with ${format()}`}
-						</strong>
-						<p>
-							{needsChoice()
-								? 'These sources had different audio settings. Choose settings for this title or apply App Settings.'
-								: error() ||
-									(!plan()
-										? 'Checking source audio…'
-										: kept()
-											? 'Audio stays unchanged. Tags, artwork and chapters will be updated.'
-											: `Convert ${plan()?.sourceCodec} to ${codec()} and save as ${format()}.`)}
-						</p>
+						<strong>{copy().heading}</strong>
+						<p>{copy().body}</p>
 						<p class="audio-plan-origin">
 							<button
 								type="button"
@@ -289,13 +265,7 @@ export function AudioHandlingControl(props: {
 									<dt>{opus() && !kept() ? 'Opus input rate' : 'Sample rate'}</dt>
 									<dd>{planned().sampleRate / 1000} kHz</dd>
 									<dt>Channels</dt>
-									<dd>
-										{planned().channels === 1
-											? 'Mono'
-											: planned().channels === 2
-												? 'Stereo'
-												: `${planned().channels} channels`}
-									</dd>
+									<dd>{channelLabel(planned().channels)}</dd>
 								</dl>
 							)}
 						</Show>
