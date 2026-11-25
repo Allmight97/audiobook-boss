@@ -12,11 +12,14 @@ import {
 	findUnsupportedMacOsArchitectures,
 	installLocalApplicationBundle,
 	pruneLocalInstallArtifacts,
+	resolveBuildProfile,
 	resolveRequestedBundles,
 	resolveMacOsBundlePaths,
 	verifyMacOsBundle,
 	verifyDmgBundle,
+	verifyTestBundle,
 } from './build-app';
+import { developmentIdentity } from './tauri';
 
 const tempRoots: string[] = [];
 
@@ -29,7 +32,7 @@ function createRepoFixture(): { applicationsDir: string; repoRoot: string } {
 	mkdirSync(path.join(repoRoot, 'src-tauri'), { recursive: true });
 	writeFileSync(
 		path.join(repoRoot, 'src-tauri/tauri.conf.json'),
-		JSON.stringify({ productName: 'AudioBook Boss' }),
+		JSON.stringify({ identifier: 'com.audiobook-boss', productName: 'AudioBook Boss' }),
 	);
 	mkdirSync(path.join(repoRoot, 'target/release/bundle/macos'), { recursive: true });
 	mkdirSync(applicationsDir, { recursive: true });
@@ -59,6 +62,49 @@ describe('resolveMacOsBundlePaths', () => {
 		);
 		expect(paths.applicationsAppPath).toBe(path.join(applicationsDir, 'AudioBook Boss.app'));
 		expect(paths.dmgDir).toBe(path.join(repoRoot, 'target/release/bundle/dmg'));
+	});
+});
+
+describe('test bundle', () => {
+	it('builds a debug bundle under the checkout development identity', () => {
+		const { applicationsDir, repoRoot } = createRepoFixture();
+		const { productName } = developmentIdentity(repoRoot);
+		const paths = resolveMacOsBundlePaths(repoRoot, applicationsDir, 'debug');
+
+		expect(resolveBuildProfile(['--debug', '--bundles', 'app'])).toBe('debug');
+		expect(resolveBuildProfile(['-d'])).toBe('debug');
+		expect(resolveBuildProfile(['--bundles', 'app', '--', '--debug'])).toBe('release');
+		expect(paths.canonicalAppPath).toBe(
+			path.join(repoRoot, `target/debug/bundle/macos/${productName}.app`),
+		);
+		expect(paths.executablePath).toBe(
+			path.join(paths.canonicalAppPath, 'Contents/MacOS/audiobook-boss'),
+		);
+	});
+
+	it('reports the bundle only when its bundle id is the development identity', () => {
+		const { applicationsDir, repoRoot } = createRepoFixture();
+		const { identifier } = developmentIdentity(repoRoot);
+		const paths = resolveMacOsBundlePaths(repoRoot, applicationsDir, 'debug');
+		const reading = (bundleId: string) =>
+			((command: string, args: string[]) => {
+				expect(command).toBe('plutil');
+				expect(args.at(-1)).toBe(path.join(paths.canonicalAppPath, 'Contents/Info.plist'));
+				return { status: 0, stdout: `${bundleId}\n`, stderr: '' };
+			}) as typeof spawnSync;
+
+		expect(verifyTestBundle(paths, identifier, reading(identifier))).toBe(
+			`test_bundle path=${JSON.stringify(paths.canonicalAppPath)} bundle_id=${identifier}`,
+		);
+		expect(() => verifyTestBundle(paths, identifier, reading('com.audiobook-boss'))).toThrow(
+			`carries bundle id com.audiobook-boss, expected ${identifier}`,
+		);
+		const failing = ((_command: string) => ({
+			status: 1,
+			stdout: '',
+			stderr: 'no plist',
+		})) as typeof spawnSync;
+		expect(() => verifyTestBundle(paths, identifier, failing)).toThrow('no plist');
 	});
 });
 

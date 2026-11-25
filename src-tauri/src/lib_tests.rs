@@ -1,4 +1,6 @@
-use super::{monitor_fit_window_size, refuses_production_identity, PRODUCTION_IDENTIFIER};
+use super::{
+    monitor_fit_window_size, refuses_production_identity, window_title, PRODUCTION_IDENTIFIER,
+};
 
 #[test]
 fn monitor_fit_window_size_fits_each_monitor() {
@@ -47,4 +49,31 @@ fn production_identity_matches_tauri_config() {
     let config: serde_json::Value =
         serde_json::from_str(include_str!("../tauri.conf.json")).expect("tauri.conf.json parses");
     assert_eq!(config["identifier"], PRODUCTION_IDENTIFIER);
+}
+
+#[test]
+fn window_title_names_non_release_identity_and_revision() {
+    let dev_id = "com.audiobook-boss.dev.0123456789ab";
+    let rows = [
+        (PRODUCTION_IDENTIFIER, "AudioBook Boss", "0123456789ab", None),
+        (
+            dev_id,
+            "AudioBook Boss Dev 012345",
+            "0123456789ab-dirty",
+            Some("AudioBook Boss Dev 012345 [com.audiobook-boss.dev.0123456789ab · 0123456789ab-dirty]"),
+        ),
+        (
+            dev_id,
+            "AudioBook Boss Dev 012345",
+            "unknown",
+            Some("AudioBook Boss Dev 012345 [com.audiobook-boss.dev.0123456789ab · unknown]"),
+        ),
+    ];
+    for (identifier, product_name, revision, expected) in rows {
+        assert_eq!(
+            window_title(identifier, product_name, revision).as_deref(),
+            expected,
+            "{identifier} {revision}"
+        );
+    }
 }

@@ -6,5 +6,6 @@
 		"types": "off"
 	},
 	"includeEntryExports": true,
-	"ignoreBinaries": ["du"]
+	"ignoreBinaries": ["du"],
+	"ignoreDependencies": ["@tauri-apps/cli"]
 }

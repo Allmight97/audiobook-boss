@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { withDevelopmentIdentity } from './tauri';
+import { buildRevision, developmentIdentity, withDevelopmentIdentity } from './tauri';
 
 const roots: string[] = [];
 
@@ -60,4 +60,27 @@ it('leaves production builds and other CLI commands untouched', () => {
 	for (const args of [['build', '--bundles', 'app,dmg'], ['info'], ['build', '--', '--debug']]) {
 		expect(withDevelopmentIdentity('/unused', args)).toEqual(args);
 	}
+});
+
+it('gives each checkout a development identity distinct from the installed app', () => {
+	const root = checkout();
+	const identity = developmentIdentity(root);
+	expect(identity.identifier).toMatch(/^com\.audiobook-boss\.dev\.[0-9a-f]{12}$/);
+	expect(identity.productName).toBe(`AudioBook Boss Dev ${identity.identifier.slice(-12, -6)}`);
+	const args = withDevelopmentIdentity(root, ['dev']);
+	expect(JSON.parse(args[args.length - 1])).toEqual(identity);
+});
+
+it('names the build revision by short commit, marks a dirty tree, and falls back when git fails', () => {
+	const git =
+		(head: number, porcelain: string, statusCode = 0) =>
+		(args: string[]) =>
+			args[0] === 'rev-parse'
+				? { status: head, stdout: '0123456789ab\n' }
+				: { status: statusCode, stdout: porcelain };
+	expect(buildRevision(git(0, ''))).toBe('0123456789ab');
+	expect(buildRevision(git(0, ' M src/main.ts\n'))).toBe('0123456789ab-dirty');
+	expect(buildRevision(git(128, ''))).toBe('unknown');
+	expect(buildRevision(git(0, '', 128))).toBe('unknown');
+	expect(buildRevision()).toMatch(/^[0-9a-f]{12}(-dirty)?$/);
 });

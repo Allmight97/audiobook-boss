@@ -13,6 +13,12 @@
 - A change to CI or validation speed quotes before and after numbers from
   `bun run ci:timing` in its commit message, so every comparison uses one
   recipe.
+- `bun run app:build:test` builds a debug app bundle under this checkout's
+  development identity, checks its bundle id, and prints
+  `test_bundle path=<path> bundle_id=<id>`. Write that identity's
+  `settings.toml` before launching the app, never while ABB is running,
+  because the engine reads settings once at start and its next save replaces
+  the file.
 - Before asking the owner for pasted terminal output, read
   `.logs/tauri-dev-summary.md`, then `.logs/tauri-dev.log`, from
   `bun run app:dev:log`.
@@ -138,6 +144,12 @@
 - `dev-tauri-log.sh`: a later process substitution makes the tee's pid
   unwaitable in bash, so the drain signal is liveness plus the exit-status
   sidecar; a tee that died on a write error must not pass as drained.
+- `tauri.ts`: Bun 1.4 does not pass `process.env` changes to native
+  `getenv`, so it runs the Tauri CLI as a child process to hand Cargo
+  `ABB_BUILD_REVISION`; Bun exits on SIGINT at once, so the parent ignores
+  it and waits for the CLI's exit status. It runs `node_modules/.bin/tauri`
+  by path, which `dev-tauri-log.sh` matches and knip cannot trace, so
+  `knip.json` ignores `@tauri-apps/cli`.
 - `ffmpeg-upstream.ts --release-check` and `--pin` use `gh api` REST only,
   because cloud sessions block GraphQL.
 - `ci-timing.ts`: a `closed` run is a pull request's closed event.

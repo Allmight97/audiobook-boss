@@ -102,6 +102,16 @@ fn start_engine(app: &tauri::App) -> abb_engine::Result<abb_engine::Engine> {
 
 const PRODUCTION_IDENTIFIER: &str = "com.audiobook-boss";
 
+const BUILD_REVISION: &str = match option_env!("ABB_BUILD_REVISION") {
+    Some(revision) => revision,
+    None => "unknown",
+};
+
+fn window_title(identifier: &str, product_name: &str, revision: &str) -> Option<String> {
+    (identifier != PRODUCTION_IDENTIFIER)
+        .then(|| format!("{product_name} [{identifier} · {revision}]"))
+}
+
 fn refuses_production_identity(is_dev: bool, debug_build: bool, identifier: &str) -> bool {
     (is_dev || debug_build) && identifier == PRODUCTION_IDENTIFIER
 }
@@ -503,9 +513,10 @@ pub fn run() {
         .setup(move |app| {
             specta_builder.mount_events(app);
             log::info!(
-                "build_identity app_id={} app_version={} pid={} run_id={} {}",
+                "build_identity app_id={} app_version={} revision={} pid={} run_id={} {}",
                 app.config().identifier,
                 env!("CARGO_PKG_VERSION"),
+                BUILD_REVISION,
                 std::process::id(),
                 std::env::var("ABB_RUN_ID").unwrap_or_else(|_| "unscoped".into()),
                 abb_engine::media_build_identity()
@@ -547,6 +558,14 @@ pub fn run() {
                         "Failed to fit startup window to monitor work area: {}",
                         error
                     );
+                }
+                let config = app.config();
+                let product_name = config.product_name.as_deref().unwrap_or_default();
+                if let Some(title) = window_title(&config.identifier, product_name, BUILD_REVISION)
+                {
+                    if let Err(error) = main_window.set_title(&title) {
+                        log::warn!("Failed to set the development window title: {error}");
+                    }
                 }
             }
 

@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
+import { developmentIdentity } from './tauri';
 
 interface PackageJson {
 	name: string;
@@ -20,6 +21,8 @@ interface BundlePaths {
 }
 
 type RequestedBundle = 'app' | 'dmg';
+
+export type BuildProfile = 'release' | 'debug';
 
 interface BuildTauriAppOptions {
 	commandRunner?: typeof spawnSync;
@@ -99,23 +102,55 @@ export function assertSupportedMacOsHost(platform = process.platform, arch = pro
 	}
 }
 
+export function resolveBuildProfile(buildArgs: string[]): BuildProfile {
+	const [tauriArgs] = splitArgsAtBoundary(buildArgs);
+	return tauriArgs.includes('--debug') || tauriArgs.includes('-d') ? 'debug' : 'release';
+}
+
 export function resolveMacOsBundlePaths(
 	repoRoot: string,
 	applicationsDir = '/Applications',
+	profile: BuildProfile = 'release',
 ): BundlePaths {
 	const packageJson = readJson<PackageJson>(path.join(repoRoot, 'package.json'));
-	const tauriConfig = readJson<TauriConfig>(path.join(repoRoot, 'src-tauri/tauri.conf.json'));
-	const bundleDir = path.join(repoRoot, 'target/release/bundle/macos');
-	const canonicalAppPath = path.join(bundleDir, `${tauriConfig.productName}.app`);
+	const productName =
+		profile === 'debug'
+			? developmentIdentity(repoRoot).productName
+			: readJson<TauriConfig>(path.join(repoRoot, 'src-tauri/tauri.conf.json')).productName;
+	const bundleDir = path.join(repoRoot, `target/${profile}/bundle/macos`);
+	const canonicalAppPath = path.join(bundleDir, `${productName}.app`);
 
 	return {
-		productName: tauriConfig.productName,
+		productName,
 		bundleDir,
 		canonicalAppPath,
 		executablePath: path.join(canonicalAppPath, 'Contents', 'MacOS', packageJson.name),
-		applicationsAppPath: path.join(applicationsDir, `${tauriConfig.productName}.app`),
-		dmgDir: path.join(repoRoot, 'target/release/bundle/dmg'),
+		applicationsAppPath: path.join(applicationsDir, `${productName}.app`),
+		dmgDir: path.join(repoRoot, `target/${profile}/bundle/dmg`),
 	};
+}
+
+export function verifyTestBundle(
+	paths: BundlePaths,
+	expectedIdentifier: string,
+	commandRunner: typeof spawnSync = spawnSync,
+): string {
+	const plistPath = path.join(paths.canonicalAppPath, 'Contents', 'Info.plist');
+	const result = commandRunner(
+		'plutil',
+		['-extract', 'CFBundleIdentifier', 'raw', '-o', '-', plistPath],
+		{ encoding: 'utf8' },
+	);
+	if (result.status !== 0) {
+		throw new Error(result.stderr.trim() || `plutil failed for ${plistPath}`);
+	}
+	const bundleId = result.stdout.trim();
+	if (bundleId !== expectedIdentifier) {
+		throw new Error(
+			`Test bundle ${paths.canonicalAppPath} carries bundle id ${bundleId}, expected ${expectedIdentifier}`,
+		);
+	}
+	return `test_bundle path=${JSON.stringify(paths.canonicalAppPath)} bundle_id=${bundleId}`;
 }
 
 export function resolveRequestedBundles(buildArgs: string[]): Set<RequestedBundle> {
@@ -367,6 +402,7 @@ function main(): void {
 	const repoRoot = path.resolve(import.meta.dir, '..');
 	const buildArgs = process.argv.slice(2);
 	const requestedBundles = resolveRequestedBundles(buildArgs);
+	const profile = resolveBuildProfile(buildArgs);
 
 	assertSupportedMacOsHost();
 	buildTauriApp(repoRoot, buildArgs, { nonInteractiveDmg: requestedBundles.has('dmg') });
@@ -375,13 +411,17 @@ function main(): void {
 		return;
 	}
 
-	const bundlePaths = resolveMacOsBundlePaths(repoRoot);
+	const bundlePaths = resolveMacOsBundlePaths(repoRoot, undefined, profile);
 	if (requestedBundles.has('app') || requestedBundles.has('dmg')) {
 		verifyMacOsBundle(bundlePaths);
 	}
 
 	if (requestedBundles.has('dmg')) {
 		verifyDmgBundle(bundlePaths);
+	}
+
+	if (profile === 'debug') {
+		console.log(verifyTestBundle(bundlePaths, developmentIdentity(repoRoot).identifier));
 	}
 }
 
