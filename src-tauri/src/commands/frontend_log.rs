@@ -56,10 +56,10 @@ pub fn log_frontend(entry: FrontendLogEntry) -> CommandResult<()> {
 
     match entry.level {
         FrontendLogLevel::Error => {
-            log::error!(target: "audiobook_boss_lib::frontend", "[{scope}] {message}")
+            log::error!(target: "audiobook_boss::frontend", "[{scope}] {message}")
         }
         FrontendLogLevel::Warn => {
-            log::warn!(target: "audiobook_boss_lib::frontend", "[{scope}] {message}")
+            log::warn!(target: "audiobook_boss::frontend", "[{scope}] {message}")
         }
     }
 
