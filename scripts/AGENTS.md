@@ -137,8 +137,6 @@
   sidecar; a tee that died on a write error must not pass as drained.
 - `ffmpeg-upstream.ts --release-check` and `--pin` use `gh api` REST only,
   because cloud sessions block GraphQL.
-- `lane-paths.test.ts` uses dorny/paths-filter's matcher options, so a pass
-  there means CI selects the lane.
 - `ci-timing.ts`: a `closed` run is a pull request's closed event.
 - `github-release.sh`: a draft release has no tag until it is published, and
   `gh release view <tag>` still finds it by that pending tag name.

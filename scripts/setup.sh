@@ -560,7 +560,8 @@ brew_pkgs() {
 apt_install() {
 	local apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
 	run_as_root apt-get "${apt_opts[@]}" update -q
-	run_as_root env DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install -y -q --no-install-recommends "$@"
+	run_as_root env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get "${apt_opts[@]}" \
+		-o Dpkg::Options::=--force-unsafe-io install -y -q --no-install-recommends "$@"
 }
 
 ensure_download_tools() {
