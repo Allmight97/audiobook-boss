@@ -4,6 +4,23 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.19.5] - 2026-11-25
+
+### Fixed
+
+- Saving metadata to a file now waits for any in-flight export replacing that same file (and vice
+  versa), including on macOS when file names differ in Unicode normalization.
+- Resuming a partial Audible download now verifies the server's returned byte range before
+  appending, instead of appending mismatched bytes into the download.
+- Replacing an existing audiobook whose file name differs only by letter case updates the existing
+  file and keeps its spelling instead of leaving a second copy on case-sensitive disks, and
+  prevents overwriting an input source file under a case-variant name.
+- When every numbered file name from `-1` to `-99` is already taken, you can still open the
+  conflict dialog and choose Overwrite Existing or Skip Existing instead of failing before the
+  dialog appears.
+- The conflict dialog now disables Keep Existing (and Overwrite Existing when a batch duplicate
+  would need a numbered name) whenever a numbered name cannot be created, and explains why.
+
 ## [1.19.4] - 2026-11-24
 
 ### Changed
