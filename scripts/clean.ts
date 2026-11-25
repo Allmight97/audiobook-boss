@@ -9,10 +9,10 @@ const USAGE = `Usage: bun run clean [--all]
   --all      Also remove the FFmpeg cache and node_modules.
              bash scripts/setup.sh restores them.
   --auto     When target/debug is over 14 GB and no running process uses it,
-             remove this workspace's own crates from it (cargo clean -p) and
-             keep third-party builds; remove all of target/debug if it is
-             still over 25 GB. Keep the newest verification runs. verify.sh
-             and app:dev:log run this.
+             remove the frequently rebuilt workspace crates from it
+             (cargo clean -p) and keep third-party builds; remove all of
+             target/debug if it is still over 14 GB. Keep the newest
+             verification runs. verify.sh and app:dev:log run this.
 
 Other folders under .logs/ and verification receipts always stay.`;
 
@@ -20,7 +20,6 @@ const FFMPEG_DIRS = new Set(['abb-ffmpeg-cache', 'abb-ffmpeg-source', 'abb-ffmpe
 const BUILD_OUTPUT = ['dist', 'node_modules/.vite'];
 
 const DEBUG_BUDGET_KB = 14 * 1024 * 1024;
-const DEBUG_CEILING_KB = 25 * 1024 * 1024;
 const WORKSPACE_PACKAGES = ['abb-media-pipeline', 'abb-engine', 'audiobook-boss'];
 export const KEPT_RUNS = 5;
 
@@ -151,7 +150,6 @@ const cargoCleanWorkspace: CleanWorkspace = (root) => {
 
 interface AutoCleanOptions {
 	budgetKb?: number;
-	ceilingKb?: number;
 	openPaths?: OpenPaths;
 	cleanWorkspace?: CleanWorkspace;
 }
@@ -162,7 +160,6 @@ export function autoClean(
 	root: string,
 	{
 		budgetKb = DEBUG_BUDGET_KB,
-		ceilingKb = DEBUG_CEILING_KB,
 		openPaths = systemOpenPaths,
 		cleanWorkspace = cargoCleanWorkspace,
 	}: AutoCleanOptions = {},
@@ -197,13 +194,13 @@ export function autoClean(
 		return [...notes, `${stays}: ${reason}.`];
 	}
 	const after = existsSync(debug) ? sizeKb(debug) : 0;
-	const cleaned = `Removed ABB's own crates from target/debug (${gigabytes(size)} GB to ${gigabytes(after)} GB).`;
-	if (after <= ceilingKb) return [...notes, cleaned];
+	const cleaned = `Removed ABB's frequently rebuilt crates from target/debug (${gigabytes(size)} GB to ${gigabytes(after)} GB).`;
+	if (after <= budgetKb) return [...notes, cleaned];
 	remove(root, 'target/debug');
 	return [
 		...notes,
 		cleaned,
-		`Removed target/debug, still over ${gigabytes(ceilingKb)} GB. The next build recompiles all Rust.`,
+		`Removed target/debug, still over ${gigabytes(budgetKb)} GB. The next build recompiles all Rust.`,
 	];
 }
 

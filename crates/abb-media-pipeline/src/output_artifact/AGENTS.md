@@ -9,8 +9,9 @@
 - Publication, every tag save on a published output, and every metadata Save
   hold that file's lock (`file_lock.rs`), so an earlier export's tag save
   never overwrites a later export of the same file, and a Save never puts a
-  file's old audio back over an export published while it ran. The companion PDF commit holds the lock on its
-  requested name while it picks a free name.
+  file's old audio back over an export published while it ran. The companion
+  PDF commit holds the lock on its requested name while it picks a free
+  name.
 - Publishing under a new name stages complete content and hard-links it, so
   the final name appears only with complete content and never replaces an
   entry.

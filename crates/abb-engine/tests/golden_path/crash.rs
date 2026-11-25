@@ -4,7 +4,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use super::{abb_dev, entries_under, ffmpeg, files_under, succeeded};
+use abb_test_fixtures::fs_listing::files_under;
+
+use super::{abb_dev, entries_under, ffmpeg, succeeded};
 
 struct KillOnDrop(Child);
 
@@ -19,9 +21,10 @@ impl Drop for KillOnDrop {
 fn wait_for_a_work_file(sessions: &Path) {
     let deadline = Instant::now() + Duration::from_secs(30);
     while Instant::now() < deadline {
-        let started = files_under(sessions)
-            .iter()
-            .any(|file| std::fs::metadata(file).is_ok_and(|metadata| metadata.len() > 0));
+        let started = sessions.is_dir()
+            && files_under(sessions)
+                .iter()
+                .any(|file| std::fs::metadata(file).is_ok_and(|metadata| metadata.len() > 0));
         if started {
             return;
         }
@@ -62,7 +65,10 @@ fn a_killed_export_publishes_nothing_and_the_next_start_clears_its_work() {
     wait_for_a_work_file(&sessions);
     export.0.kill().expect("kill the export");
     export.0.wait().expect("reap the export");
-    assert_eq!(files_under(&out), Vec::<std::path::PathBuf>::new());
+    assert!(
+        entries_under(&out).iter().all(|entry| entry.is_dir()),
+        "a killed export published a file"
+    );
 
     let mut relaunch = abb_dev(&state);
     relaunch.arg(&source);

@@ -2,7 +2,7 @@
 
 - This layer offers operations (open, read, copy a stream, write a header).
   Which streams to keep, which options a format needs, and every other product
-  rule stay in `abb-engine`.
+  rule stay in `abb-media-pipeline`.
 - A codec, sample format, or profile stays FFmpeg's number (`CodecId`,
   `SampleFormat`, `profile`), so a value this build does not name is still a
   value.

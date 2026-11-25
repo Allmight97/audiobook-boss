@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parseDocument } from 'yaml';
 
-import { laneMatcher, laneMap, requiredLanes } from './verification';
+import { laneMatcher, laneMap, requiredLanes, unmappedPaths } from './verification';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const mapPath = path.join(repoRoot, 'scripts/lane-paths.yml');
@@ -14,15 +14,6 @@ function patternsIn(value: unknown): string[] {
 	if (Array.isArray(value)) return value.flat(Number.POSITIVE_INFINITY) as string[];
 	if (value !== null && typeof value === 'object') return Object.keys(value);
 	return [];
-}
-
-function unmappedPaths(mapYaml: string, files: string[]): string[] {
-	const filters = parseDocument(mapYaml).toJS() as Record<string, unknown>;
-	const patterns = Object.values(filters)
-		.flatMap((value) => patternsIn(value))
-		.filter((pattern) => !pattern.startsWith('!'));
-	const isMatch = laneMatcher(patterns);
-	return files.filter((file) => !isMatch(file));
 }
 
 function lanesFor(mapYaml: string, lane: string): (file: string) => boolean {
@@ -38,6 +29,8 @@ function noLaneEntriesWithoutReason(mapYaml: string): string[] {
 		.map(([pattern]) => pattern);
 }
 
+const lanes = ['frontend', 'core', 'engine', 'media', 'apple', 'host', 'tooling', 'supply-chain'];
+
 describe('scripts/lane-paths.yml', () => {
 	const mapYaml = readFileSync(mapPath, 'utf8');
 
@@ -46,7 +39,7 @@ describe('scripts/lane-paths.yml', () => {
 			.split('\n')
 			.filter(Boolean);
 		expect(
-			unmappedPaths(mapYaml, tracked),
+			unmappedPaths(laneMap(mapYaml, lanes), lanes, tracked),
 			'Add each path to a lane in scripts/lane-paths.yml, or to no-lane with a reason',
 		).toEqual([]);
 	});
@@ -73,7 +66,6 @@ describe('scripts/lane-paths.yml', () => {
 		}
 	});
 
-	const lanes = ['frontend', 'core', 'engine', 'media', 'apple', 'host', 'tooling', 'supply-chain'];
 	const selected = (file: string) =>
 		requiredLanes(laneMap(mapYaml, lanes), lanes, [file], () => true);
 
@@ -106,9 +98,12 @@ describe('scripts/lane-paths.yml', () => {
 
 	it('reports a path that no filter names', () => {
 		const oldTooling = 'tooling:\n  - .github/workflows/**\n  - scripts/*.sh\n';
-		expect(unmappedPaths(oldTooling, ['scripts/verify.sh', '.cursor/environment.json'])).toEqual([
-			'.cursor/environment.json',
-		]);
+		expect(
+			unmappedPaths(laneMap(oldTooling, lanes), lanes, [
+				'scripts/verify.sh',
+				'.cursor/environment.json',
+			]),
+		).toEqual(['.cursor/environment.json']);
 	});
 
 	it('reports a no-lane entry without a reason', () => {

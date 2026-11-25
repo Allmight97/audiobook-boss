@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use super::{abb_dev, entries_under, files_under, format_tag, refused, succeeded, tone};
+use abb_test_fixtures::fs_listing::files_under;
+
+use super::{abb_dev, entries_under, format_tag, refused, succeeded, tone};
 
 struct Layout {
     root: tempfile::TempDir,

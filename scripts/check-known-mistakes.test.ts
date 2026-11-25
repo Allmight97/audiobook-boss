@@ -114,12 +114,6 @@ describe('check-known-mistakes', () => {
 			),
 		).toEqual([]);
 		expect(
-			found(
-				'crates/abb-media-pipeline/src/processing/run.rs',
-				'use crate::remote_source::RemoteTitle;',
-			),
-		).toHaveLength(1);
-		expect(
 			found('crates/abb-engine/src/session/state.rs', 'use crate::remote_source::RemoteTitle;'),
 		).toEqual([]);
 		expect(

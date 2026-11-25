@@ -6,22 +6,12 @@ use std::{
     process::{Command, Output},
 };
 
-fn tool(variable: &str, fallback: &str) -> String {
-    std::env::var(variable).unwrap_or_else(|_| fallback.into())
-}
-
 fn ffmpeg(args: &[&str], out: &Path) {
-    let result = Command::new(tool("ABB_FFMPEG", "ffmpeg"))
-        .args(["-hide_banner", "-loglevel", "error"])
-        .args(args)
-        .arg("-y")
-        .arg(out)
-        .output()
-        .expect("run ffmpeg");
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
+    abb_test_fixtures::media::ffmpeg(
+        ["-hide_banner", "-loglevel", "error"]
+            .iter()
+            .chain(args)
+            .chain(&["-y", out.to_str().expect("utf8 path")]),
     );
 }
 
@@ -48,21 +38,8 @@ fn tone(out: &Path, title: &str, artist: &str) {
 }
 
 fn format_tag(path: &Path, tag: &str) -> String {
-    let result = Command::new(tool("ABB_FFPROBE", "ffprobe"))
-        .args(["-hide_banner", "-loglevel", "error", "-show_entries"])
-        .arg(format!("format_tags={tag}"))
-        .args(["-of", "default=nw=1:nk=1"])
-        .arg(path)
-        .output()
-        .expect("run ffprobe");
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
-    String::from_utf8_lossy(&result.stdout)
-        .trim_end()
-        .to_owned()
+    let tags = abb_test_fixtures::media::ffprobe_format_tags(path);
+    abb_test_fixtures::media::ffprobe_tag_ci(&tags, tag).expect("format tag")
 }
 
 fn abb_dev(state: &Path) -> Command {
@@ -90,13 +67,6 @@ fn refused(mut command: Command, message: &str) {
     );
     assert_eq!(result.status.code(), Some(1), "{output}");
     assert!(output.contains(message), "expected {message:?}: {output}");
-}
-
-fn files_under(dir: &Path) -> Vec<PathBuf> {
-    entries_under(dir)
-        .into_iter()
-        .filter(|path| path.is_file())
-        .collect()
 }
 
 fn entries_under(dir: &Path) -> Vec<PathBuf> {

@@ -179,18 +179,25 @@ it('leaves target/debug alone while it is under budget', () => {
 	expect(has(root, WORKSPACE_BUILD)).toBe(true);
 });
 
-it('removes only the workspace crates once over budget, keeping third-party builds and the FFmpeg cache', () => {
+it('removes only the rebuilt workspace crates when that brings target/debug under budget, keeping third-party builds and the FFmpeg cache', () => {
 	const root = checkout([
 		WORKSPACE_BUILD,
 		THIRD_PARTY_BUILD,
 		'target/abb-ffmpeg-cache/tree/dist/lib.a',
 		'.logs/untangle/decision-log.md',
 	]);
+	writeFileSync(path.join(root, WORKSPACE_BUILD), Buffer.alloc(4 * 1024 * 1024, 1));
+	const cargo = cargoCleanFake();
 
-	const { notes, calls } = overBudget(root);
+	const notes = autoClean(root, {
+		budgetKb: 1024,
+		openPaths: () => [],
+		cleanWorkspace: cargo.cleanWorkspace,
+	}).join();
 
-	expect(calls).toEqual([root]);
-	expect(notes).toContain("Removed ABB's own crates from target/debug");
+	expect(cargo.calls).toEqual([root]);
+	expect(notes).toContain("Removed ABB's frequently rebuilt crates from target/debug");
+	expect(notes).not.toContain('Removed target/debug');
 	expect(has(root, WORKSPACE_BUILD)).toBe(false);
 	for (const kept of [
 		THIRD_PARTY_BUILD,
@@ -201,18 +208,12 @@ it('removes only the workspace crates once over budget, keeping third-party buil
 	}
 });
 
-it('removes all of target/debug when it is still over the ceiling after the targeted clean', () => {
+it('removes all of target/debug when it is still over budget after the targeted clean', () => {
 	const root = checkout([WORKSPACE_BUILD, THIRD_PARTY_BUILD, 'target/abb-ffmpeg-cache/lib.a']);
-	const cargo = cargoCleanFake();
 
-	const notes = autoClean(root, {
-		budgetKb: 0,
-		ceilingKb: 0,
-		openPaths: () => [],
-		cleanWorkspace: cargo.cleanWorkspace,
-	});
+	const { notes } = overBudget(root);
 
-	expect(notes.join()).toContain('Removed target/debug, still over');
+	expect(notes).toContain('Removed target/debug, still over');
 	expect(has(root, 'target/debug')).toBe(false);
 	expect(has(root, 'target/abb-ffmpeg-cache/lib.a')).toBe(true);
 });
@@ -225,7 +226,6 @@ it('says why and keeps target/debug whole when cargo clean fails', () => {
 
 	const notes = autoClean(root, {
 		budgetKb: 0,
-		ceilingKb: 0,
 		openPaths: () => [],
 		cleanWorkspace: failing,
 	});

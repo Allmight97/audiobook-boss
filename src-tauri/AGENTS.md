@@ -43,6 +43,13 @@
 - The fixture check runs on macOS and Linux, so a value that differs between
   machines is pinned in `pin_machine_values`. Name a title in `scenarios.json`
   only after importing it, or the recorder panics.
+- Engine tests, `abb-dev`, and Vitest never run the window, menus, quit, or
+  the files macOS hands to the app. A host change, and each release, gets
+  this check on a real build, by a person or one GUI session: Cmd+Q and the
+  close button with an export running; Cmd+Q twice with nothing running;
+  Open With with ABB closed and running; a second copy; a cover showing; the
+  native folder picker; and, when Indexer code changed, a Grab with
+  qBittorrent stopped.
 
 ## Outside facts
 

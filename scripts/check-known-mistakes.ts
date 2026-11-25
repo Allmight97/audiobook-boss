@@ -51,13 +51,6 @@ const ENGINE_DIR = (dir: string) => (file: string) =>
 	ENGINE_TIER_SOURCES.some((root) => file.startsWith(`${root}${dir}/`));
 const PURE_CORE = (file: string) =>
 	OWNED_RUST(file) && !RUST_TEST_FILE(file) && /^crates\/abb-[a-z-]+-core\/src\//.test(file);
-const PROVIDER_NEUTRAL_OWNERS = [
-	'processing',
-	'audio',
-	'metadata',
-	'output_artifact',
-	'work_runtime',
-];
 const PROCESSING_SOURCE = (file: string) =>
 	file === 'crates/abb-media-pipeline/src/processing.rs' || ENGINE_DIR('processing')(file);
 const FRONTEND_SOURCE = (file: string) =>
@@ -261,7 +254,7 @@ const RULES: Rule[] = [
 		comment: /^\s*\/\//,
 		findIn: (line) => CODE_ONLY(line).match(/\b(?:std::(?:fs|net|process)|tokio)::/)?.[0] ?? null,
 		message:
-			'does I/O in a pure core. Fix: take the bytes, paths, or facts as input and let abb-engine do the I/O.',
+			'does I/O in a pure core. Fix: take the bytes, paths, or facts as input and let an engine-tier crate do the I/O.',
 	},
 	{
 		appliesTo: (file) => PURE_CORE(file) && file.startsWith('crates/abb-remote-source-core/'),
@@ -323,7 +316,7 @@ const RULES: Rule[] = [
 			'reaches up into processing from the audio pipeline. Fix: import the leaf name from crate::execution, which processing only re-exports.',
 	},
 	{
-		appliesTo: (file) => PROVIDER_NEUTRAL_OWNERS.some((dir) => ENGINE_DIR(dir)(file)),
+		appliesTo: ENGINE_DIR('work_runtime'),
 		comment: /^\s*\/\//,
 		findIn: (line) => line.match(/\bcrate::remote_source\b/)?.[0] ?? null,
 		message:

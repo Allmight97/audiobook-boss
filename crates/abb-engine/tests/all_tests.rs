@@ -7,36 +7,27 @@ use std::{
 
 fn book(root: &Path) -> PathBuf {
     let path = root.join("alpha.m4b");
-    let ffmpeg = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
-    let result = Command::new(ffmpeg)
-        .args([
-            "-v",
-            "error",
-            "-f",
-            "lavfi",
-            "-i",
-            "anullsrc=r=44100:cl=mono",
-            "-t",
-            "0.2",
-            "-c:a",
-            "aac",
-            "-metadata",
-            "title=Alpha",
-            "-metadata",
-            "artist=Source Author",
-            "-metadata",
-            "genre=Fantasy",
-            "-f",
-            "mp4",
-        ])
-        .arg(&path)
-        .output()
-        .expect("synthesize fixture");
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
+    abb_test_fixtures::media::ffmpeg([
+        "-v",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "anullsrc=r=44100:cl=mono",
+        "-t",
+        "0.2",
+        "-c:a",
+        "aac",
+        "-metadata",
+        "title=Alpha",
+        "-metadata",
+        "artist=Source Author",
+        "-metadata",
+        "genre=Fantasy",
+        "-f",
+        "mp4",
+        path.to_str().expect("utf8 path"),
+    ]);
     path
 }
 

@@ -59,18 +59,22 @@ export function laneMatcher(patterns: string[]): (file: string) => boolean {
 	return picomatch(included, { dot: true, ignore });
 }
 
+export function unmappedPaths(map: LaneMap, lanes: string[], files: string[]): string[] {
+	const known = laneMatcher(
+		[...lanes.flatMap((lane) => map[lane] ?? []), ...(map['no-lane'] ?? [])].filter(
+			(pattern) => !isNegation(pattern),
+		),
+	);
+	return files.filter((file) => !known(file));
+}
+
 export function requiredLanes(
 	map: LaneMap,
 	lanes: string[],
 	files: string[],
 	exists: (file: string) => boolean,
 ): string[] {
-	const known = laneMatcher(
-		[...lanes.flatMap((lane) => map[lane] ?? []), ...(map['no-lane'] ?? [])].filter(
-			(pattern) => !isNegation(pattern),
-		),
-	);
-	const unmapped = files.filter((file) => exists(file) && !known(file));
+	const unmapped = unmappedPaths(map, lanes, files.filter(exists));
 	if (unmapped.length > 0) throw new Error(`Unmapped verification paths: ${unmapped.join(', ')}`);
 	return lanes.filter((lane) => {
 		const matches = laneMatcher(map[lane] ?? []);
