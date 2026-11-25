@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import sessionFresh from '../../lib/generated/fixtures/session-fresh.json';
 import sessionScenarios from '../../lib/generated/fixtures/session-scenarios.json';
+import type { SessionUpdate } from '../../lib/generated/tauri';
+import { createFakeEngine } from '../../test/fixtures/fakeEngine';
 
 describe('recorded session scenarios', () => {
 	const updateKeys = Object.keys(sessionFresh).toSorted();
@@ -14,6 +16,26 @@ describe('recorded session scenarios', () => {
 			}
 		},
 	);
+});
+
+describe('fake engine updates', () => {
+	it('sends only the parts a dispatch changed', async () => {
+		const engine = createFakeEngine();
+		const { client, session } = await engine.attach();
+		const partNames = Object.keys(session).filter((key) => key !== 'revision');
+		expect(partNames).toHaveLength(9);
+
+		const unchanged = await engine.sessionDispatch(client, 0, { kind: 'selectAll' });
+		for (const name of partNames) expect(unchanged.update[name as keyof typeof session]).toBeNull();
+
+		const published: SessionUpdate[] = [];
+		await engine.listenSessionUpdates((next) => published.push(next));
+		engine.status({ kind: 'preparingSave' });
+		const [update] = published;
+		const sent = partNames.filter((name) => update[name as keyof typeof session] !== null);
+		expect(sent).toEqual(['metadata']);
+		expect(update.metadata?.revision).toBe(update.revision);
+	});
 });
 
 const PLATFORM_SPECIFIC_VALUES: Record<string, RegExp> = {

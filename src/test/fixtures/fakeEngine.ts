@@ -169,6 +169,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 	let coverRevision = 0;
 	let nextSessionSequence = 0;
 	let nextSettingsSequence = 0;
+	const baseline = new Map<string, string>();
 
 	function titleFromDefaults(): TitleAudio {
 		return {
@@ -180,9 +181,34 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		};
 	}
 
-	function settle(): SessionUpdate {
+	function stampChangedParts(): Set<string> {
 		revision += 1;
-		for (const part of Object.values(state)) part.revision = revision;
+		const changed = new Set<string>();
+		for (const [name, part] of Object.entries(state)) {
+			const { revision: _revision, ...content } = part;
+			const serialized = JSON.stringify(content);
+			if (baseline.get(name) === serialized) continue;
+			baseline.set(name, serialized);
+			part.revision = revision;
+			changed.add(name);
+		}
+		return changed;
+	}
+
+	function settle(): SessionUpdate {
+		const changed = stampChangedParts();
+		const parts = Object.fromEntries(
+			Object.entries(state).map(([name, part]) => [
+				name,
+				changed.has(name) ? structuredClone(part) : null,
+			]),
+		);
+		return sessionUpdate({ revision, ...parts });
+	}
+
+	function attachSnapshot(): SessionUpdate {
+		baseline.clear();
+		stampChangedParts();
 		return structuredClone({ revision, ...state });
 	}
 
@@ -224,7 +250,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			nextSettingsSequence = 0;
 			return {
 				client: 1,
-				session: settle(),
+				session: attachSnapshot(),
 				settings: structuredClone(settingsSnapshot),
 				workOperations: structuredClone({
 					revision: workRevision,
