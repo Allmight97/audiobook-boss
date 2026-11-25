@@ -41,6 +41,10 @@ vi.mock('@tauri-apps/plugin-opener', () => ({
 	openUrl: vi.fn().mockResolvedValue(undefined),
 }));
 
+if (typeof Element.prototype.setPointerCapture !== 'function') {
+	Element.prototype.setPointerCapture = () => {};
+}
+
 Object.defineProperty(window, '__TAURI_INTERNALS__', {
 	value: undefined,
 	writable: true,

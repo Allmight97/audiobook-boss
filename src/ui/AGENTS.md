@@ -29,10 +29,9 @@ One bullet per view; a view without one has no trap beyond its owner.
   its position. A drag holds the pressed row's identity and finds positions
   again at release, so an import or removal mid-drag cannot move another
   title. A copied audio plan shows a check and an explicit copy label, not
-  color alone. `setPointerCapture` can throw; window listeners still carry
-  the drag (`pointerReorder.ts`). A browser can deliver focus and hover to
-  the audio plan trigger after Escape closes its popover, so those late
-  events must not reopen it.
+  color alone. A browser can deliver focus and hover to the audio plan
+  trigger after Escape closes its popover, so those late events must not
+  reopen it.
 - `metadataLookup`: result covers load eagerly, because the dialog is a
   decision surface. A provider-controlled URL never goes into a DOM attribute;
   covers load from the engine's `cover` addresses through `coverSrc`.

@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createFileListPointerReorder, type FileListRowHit } from '../pointerReorder';
+import {
+	createFileListPointerReorder,
+	type FileListRowHit,
+	type GripPointerEvent,
+} from '../pointerReorder';
 
 const POINTER_ID = 7;
 const reorderFiles = vi.fn();
 const ROWS = ['r0', 'r1', 'r2', 'r3', 'r4'];
 const row = (index: number) => `r${index}`;
 
-function gripPointerDown(clientX = 0, clientY = 0, button = 0): PointerEvent {
+function gripPointerDown(clientX = 0, clientY = 0, button = 0): GripPointerEvent {
 	return {
 		pointerId: POINTER_ID,
 		button,
@@ -14,7 +18,7 @@ function gripPointerDown(clientX = 0, clientY = 0, button = 0): PointerEvent {
 		clientY,
 		preventDefault: vi.fn(),
 		currentTarget: document.createElement('span'),
-	} as unknown as PointerEvent;
+	} as unknown as GripPointerEvent;
 }
 
 function firePointer(type: 'pointermove' | 'pointerup' | 'pointercancel', init: PointerEventInit) {
@@ -237,7 +241,6 @@ describe('createFileListPointerReorder', () => {
 				}),
 			);
 			const firstGrip = document.createElement('span');
-			Object.assign(firstGrip, { setPointerCapture: vi.fn() });
 			handlers.onGripPointerDown('r0', {
 				pointerId: POINTER_ID,
 				button: 0,
@@ -245,13 +248,12 @@ describe('createFileListPointerReorder', () => {
 				clientY: 0,
 				preventDefault: vi.fn(),
 				currentTarget: firstGrip,
-			} as unknown as PointerEvent);
+			} as unknown as GripPointerEvent);
 			firePointer('pointermove', { clientX: 0, clientY: 24 });
 			firePointer('pointerup', {});
 			reorderFiles.mockClear();
 
 			const secondGrip = document.createElement('span');
-			Object.assign(secondGrip, { setPointerCapture: vi.fn() });
 			handlers.onGripPointerDown('r2', {
 				pointerId: POINTER_ID,
 				button: 0,
@@ -259,7 +261,7 @@ describe('createFileListPointerReorder', () => {
 				clientY: 0,
 				preventDefault: vi.fn(),
 				currentTarget: secondGrip,
-			} as unknown as PointerEvent);
+			} as unknown as GripPointerEvent);
 			firePointer('pointermove', { clientX: 0, clientY: 24 });
 			firstGrip.dispatchEvent(new PointerEvent('lostpointercapture', { pointerId: POINTER_ID }));
 			expect(states[states.length - 1]?.draggedKey).toBe('r2');

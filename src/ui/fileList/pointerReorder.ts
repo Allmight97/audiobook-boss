@@ -8,8 +8,9 @@ export type FileListDragState = {
 
 export type FileListRowHit = { key: string; edge: DropEdge };
 export type FileListRowHitTest = (clientX: number, clientY: number) => FileListRowHit | null;
+export type GripPointerEvent = PointerEvent & { readonly currentTarget: Element };
 export type FileListPointerReorderHandlers = {
-	onGripPointerDown: (key: string, event: PointerEvent) => void;
+	onGripPointerDown: (key: string, event: GripPointerEvent) => void;
 	consumePostDragClick: () => boolean;
 	dispose: () => void;
 };
@@ -41,16 +42,6 @@ function fileListRowHitFromPoint(clientX: number, clientY: number): FileListRowH
 		key: row.dataset.fileKey,
 		edge: clientY < rect.top + rect.height / 2 ? 'top' : 'bottom',
 	};
-}
-
-function capturePointer(grip: Element, pointerId: number): boolean {
-	if (typeof grip.setPointerCapture !== 'function') return false;
-	try {
-		grip.setPointerCapture(pointerId);
-		return true;
-	} catch {
-		return false;
-	}
 }
 
 export function createFileListPointerReorder(options: {
@@ -149,17 +140,16 @@ export function createFileListPointerReorder(options: {
 				hoveredEdge: null,
 			};
 			event.preventDefault();
-			const grip = event.currentTarget;
-			if (grip instanceof Element && capturePointer(grip, event.pointerId)) {
-				const listener = (lostEvent: Event) => {
-					if (lostEvent instanceof PointerEvent) handlePointerCancel(lostEvent);
-				};
-				capture = { grip, listener };
-				grip.addEventListener('lostpointercapture', listener, { once: true });
-			}
 			window.addEventListener('pointermove', handlePointerMove);
 			window.addEventListener('pointerup', handlePointerUp);
 			window.addEventListener('pointercancel', handlePointerCancel);
+			const grip = event.currentTarget;
+			const listener = (lostEvent: Event) => {
+				if (lostEvent instanceof PointerEvent) handlePointerCancel(lostEvent);
+			};
+			capture = { grip, listener };
+			grip.addEventListener('lostpointercapture', listener, { once: true });
+			grip.setPointerCapture(event.pointerId);
 		},
 		consumePostDragClick() {
 			const shouldSuppress = suppressPostDragClick;
