@@ -28,7 +28,7 @@
 		"app:install-local": "bun scripts/install-local-app.ts",
 		"app:install-local:existing": "bun scripts/install-local-app.ts --skip-build",
 		"clean": "bun scripts/clean.ts",
-		"bindings:generate": "cargo run --locked --manifest-path src-tauri/Cargo.toml --features bundled-ffmpeg,binding-export --bin export_bindings --",
+		"bindings:generate": "bash scripts/check-generated-bindings.sh --write",
 		"bindings:check": "scripts/check-generated-bindings.sh",
 		"bindings:check:runtime-boundary": "bun scripts/check-tauri-runtime-boundary.ts",
 		"check:rust-complexity": "bash scripts/check-rust-complexity.sh",

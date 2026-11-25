@@ -59,7 +59,6 @@ host:
   - src-tauri/**
   - src/lib/generated/**
   - scripts/check-generated-bindings.sh
-  - package.json
 supply-chain:
   - Cargo.lock
   - Cargo.toml

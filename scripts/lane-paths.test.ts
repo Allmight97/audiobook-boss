@@ -87,14 +87,17 @@ describe('scripts/lane-paths.yml', () => {
 		}
 	});
 
-	it('keeps package.json in host while check-generated-bindings.sh runs a package.json script', () => {
+	it('does not trigger host or engine for frontend-only package.json edits', () => {
 		const bindingsCheck = readFileSync(
 			path.join(repoRoot, 'scripts/check-generated-bindings.sh'),
 			'utf8',
 		);
-		expect(bindingsCheck).toContain('bun run bindings:generate');
-		expect(selected('package.json')).toContain('host');
+		expect(bindingsCheck).toContain('cargo run --locked');
+		expect(bindingsCheck).not.toMatch(/^\s*bun run bindings:generate/m);
+		expect(selected('package.json')).not.toContain('host');
 		expect(selected('package.json')).not.toContain('engine');
+		expect(selected('package.json')).toContain('frontend');
+		expect(selected('package.json')).toContain('tooling');
 	});
 
 	it('gives every no-lane entry a reason', () => {

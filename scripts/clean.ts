@@ -8,7 +8,7 @@ const USAGE = `Usage: bun run clean [--all]
   (no flag)  Remove build output and machine-written logs. Keeps the FFmpeg cache.
   --all      Also remove the FFmpeg cache and node_modules.
              bash scripts/setup.sh restores them.
-  --auto     When target/debug is over 10 GB and no running process uses it,
+  --auto     When target/debug is over 14 GB and no running process uses it,
              remove this workspace's own crates from it (cargo clean -p) and
              keep third-party builds; remove all of target/debug if it is
              still over 25 GB. Keep the newest verification runs. verify.sh
@@ -19,7 +19,7 @@ Other folders under .logs/ and verification receipts always stay.`;
 const FFMPEG_DIRS = new Set(['abb-ffmpeg-cache', 'abb-ffmpeg-source', 'abb-ffmpeg-upstream']);
 const BUILD_OUTPUT = ['dist', 'node_modules/.vite'];
 
-const DEBUG_BUDGET_KB = 10 * 1024 * 1024;
+const DEBUG_BUDGET_KB = 14 * 1024 * 1024;
 const DEBUG_CEILING_KB = 25 * 1024 * 1024;
 const WORKSPACE_PACKAGES = ['abb-engine', 'audiobook-boss'];
 export const KEPT_RUNS = 5;
