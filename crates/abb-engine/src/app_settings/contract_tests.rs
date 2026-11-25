@@ -1,9 +1,9 @@
 use super::*;
-use crate::audio::{
+use abb_media_pipeline::audio::{
     AacDecoder, AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings,
     EncoderType, FaacProfile, SampleRateConfig,
 };
-use crate::output_artifact::{NamingPreset, OutputNamingConfig};
+use abb_media_pipeline::output_artifact::{NamingPreset, OutputNamingConfig};
 use std::path::Path;
 use tempfile::TempDir;
 
@@ -338,7 +338,7 @@ fn an_unknown_aac_decoder_resets_only_the_decoder_choice() {
     assert_eq!(
         loaded.settings,
         AppSettings {
-            aac_decoder: crate::audio::AacDecoder::Auto,
+            aac_decoder: abb_media_pipeline::audio::AacDecoder::Auto,
             ..chosen_settings()
         }
     );
@@ -541,7 +541,8 @@ fn invalid_choices_are_refused_in_last_used_and_pinned_defaults() {
 
 #[test]
 fn fixed_concurrency_accepts_the_scheduler_maximum() {
-    let max = crate::processing::JobRegistry::max_concurrent_jobs_capabilities().fixed_max;
+    let max =
+        abb_media_pipeline::processing::JobRegistry::max_concurrent_jobs_capabilities().fixed_max;
     let settings = AppSettings::default()
         .merge(AppSettingsPatch {
             max_concurrent_jobs: Some(ConcurrencyPreference::Fixed(max)),

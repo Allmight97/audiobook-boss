@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 
 ui_toolkit='^(tauri|tauri-.*|wry|tao)$'
 test_fixtures='^abb-test-fixtures$'
-core_forbidden="$ui_toolkit|$test_fixtures|^(abb-ffmpeg|ffmpeg-next|ffmpeg-sys-next|keyring|keyring-core|.*-keyring-store|abb-engine)$"
+core_forbidden="$ui_toolkit|$test_fixtures|^(abb-ffmpeg|ffmpeg-next|ffmpeg-sys-next|keyring|keyring-core|.*-keyring-store|abb-engine|abb-media-pipeline)$"
 cores=()
 for manifest in crates/abb-*-core/Cargo.toml; do
 	cores+=("$(basename "$(dirname "$manifest")")")
@@ -22,21 +22,25 @@ check() {
 }
 
 check_direct() {
-	local crate="$1" forbidden="$2" tree hits
+	local crate="$1" forbidden="$2" fix="$3" tree hits
 	tree="$(cargo tree --locked -p "$crate" -e normal --target all --depth 1 --prefix none --format '{p}')"
 	hits="$(awk 'NR > 1 { print $1 }' <<<"$tree" | sort -u | grep -E "$forbidden" || [[ $? -eq 1 ]])"
 	if [[ -n "$hits" ]]; then
-		echo "[check-rust-tiers] $crate must not depend directly on: $(echo "$hits" | tr '\n' ' '). Fix: call abb_ffmpeg."
+		echo "[check-rust-tiers] $crate must not depend directly on: $(echo "$hits" | tr '\n' ' '). Fix: $fix"
 		failed=1
 	fi
 }
 
+call_ffmpeg='call abb_ffmpeg.'
 check abb-engine "$ui_toolkit|$test_fixtures"
+check abb-media-pipeline '^(abb-engine|tauri|tauri-.*|wry|tao|keyring|keyring-core|.*-keyring-store|reqwest|bogon|abb-test-fixtures)$'
 check audiobook-boss "$test_fixtures"
-check abb-test-fixtures '^(abb-engine|abb-ffmpeg|abb-.*-core|audiobook-boss)$'
-check_direct abb-engine '^ffmpeg-(sys-)?next$'
-check_direct audiobook-boss '^ffmpeg-(sys-)?next$'
-check abb-ffmpeg '^(abb-engine|abb-.*-core|abb-test-fixtures|audiobook-boss|faac-sys)$'
+check abb-test-fixtures '^(abb-engine|abb-media-pipeline|abb-ffmpeg|abb-.*-core|audiobook-boss)$'
+check_direct abb-engine '^ffmpeg-(sys-)?next$' "$call_ffmpeg"
+check_direct abb-media-pipeline '^ffmpeg-(sys-)?next$' "$call_ffmpeg"
+check_direct audiobook-boss '^ffmpeg-(sys-)?next$' "$call_ffmpeg"
+check_direct audiobook-boss '^abb-media-pipeline$' 'reach media through abb_engine.'
+check abb-ffmpeg '^(abb-engine|abb-media-pipeline|abb-.*-core|abb-test-fixtures|audiobook-boss|faac-sys)$'
 for core in "${cores[@]}"; do
 	check "$core" "$core_forbidden"
 done

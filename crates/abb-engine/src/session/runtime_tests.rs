@@ -4,15 +4,10 @@ use std::time::Duration;
 
 use super::*;
 use crate::app_settings::{SettingsRuntime, SettingsSnapshot};
-use crate::audio::{AudioFile, AudioIntent, AudiobookFormat};
 use crate::host::EventSink;
-use crate::metadata::{MetadataIntentPatch, PatchOp};
 use crate::metadata_lookup::{
     MetadataLookupDiagnostic, MetadataLookupDiagnosticKind, OnlineMetadataResult,
 };
-use crate::output_artifact::NamingPreset;
-use crate::power::PowerManager;
-use crate::processing::JobRegistry;
 use crate::session::audio_choice::AudioEdit;
 use crate::session::cover_address::{self, tests::host_request};
 use crate::session::lookup::LookupSnapshot;
@@ -21,6 +16,11 @@ use crate::session::metadata_form::MetadataField;
 use crate::session::state::MetadataSnapshot;
 use crate::session::submission::SubmissionStatus;
 use crate::session::working_set::InputNotice;
+use abb_media_pipeline::audio::{AudioFile, AudioIntent, AudiobookFormat};
+use abb_media_pipeline::metadata::{MetadataIntentPatch, PatchOp};
+use abb_media_pipeline::output_artifact::NamingPreset;
+use abb_media_pipeline::power::PowerManager;
+use abb_media_pipeline::processing::JobRegistry;
 
 type SearchReply = Result<MetadataLookupResponse>;
 type Search = (String, Vec<MetadataSource>);
@@ -61,7 +61,7 @@ fn downloaded_cover() -> Vec<u8> {
 }
 
 fn written_cover() -> Vec<u8> {
-    crate::metadata::optimize_cover_art(&downloaded_cover()).expect("optimize cover")
+    abb_media_pipeline::metadata::optimize_cover_art(&downloaded_cover()).expect("optimize cover")
 }
 
 fn rig() -> Rig {
@@ -125,7 +125,7 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
             jobs: Arc::new(JobRegistry::new(2)),
             temporary_root: PathBuf::from("/staged"),
             tasks,
-            roots: crate::processing::run::ProcessingRoots::for_cache(
+            roots: abb_media_pipeline::processing::run::ProcessingRoots::for_cache(
                 &std::env::temp_dir().join("abb-session-tests"),
             ),
             settings,
@@ -150,7 +150,10 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
         },
         network,
     );
-    session.start_from_defaults(None, Some(crate::audio::encoder_settings_capabilities()));
+    session.start_from_defaults(
+        None,
+        Some(abb_media_pipeline::audio::encoder_settings_capabilities()),
+    );
     Rig {
         session,
         events,

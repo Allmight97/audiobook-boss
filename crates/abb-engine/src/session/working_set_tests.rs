@@ -1,5 +1,5 @@
 use super::*;
-use crate::audio::{AudioIntent, SampleRateConfig};
+use abb_media_pipeline::audio::{AudioIntent, SampleRateConfig};
 use proptest::prelude::*;
 
 fn file(name: &str) -> AudioFile {
@@ -11,8 +11,8 @@ fn file(name: &str) -> AudioFile {
 
 fn request(intent: AudioIntent) -> TitleAudioRequest {
     TitleAudioRequest {
-        output: crate::audio::OutputAudio::M4b {
-            settings: crate::audio::EncoderSettings::default(),
+        output: abb_media_pipeline::audio::OutputAudio::M4b {
+            settings: abb_media_pipeline::audio::EncoderSettings::default(),
         },
         intent,
         sample_rate: SampleRateConfig::Auto,
@@ -301,7 +301,7 @@ fn removing_a_grouped_title_removes_every_source() {
 
 #[test]
 fn a_cue_choice_confirms_or_ignores_without_touching_other_sources() {
-    use crate::metadata::{ChapterPlan, ChapterSpec, CueSource};
+    use abb_media_pipeline::metadata::{ChapterPlan, ChapterSpec, CueSource};
 
     let embedded = vec![ChapterSpec {
         title: Some("Embedded".into()),
@@ -514,7 +514,7 @@ proptest! {
 fn a_tag_write_moves_a_chapter_plan_only_when_the_file_was_as_inspected() {
     let planned = |name: &str, fingerprint: &str| {
         let mut file = file(name);
-        file.chapter_plan = Some(crate::metadata::ChapterPlan {
+        file.chapter_plan = Some(abb_media_pipeline::metadata::ChapterPlan {
             chapters: Vec::new(),
             from_cue: false,
             source_fingerprint: fingerprint.to_string(),

@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use super::*;
-use crate::audio::{AudioIntent, TitleAudioRequest};
-use crate::metadata::{ChapterPlan, CueSource, CueStatus, PatchOp};
-use crate::output_artifact::{NamingPreset, OutputNamingConfig};
+use abb_media_pipeline::audio::{AudioIntent, TitleAudioRequest};
+use abb_media_pipeline::metadata::{ChapterPlan, CueSource, CueStatus, PatchOp};
+use abb_media_pipeline::output_artifact::{NamingPreset, OutputNamingConfig};
 
 fn file(name: &str, valid: bool) -> AudioFile {
     let mut file = AudioFile::new(PathBuf::from(format!("/books/{name}.m4b")));
@@ -13,7 +13,7 @@ fn file(name: &str, valid: bool) -> AudioFile {
 }
 
 fn request() -> TitleAudioRequest {
-    TitleAudioRequest::default_m4b(AudioIntent::Auto)
+    crate::test_cases::support::audio::default_m4b(AudioIntent::Auto)
 }
 
 fn title<'a>(anchor: &'a AudioFile, sources: &'a [AudioFile]) -> SubmittedTitle<'a> {

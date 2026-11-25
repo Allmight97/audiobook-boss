@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::errors::{AppError, Result};
-use crate::owned_dir::OwnedRoot;
+use abb_media_pipeline::errors::{AppError, Result};
+use abb_media_pipeline::owned_dir::OwnedRoot;
 
 const REMOTE_SOURCE_DIR: &str = "remote-source";
 const SESSIONS_DIR: &str = "sessions";

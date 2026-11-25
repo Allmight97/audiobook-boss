@@ -23,44 +23,39 @@
 //! ```
 
 pub mod app_settings;
-pub mod audio;
+pub mod audio {
+    pub use abb_media_pipeline::audio::{
+        supported_audio_import_extensions, supported_audio_import_support_text, AacDecoder,
+        AudioIntent, AudiobookFormat, ALLOWED_IMAGE_EXTENSIONS,
+    };
+}
 mod cover_service;
 mod cover_source;
-mod diagnostics;
 mod engine;
 mod engine_tasks;
-mod errors;
-mod execution;
-mod file_replace;
 mod host;
-mod metadata;
 pub mod metadata_lookup;
 mod metadata_save;
-mod natural_order;
-pub mod output_artifact;
-mod owned_dir;
-mod power;
-pub mod processing;
+pub mod output_artifact {
+    pub use abb_media_pipeline::output_artifact::{CollisionPolicy, NamingPreset};
+}
+pub mod processing {
+    pub use abb_media_pipeline::processing::RunTerminalClass;
+}
 mod quit_press;
 pub mod remote_source;
 pub mod session;
 pub mod work_runtime;
 
-pub use diagnostics::media_build_identity;
+pub use abb_media_pipeline::diagnostics::media_build_identity;
+pub use abb_media_pipeline::errors::{
+    AppError, AppErrorCategory, AppErrorCode, AppErrorEnvelope, Result,
+};
 pub use engine::{Engine, EngineConfig, QuitConsent, RunningWork, ShutdownOutcome};
-pub use errors::{
-    sanitize_path_for_display, sanitize_path_str_for_display, AppError, AppErrorCategory,
-    AppErrorCode, AppErrorEnvelope, Result,
-};
 pub use host::{DiscardEvents, EngineEvent, EventSink};
-pub use metadata::{
-    AlbumSortPatchOp, AudiobookMetadata, ChapterPlan, CoverArtPassthroughPolicy,
-    MetadataIntentPatch, MetadataIntentValidationResult, NamingMetadata, PassthroughSource,
-    PatchOp,
-};
 pub use quit_press::QuitPress;
 
-pub(crate) type ManagedJobRegistry = std::sync::Arc<processing::JobRegistry>;
+pub(crate) use abb_media_pipeline::ManagedJobRegistry;
 
 #[cfg(test)]
 mod test_cases;

@@ -7,26 +7,26 @@ use std::time::Instant;
 use crate::app_settings::{
     SettingsIntent, SettingsOutcome, SettingsReply, SettingsRuntime, SettingsSnapshot,
 };
-use crate::audio;
 use crate::engine_tasks::EngineTasks;
-use crate::errors::{AppError, Result};
 use crate::host::{EventSink, Host};
-use crate::metadata::AudiobookMetadata;
-use crate::output_artifact::OutputFolderRecords;
-use crate::power::PowerManager;
-use crate::processing::run::ProcessingRoots;
 use crate::quit_press::{QuitPress, QuitPresses, QUIT_PRESS_WINDOW};
 use crate::remote_source::{RemoteSourceConfig, RemoteSourceRuntime};
 use crate::session::{
     Session, SessionDeps, SessionIntent, SessionReply, SessionRun, SessionUpdate,
 };
 use crate::work_runtime::{OperationId, OperationSnapshot, WorkOperationsSnapshot, WorkRuntime};
+use abb_media_pipeline::audio;
+use abb_media_pipeline::errors::{AppError, Result};
+use abb_media_pipeline::metadata::AudiobookMetadata;
+use abb_media_pipeline::output_artifact::OutputFolderRecords;
+use abb_media_pipeline::power::PowerManager;
+use abb_media_pipeline::processing::run::ProcessingRoots;
 
 fn lock_cache_dir(cache_dir: &Path) -> Result<File> {
     let failed = |error: std::io::Error| {
         AppError::FileValidation(format!(
             "Cannot lock the working folder '{}': {error}",
-            crate::errors::sanitize_path_for_display(cache_dir)
+            abb_media_pipeline::errors::sanitize_path_for_display(cache_dir)
         ))
     };
     let file = std::fs::create_dir_all(cache_dir)
@@ -315,7 +315,7 @@ impl Engine {
     pub async fn read_audio_metadata(&self, file_path: String) -> Result<AudiobookMetadata> {
         tokio::task::spawn_blocking(move || {
             let validated_path = audio::validate_input_audio_path(&PathBuf::from(&file_path))?;
-            crate::metadata::read_metadata(validated_path.to_string_lossy().as_ref())
+            abb_media_pipeline::metadata::read_metadata(validated_path.to_string_lossy().as_ref())
         })
         .await
         .map_err(|e| AppError::General(format!("Metadata read task failed: {e}")))?

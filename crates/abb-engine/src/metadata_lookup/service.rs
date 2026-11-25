@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::errors::{AppError, Result};
+use abb_media_pipeline::errors::{AppError, Result};
 use reqwest::Client;
 
 use super::mapping::map_audible_item;

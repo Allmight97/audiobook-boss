@@ -8,11 +8,11 @@ use super::acquisition::{
 };
 use super::decrypt::{decrypt_download, DecryptRequest};
 use crate::engine_tasks::EngineTasks;
-use crate::errors::{AppError, Result};
 use crate::remote_source::scoped_output::{
     purge_with_retries, remove_if_present, remove_logging_failure, PURGE_RETRY_DELAYS,
 };
 use crate::remote_source::types::{RemoteAcquisitionFailureKind, RemoteSourceDiagnostic};
+use abb_media_pipeline::errors::{AppError, Result};
 
 pub(super) struct MaterializedProtectedSource {
     pub(super) path: PathBuf,

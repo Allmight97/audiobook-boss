@@ -7,8 +7,8 @@ use serde_json::Value;
 
 use super::provider_private_failure;
 use super::signing::{adp_date, AdpSigner};
-use crate::errors::{AppError, Result};
 use abb_audible_core::title_ref;
+use abb_media_pipeline::errors::{AppError, Result};
 
 const READ_TIMEOUT: Duration = Duration::from_secs(60);
 const API_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);

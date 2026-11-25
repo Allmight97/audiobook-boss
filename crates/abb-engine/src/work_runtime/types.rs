@@ -1,4 +1,4 @@
-use crate::processing::{OperationKind, ProcessPayload};
+use abb_media_pipeline::processing::{OperationKind, ProcessPayload};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -115,7 +115,7 @@ pub struct ChildJobSnapshot {
     pub output_path: Option<String>,
     pub supplemental_warning: Option<String>,
     pub warnings: Vec<String>,
-    pub output_update: Option<crate::processing::OutputUpdate>,
+    pub output_update: Option<abb_media_pipeline::processing::OutputUpdate>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -192,13 +192,13 @@ pub struct WorkOperationsUpdate {
 pub struct WorkSubmissionAccepted {
     pub operation_id: OperationId,
     pub snapshot: OperationSnapshot,
-    pub(crate) titles: Vec<std::sync::Arc<crate::processing::TitleOutput>>,
+    pub(crate) titles: Vec<std::sync::Arc<abb_media_pipeline::processing::TitleOutput>>,
 }
 
 #[derive(Clone)]
 pub struct SubmitProcessingOperationRequest {
     pub operation_id: OperationId,
     pub payload: ProcessPayload,
-    pub metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
+    pub metadata: Option<HashMap<String, abb_media_pipeline::metadata::MetadataIntentPatch>>,
     pub title: String,
 }

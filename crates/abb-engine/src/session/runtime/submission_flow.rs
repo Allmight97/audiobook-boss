@@ -1,8 +1,5 @@
 use super::save_flow::{apply_published, output_update_failure};
 use super::{blocking, Rest, Session};
-use crate::errors::{AppError, AppErrorEnvelope};
-use crate::output_artifact::CollisionPolicy;
-use crate::processing::run::{inspect_processing_plan, InspectedRun};
 use crate::session::exports::ExportLink;
 use crate::session::intent::SessionOutcome;
 use crate::session::state::SessionState;
@@ -10,6 +7,9 @@ use crate::session::submission::{
     plan_verdict, Draft, PlanVerdict, SubmissionStatus, SubmitRefusal,
 };
 use crate::work_runtime::SubmitProcessingOperationRequest;
+use abb_media_pipeline::errors::{AppError, AppErrorEnvelope};
+use abb_media_pipeline::output_artifact::CollisionPolicy;
+use abb_media_pipeline::processing::run::{inspect_processing_plan, InspectedRun};
 
 impl Session {
     pub(super) fn begin_submission(&self, preview: bool) -> Rest {
@@ -81,7 +81,7 @@ impl Session {
     fn hold_for_review(
         &self,
         draft: Draft,
-        outputs: Vec<crate::output_artifact::PlannedOutput>,
+        outputs: Vec<abb_media_pipeline::output_artifact::PlannedOutput>,
     ) -> SessionOutcome {
         let closing_draft = draft.clone();
         match self

@@ -1,10 +1,10 @@
 use super::{Rest, Session};
 use crate::cover_service::Cover;
-use crate::errors::{AppError, Result};
 use crate::session::cover_address::{self, unknown, CoverRequest};
 use crate::session::intent::SessionOutcome;
 use crate::session::preview::PreviewArtwork;
 use crate::session::state::SessionState;
+use abb_media_pipeline::errors::{AppError, Result};
 
 impl Session {
     pub(super) fn begin_cover_drop(&self, paths: Vec<String>) -> Rest {
@@ -90,7 +90,7 @@ impl Session {
                 Ok(Some(covers.remote_small(url).await?))
             }
             CoverRequest::Audio { path } => {
-                let path = crate::audio::validate_input_audio_path(path)?;
+                let path = abb_media_pipeline::audio::validate_input_audio_path(path)?;
                 if !self.lock().lists_source(&path) {
                     return Err(unknown());
                 }
@@ -124,7 +124,7 @@ impl Session {
             PreviewArtwork::Bytes(bytes) => {
                 #[expect(clippy::disallowed_methods, reason = "joined by preview_cover")]
                 let rendered = tokio::task::spawn_blocking(move || {
-                    crate::metadata::render_display_thumbnail(&bytes)
+                    abb_media_pipeline::metadata::render_display_thumbnail(&bytes)
                 })
                 .await
                 .map_err(|error| AppError::General(format!("Cover task failed: {error}")))?;

@@ -112,8 +112,11 @@ fn finishing_an_export_frees_its_sources_before_anyone_hears_of_it_and_emits_out
         seen: Mutex::new(Vec::new()),
     });
     assert!(probe.runtime.set(runtime.clone()).is_ok());
-    let host = Host::new(probe.clone(), crate::power::PowerManager::default());
-    let result = crate::processing::ProcessCommandResult::new(Vec::new());
+    let host = Host::new(
+        probe.clone(),
+        abb_media_pipeline::power::PowerManager::default(),
+    );
+    let result = abb_media_pipeline::processing::ProcessCommandResult::new(Vec::new());
 
     let finished = runtime
         .finish_processing_and_emit(&host, &operation_id, Ok(result))
@@ -211,15 +214,19 @@ impl crate::EventSink for PublishedLocks {
 
 #[test]
 fn the_concurrency_lock_is_published_with_every_job_and_run_change_and_with_the_snapshot() {
-    let registry: crate::ManagedJobRegistry = Arc::new(crate::processing::JobRegistry::new(2));
+    let registry: crate::ManagedJobRegistry =
+        Arc::new(abb_media_pipeline::processing::JobRegistry::new(2));
     let published = Arc::new(PublishedLocks::default());
-    let host = Host::new(published.clone(), crate::power::PowerManager::default());
+    let host = Host::new(
+        published.clone(),
+        abb_media_pipeline::power::PowerManager::default(),
+    );
     let runtime = WorkRuntime::new(crate::engine_tasks::EngineTasks::default());
     runtime.follow_concurrency_lock(&host, &registry);
     assert!(!runtime.list_operations().concurrency_locked);
 
-    let tagging = crate::processing::RegisteredJob::without_permit(&registry);
-    let second = crate::processing::RegisteredJob::without_permit(&registry);
+    let tagging = abb_media_pipeline::processing::RegisteredJob::without_permit(&registry);
+    let second = abb_media_pipeline::processing::RegisteredJob::without_permit(&registry);
     assert!(runtime.list_operations().concurrency_locked);
     let run = registry.hold_run();
     tagging.complete();
@@ -285,7 +292,7 @@ impl crate::EventSink for PanicsOnFirstRunning {
 
 struct ExportRun {
     runtime: WorkRuntime,
-    registry: Arc<crate::processing::JobRegistry>,
+    registry: Arc<abb_media_pipeline::processing::JobRegistry>,
     settled: Arc<Mutex<Vec<(WorkOperationStatus, bool)>>>,
     accepted: WorkSubmissionAccepted,
 }
@@ -295,7 +302,10 @@ async fn run_one_title_export(
     sink: impl FnOnce(&WorkRuntime) -> Arc<dyn crate::EventSink>,
 ) -> ExportRun {
     let runtime = WorkRuntime::new(crate::engine_tasks::EngineTasks::default());
-    let host = Host::new(sink(&runtime), crate::power::PowerManager::default());
+    let host = Host::new(
+        sink(&runtime),
+        abb_media_pipeline::power::PowerManager::default(),
+    );
     export_on(&runtime, host, operation_id).await
 }
 
@@ -306,18 +316,21 @@ async fn export_on(runtime: &WorkRuntime, host: Host, operation_id: &OperationId
     let payload = crate::test_cases::media_fixtures::single_title_payload(
         &source,
         &tmp.path().join("out"),
-        crate::audio::TitleAudioRequest {
-            output: crate::audio::OutputAudio::M4b {
+        abb_media_pipeline::audio::TitleAudioRequest {
+            output: abb_media_pipeline::audio::OutputAudio::M4b {
                 settings: crate::test_cases::support::encoders::native_encoder_settings(),
             },
-            intent: crate::audio::AudioIntent::Encode,
-            sample_rate: crate::audio::SampleRateConfig::Auto,
+            intent: abb_media_pipeline::audio::AudioIntent::Encode,
+            sample_rate: abb_media_pipeline::audio::SampleRateConfig::Auto,
         },
     );
-    let inspected = crate::processing::run::inspect_processing_plan(&payload, None, false)
-        .expect("inspect")
-        .expect_export();
-    let registry = Arc::new(crate::processing::JobRegistry::new(1));
+    let abb_media_pipeline::processing::run::InspectedRun::Export(inspected) =
+        abb_media_pipeline::processing::run::inspect_processing_plan(&payload, None, false)
+            .expect("inspect")
+    else {
+        panic!("expected an export plan");
+    };
+    let registry = Arc::new(abb_media_pipeline::processing::JobRegistry::new(1));
     let settled = Arc::new(Mutex::new(Vec::new()));
     let on_finished: OnFinished = {
         let settled = Arc::clone(&settled);
@@ -334,7 +347,7 @@ async fn export_on(runtime: &WorkRuntime, host: Host, operation_id: &OperationId
         .submit_processing_operation(
             host,
             Arc::clone(&registry),
-            crate::processing::run::ProcessingRoots::for_cache(tmp.path()),
+            abb_media_pipeline::processing::run::ProcessingRoots::for_cache(tmp.path()),
             SubmitProcessingOperationRequest {
                 operation_id: operation_id.clone(),
                 payload,
@@ -418,7 +431,7 @@ async fn after_the_operations_lock_is_poisoned_a_new_export_is_accepted_and_comp
     poison(&runtime);
     let host = Host::new(
         Arc::new(crate::host::DiscardEvents),
-        crate::power::PowerManager::default(),
+        abb_media_pipeline::power::PowerManager::default(),
     );
 
     let run = export_on(&runtime, host, &OperationId("after-poison".to_string())).await;
@@ -439,7 +452,7 @@ fn after_the_operations_lock_is_poisoned_cancel_and_list_still_work() {
     poison(&runtime);
     let host = Host::new(
         Arc::new(crate::host::DiscardEvents),
-        crate::power::PowerManager::default(),
+        abb_media_pipeline::power::PowerManager::default(),
     );
 
     let cancelled = runtime

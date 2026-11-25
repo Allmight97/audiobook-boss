@@ -1,11 +1,13 @@
-use crate::audio::validate_input_audio_path;
-use crate::errors::{sanitize_path_str_for_display, AppError, AppErrorEnvelope, Result};
 use crate::host::Host;
-use crate::metadata::MetadataIntentPatch;
-use crate::processing::{
+use crate::work_runtime::{InlineRunTerminal, WorkRuntime};
+use abb_media_pipeline::audio::validate_input_audio_path;
+use abb_media_pipeline::errors::{
+    sanitize_path_str_for_display, AppError, AppErrorEnvelope, Result,
+};
+use abb_media_pipeline::metadata::MetadataIntentPatch;
+use abb_media_pipeline::processing::{
     CancellationChecker, EventStage, OperationResultSummary, ProcessResultStatus, ProgressEvent,
 };
-use crate::work_runtime::{InlineRunTerminal, WorkRuntime};
 use std::path::PathBuf;
 
 const METADATA_SAVE_CANCELLED_MESSAGE: &str = "Metadata save cancelled.";
@@ -108,7 +110,7 @@ pub(crate) async fn save_metadata_batch(
     let file_paths: Vec<String> = items.iter().map(|item| item.file_path.clone()).collect();
     let (operation_id, cancel_token) = runtime.begin_metadata_save_operation(host, &file_paths)?;
 
-    let job = crate::processing::RegisteredJob::without_permit(registry);
+    let job = abb_media_pipeline::processing::RegisteredJob::without_permit(registry);
     let _active_work = host.begin_active_work();
     let cancellation = CancellationChecker::new(cancel_token);
 
@@ -249,18 +251,18 @@ fn save_metadata_item(
 ) -> Result<Option<Rewrite>> {
     let path = PathBuf::from(file_path);
     let validated_path = validate_input_audio_path(&path)?;
-    let _file = crate::output_artifact::lock_output_file(&validated_path);
+    let _file = abb_media_pipeline::output_artifact::lock_output_file(&validated_path);
     log::info!("Saving metadata to: {}", validated_path.display());
 
-    let before = crate::metadata::source_fingerprint(&validated_path)
+    let before = abb_media_pipeline::metadata::source_fingerprint(&validated_path)
         .inspect_err(|error| {
             log::warn!("Fingerprint before the metadata save unavailable: {error}")
         })
         .ok();
-    crate::metadata::save_metadata_intent(&validated_path, &metadata_patch)?;
+    abb_media_pipeline::metadata::save_metadata_intent(&validated_path, &metadata_patch)?;
     let after = std::fs::metadata(&validated_path)
         .and_then(|stat| {
-            let fingerprint = crate::metadata::source_fingerprint_from_metadata(&stat)
+            let fingerprint = abb_media_pipeline::metadata::source_fingerprint_from_metadata(&stat)
                 .map_err(|error| std::io::Error::other(error.to_string()))?;
             Ok((fingerprint, stat.len()))
         })

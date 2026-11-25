@@ -1,13 +1,13 @@
 use super::*;
-use crate::metadata::PatchOp;
-use crate::processing::title_output::TitleOutputPlan;
+use abb_media_pipeline::metadata::PatchOp;
+use abb_media_pipeline::processing::title_output::TitleOutputPlan;
 
 fn output() -> Arc<TitleOutput> {
     TitleOutput::with_writer(
         TitleOutputPlan {
             anchor: PathBuf::from("/books/alpha.m4b"),
             sources: Vec::new(),
-            base: crate::metadata::AudiobookMetadata::default(),
+            base: abb_media_pipeline::metadata::AudiobookMetadata::default(),
             accepted: None,
             output_dir: PathBuf::from("/library"),
             naming: OutputNamingConfig::default(),

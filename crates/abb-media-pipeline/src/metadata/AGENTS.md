@@ -1,0 +1,147 @@
+# Metadata
+
+- `ffprobe -show_format` merges freeform names that differ only in case, so
+  only atom-level readback shows both series families exist; one visible
+  series key does not.
+- Apple movement tags (`MVNM`/`MVIN`) are not ABB's series mechanism, by
+  product decision; adopting them needs player evidence and the owner's
+  decision.
+- Audiobookshelf reads the tags its
+  [File Metadata](https://audiobookshelf.org/docs/documentation/libraries/book-library/directory-structure/#file-metadata)
+  page lists, and its
+  [metadata priority](https://audiobookshelf.org/docs/documentation/libraries/book-library/book-metadata/#local-metadata-priority-order)
+  settings decide which source wins: folder names or a sidecar can override
+  the tags.
+- Report proof on the output file separately from proof that a player or
+  scanner imported it, because a correct file does not show a consumer
+  reads it.
+- Real file saves go through `save_metadata_intent`, so series validation can
+  see the source's tags.
+- MP4-family tag truth never depends on a bare remux, because FFmpeg's mov
+  muxer drops series, freeform, and sort keys: `finish_artifact_tags`
+  rewrites an MP4-family artifact's tags through mp4ameta after every mux.
+- A Save never opens the original for writing: it checks a sibling copy and
+  swaps it in, so a crash or a bad write leaves the original whole.
+- `tag_support::refuse_unholdable_edits` fails a Save that edits a tag the
+  container cannot store, because the muxer drops such a tag and the Save
+  would report success.
+- The remux read loop ends only at end of file; any other read error fails the
+  write, because skipping a packet would save a shorter book.
+- An MP4 remux keeps the source's `encoder` tag (the mov muxer writes it from
+  `encoding_tool`) and every access unit an edit list hides, because Audio
+  recognizes ABB's FAAC HE files by that tag and needs the hidden last unit
+  for the delayed tail.
+- Matroska pictures are written back as attachments, because its muxer drops
+  attached-picture streams.
+- Every muxer refuses an unsized picture and the bundled FFmpeg decodes JPEG
+  only, so `cover_art::format::picture_dimensions` reads picture sizes from
+  headers. An ID3 picture carries no size, so an MP3 Save with a JPEG XL cover
+  fails and keeps the original; a JPEG XL reader needs a bit reader and a box
+  walk, which ABB does without.
+- Inherited odd series tags from external files do not block unrelated intent,
+  but touched series intent must produce a round-trippable shape before save
+  or processing.
+- Sinks write in op order, because FFmpeg dictionary write order is part of
+  the file: replacing a key moves the last entry into its slot.
+- A source cover that cannot be prepared is dropped with a warning, but a
+  cover the user chose fails the title. Why: a damaged source picture must not
+  cost the user the book, and a picked cover must not vanish silently.
+- A cover is converted only in write-prep (`prepare_output_cover_art`) and in
+  `abb-engine`'s `cover_source.rs`, so displays show the source's real bytes.
+- MP3 (ID3 APIC) and FLAC take the picture type from the stream's `comment`
+  tag, so `add_cover_stream` sets `Cover (front)`; without it the muxers write
+  type 0 "Other".
+- A save preserves the album sort unless the user changes it, because it
+  edits the user's own source file. Processing writes only a derived album
+  sort, because an underivable one already equals the source's value.
+- FFmpeg names the MP3 album-sort frame `album-sort` and the MP4 atom
+  `sort_album`; Matroska and ID3 user text frames report keys in upper case.
+  `reader.rs` still reads `sort_album` on MP3 for files an older ABB tagged,
+  though no library reads that stray TXXX frame.
+- A derived album sort keeps book-number fractions, so novellas sort between
+  books.
+- The album sort stays its own `Option<PatchOp>` on `MetadataWritePlan`,
+  because its key depends on the output container and a Save keeps it unless
+  told otherwise.
+- Every cover reader offers its pictures in file order to `CoverChoice` and
+  adds no rule of its own, so an export keeps the cover the app shows.
+- Thumbnail readers stay allocation-bounded before decode or demux, because
+  FFmpeg's demuxer open can read a whole attached picture before ABB sees its
+  size; an unknown non-MP4 tag container returns no thumbnail rather than an
+  unbounded demux.
+- When metadata policy crosses planning and writing, prove it through the
+  production processing planner and read tags from real output files on each
+  affected route; a test with supplied metadata cannot prove planner
+  forwarding. Also prove source tags stay untouched by processing.
+- The tag-interop snapshots
+  (`crates/abb-media-pipeline/tests/snapshots/tag-interop/`) pin what every
+  tag-writing route leaves in a file. Rewrite one with
+  `ABB_BLESS_TAG_SNAPSHOTS=1` only for an intended output change, and name
+  that change in the commit. Encodes are not snapshotted, because their bytes
+  follow the linked FFmpeg; two Matroska encodes differ in bytes because its
+  muxer writes a random segment identifier.
+- Keep `set | clear | absent` field semantics (absent keeps the source value)
+  across save, processing, naming, write plans, validation, and covers. Clear
+  is the explicit blank action, never a sentinel value.
+- Publication-date and series sequence validation stay in this module.
+- Known bug, low priority (#635): a FLAC Save writes Comment and Description
+  under one Vorbis key, because FFmpeg maps `comment` to `DESCRIPTION`
+  (`libavformat/vorbiscomment.c`), so they read back joined.
+- `----:com.apple.iTunes:SERIES` and `SERIES-PART` are FFmpeg read and clear
+  keys, never write keys, so a stray tag from an older ABB still reads and a
+  series clear removes it; the mp4ameta sink writes them in MP4 beside the
+  lowercase keys as interoperability mirrors for readers of the uppercase
+  names.
+- mp4ameta's `set_year` writes its argument to `©day` unchanged, so the MP4
+  sink stores the full normalized date there (`2001-02-03`); the name does
+  not mean year-only storage.
+- MP4 artist and composer reads join repeated values with `;`, as FFmpeg's
+  text projection does. A name list is one text value; nothing preserves its
+  structure or a distinct album artist.
+- CUE `FILE` text never chooses another audio path and never refuses a sheet,
+  because a real rip's label holds colons and Windows paths.
+- Chapter repair refuses an end it would move more than 1 s, because real rips
+  drift by a few ms and a larger move guesses at the book's structure.
+- ABB's own tag write moves a source's fingerprint forward only when the file
+  still matched it just before the write, so a change made outside ABB is
+  still refused.
+- Every route writes the accepted chapter plan, never the raw source chapters.
+  An MP4 is remuxed only for a real chapter change, because FFmpeg's mov
+  writer drops the freeform tags ABB does not model.
+- A same-container remux carries no cover, so it copies every picture the file
+  holds; the first is not a chosen cover.
+- Opus Matroska to MP4 copies restore the 48 kHz timeline lost to millisecond
+  container rounding; a discontinuity fails rather than discards audio. The
+  timeline comes from packet framing (RFC 6716 §3.1–3.2: the TOC gives frame
+  duration, the packing code the frame count), read without decoding. MP4
+  frame-size metadata must let the muxer honor trailing discard padding, so a
+  copy declares Opus's smallest legal frame. An MP3 source without trim
+  metadata gets no invented Xing decoder delay.
+
+## Outside facts
+
+- `mp4_covr.rs`: mp4ameta's `Tag::read_from_path` allocates the whole artwork
+  before a size check can run, so thumbnails walk `moov/udta/meta/ilst/covr`
+  themselves. A valid MP4 can have padding before `ftyp`, and a legacy
+  QuickTime file may name itself only by its `moov`.
+- `matroska_cover.rs`: only a Segment may have an unknown size (streaming
+  writers write it as eight bytes) and run to end of file; any other
+  unknown-size element cannot be skipped by a bounded reader.
+- `container.rs`: MP4 players end a chapter where the next one starts, so for
+  MP4 only chapter starts and titles are kept and compared. FFmpeg probes raw
+  ADTS AAC as `aac`, but the muxer that writes it is `adts`.
+- `cover_art/format.rs`: a negative BMP height means rows run top-down. The
+  format tests follow FFmpeg's `ff_id3v2_mime_tags` (`libavformat/id3v2`),
+  which maps an ID3 or FLAC picture's MIME type to its codec.
+- `field_schema.rs`: FFmpeg exports an ID3 `COMM` frame as
+  `comment[-descriptor][-language]`; ABB shows one user comment and passes the
+  iTunes technical `COMM` records through untouched.
+- The sinks write Author to both artist and album artist, because
+  Audiobookshelf and Plex group books by album artist.
+- `mod.rs` save check: before swapping a Save, ABB compares per-stream audio
+  packet counts and compressed payload bytes to EOF (any packet-read error
+  other than EOF refuses the Save), applies the 0.5 s duration check only when
+  both durations are measured, and rechecks the source file fingerprint taken
+  before the copy.
+- `cue_tests.rs`: two CUE names that differ only in case are two candidates
+  on a case-sensitive volume and one file on a case-insensitive one.

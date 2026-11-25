@@ -13,9 +13,9 @@ use tokio::task::JoinHandle;
 
 use super::protected_file_probe::read_protected_file_facts;
 use crate::engine_tasks::EngineTasks;
-use crate::errors::{AppError, Result};
 use crate::remote_source::cancellation::{ensure_not_cancelled, remote_acquisition_cancelled};
 use crate::remote_source::scoped_output::{remove_logging_failure, StagedTempFile};
+use abb_media_pipeline::errors::{AppError, Result};
 
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
@@ -153,7 +153,8 @@ fn without_file_name(message: &str, path: &Path) -> String {
 }
 
 fn confirm_decodes_as_audio(job: &CopyJob) -> Result<()> {
-    let Err(rejection) = crate::audio::probe_builtin_audio_decoder(&job.partial) else {
+    let Err(rejection) = abb_media_pipeline::audio::probe_builtin_audio_decoder(&job.partial)
+    else {
         return Ok(());
     };
     log::warn!(
@@ -195,22 +196,27 @@ fn write_copy(
     control: &CopyControl,
 ) -> Result<()> {
     let mut input = open_protected(input, options)?;
-    let mut output = abb_ffmpeg::Output::create(partial, crate::audio::Muxer::Mp4.ffmpeg_name())
-        .map_err(|error| decrypt_failure("creating the output", error))?;
+    let mut output =
+        abb_ffmpeg::Output::create(partial, abb_media_pipeline::audio::Muxer::Mp4.ffmpeg_name())
+            .map_err(|error| decrypt_failure("creating the output", error))?;
     let mapping = copy_streams(&input, &mut output)?;
     let chapters = input.chapters();
     copy_chapters(&chapters, &mut output)?;
     output
         .set_tags(&input.tags())
         .map_err(|error| decrypt_failure("copying the tags", error))?;
-    let mut muxer = crate::audio::write_output_header(output, &abb_ffmpeg::Tags::default())
-        .map_err(|error| decrypt_failure("writing the output header", error))?;
+    let mut muxer =
+        abb_media_pipeline::audio::write_output_header(output, &abb_ffmpeg::Tags::default())
+            .map_err(|error| decrypt_failure("writing the output header", error))?;
     copy_packets(&mut input, &mut muxer, &mapping, control)?;
     muxer
         .finish()
         .map_err(|error| decrypt_failure("finishing the output", error))?;
-    crate::metadata::verify_chapters(partial, &crate::metadata::chapter_specs(&chapters))
-        .map_err(|error| decrypt_failure("checking the chapters", error))
+    abb_media_pipeline::metadata::verify_chapters(
+        partial,
+        &abb_media_pipeline::metadata::chapter_specs(&chapters),
+    )
+    .map_err(|error| decrypt_failure("checking the chapters", error))
 }
 
 fn refuse_lane_mismatch(job: &CopyJob) -> Result<()> {
@@ -293,7 +299,7 @@ fn copy_streams(
 
 fn copy_chapters(chapters: &[abb_ffmpeg::Chapter], output: &mut abb_ffmpeg::Output) -> Result<()> {
     for chapter in chapters {
-        crate::metadata::titled_chapter(chapter)
+        abb_media_pipeline::metadata::titled_chapter(chapter)
             .and_then(|chapter| output.add_chapter(&chapter))
             .map_err(|error| decrypt_failure(&format!("copying chapter {}", chapter.id), error))?;
     }

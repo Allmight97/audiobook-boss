@@ -1,5 +1,5 @@
 use super::IndexerConnection;
-use crate::errors::{AppError, Result};
+use abb_media_pipeline::errors::{AppError, Result};
 
 impl IndexerConnection {
     pub(crate) fn validate(&mut self) -> Result<()> {

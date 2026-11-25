@@ -4,14 +4,16 @@ use std::path::PathBuf;
 use serde::Serialize;
 
 use super::plans::chapter_plans_for;
-use crate::audio::AudioFile;
-use crate::errors::AppErrorEnvelope;
-use crate::metadata::MetadataIntentPatch;
-use crate::output_artifact::{CollisionPolicy, OutputNamingConfig, OutputVerdict, PlannedOutput};
-use crate::processing::{
+use crate::work_runtime::OperationId;
+use abb_media_pipeline::audio::AudioFile;
+use abb_media_pipeline::errors::AppErrorEnvelope;
+use abb_media_pipeline::metadata::MetadataIntentPatch;
+use abb_media_pipeline::output_artifact::{
+    CollisionPolicy, OutputNamingConfig, OutputVerdict, PlannedOutput,
+};
+use abb_media_pipeline::processing::{
     ProcessCommandResult, ProcessPayload, SupplementalProcessingAsset, TitleSource,
 };
-use crate::work_runtime::OperationId;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -120,7 +122,7 @@ impl Draft {
 pub(crate) struct SubmittedTitle<'a> {
     pub(crate) anchor: &'a AudioFile,
     pub(crate) sources: &'a [AudioFile],
-    pub(crate) request: crate::audio::TitleAudioRequest,
+    pub(crate) request: abb_media_pipeline::audio::TitleAudioRequest,
     pub(crate) choice_required: bool,
     pub(crate) has_title: bool,
 }
@@ -254,7 +256,7 @@ fn label_with_edit(
     let edited = metadata
         .get(anchor.path.to_string_lossy().as_ref())
         .and_then(|patch| match &patch.title {
-            Some(crate::metadata::PatchOp::Set(title)) if !title.trim().is_empty() => {
+            Some(abb_media_pipeline::metadata::PatchOp::Set(title)) if !title.trim().is_empty() => {
                 Some(title.trim().to_string())
             }
             _ => None,
@@ -289,7 +291,9 @@ pub(crate) enum PlanVerdict {
     Blocked(String),
 }
 
-pub(crate) fn plan_verdict(plan: &crate::processing::ProcessingPreflightPlan) -> PlanVerdict {
+pub(crate) fn plan_verdict(
+    plan: &abb_media_pipeline::processing::ProcessingPreflightPlan,
+) -> PlanVerdict {
     if let Some(message) = plan
         .outputs
         .iter()

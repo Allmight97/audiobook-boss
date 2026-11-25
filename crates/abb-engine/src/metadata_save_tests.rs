@@ -1,5 +1,5 @@
 use super::*;
-use crate::metadata::PatchOp;
+use abb_media_pipeline::metadata::PatchOp;
 
 fn title_patch(title: &str) -> MetadataIntentPatch {
     MetadataIntentPatch {
@@ -112,11 +112,11 @@ fn missing_file(title: &str) -> Vec<MetadataSaveRequest> {
 #[tokio::test]
 async fn a_save_runs_while_every_export_slot_is_held_and_stays_a_tracked_job() {
     let registry: crate::ManagedJobRegistry =
-        std::sync::Arc::new(crate::processing::JobRegistry::new(1));
+        std::sync::Arc::new(abb_media_pipeline::processing::JobRegistry::new(1));
     let runtime = WorkRuntime::new(crate::engine_tasks::EngineTasks::default());
     let quiet = Host::new(
         std::sync::Arc::new(crate::DiscardEvents),
-        crate::power::PowerManager::default(),
+        abb_media_pipeline::power::PowerManager::default(),
     );
     let export =
         crate::test_cases::support::blocked_export::BlockedExport::start(&registry, 1).await;
@@ -136,7 +136,10 @@ async fn a_save_runs_while_every_export_slot_is_held_and_stays_a_tracked_job() {
         registry: registry.clone(),
         locked: Default::default(),
     });
-    let host = Host::new(probe.clone(), crate::power::PowerManager::default());
+    let host = Host::new(
+        probe.clone(),
+        abb_media_pipeline::power::PowerManager::default(),
+    );
     save_metadata_batch(&host, &runtime, &registry, missing_file("B"))
         .await
         .expect("the save reports its files");

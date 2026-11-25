@@ -45,13 +45,13 @@ use types::{
 };
 use vault::{KeyringSecretVault, SecretVault};
 
-use crate::errors::{AppError, Result};
+use abb_media_pipeline::errors::{AppError, Result};
 
 pub(crate) struct RemoteSourceConfig {
     pub(crate) cache_dir: PathBuf,
     pub(crate) settings: crate::app_settings::SettingsRuntime,
     pub(crate) app_identifier: String,
-    pub(crate) power: crate::power::PowerManager,
+    pub(crate) power: abb_media_pipeline::power::PowerManager,
     pub(crate) host: crate::host::Host,
     pub(crate) tasks: crate::engine_tasks::EngineTasks,
 }
@@ -85,7 +85,7 @@ pub(crate) struct RemoteSourceRuntime {
 struct RemoteSourceRuntimeInner {
     ui: Arc<Mutex<ui::UiState>>,
     ui_host: crate::host::Host,
-    power: crate::power::PowerManager,
+    power: abb_media_pipeline::power::PowerManager,
     settings: crate::app_settings::SettingsRuntime,
     vault: Box<dyn SecretVault>,
     lifecycle: RemoteAcquisitionLifecycle,

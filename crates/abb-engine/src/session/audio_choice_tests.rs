@@ -1,5 +1,5 @@
 use super::*;
-use crate::audio::{CodecFamily, EncoderAvailability, FaacProfileCapability};
+use abb_media_pipeline::audio::{CodecFamily, EncoderAvailability, FaacProfileCapability};
 
 fn config(
     encoder_type: EncoderType,
@@ -74,7 +74,7 @@ fn fresh_defaults_are_m4b_auto_native_aac_at_65_kbps_constant() {
     let request = AudioChoice::default().request(Some(&caps()));
 
     assert_eq!(request.intent, AudioIntent::Auto);
-    let crate::audio::OutputAudio::M4b { settings } = request.output else {
+    let abb_media_pipeline::audio::OutputAudio::M4b { settings } = request.output else {
         panic!("fresh defaults are M4B: {:?}", request.output);
     };
     assert_eq!(settings.encoder_type, EncoderType::NativeAac);
@@ -395,7 +395,7 @@ fn a_title_choice_is_the_defaults_with_its_own_request_on_top() {
         EditScope::Defaults,
     );
     defaults.edit(AudioEdit::Bitrate(48), Some(&caps), EditScope::Defaults);
-    let request = TitleAudioRequest::default_m4b(AudioIntent::Preserve);
+    let request = crate::test_cases::support::audio::default_m4b(AudioIntent::Preserve);
 
     let title = defaults.for_title(&request);
 
@@ -408,19 +408,18 @@ fn a_title_choice_is_the_defaults_with_its_own_request_on_top() {
 
 #[test]
 fn encoder_choices_are_engine_facts_for_the_selected_format_and_build() {
-    let mut caps = crate::audio::encoder_settings_capabilities();
+    let mut caps = abb_media_pipeline::audio::encoder_settings_capabilities();
     caps.availability.aac_at_available = false;
     let mut choice = super::AudioChoice::default();
     let facts = choice.facts(Some(&caps));
     assert!(facts.encoder_options.iter().all(|option| !matches!(
         option.encoder,
-        crate::audio::EncoderType::Opus | crate::audio::EncoderType::Auto
+        abb_media_pipeline::audio::EncoderType::Opus | abb_media_pipeline::audio::EncoderType::Auto
     )));
-    assert!(facts
-        .encoder_options
-        .iter()
-        .any(|option| option.encoder == crate::audio::EncoderType::AacAt && !option.available));
-    choice.format = crate::audio::AudiobookFormat::MkaOpus;
+    assert!(facts.encoder_options.iter().any(|option| option.encoder
+        == abb_media_pipeline::audio::EncoderType::AacAt
+        && !option.available));
+    choice.format = abb_media_pipeline::audio::AudiobookFormat::MkaOpus;
     let facts = choice.facts(Some(&caps));
     assert!(facts.encoder_locked);
     assert_eq!(
@@ -429,6 +428,6 @@ fn encoder_choices_are_engine_facts_for_the_selected_format_and_build() {
             .iter()
             .map(|option| option.encoder)
             .collect::<Vec<_>>(),
-        [crate::audio::EncoderType::Opus]
+        [abb_media_pipeline::audio::EncoderType::Opus]
     );
 }

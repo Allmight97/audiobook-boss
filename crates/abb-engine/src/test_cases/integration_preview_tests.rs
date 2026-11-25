@@ -2,9 +2,9 @@ use abb_test_fixtures::wav::SAMPLE_RATE;
 use std::fs;
 use std::path::PathBuf;
 
-use crate::audio::AudiobookFormat;
 use crate::session::{AudioEdit, MetadataField, SessionIntent, SessionOutcome};
 use crate::work_runtime::WorkOperationStatus;
+use abb_media_pipeline::audio::AudiobookFormat;
 
 use super::integration_session_desk::Desk;
 use super::media_fixtures::chapters_of;
@@ -62,7 +62,7 @@ async fn a_preview_plays_ninety_seconds_with_the_edited_metadata_and_no_chapters
         "exactly 90 s"
     );
     assert_eq!(
-        crate::metadata::read_metadata(&path)
+        abb_media_pipeline::metadata::read_metadata(&path)
             .expect("read preview tags")
             .title
             .as_deref(),

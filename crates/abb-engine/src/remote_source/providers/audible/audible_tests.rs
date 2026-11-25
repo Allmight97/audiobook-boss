@@ -57,9 +57,9 @@ fn license_request_matches_aaxc_adaptive_license_shape() {
 }
 
 use super::auth::{Auth, Locale, Registration};
-use crate::errors::AppError;
 use crate::remote_source::test_support::{keychain_locked, MemoryVault};
 use crate::remote_source::vault::SecretVault;
+use abb_media_pipeline::errors::AppError;
 use secrecy::ExposeSecret;
 use serde_json::json;
 use std::collections::HashMap;

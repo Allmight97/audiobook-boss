@@ -2,17 +2,17 @@ use abb_test_fixtures::wav::write_wav;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::output_artifact::CollisionPolicy;
 use crate::session::{InputNotice, MetadataField, SessionIntent, SubmissionStatus};
 use crate::work_runtime::{ChildJobStatus, OperationId, WorkOperationStatus};
 use crate::ShutdownOutcome;
+use abb_media_pipeline::output_artifact::CollisionPolicy;
 
 use super::integration_session_desk::{collision_review, submission, Desk};
 use super::media_fixtures::{chapters_of, duration_ms};
 use abb_test_fixtures::fs_listing::files_under;
 use abb_test_fixtures::media::{mux_chapters, write_sine_mp3};
 
-fn imported(desk: &Desk) -> Vec<crate::audio::AudioFile> {
+fn imported(desk: &Desk) -> Vec<abb_media_pipeline::audio::AudioFile> {
     desk.engine
         .session_snapshot()
         .titles
@@ -45,9 +45,12 @@ fn output_seconds(outputs: &[PathBuf]) -> Vec<u32> {
     let mut seconds: Vec<_> = outputs
         .iter()
         .map(|path| {
-            crate::audio::get_file_list_info(&[path], crate::audio::AacDecoder::Auto)
-                .expect("read an output")
-                .files[0]
+            abb_media_pipeline::audio::get_file_list_info(
+                &[path],
+                abb_media_pipeline::audio::AacDecoder::Auto,
+            )
+            .expect("read an output")
+            .files[0]
                 .duration
                 .expect("duration")
                 .round() as u32
@@ -136,7 +139,7 @@ async fn a_name_in_either_unicode_form_survives_import_export_and_reimport() {
     let mut output_titles: Vec<_> = outputs
         .iter()
         .map(|path| {
-            crate::metadata::read_metadata(path)
+            abb_media_pipeline::metadata::read_metadata(path)
                 .expect("read output tags")
                 .title
                 .expect("output title")
@@ -190,7 +193,7 @@ async fn odd_names_and_a_wrong_extension_still_import_and_export() {
         .iter()
         .map(|path| {
             assert!(path.starts_with(&exports), "{path:?}");
-            crate::metadata::read_metadata(path)
+            abb_media_pipeline::metadata::read_metadata(path)
                 .expect("read output tags")
                 .title
                 .expect("output title")

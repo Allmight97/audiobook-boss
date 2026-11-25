@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use percent_encoding::{percent_decode_str, utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
-use crate::errors::{AppError, Result};
+use abb_media_pipeline::errors::{AppError, Result};
 
 const COMPONENT: &AsciiSet = &NON_ALPHANUMERIC
     .remove(b'-')

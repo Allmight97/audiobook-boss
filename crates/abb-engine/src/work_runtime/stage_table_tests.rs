@@ -1,6 +1,6 @@
 use super::stage_table::{for_event, for_finished_operation, for_result, CANCELLING_STAGE};
 use super::{ChildJobStatus, WorkOperationStatus, WorkProgressStage};
-use crate::processing::{EventStage, ProcessResultStatus};
+use abb_media_pipeline::processing::{EventStage, ProcessResultStatus};
 
 #[test]
 fn every_result_status_maps_to_its_child_and_stage() {

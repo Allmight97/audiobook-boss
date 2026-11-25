@@ -4,11 +4,13 @@ use serde::Serialize;
 
 use super::submission::SubmissionStatus;
 use crate::app_settings::OutputDefaults;
-use crate::audio::AudiobookFormat;
-use crate::errors::{AppError, Result};
-use crate::metadata::{AudiobookMetadata, NamingMetadata};
-use crate::output_artifact::{build_output_path_preview, NamingPreset, OutputNamingConfig};
 use crate::remote_source::PdfTitle;
+use abb_media_pipeline::audio::AudiobookFormat;
+use abb_media_pipeline::errors::{AppError, Result};
+use abb_media_pipeline::metadata::{AudiobookMetadata, NamingMetadata};
+use abb_media_pipeline::output_artifact::{
+    build_output_path_preview, NamingPreset, OutputNamingConfig,
+};
 
 const NO_PDF_FOLDER: &str =
     "Choose an output folder, then save the Supplemental PDF again. Nothing was saved.";
@@ -95,7 +97,7 @@ impl OutputPlan {
             .as_deref()
             .ok_or_else(|| AppError::InvalidInput(NO_PDF_FOLDER.to_string()))?;
         let directory = Path::new(directory);
-        crate::audio::check_output_directory(directory, false)?;
+        abb_media_pipeline::audio::check_output_directory(directory, false)?;
         let book = build_output_path_preview(
             directory,
             Some(&pdf_naming(title)),

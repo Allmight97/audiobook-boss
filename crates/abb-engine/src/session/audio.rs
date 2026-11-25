@@ -5,7 +5,7 @@ use serde::Serialize;
 use super::audio_choice::{AudioChoice, AudioChoiceFacts, AudioEdit, EditResult, EditScope};
 use super::plans::{SizeEstimate, TitlePlan};
 use crate::app_settings::EncoderDefaults;
-use crate::audio::{
+use abb_media_pipeline::audio::{
     AudioPlanField, AudiobookFormat, ChannelConfig, EncoderSettingsCapabilities, SampleRateConfig,
     TitleAudioRequest,
 };

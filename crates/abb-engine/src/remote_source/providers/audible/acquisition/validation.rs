@@ -4,9 +4,9 @@ use std::path::Path;
 use super::paths::sha256_file;
 use super::progress::title_progress;
 use super::TitleAcquisitionCtx;
-use crate::audio;
-use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::remote_source::MaterializedSourceFile;
+use abb_media_pipeline::audio;
+use abb_media_pipeline::errors::{sanitize_path_for_display, AppError, Result};
 
 const READABILITY_PROBE_DECODER: audio::AacDecoder = audio::AacDecoder::Auto;
 

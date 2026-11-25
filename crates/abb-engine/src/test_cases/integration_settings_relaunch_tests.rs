@@ -4,9 +4,9 @@ use std::path::Path;
 use crate::app_settings::{
     ConcurrencyPreference, SettingsIntent, SettingsOutcome, SettingsSnapshot, StartupBehavior,
 };
-use crate::audio::{AacDecoder, AudiobookFormat};
 use crate::session::{AudioEdit, SessionIntent, TitlePlan};
 use crate::ShutdownOutcome;
+use abb_media_pipeline::audio::{AacDecoder, AudiobookFormat};
 
 use super::integration_session_desk::Desk;
 

@@ -2,14 +2,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use crate::audio::AudiobookFormat;
-use crate::metadata::read_metadata;
 use crate::session::{
     AudioEdit, MetadataField, MetadataStatus, OutputEdits, SessionIntent, SessionOutcome,
     SubmissionStatus, SubmitRefusal, TitlePlan,
 };
 use crate::work_runtime::WorkOperationStatus;
 use crate::{Engine, RunningWork, ShutdownOutcome};
+use abb_media_pipeline::audio::AudiobookFormat;
+use abb_media_pipeline::metadata::read_metadata;
 use tempfile::TempDir;
 
 use super::integration_session_desk::{
@@ -161,10 +161,10 @@ async fn a_source_cover_too_large_to_prepare_is_dropped_with_a_warning() {
     let book = desk
         .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
         .await;
-    crate::metadata::save_metadata_intent(
+    abb_media_pipeline::metadata::save_metadata_intent(
         &book,
-        &crate::metadata::MetadataIntentPatch {
-            cover_art: Some(crate::metadata::PatchOp::Set(oversized_jpeg())),
+        &abb_media_pipeline::metadata::MetadataIntentPatch {
+            cover_art: Some(abb_media_pipeline::metadata::PatchOp::Set(oversized_jpeg())),
             ..Default::default()
         },
     )
@@ -508,7 +508,7 @@ async fn quit_consent_survives_finished_work_and_closes_admission() {
 
 #[tokio::test]
 async fn quit_consent_names_work_not_counts_and_follows_an_export_from_review_to_running() {
-    use crate::output_artifact::CollisionPolicy;
+    use abb_media_pipeline::output_artifact::CollisionPolicy;
 
     let desk = Desk::new();
     let book = desk
@@ -795,7 +795,7 @@ async fn keep_location_writes_the_latest_offered_tags_to_the_original_export_pat
 #[tokio::test]
 async fn the_aac_decoder_setting_chooses_faad3_for_import() {
     use crate::app_settings::{SettingsIntent, SettingsOutcome};
-    use crate::audio::AacDecoder;
+    use abb_media_pipeline::audio::AacDecoder;
 
     let desk = Desk::new();
     let book = desk

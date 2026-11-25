@@ -4,8 +4,8 @@ use super::super::metadata_form::{FieldAction, MetadataField, MetadataForm};
 use super::super::tag_cache::ReadTicket;
 use super::lookup::QueuedTitle;
 use super::{Cover, CoverNotice, MetadataStatus, SessionState};
-use crate::errors::{AppError, AppErrorEnvelope};
-use crate::metadata::{validate_metadata_intent_patch, AudiobookMetadata};
+use abb_media_pipeline::errors::{AppError, AppErrorEnvelope};
+use abb_media_pipeline::metadata::{validate_metadata_intent_patch, AudiobookMetadata};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum GateBlock {

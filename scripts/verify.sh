@@ -115,17 +115,17 @@ require_core() {
 	return 0
 }
 
-engine_lib_tests_matching() {
-	local filter="$1" log passed
+lib_tests_matching() {
+	local package="$1" filter="$2" log passed
 	log="$(mktemp)"
-	if ! cargo test --locked -p abb-engine --features bundled-ffmpeg --lib -- --color never "${filter}" 2>&1 | tee "${log}"; then
+	if ! cargo test --locked -p "${package}" --features bundled-ffmpeg --lib -- --color never "${filter}" 2>&1 | tee "${log}"; then
 		rm -f "${log}"
 		return 1
 	fi
 	passed="$(awk '/^test result: ok\./ { total += $4 } END { print total + 0 }' "${log}")"
 	rm -f "${log}"
 	if [[ "${passed}" -eq 0 ]]; then
-		printf 'error: the test filter "%s" ran zero tests; a renamed module would pass here silently\n' "${filter}" >&2
+		printf 'error: the test filter "%s" ran zero tests in %s; a renamed module would pass here silently\n' "${filter}" "${package}" >&2
 		return 1
 	fi
 }
@@ -160,20 +160,23 @@ lane_core() {
 lane_engine() {
 	require_rust
 	check_rust_fmt
+	cargo test --locked -p abb-media-pipeline --features bundled-ffmpeg --lib -- \
+		--skip test_cases::integration_media
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --lib --bin abb-dev --test all_tests -- \
 		--skip test_cases::integration_media
 	bun scripts/ffmpeg-upstream.ts --used-files check
 	cargo test --locked -p faac-sys
 	cargo test --locked -p abb-ffmpeg --features bundled-ffmpeg
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --doc
-	cargo clippy --locked -p abb-engine -p abb-ffmpeg --features bundled-ffmpeg --all-targets -- -D warnings
-	cargo clippy --locked -p abb-test-fixtures --all-targets -- -D warnings
+	cargo clippy --locked -p abb-media-pipeline -p abb-engine -p abb-ffmpeg -p abb-test-fixtures \
+		--features bundled-ffmpeg --all-targets -- -D warnings
 }
 
 lane_media() {
 	require_rust
 	check_rust_fmt
-	engine_lib_tests_matching test_cases::integration_media
+	lib_tests_matching abb-media-pipeline test_cases::integration_media
+	lib_tests_matching abb-engine test_cases::integration_media
 }
 
 lane_host() {
@@ -191,7 +194,7 @@ lane_apple() {
 	fi
 	require_rust
 	check_rust_fmt
-	engine_lib_tests_matching apple
+	lib_tests_matching abb-media-pipeline apple
 }
 
 lane_tooling() {

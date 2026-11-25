@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use secrecy::SecretString;
 
 use super::vault::SecretVault;
-use crate::errors::{AppError, Result};
+use abb_media_pipeline::errors::{AppError, Result};
 
 pub(crate) struct VaultGate {
     entered: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,

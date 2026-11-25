@@ -4,8 +4,8 @@ use std::time::{Duration, Instant};
 
 use super::state::SessionState;
 use super::tag_cache::ReadTicket;
-use crate::processing::SupplementalProcessingAsset;
 use crate::work_runtime::{ChildJobSnapshot, ChildJobStatus};
+use abb_media_pipeline::processing::SupplementalProcessingAsset;
 
 #[derive(Debug, Default)]
 pub(crate) struct StagedSources {

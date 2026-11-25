@@ -1,10 +1,10 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use crate::output_artifact::lock_output_file;
 use crate::work_runtime::{
     ChildJobStatus, OperationId, SubmitProcessingOperationRequest, WorkRuntime,
 };
+use abb_media_pipeline::output_artifact::lock_output_file;
 
 pub(crate) struct BlockedExport {
     _root: tempfile::TempDir,
@@ -24,14 +24,14 @@ impl BlockedExport {
                 source
             })
             .collect();
-        let request = crate::audio::TitleAudioRequest {
-            output: crate::audio::OutputAudio::M4b {
+        let request = abb_media_pipeline::audio::TitleAudioRequest {
+            output: abb_media_pipeline::audio::OutputAudio::M4b {
                 settings: super::encoders::native_encoder_settings(),
             },
-            intent: crate::audio::AudioIntent::Encode,
-            sample_rate: crate::audio::SampleRateConfig::Auto,
+            intent: abb_media_pipeline::audio::AudioIntent::Encode,
+            sample_rate: abb_media_pipeline::audio::SampleRateConfig::Auto,
         };
-        let payload: crate::processing::ProcessPayload =
+        let payload: abb_media_pipeline::processing::ProcessPayload =
             serde_json::from_value(serde_json::json!({
                 "inputFiles": sources,
                 "audioRequests": vec![request; titles],
@@ -39,32 +39,38 @@ impl BlockedExport {
                 "aacDecoder": "auto",
             }))
             .expect("export request");
-        let plan = crate::processing::run::inspect_processing_plan(&payload, None, false)
-            .expect("inspect the export")
-            .expect_export();
-        let locks = plan
+        let run =
+            abb_media_pipeline::processing::run::inspect_processing_plan(&payload, None, false)
+                .expect("inspect the export");
+        let locks = run
             .inspected()
             .plan
-            .jobs
+            .to_public()
+            .outputs
             .iter()
-            .map(|job| {
-                let output = &job.output.resolved_path;
+            .map(|planned| {
+                let output = std::path::Path::new(&planned.resolved_path);
                 std::fs::create_dir_all(output.parent().expect("output folder"))
                     .expect("create the output folder");
                 Box::new(lock_output_file(output)) as Box<dyn Send>
             })
             .collect();
+        let abb_media_pipeline::processing::run::InspectedRun::Export(plan) = run else {
+            panic!("expected an export plan");
+        };
         let runtime = WorkRuntime::new(crate::engine_tasks::EngineTasks::default());
         let host = crate::host::Host::new(
             Arc::new(crate::DiscardEvents),
-            crate::power::PowerManager::default(),
+            abb_media_pipeline::power::PowerManager::default(),
         );
         let settled = Arc::new(AtomicBool::new(false));
         runtime
             .submit_processing_operation(
                 host,
                 Arc::clone(registry),
-                crate::processing::run::ProcessingRoots::for_cache(&root.path().join("cache")),
+                abb_media_pipeline::processing::run::ProcessingRoots::for_cache(
+                    &root.path().join("cache"),
+                ),
                 SubmitProcessingOperationRequest {
                     operation_id: OperationId::new(),
                     payload,

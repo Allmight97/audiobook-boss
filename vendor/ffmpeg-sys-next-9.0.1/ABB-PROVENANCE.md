@@ -81,7 +81,7 @@ at which point it posts one comment on issue #669 so ABB can switch off
    export with the old pin (step 1), move the pin, export again, then
    `parity record` the old output and `parity check` the new one without
    `--bytes`. Packet bytes can change while the decoded audio stays identical. A decoded difference needs the real-media
-   probe in `crates/abb-engine/src/audio/AGENTS.md`.
+   probe in `crates/abb-media-pipeline/src/audio/AGENTS.md`.
 5. Run `bash scripts/verify.sh engine media`.
 
 FFmpeg is configured with `--disable-autodetect`; its enabled external codec

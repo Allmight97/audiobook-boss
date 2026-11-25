@@ -18,10 +18,12 @@ async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply
     let rig = rig();
     let lane = crate::test_cases::media_fixtures::MediaLane::with_fixtures(&[0.2]);
     let source = lane
-        .process(Some(AudiobookMetadata {
-            title: Some("Preview".to_string()),
+        .export(abb_media_pipeline::metadata::MetadataIntentPatch {
+            title: Some(abb_media_pipeline::metadata::PatchOp::Set(
+                "Preview".to_string(),
+            )),
             ..Default::default()
-        }))
+        })
         .await;
     std::fs::create_dir_all(rig._config.path().join("previews")).expect("preview folder");
     rig.send(SessionIntent::Import {
@@ -68,7 +70,7 @@ async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply
         .expect("a custom cover");
     assert_eq!(
         shown.to_vec(),
-        crate::metadata::render_display_thumbnail(&cover).expect("thumbnail")
+        abb_media_pipeline::metadata::render_display_thumbnail(&cover).expect("thumbnail")
     );
     assert_eq!(
         rig.send(SessionIntent::CancelPreview {
@@ -104,10 +106,12 @@ async fn imported_preview_rig(
     let rig = rig();
     let lane = crate::test_cases::media_fixtures::MediaLane::with_fixtures(lengths);
     let source = lane
-        .process(Some(AudiobookMetadata {
-            title: Some("Preview".to_string()),
+        .export(abb_media_pipeline::metadata::MetadataIntentPatch {
+            title: Some(abb_media_pipeline::metadata::PatchOp::Set(
+                "Preview".to_string(),
+            )),
             ..Default::default()
-        }))
+        })
         .await;
     let previews = rig._config.path().join("previews");
     std::fs::create_dir_all(&previews).expect("preview folder");

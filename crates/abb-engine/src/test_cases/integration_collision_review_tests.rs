@@ -13,7 +13,7 @@ use abb_test_fixtures::fs_listing::files_under;
 
 #[tokio::test]
 async fn submit_exports_the_session_reviews_a_collision_and_previews() {
-    use crate::output_artifact::CollisionPolicy;
+    use abb_media_pipeline::output_artifact::CollisionPolicy;
 
     let desk = Desk::new();
     let book = desk
@@ -132,7 +132,7 @@ async fn shutdown_answers_a_pending_collision_review_so_a_waiting_save_lands() {
 
 #[tokio::test]
 async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_applies() {
-    use crate::output_artifact::CollisionPolicy;
+    use abb_media_pipeline::output_artifact::CollisionPolicy;
 
     let desk = Desk::new();
     let library = desk.root.path().join("library");
@@ -240,8 +240,8 @@ async fn export_into(desk: &Desk, folder: &Path) -> Vec<PathBuf> {
 #[tokio::test]
 async fn a_decoder_change_during_collision_review_does_not_change_the_accepted_export() {
     use crate::app_settings::SettingsIntent;
-    use crate::audio::AacDecoder;
-    use crate::output_artifact::CollisionPolicy;
+    use abb_media_pipeline::audio::AacDecoder;
+    use abb_media_pipeline::output_artifact::CollisionPolicy;
     use abb_test_fixtures::media::decode_pcm_f32;
 
     let desk = Desk::new();
@@ -252,7 +252,7 @@ async fn a_decoder_change_during_collision_review_does_not_change_the_accepted_e
     let title_ids = desk.title_ids();
     desk.send(SessionIntent::SetTitleAudio {
         title_ids,
-        edit: AudioEdit::Intent(crate::audio::AudioIntent::Encode),
+        edit: AudioEdit::Intent(abb_media_pipeline::audio::AudioIntent::Encode),
     })
     .await;
     let set_decoder = |decoder| {
@@ -299,7 +299,7 @@ async fn a_decoder_change_during_collision_review_does_not_change_the_accepted_e
 #[tokio::test]
 async fn a_decoder_change_after_submit_is_accepted_does_not_change_that_export() {
     use crate::app_settings::SettingsIntent;
-    use crate::audio::AacDecoder;
+    use abb_media_pipeline::audio::AacDecoder;
     use abb_test_fixtures::media::decode_pcm_f32;
 
     let desk = Desk::new();
@@ -310,7 +310,7 @@ async fn a_decoder_change_after_submit_is_accepted_does_not_change_that_export()
     let title_ids = desk.title_ids();
     desk.send(SessionIntent::SetTitleAudio {
         title_ids,
-        edit: AudioEdit::Intent(crate::audio::AudioIntent::Encode),
+        edit: AudioEdit::Intent(abb_media_pipeline::audio::AudioIntent::Encode),
     })
     .await;
     let set_decoder = |decoder| {

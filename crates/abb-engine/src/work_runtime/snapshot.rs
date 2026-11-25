@@ -3,7 +3,7 @@ use super::types::{
     ChildCounts, ChildJobSnapshot, OperationId, OperationPhase, OperationSnapshot,
     ProgressSnapshot, WorkOperationStatus,
 };
-use crate::processing::OperationKind;
+use abb_media_pipeline::processing::OperationKind;
 use std::path::Path;
 
 pub(crate) fn new_processing_snapshot(

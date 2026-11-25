@@ -3,14 +3,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::audio::{AudioIntent, EncoderType};
-use crate::metadata::{read_metadata, AudiobookMetadata};
 use crate::session::{
     AudioEdit, MetadataField, MetadataSnapshot, SessionIntent, SessionOutcome, SubmissionStatus,
     TitlePlan,
 };
 use crate::work_runtime::WorkOperationStatus;
 use crate::{Engine, EngineConfig};
+use abb_media_pipeline::audio::{AudioIntent, EncoderType};
+use abb_media_pipeline::metadata::{read_metadata, MetadataIntentPatch, PatchOp};
 use tempfile::TempDir;
 
 use super::media_fixtures::MediaLane;
@@ -32,7 +32,7 @@ pub(super) fn engine_config(root: &Path) -> EngineConfig {
 }
 
 pub(super) fn processing_sessions_dir(root: &Path) -> PathBuf {
-    crate::audio::processing_workspace_root(&engine_config(root).cache_dir)
+    abb_media_pipeline::audio::processing_workspace_root(&engine_config(root).cache_dir)
 }
 
 pub(super) fn remote_staging_sessions_dir(root: &Path) -> PathBuf {
@@ -81,13 +81,13 @@ impl Desk {
     pub(super) async fn audiobook(&self, destination: &Path, seconds: f64) -> PathBuf {
         let lane = MediaLane::with_fixtures(&[seconds]);
         let built = lane
-            .process(Some(AudiobookMetadata {
-                title: Some("Alpha".to_string()),
-                album: Some("Alpha".to_string()),
-                artist: Some("Source Author".to_string()),
-                genre: Some("Fantasy".to_string()),
+            .export(MetadataIntentPatch {
+                title: Some(PatchOp::Set("Alpha".to_string())),
+                album: Some(PatchOp::Set("Alpha".to_string())),
+                artist: Some(PatchOp::Set("Source Author".to_string())),
+                genre: Some(PatchOp::Set("Fantasy".to_string())),
                 ..Default::default()
-            }))
+            })
             .await;
         fs::create_dir_all(destination.parent().expect("parent")).expect("create folder");
         fs::copy(built, destination).expect("place audiobook");

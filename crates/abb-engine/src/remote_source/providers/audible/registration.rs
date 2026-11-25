@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 
 use super::auth::{build_client_id, Registration};
 use super::{provider_private_failure, AUDIBLE_IOS_DEVICE_TYPE};
-use crate::errors::Result;
+use abb_media_pipeline::errors::Result;
 
 const APP_VERSION: &str = "4.60";
 const OS_VERSION: &str = "26.2";

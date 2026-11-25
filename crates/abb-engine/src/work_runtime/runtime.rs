@@ -5,15 +5,15 @@ use super::types::{
     OperationId, OperationSnapshot, SubmitProcessingOperationRequest, WorkOperationStatus,
     WorkSubmissionAccepted,
 };
-use crate::errors::{AppError, Result};
 use crate::host::{EngineEvent, Host};
-use crate::processing::run::{
+use abb_media_pipeline::errors::{AppError, Result};
+use abb_media_pipeline::processing::run::{
     preflight_title_outputs, process_inspected_with_options, ExportPlan, ExportTitle,
     ProcessingRoots, ProcessingRun, RunMode,
 };
-use crate::processing::ProgressEventListener;
-use crate::processing::TitleOutput;
-use crate::processing::{OperationResultSummary, ProcessResultStatus, ProgressEvent};
+use abb_media_pipeline::processing::ProgressEventListener;
+use abb_media_pipeline::processing::TitleOutput;
+use abb_media_pipeline::processing::{OperationResultSummary, ProcessResultStatus, ProgressEvent};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -217,7 +217,7 @@ impl WorkRuntime {
 
     async fn end_export(
         self,
-        work: tokio::task::JoinHandle<Result<crate::processing::ProcessCommandResult>>,
+        work: tokio::task::JoinHandle<Result<abb_media_pipeline::processing::ProcessCommandResult>>,
         end: ExportEnd,
     ) {
         let result = work.await.unwrap_or_else(|stopped| {
@@ -243,7 +243,7 @@ impl WorkRuntime {
         host: &Host,
         operation_id: &OperationId,
         index: usize,
-    ) -> Box<dyn Fn(Option<crate::processing::OutputUpdate>) + Send + Sync> {
+    ) -> Box<dyn Fn(Option<abb_media_pipeline::processing::OutputUpdate>) + Send + Sync> {
         let runtime: Weak<WorkRuntimeInner> = Arc::downgrade(&self.inner);
         let host = host.clone();
         let operation_id = operation_id.clone();
@@ -364,7 +364,7 @@ impl WorkRuntime {
             .operations
             .into_iter()
             .filter(|operation| {
-                operation.kind == crate::processing::OperationKind::ProcessingBatch
+                operation.kind == abb_media_pipeline::processing::OperationKind::ProcessingBatch
                     && !operation.is_finished()
             })
             .map(|operation| operation.operation_id)
@@ -424,7 +424,7 @@ impl WorkRuntime {
         &self,
         host: &Host,
         operation_id: &OperationId,
-        result: Result<crate::processing::ProcessCommandResult>,
+        result: Result<abb_media_pipeline::processing::ProcessCommandResult>,
     ) -> Option<OperationSnapshot> {
         let snapshot_result = self
             .operations()
@@ -480,7 +480,9 @@ struct ExportEnd {
     on_finished: Option<OnFinished>,
 }
 
-fn title_source_paths(payload: &crate::processing::ProcessPayload) -> Vec<Vec<PathBuf>> {
+fn title_source_paths(
+    payload: &abb_media_pipeline::processing::ProcessPayload,
+) -> Vec<Vec<PathBuf>> {
     (0..payload.input_files.len())
         .map(|index| {
             payload

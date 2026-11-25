@@ -3,16 +3,16 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::app_settings::{ConcurrencyPreference, SettingsIntent};
-use crate::output_artifact::{
-    ensure_output_parent_dirs, lock_output_file, CollisionPolicy, OutputFolderRecords, OutputKind,
-    PlannedOutputAction, ResolvedOutputPlan,
-};
-use crate::processing::OperationKind;
 use crate::session::{
     MetadataField, SelectionModifiers, SessionIntent, SessionOutcome, SubmissionStatus,
 };
 use crate::work_runtime::{ChildJobStatus, OperationId, OperationSnapshot, WorkOperationStatus};
 use crate::ShutdownOutcome;
+use abb_media_pipeline::output_artifact::{
+    ensure_output_parent_dirs, lock_output_file, CollisionPolicy, OutputFolderRecords, OutputKind,
+    PlannedOutputAction, ResolvedOutputPlan,
+};
+use abb_media_pipeline::processing::OperationKind;
 
 use super::integration_session_desk::{
     collision_review, engine_config, genre_on_disk, processing_sessions_dir,

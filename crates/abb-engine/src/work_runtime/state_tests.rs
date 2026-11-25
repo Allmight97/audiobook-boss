@@ -1,7 +1,7 @@
 use super::snapshot::{new_metadata_save_snapshot, new_processing_snapshot};
 use super::state::WorkRuntimeState;
 use super::{ChildJobStatus, OperationId, WorkOperationStatus, WorkProgressStage};
-use crate::processing::{
+use abb_media_pipeline::processing::{
     EventStage, OperationResultSummary, ProcessCommandResult, ProcessResultEntry,
     ProcessResultStatus, ProgressEvent,
 };

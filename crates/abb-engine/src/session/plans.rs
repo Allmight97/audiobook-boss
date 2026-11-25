@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::audio::{
+use abb_media_pipeline::audio::{
     apply_chapter_plans, resolve_title_audio, AudioFile, AudioIntent, AudioPlanField, FileListInfo,
     TitleAudioPlan, TitleAudioRequest,
 };
-use crate::errors::AppError;
-use crate::metadata::ChapterPlan;
-use crate::processing::AudioHandling;
+use abb_media_pipeline::errors::AppError;
+use abb_media_pipeline::metadata::ChapterPlan;
+use abb_media_pipeline::processing::AudioHandling;
 
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]

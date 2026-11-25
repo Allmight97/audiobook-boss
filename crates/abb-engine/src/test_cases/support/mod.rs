@@ -1,3 +1,5 @@
+#[path = "audio.rs"]
+pub(crate) mod audio;
 #[path = "blocked_export.rs"]
 pub(crate) mod blocked_export;
 #[path = "encoders.rs"]

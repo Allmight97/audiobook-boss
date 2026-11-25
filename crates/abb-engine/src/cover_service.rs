@@ -7,7 +7,7 @@ use std::time::SystemTime;
 
 use tokio::sync::{OnceCell, Semaphore};
 
-use crate::errors::{AppError, Result};
+use abb_media_pipeline::errors::{AppError, Result};
 
 const CACHED_COVERS: usize = 512;
 const REMOTE_FETCHES: usize = 12;
@@ -90,7 +90,10 @@ impl CoverService {
         let fetched = self
             .load(Key::RemoteFull(url.to_string()), async {
                 let downloaded = self.download(url).await?;
-                blocking(move || crate::metadata::optimize_cover_art(&downloaded).map(Some)).await
+                blocking(move || {
+                    abb_media_pipeline::metadata::optimize_cover_art(&downloaded).map(Some)
+                })
+                .await
             })
             .await?;
         fetched.ok_or_else(|| AppError::General("The cover could not be loaded.".into()))
@@ -100,8 +103,10 @@ impl CoverService {
         let small = self
             .load(Key::RemoteSmall(url.to_string()), async {
                 let downloaded = self.download(url).await?;
-                blocking(move || crate::metadata::render_display_thumbnail(&downloaded).map(Some))
-                    .await
+                blocking(move || {
+                    abb_media_pipeline::metadata::render_display_thumbnail(&downloaded).map(Some)
+                })
+                .await
             })
             .await?;
         small.ok_or_else(|| AppError::General("The cover could not be loaded.".into()))
@@ -122,7 +127,7 @@ impl CoverService {
         self.load(key, async {
             let _turn = self.inner.local.acquire().await;
             let path = path.to_path_buf();
-            blocking(move || crate::metadata::read_audio_cover_thumbnail(&path)).await
+            blocking(move || abb_media_pipeline::metadata::read_audio_cover_thumbnail(&path)).await
         })
         .await
     }

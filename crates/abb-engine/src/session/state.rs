@@ -12,8 +12,8 @@ use super::staged::StagedSources;
 use super::submission::SubmissionStatus;
 use super::tag_cache::TagCache;
 use super::working_set::{SelectionSnapshot, TitlesSnapshot, WorkingSet};
-use crate::errors::AppErrorEnvelope;
-use crate::metadata::{AudiobookMetadata, MetadataIntentPatch};
+use abb_media_pipeline::errors::AppErrorEnvelope;
+use abb_media_pipeline::metadata::{AudiobookMetadata, MetadataIntentPatch};
 
 mod bound_form;
 mod cover;

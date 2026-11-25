@@ -1,8 +1,8 @@
 use super::submission::{Draft, SubmissionStatus};
-use crate::processing::{ProcessResultStatus, ProgressEvent};
 use crate::work_runtime::{
     new_processing_snapshot, now_ms, OperationId, OperationSnapshot, WorkRuntimeState,
 };
+use abb_media_pipeline::processing::{ProcessResultStatus, ProgressEvent};
 use serde::Serialize;
 use std::path::PathBuf;
 use tokio_util::sync::CancellationToken;
@@ -24,7 +24,9 @@ pub(crate) enum PreviewArtwork {
 }
 
 impl PreviewArtwork {
-    pub(crate) fn from_plan(inspected: &crate::processing::plan::InspectedProcessingPlan) -> Self {
+    pub(crate) fn from_plan(
+        inspected: &abb_media_pipeline::processing::plan::InspectedProcessingPlan,
+    ) -> Self {
         let Some(job) = inspected.plan.jobs.first() else {
             return Self::None;
         };
@@ -34,7 +36,8 @@ impl PreviewArtwork {
             .and_then(|metadata| metadata.cover_art.clone())
         {
             Self::Bytes(bytes)
-        } else if job.cover_art_passthrough == crate::metadata::CoverArtPassthroughPolicy::Preserve
+        } else if job.cover_art_passthrough
+            == abb_media_pipeline::metadata::CoverArtPassthroughPolicy::Preserve
         {
             Self::Source(job.input_path.clone())
         } else {
@@ -271,7 +274,7 @@ impl Preview {
 }
 
 fn output_to_open(
-    result: &crate::processing::ProcessCommandResult,
+    result: &abb_media_pipeline::processing::ProcessCommandResult,
     cancelled: bool,
 ) -> Option<String> {
     let mut paths = result

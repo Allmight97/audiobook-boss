@@ -3,9 +3,9 @@ use super::types::{
     WorkOperationStatus, WorkOperationsSnapshot, WorkOperationsUpdate, WorkProgressStage,
     OPERATION_LOG_TAIL_CAP,
 };
-use crate::errors::{AppError, Result};
-use crate::processing::ProgressEvent;
-use crate::processing::{
+use abb_media_pipeline::errors::{AppError, Result};
+use abb_media_pipeline::processing::ProgressEvent;
+use abb_media_pipeline::processing::{
     OperationKind, OperationResultSummary, ProcessCommandResult, ProcessResultStatus,
 };
 use std::collections::BTreeMap;
@@ -309,7 +309,7 @@ impl WorkRuntimeState {
         &mut self,
         operation_id: &OperationId,
         input_index: usize,
-        update: Option<crate::processing::OutputUpdate>,
+        update: Option<abb_media_pipeline::processing::OutputUpdate>,
     ) -> Option<OperationSnapshot> {
         let (snapshot, found) = self
             .edit_with(operation_id, |snapshot| {

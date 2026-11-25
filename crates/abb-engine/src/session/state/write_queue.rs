@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use crate::metadata::MetadataIntentPatch;
 use crate::metadata_save::Rewrite;
+use abb_media_pipeline::metadata::MetadataIntentPatch;
 
 #[derive(Debug, Clone)]
 pub(crate) struct SaveItem {

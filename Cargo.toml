@@ -4,6 +4,7 @@ members = [
     "crates/abb-engine",
     "crates/abb-ffmpeg",
     "crates/abb-media-core",
+    "crates/abb-media-pipeline",
     "crates/abb-metadata-core",
     "crates/abb-output-artifact-core",
     "crates/abb-processing-core",

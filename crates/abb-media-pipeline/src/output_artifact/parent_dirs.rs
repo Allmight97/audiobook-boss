@@ -1,0 +1,307 @@
+use super::folder_records::{CreatedFolder, OutputFolderRecords};
+use super::types::ResolvedOutputPlan;
+use crate::errors::{sanitize_path_for_display, AppError, Result};
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, Mutex, PoisonError};
+
+#[derive(Default)]
+struct DirectoryOwnership {
+    claims: Vec<PathBuf>,
+    created: Vec<CreatedFolder>,
+}
+
+fn forget_created(created: &mut Vec<CreatedFolder>, mut ends: impl FnMut(&CreatedFolder) -> bool) {
+    created.retain(|folder| {
+        if ends(folder) {
+            folder.forget();
+            return false;
+        }
+        true
+    });
+}
+
+static OWNERSHIP: LazyLock<Mutex<DirectoryOwnership>> = LazyLock::new(Mutex::default);
+
+fn ownership() -> std::sync::MutexGuard<'static, DirectoryOwnership> {
+    OWNERSHIP.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+fn prune_unclaimed(owned: &mut DirectoryOwnership, parents: &[PathBuf]) -> Result<()> {
+    owned
+        .created
+        .sort_by_key(|folder| std::cmp::Reverse(folder.dir.components().count()));
+    let mut first_error = None;
+    let claims = &owned.claims;
+    forget_created(&mut owned.created, |folder| {
+        if !parents.iter().any(|parent| parent.starts_with(&folder.dir))
+            || claimed_under(claims, &folder.dir)
+        {
+            return false;
+        }
+        if let Err(error) = remove_created_empty_dir(&folder.anchor, &folder.dir) {
+            log::warn!(
+                "output_parent_cleanup status=err dir={} err={error}",
+                folder.dir.display()
+            );
+            first_error.get_or_insert(error);
+            return false;
+        }
+        true
+    });
+    first_error.map_or(Ok(()), Err)
+}
+
+fn claimed_under(claims: &[PathBuf], dir: &Path) -> bool {
+    claims.iter().any(|parent| parent.starts_with(dir))
+}
+
+#[derive(Debug)]
+pub struct OutputParentDirCleanup {
+    existing_anchor: PathBuf,
+    created_dirs: Vec<PathBuf>,
+    title_parents: Vec<Option<PathBuf>>,
+    active: bool,
+}
+
+impl OutputParentDirCleanup {
+    fn new(existing_anchor: PathBuf) -> Self {
+        Self {
+            existing_anchor,
+            created_dirs: Vec::new(),
+            title_parents: Vec::new(),
+            active: true,
+        }
+    }
+
+    pub(crate) fn release(&mut self) {
+        forget_created(&mut ownership().created, |folder| {
+            self.created_dirs.contains(&folder.dir)
+        });
+        self.release_claims();
+        self.active = false;
+        self.created_dirs.clear();
+    }
+
+    pub(crate) fn cleanup_now(&mut self) -> Result<()> {
+        self.cleanup_active()
+    }
+
+    pub(crate) fn end_title(&mut self, position: usize, published: bool) -> Result<()> {
+        let Some(parent) = self.title_parents.get_mut(position).and_then(Option::take) else {
+            return Ok(());
+        };
+        release_claim(&parent);
+        if published {
+            forget_created(&mut ownership().created, |folder| {
+                parent.starts_with(&folder.dir)
+            });
+            return Ok(());
+        }
+        if !self.active {
+            return Ok(());
+        }
+        prune_unclaimed(&mut ownership(), &[parent])
+    }
+
+    fn release_claims(&mut self) {
+        for parent in self.title_parents.iter_mut().filter_map(Option::take) {
+            release_claim(&parent);
+        }
+    }
+
+    fn cleanup_active(&mut self) -> Result<()> {
+        let mut parents = self.created_dirs.clone();
+        parents.extend(self.title_parents.iter().flatten().cloned());
+        self.release_claims();
+        if !self.active {
+            return Ok(());
+        }
+        self.active = false;
+
+        self.created_dirs.clear();
+        prune_unclaimed(&mut ownership(), &parents)
+    }
+}
+
+fn release_claim(parent: &Path) {
+    let mut owned = ownership();
+    if let Some(index) = owned.claims.iter().position(|claimed| claimed == parent) {
+        owned.claims.swap_remove(index);
+    }
+}
+
+impl Drop for OutputParentDirCleanup {
+    fn drop(&mut self) {
+        if self.active {
+            if let Err(error) = self.cleanup_active() {
+                log::warn!("output_parent_cleanup status=drop_err err={error}");
+            }
+        } else {
+            self.release_claims();
+        }
+    }
+}
+
+pub fn ensure_output_parent_dirs<'a>(
+    records: &OutputFolderRecords,
+    output_root: &Path,
+    outputs: impl IntoIterator<Item = &'a ResolvedOutputPlan>,
+) -> Result<OutputParentDirCleanup> {
+    let existing_anchor = nearest_existing_ancestor(output_root)?
+        .and_then(|path| path.canonicalize().ok())
+        .ok_or_else(|| {
+            AppError::FileValidation(format!(
+                "Cannot validate output root '{}'.",
+                sanitize_path_for_display(output_root)
+            ))
+        })?;
+    let mut cleanup = OutputParentDirCleanup::new(existing_anchor);
+    let mut owned = ownership();
+    create_missing_dirs(records, output_root, &mut cleanup, &mut owned)?;
+    let output_root = output_root.canonicalize().map_err(|error| {
+        AppError::FileValidation(format!(
+            "Cannot validate output root '{}': {}",
+            sanitize_path_for_display(output_root),
+            error
+        ))
+    })?;
+
+    for output in outputs {
+        let parent = output
+            .resolved_path
+            .parent()
+            .filter(|_| abb_output_artifact_core::action_requires_output_write(output.action));
+        cleanup.title_parents.push(parent.map(Path::to_path_buf));
+        if let Some(parent) = parent {
+            owned.claims.push(parent.to_path_buf());
+            ensure_output_parent_under_root(&output_root, parent)?;
+            create_missing_dirs(records, parent, &mut cleanup, &mut owned)?;
+        }
+    }
+
+    drop(owned);
+    Ok(cleanup)
+}
+
+fn create_missing_dirs(
+    records: &OutputFolderRecords,
+    target: &Path,
+    cleanup: &mut OutputParentDirCleanup,
+    owned: &mut DirectoryOwnership,
+) -> Result<()> {
+    let mut missing_dirs = Vec::new();
+    let mut current = Some(target);
+    while let Some(path) = current {
+        if path.try_exists().map_err(AppError::Io)? {
+            break;
+        }
+        missing_dirs.push(path.to_path_buf());
+        current = path.parent();
+    }
+
+    for dir in missing_dirs.into_iter().rev() {
+        let folder = records.record(&dir, &cleanup.existing_anchor)?;
+        match std::fs::create_dir(&dir) {
+            Ok(()) => {
+                owned.created.push(folder);
+                cleanup.created_dirs.push(dir);
+            }
+            Err(error) if error.kind() == ErrorKind::AlreadyExists && dir.is_dir() => {
+                folder.forget();
+            }
+            Err(error) => {
+                folder.forget();
+                return Err(AppError::FileValidation(format!(
+                    "Cannot create output directory '{}': {}",
+                    sanitize_path_for_display(&dir),
+                    error
+                )));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn ensure_output_parent_under_root(output_root: &Path, parent: &Path) -> Result<()> {
+    let Some(existing_ancestor) = nearest_existing_ancestor(parent)? else {
+        return Err(AppError::FileValidation(format!(
+            "Cannot validate output directory '{}'.",
+            sanitize_path_for_display(parent)
+        )));
+    };
+    let existing_ancestor = existing_ancestor.canonicalize().map_err(|error| {
+        AppError::FileValidation(format!(
+            "Cannot validate output directory '{}': {}",
+            sanitize_path_for_display(&existing_ancestor),
+            error
+        ))
+    })?;
+
+    if existing_ancestor.starts_with(output_root) {
+        return Ok(());
+    }
+
+    Err(AppError::FileValidation(format!(
+        "Output directory '{}' escapes the configured output root.",
+        sanitize_path_for_display(parent)
+    )))
+}
+
+fn nearest_existing_ancestor(path: &Path) -> Result<Option<PathBuf>> {
+    let mut current = Some(path);
+    while let Some(path) = current {
+        if path.try_exists().map_err(AppError::Io)? {
+            return Ok(Some(path.to_path_buf()));
+        }
+        current = path.parent();
+    }
+    Ok(None)
+}
+
+pub(super) fn remove_created_empty_dir(existing_anchor: &Path, dir: &Path) -> Result<()> {
+    if !dir.try_exists().map_err(AppError::Io)? {
+        return Ok(());
+    }
+
+    let metadata = std::fs::symlink_metadata(dir).map_err(AppError::Io)?;
+    if metadata.file_type().is_symlink() {
+        return Err(AppError::ResourceCleanup(
+            "Refusing to cleanup symlinked output directory".to_string(),
+        ));
+    }
+
+    let canonical_dir = dir.canonicalize().map_err(|error| {
+        AppError::ResourceCleanup(format!("Invalid output cleanup directory: {error}"))
+    })?;
+    if canonical_dir == existing_anchor || !canonical_dir.starts_with(existing_anchor) {
+        return Err(AppError::ResourceCleanup(
+            "Refusing to cleanup output directory outside configured output root".to_string(),
+        ));
+    }
+
+    match std::fs::remove_dir(dir) {
+        Ok(()) => {
+            log::info!("output_parent_cleanup status=removed dir={}", dir.display());
+            Ok(())
+        }
+        Err(error)
+            if matches!(
+                error.kind(),
+                ErrorKind::NotFound | ErrorKind::DirectoryNotEmpty
+            ) =>
+        {
+            Ok(())
+        }
+        Err(error) => Err(AppError::ResourceCleanup(format!(
+            "Failed to remove output directory '{}': {}",
+            sanitize_path_for_display(dir),
+            error
+        ))),
+    }
+}
+
+#[cfg(test)]
+#[path = "parent_dirs_tests.rs"]
+mod tests;

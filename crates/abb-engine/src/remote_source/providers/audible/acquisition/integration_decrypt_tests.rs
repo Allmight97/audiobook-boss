@@ -8,7 +8,6 @@ use super::{
     materialize_protected_download, staged_materialized_path, AudibleAcquisitionError,
     TitleAcquisitionCtx, TitleProgressContext,
 };
-use crate::errors::AppError;
 use crate::remote_source::{RemoteAcquisitionFailureKind, RemoteSourceDiagnostic};
 use crate::test_cases::encrypted_audible_books::{
     books, edit_list_books, hex_16, hex_bytes, AAXC_IV_HEX, AAXC_KEY_HEX, AAX_ACTIVATION_HEX,
@@ -16,6 +15,7 @@ use crate::test_cases::encrypted_audible_books::{
 };
 use crate::test_cases::media_fixtures::audio_packet_bytes;
 use abb_audible_core::{AudibleDecryptionMaterial, DrmBoxes};
+use abb_media_pipeline::errors::AppError;
 use abb_test_fixtures::media::{ffmpeg, ffprobe, ffprobe_tag_ci};
 
 fn ffprobe_json(path: &Path, extra: &[&str]) -> serde_json::Value {
@@ -29,7 +29,9 @@ fn ffprobe_json(path: &Path, extra: &[&str]) -> serde_json::Value {
 }
 
 fn cover_bytes(path: &Path) -> Vec<u8> {
-    let input = crate::metadata::open_input(path).expect("open book");
+    let input = abb_ffmpeg::Input::open(path, &abb_ffmpeg::SecretOptions::default())
+        .expect("open book")
+        .input;
     let index = input
         .streams()
         .iter()
@@ -478,7 +480,7 @@ async fn decrypt_cases_run_for_the_leak_check() {
     if std::env::var_os(LEAK_CHILD_ENV).is_none() {
         return;
     }
-    crate::audio::limit_ffmpeg_logging();
+    abb_media_pipeline::audio::limit_ffmpeg_logging();
     log::set_logger(&STDERR_LOGGER).expect("install the leak check logger");
     log::set_max_level(log::LevelFilter::Trace);
     let books = books();

@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use super::{SaveItem, WriteQueue};
-use crate::metadata::MetadataIntentPatch;
+use abb_media_pipeline::metadata::MetadataIntentPatch;
 
 fn item(name: &str) -> SaveItem {
     SaveItem {

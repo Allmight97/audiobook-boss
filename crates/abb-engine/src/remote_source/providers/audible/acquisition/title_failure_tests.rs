@@ -92,7 +92,7 @@ async fn a_title_that_fails_validation_ends_the_job_with_its_reason_in_the_statu
     let root = tempfile::TempDir::new().expect("temp root");
     let (settings, _, _) = crate::app_settings::SettingsRuntime::start(
         root.path().join("config"),
-        crate::power::PowerManager::default(),
+        abb_media_pipeline::power::PowerManager::default(),
     );
     let runtime = test_runtime_acquiring(&root, settings, acquire_unreadable_titles(1, None));
     start_acquiring(&runtime, 1).await;
@@ -110,7 +110,7 @@ async fn a_title_failing_mid_job_does_not_settle_the_job_while_later_titles_run(
     let root = tempfile::TempDir::new().expect("temp root");
     let (settings, _, _) = crate::app_settings::SettingsRuntime::start(
         root.path().join("config"),
-        crate::power::PowerManager::default(),
+        abb_media_pipeline::power::PowerManager::default(),
     );
     let (arrived, first_title_failed) = tokio::sync::oneshot::channel();
     let (release_job, release) = tokio::sync::oneshot::channel();

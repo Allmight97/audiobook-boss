@@ -1,5 +1,7 @@
 use super::types::{OperationPhase, WorkOperationStatus};
-use crate::processing::{classify_run_terminal, OperationResultSummary, RunTerminalClass};
+use abb_media_pipeline::processing::{
+    classify_run_terminal, OperationResultSummary, RunTerminalClass,
+};
 
 pub(crate) fn work_status_from_summary(summary: &OperationResultSummary) -> WorkOperationStatus {
     work_status_from_terminal_class(classify_run_terminal(summary))

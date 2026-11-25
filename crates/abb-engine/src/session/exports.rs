@@ -4,10 +4,10 @@ use std::sync::Arc;
 
 use serde::Serialize;
 
-use crate::metadata::MetadataIntentPatch;
-use crate::output_artifact::OutputNamingConfig;
-use crate::processing::TitleOutput;
 use crate::work_runtime::OperationId;
+use abb_media_pipeline::metadata::MetadataIntentPatch;
+use abb_media_pipeline::output_artifact::OutputNamingConfig;
+use abb_media_pipeline::processing::TitleOutput;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

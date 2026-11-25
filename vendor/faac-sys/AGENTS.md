@@ -30,4 +30,4 @@
   `meson.build` declares, and update the commit and version in
   `ABB-PROVENANCE.md`.
 - A changed encoder delay fails the FAAC adapter's open check; read
-  `crates/abb-engine/src/audio/processor/AGENTS.md` before changing timing.
+  `crates/abb-media-pipeline/src/audio/processor/AGENTS.md` before changing timing.

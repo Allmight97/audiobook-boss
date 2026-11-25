@@ -1,9 +1,9 @@
 use secrecy::SecretString;
 
 use crate::app_settings::{normalize_base_url, IndexerConnection};
-use crate::errors::{AppError, Result};
 use crate::remote_source::types::RemoteIndexerConnectionUpdate;
 use crate::remote_source::vault::SecretVault;
+use abb_media_pipeline::errors::{AppError, Result};
 
 pub(super) fn api_key_vault_key(base_url: &str) -> String {
     format!("indexer.api_key:{base_url}")

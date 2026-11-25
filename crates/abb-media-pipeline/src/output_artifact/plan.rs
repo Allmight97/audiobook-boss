@@ -1,0 +1,115 @@
+use super::collision::{detect_output_collision, next_rename_candidate, OutputCollisionCache};
+use super::derive_output_artifact_path;
+use super::types::{CollisionPolicy, OutputKind, PlannedOutputAction, ResolvedOutputPlan};
+use crate::errors::{AppError, Result};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, Default, Clone)]
+pub struct OutputPlanLedger {
+    claimed: HashSet<PathBuf>,
+    collision_cache: OutputCollisionCache,
+}
+
+impl OutputPlanLedger {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn resolve(
+        &mut self,
+        requested_final_path: &Path,
+        kind: OutputKind,
+        policy: CollisionPolicy,
+        source_paths: &[PathBuf],
+    ) -> Result<ResolvedOutputPlan> {
+        let requested = derive_output_artifact_path(requested_final_path, kind)?;
+        self.resolve_requested(&requested, kind, policy, source_paths)
+    }
+
+    pub(crate) fn refresh(
+        &mut self,
+        planned: &ResolvedOutputPlan,
+        policy: CollisionPolicy,
+        source_paths: &[PathBuf],
+    ) -> Result<ResolvedOutputPlan> {
+        self.resolve_requested(&planned.requested_path, planned.kind, policy, source_paths)
+    }
+
+    fn resolve_requested(
+        &mut self,
+        requested: &Path,
+        kind: OutputKind,
+        policy: CollisionPolicy,
+        source_paths: &[PathBuf],
+    ) -> Result<ResolvedOutputPlan> {
+        self.collision_cache.cache_source_paths(source_paths);
+        let plan = resolve_output_plan_with_cache(
+            requested,
+            kind,
+            policy,
+            &self.claimed,
+            source_paths,
+            &mut self.collision_cache,
+        )?;
+        if abb_output_artifact_core::action_requires_output_write(plan.action) {
+            self.claimed.insert(plan.resolved_path.clone());
+        }
+        Ok(plan)
+    }
+}
+
+fn resolve_output_plan_with_cache(
+    requested_final_path: &Path,
+    kind: OutputKind,
+    policy: CollisionPolicy,
+    claimed: &HashSet<PathBuf>,
+    source_paths: &[PathBuf],
+    cache: &mut OutputCollisionCache,
+) -> Result<ResolvedOutputPlan> {
+    abb_output_artifact_core::check_output_name_lengths(requested_final_path)?;
+    let requested_path = requested_final_path.to_path_buf();
+    let collision = detect_output_collision(&requested_path, claimed, source_paths, cache)?;
+    let hard_block = collision
+        .as_ref()
+        .is_some_and(|value| value.kind.is_hard_block());
+    let claimed_conflict = collision.as_ref().is_some_and(|value| {
+        value
+            .conflicting_path
+            .as_ref()
+            .is_some_and(|path| claimed.contains(path))
+    });
+    let rename_candidate = if collision.is_some() && !hard_block {
+        next_rename_candidate(&requested_path, claimed, source_paths, cache)?
+    } else {
+        None
+    };
+
+    let action = abb_output_artifact_core::resolve_action(
+        collision.as_ref().map(|value| value.kind),
+        claimed_conflict,
+        policy,
+    );
+
+    let resolved_path = match action {
+        PlannedOutputAction::RenameNew => rename_candidate.clone().ok_or_else(|| {
+            AppError::InvalidInput(
+                "A renamed output name would be too long for a file name. Shorten the title or the naming template, or replace the existing file.".to_string(),
+            )
+        })?,
+        _ => requested_path.clone(),
+    };
+
+    Ok(ResolvedOutputPlan {
+        kind,
+        requested_path,
+        resolved_path,
+        rename_candidate,
+        collision,
+        action,
+    })
+}
+
+#[cfg(test)]
+#[path = "plan_tests.rs"]
+mod tests;

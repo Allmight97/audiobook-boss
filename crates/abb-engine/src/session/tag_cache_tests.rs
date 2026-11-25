@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use super::TagCache;
-use crate::metadata::{AudiobookMetadata, MetadataIntentPatch, PatchOp};
+use abb_media_pipeline::metadata::{AudiobookMetadata, MetadataIntentPatch, PatchOp};
 
 const PATH: &str = "/books/a.m4b";
 

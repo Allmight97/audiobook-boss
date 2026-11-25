@@ -2,13 +2,13 @@ use super::support::encoders::native_encoder_settings;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::audio::{
+use crate::session::{MetadataField, SessionIntent, SessionOutcome};
+use crate::work_runtime::WorkOperationStatus;
+use abb_media_pipeline::audio::{
     AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
     OutputAudio, SampleRateConfig, TitleAudioRequest,
 };
-use crate::output_artifact::{CollisionPolicy, OutputKind, PlannedOutputAction};
-use crate::session::{MetadataField, SessionIntent, SessionOutcome};
-use crate::work_runtime::WorkOperationStatus;
+use abb_media_pipeline::output_artifact::{CollisionPolicy, OutputKind, PlannedOutputAction};
 
 use super::integration_session_desk::Desk;
 use super::media_fixtures::{preflight_payload, single_title_payload, MediaLane};
@@ -37,7 +37,7 @@ fn payload(
     out_dir: &Path,
     format: AudiobookFormat,
     policy: CollisionPolicy,
-) -> crate::processing::ProcessPayload {
+) -> abb_media_pipeline::processing::ProcessPayload {
     let mut payload = single_title_payload(
         source,
         out_dir,
@@ -57,7 +57,7 @@ fn planned_output(
     format: AudiobookFormat,
     policy: CollisionPolicy,
     preview: bool,
-) -> crate::output_artifact::PlannedOutput {
+) -> abb_media_pipeline::output_artifact::PlannedOutput {
     preflight_payload(payload(source, out_dir, format, policy), None, preview)
         .expect("plan the title")
         .outputs

@@ -1,6 +1,6 @@
 use super::*;
-use crate::audio::AudioChapter;
-use crate::metadata::ChapterPlan;
+use abb_media_pipeline::audio::AudioChapter;
+use abb_media_pipeline::metadata::ChapterPlan;
 use std::path::PathBuf;
 
 fn source(name: &str, duration: f64, size: f64, chapters: usize) -> AudioFile {
@@ -58,7 +58,7 @@ fn a_group_with_real_chapters_counts_only_those() {
 fn a_chapter_plan_replaces_the_embedded_chapters() {
     let mut file = source("a.m4b", 60.0, 10.0, 5);
     file.chapter_plan = Some(ChapterPlan {
-        chapters: vec![crate::metadata::ChapterSpec {
+        chapters: vec![abb_media_pipeline::metadata::ChapterSpec {
             title: None,
             start_ms: 0,
             end_ms: 1,

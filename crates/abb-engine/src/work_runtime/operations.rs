@@ -1,6 +1,6 @@
 use super::state::WorkRuntimeState;
 use super::types::{ChildJobStatus, OperationId, OperationSnapshot};
-use crate::errors::Result;
+use abb_media_pipeline::errors::Result;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use tokio_util::sync::CancellationToken;

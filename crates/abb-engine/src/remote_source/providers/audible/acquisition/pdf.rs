@@ -12,12 +12,12 @@ use super::super::supplemental_pdf::{
     PdfFailure, SupplementalPdfFailure, SupplementalPdfRequest,
 };
 use super::{ensure_not_cancelled, title_progress, TitleProgressContext};
-use crate::errors::Result;
 use crate::remote_source::cancellation::remote_acquisition_cancelled;
 use crate::remote_source::job_state::AcquisitionOutcome;
 use crate::remote_source::{
     staging, PdfTitle, RemoteAcquisitionFailureKind, RemoteSourceDiagnostic,
 };
+use abb_media_pipeline::errors::Result;
 
 const DOWNLOAD_MESSAGE: &str = "Downloading the Supplemental PDF.";
 const NO_TITLE: &str = "Audible did not report this title's name, so ABB cannot name its folder. The Supplemental PDF was not saved.";

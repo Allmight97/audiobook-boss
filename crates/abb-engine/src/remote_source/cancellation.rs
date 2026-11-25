@@ -1,4 +1,4 @@
-use crate::errors::{AppError, Result};
+use abb_media_pipeline::errors::{AppError, Result};
 
 pub(in crate::remote_source) fn remote_acquisition_cancelled() -> AppError {
     AppError::Cancellation("Remote source acquisition was cancelled.".to_string())

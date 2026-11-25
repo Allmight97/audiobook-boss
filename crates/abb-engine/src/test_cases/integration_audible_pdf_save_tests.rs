@@ -6,7 +6,6 @@ use tempfile::TempDir;
 
 use super::integration_audible_handoff_tests::session_and_settings_acquiring;
 use crate::app_settings::SettingsRuntime;
-use crate::output_artifact::NamingPreset;
 use crate::remote_source::tests::{
     offer_library_title, offer_pdf_title, offer_unacquirable_pdf_title,
 };
@@ -17,6 +16,7 @@ use crate::remote_source::{
     StagedPdf,
 };
 use crate::session::{Session, SessionIntent, SessionOutcome};
+use abb_media_pipeline::output_artifact::NamingPreset;
 use abb_test_fixtures::fs_listing::files_under;
 use abb_test_fixtures::poll::until;
 

@@ -9,11 +9,11 @@ use abb_remote_source_core::AcquisitionProgress as CoreAcquisitionProgress;
 use tokio::task::AbortHandle;
 
 use crate::engine_tasks::EngineTasks;
-use crate::errors::{AppError, Result};
 use crate::host::{EngineEvent, Host};
 use crate::remote_source::scoped_output::purge_with_retries;
 use crate::remote_source::staging::RemoteSourceStaging;
 use crate::remote_source::types;
+use abb_media_pipeline::errors::{AppError, Result};
 
 use super::job_state::{AcquisitionOutcome, Registered};
 use super::{RemoteProviderId, RemoteSourceRuntime};

@@ -1,7 +1,7 @@
 use super::snapshot::new_processing_snapshot;
 use super::state::WorkRuntimeState;
 use super::{ChildJobStatus, OperationId, OperationPhase, WorkOperationStatus, WorkProgressStage};
-use crate::processing::{
+use abb_media_pipeline::processing::{
     EventStage, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus, ProgressEvent,
 };
 use abb_processing_core::summarize_result_statuses;

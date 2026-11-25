@@ -1,9 +1,9 @@
 use super::*;
-use crate::audio::{AudioFile, AudioIntent, TitleAudioRequest};
 use crate::session::metadata_form::MetadataField;
 use crate::session::state::SessionState;
 use crate::session::working_set::SelectionModifiers;
 use crate::test_cases::support::form::field_of;
+use abb_media_pipeline::audio::{AudioFile, AudioIntent};
 
 fn path(name: &str) -> PathBuf {
     PathBuf::from(format!("/staged/{name}.m4b"))
@@ -168,9 +168,10 @@ fn listed(names: &[&str]) -> SessionState {
             ..AudioFile::new(path(name))
         })
         .collect();
-    state
-        .working_set
-        .append_analyzed(files, &TitleAudioRequest::default_m4b(AudioIntent::Auto));
+    state.working_set.append_analyzed(
+        files,
+        &crate::test_cases::support::audio::default_m4b(AudioIntent::Auto),
+    );
     for index in 0..names.len() {
         let modifiers = SelectionModifiers {
             multi: index > 0,

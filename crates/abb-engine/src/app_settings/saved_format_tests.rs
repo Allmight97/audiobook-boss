@@ -1,8 +1,8 @@
 use super::*;
-use crate::audio::{
+use abb_media_pipeline::audio::{
     AacDecoder, AudioIntent, AudiobookFormat, ChannelConfig, EncoderType, FaacProfile,
 };
-use crate::output_artifact::NamingPreset;
+use abb_media_pipeline::output_artifact::NamingPreset;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fmt::Debug;

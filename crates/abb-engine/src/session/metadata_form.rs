@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use crate::metadata::{
+use crate::metadata_lookup::OnlineMetadataResult;
+use abb_media_pipeline::metadata::{
     validate_metadata_intent_patch, AudiobookMetadata, MetadataIntentPatch,
     MetadataIntentValidationField, PatchOp,
 };
-use crate::metadata_lookup::OnlineMetadataResult;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

@@ -339,7 +339,7 @@ fn a_download_being_removed_is_neither_written_nor_submitted() {
         "the removed download remains only as history"
     );
     let defaults = desk.state.audio.request();
-    let mut next = crate::audio::AudioFile::new(path("beta"));
+    let mut next = abb_media_pipeline::audio::AudioFile::new(path("beta"));
     next.is_valid = true;
     next.set_tag_title(Some("Beta".to_string()));
     desk.state
@@ -661,7 +661,7 @@ fn a_writer_error_ends_the_save_as_failed_and_frees_the_files() {
     assert_eq!(
         metadata.status,
         Some(MetadataStatus::SaveFailed {
-            error: crate::errors::AppErrorEnvelope::from(&write_failed()),
+            error: abb_media_pipeline::errors::AppErrorEnvelope::from(&write_failed()),
         })
     );
     assert_eq!(desk.pending("alpha"), Some(genre_patch()));

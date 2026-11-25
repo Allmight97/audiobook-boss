@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 use super::{
     provider_private_failure, AUDIBLE_IOS_DEVICE_TYPE, COUNTRY_CODE, DOMAIN, MARKETPLACE_ID,
 };
-use crate::errors::Result;
+use abb_media_pipeline::errors::Result;
 
 const US_SAVED_MARKETPLACE_ID: &str = "AF2M0KC94RCEA";
 const CODE_VERIFIER_BYTES: usize = 32;

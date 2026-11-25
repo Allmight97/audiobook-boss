@@ -2,8 +2,8 @@ use tempfile::TempDir;
 
 use super::*;
 use crate::app_settings::SettingsUnit;
-use crate::audio::{AudioIntent, AudiobookFormat};
 use crate::test_cases::support::blocked_export::BlockedExport;
+use abb_media_pipeline::audio::{AudioIntent, AudiobookFormat};
 
 struct Rig {
     root: TempDir,
@@ -512,16 +512,25 @@ async fn the_aac_decoder_choice_takes_effect_saves_and_resets_to_auto() {
 
     let chosen = rig
         .send(SettingsIntent::SetAacDecoder {
-            decoder: crate::audio::AacDecoder::Faad,
+            decoder: abb_media_pipeline::audio::AacDecoder::Faad,
         })
         .await;
 
     assert_eq!(chosen.outcome, SettingsOutcome::Applied);
-    assert_eq!(rig.settings.aac_decoder(), crate::audio::AacDecoder::Faad);
-    assert_eq!(rig.on_disk().aac_decoder, crate::audio::AacDecoder::Faad);
+    assert_eq!(
+        rig.settings.aac_decoder(),
+        abb_media_pipeline::audio::AacDecoder::Faad
+    );
+    assert_eq!(
+        rig.on_disk().aac_decoder,
+        abb_media_pipeline::audio::AacDecoder::Faad
+    );
 
     rig.send(SettingsIntent::Reset).await;
-    assert_eq!(rig.settings.aac_decoder(), crate::audio::AacDecoder::Auto);
+    assert_eq!(
+        rig.settings.aac_decoder(),
+        abb_media_pipeline::audio::AacDecoder::Auto
+    );
 }
 
 #[tokio::test]

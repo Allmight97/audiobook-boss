@@ -4,7 +4,10 @@ use crate::session::audio_choice::AudioEdit;
 #[test]
 fn grouped_surround_sources_publish_downmix_warning_only_for_explicit_channels() {
     let mut state = SessionState {
-        audio: AudioDefaults::new(None, Some(crate::audio::encoder_settings_capabilities())),
+        audio: AudioDefaults::new(
+            None,
+            Some(abb_media_pipeline::audio::encoder_settings_capabilities()),
+        ),
         ..SessionState::default()
     };
     let mut first = audio_file("first", true);
@@ -30,7 +33,7 @@ fn grouped_surround_sources_publish_downmix_warning_only_for_explicit_channels()
                 .working_set
                 .audio_request("first")
                 .expect("group audio"),
-            AudioEdit::Channels(crate::audio::ChannelConfig::Stereo),
+            AudioEdit::Channels(abb_media_pipeline::audio::ChannelConfig::Stereo),
         )
         .expect("accepted channel choice");
     state.working_set.set_audio_request("first", request);

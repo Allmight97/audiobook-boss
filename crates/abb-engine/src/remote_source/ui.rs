@@ -8,7 +8,7 @@ use super::{
     RemoteReleaseSearchRequest, RemoteReleaseSearchResponse, RemoteSourceRuntime, RemoteTitle,
 };
 use crate::app_settings::IndexerConnection;
-use crate::errors::{AppError, AppErrorEnvelope, Result};
+use abb_media_pipeline::errors::{AppError, AppErrorEnvelope, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 

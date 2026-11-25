@@ -26,12 +26,12 @@ use http::{ApiCall, AudibleApi};
 pub(in crate::remote_source) use http::{AudibleRequestError, SIGN_IN_REJECTED_MESSAGE};
 use library::parse_library_titles;
 
-use crate::errors::{AppError, Result};
 use crate::remote_source::vault::{account_message, SecretVault};
 use crate::remote_source::{
     ProviderId, RemoteAccountStatus, RemoteLibraryResponse, RemoteSourceAccountState,
     RemoteSourceProviderCapabilities, RemoteTitle,
 };
+use abb_media_pipeline::errors::{AppError, Result};
 
 const COUNTRY_CODE: &str = "us";
 const DOMAIN: &str = "com";

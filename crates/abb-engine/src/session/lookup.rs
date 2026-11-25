@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use super::metadata_form::FIELDS;
-use crate::metadata::AudiobookMetadata;
 use crate::metadata_lookup::{MetadataSource, OnlineMetadataResult};
+use abb_media_pipeline::metadata::AudiobookMetadata;
 
 pub(crate) const RESULT_LIMIT: u8 = 8;
 

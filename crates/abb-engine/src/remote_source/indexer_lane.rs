@@ -7,8 +7,8 @@ use super::{
     RemoteReleaseSearchResponse, RemoteSourceRuntime, UiAction, UiState,
 };
 use crate::app_settings::normalize_base_url;
-use crate::errors::{AppError, Result};
 use crate::remote_source::providers::indexer::validate_api_key;
+use abb_media_pipeline::errors::{AppError, Result};
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub(super) enum ConnectionLoad {

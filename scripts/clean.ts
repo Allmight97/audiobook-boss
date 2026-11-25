@@ -21,7 +21,7 @@ const BUILD_OUTPUT = ['dist', 'node_modules/.vite'];
 
 const DEBUG_BUDGET_KB = 14 * 1024 * 1024;
 const DEBUG_CEILING_KB = 25 * 1024 * 1024;
-const WORKSPACE_PACKAGES = ['abb-engine', 'audiobook-boss'];
+const WORKSPACE_PACKAGES = ['abb-media-pipeline', 'abb-engine', 'audiobook-boss'];
 export const KEPT_RUNS = 5;
 
 function remove(root: string, relative: string): void {

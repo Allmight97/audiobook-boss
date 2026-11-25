@@ -5,7 +5,7 @@ use std::path::Path;
 use abb_audible_core::{remote_materialized_filename_stem, DecryptKind};
 use sha2::{Digest, Sha256};
 
-use crate::errors::Result;
+use abb_media_pipeline::errors::Result;
 
 fn lower_hex(bytes: &[u8]) -> String {
     const DIGITS: &[u8; 16] = b"0123456789abcdef";

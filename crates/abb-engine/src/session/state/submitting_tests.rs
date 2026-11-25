@@ -1,8 +1,8 @@
 use super::*;
-use crate::output_artifact::OutputNamingConfig;
-use crate::processing::title_output::UpdateReply;
-use crate::processing::title_output::{TitleOutput, TitleOutputPlan};
 use crate::work_runtime::OperationId;
+use abb_media_pipeline::output_artifact::OutputNamingConfig;
+use abb_media_pipeline::processing::title_output::UpdateReply;
+use abb_media_pipeline::processing::title_output::{TitleOutput, TitleOutputPlan};
 use std::sync::Arc;
 
 #[test]
@@ -151,7 +151,7 @@ fn link_both(desk: &mut Desk) -> Vec<Arc<TitleOutput>> {
                 TitleOutputPlan {
                     anchor: path(name),
                     sources: Vec::new(),
-                    base: crate::metadata::AudiobookMetadata::default(),
+                    base: abb_media_pipeline::metadata::AudiobookMetadata::default(),
                     accepted: None,
                     output_dir: PathBuf::from("/library"),
                     naming: OutputNamingConfig::default(),
@@ -356,7 +356,9 @@ fn a_swept_grouped_title_does_not_block_the_next_start_or_preview() {
 
 #[test]
 fn a_cancel_after_the_preview_returned_ends_it_cancelled_and_opens_nothing() {
-    use crate::processing::{ProcessCommandResult, ProcessResultEntry, ProcessResultStatus};
+    use abb_media_pipeline::processing::{
+        ProcessCommandResult, ProcessResultEntry, ProcessResultStatus,
+    };
     let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
     desk.state.output.set_directory("/library".to_string());
     let draft = desk.state.begin_submission(true).expect("preview");
@@ -455,7 +457,9 @@ fn the_list_lock_follows_every_submission_transition() {
     desk.state.finish_submission(
         &preview,
         SubmissionStatus::Failed {
-            error: crate::errors::AppErrorEnvelope::from(&crate::errors::AppError::Closing),
+            error: abb_media_pipeline::errors::AppErrorEnvelope::from(
+                &abb_media_pipeline::errors::AppError::Closing,
+            ),
         },
     );
     assert_gate(&desk, false, false, "preview ended");
