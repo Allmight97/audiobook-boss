@@ -28,9 +28,12 @@
 - Clippy still typechecks the FFmpeg bindings crate after a build, because
   Cargo treats check and build as different units.
 - Direct Cargo or upstream Tauri CLI launches bypass the per-checkout dev
-  identity that `scripts/tauri.ts` gives `bun run tauri`, so they share the
-  installed app's settings, credentials, and caches. A packaged release-mode
-  experiment needs its own explicit identifier.
+  identity that `scripts/tauri.ts` gives `bun run tauri`. The host refuses to
+  start a debug build, or any build without the `custom-protocol` feature,
+  under the installed app's identity. A release build with that feature,
+  such as an upstream `tauri build`, still shares the installed app's
+  settings, credentials, and caches, so a packaged release-mode experiment
+  needs its own explicit identifier.
 
 ## Script rules
 
