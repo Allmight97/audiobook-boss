@@ -149,70 +149,146 @@ it('cannot list processes when the process table is missing', () => {
 
 const runningFrom = (root: string, file: string) => () => [path.join(realpathSync(root), file)];
 
-it('keeps target/debug under budget, and removes only it once over budget', () => {
+const WORKSPACE_BUILD = 'target/debug/deps/libabb_engine-1.rlib';
+const THIRD_PARTY_BUILD = 'target/debug/deps/libserde-1.rlib';
+
+function cargoCleanFake() {
+	const calls: string[] = [];
+	const cleanWorkspace = (root: string) => {
+		calls.push(root);
+		rmSync(path.join(root, WORKSPACE_BUILD), { force: true });
+	};
+	return { calls, cleanWorkspace };
+}
+
+function overBudget(root: string, openPaths: () => string[] = () => []) {
+	const cargo = cargoCleanFake();
+	const notes = autoClean(root, { budgetKb: 0, openPaths, cleanWorkspace: cargo.cleanWorkspace });
+	return { notes: notes.join(), calls: cargo.calls };
+}
+
+it('leaves target/debug alone while it is under budget', () => {
+	const root = checkout([WORKSPACE_BUILD, THIRD_PARTY_BUILD]);
+	const cargo = cargoCleanFake();
+
+	expect(
+		autoClean(root, { budgetKb: Number.MAX_SAFE_INTEGER, cleanWorkspace: cargo.cleanWorkspace }),
+	).toEqual([]);
+
+	expect(cargo.calls).toEqual([]);
+	expect(has(root, WORKSPACE_BUILD)).toBe(true);
+});
+
+it('removes only the workspace crates once over budget, keeping third-party builds and the FFmpeg cache', () => {
 	const root = checkout([
-		'target/debug/deps/app',
+		WORKSPACE_BUILD,
+		THIRD_PARTY_BUILD,
 		'target/abb-ffmpeg-cache/tree/dist/lib.a',
 		'.logs/untangle/decision-log.md',
 	]);
 
-	expect(autoClean(root, Number.MAX_SAFE_INTEGER)).toEqual([]);
-	expect(has(root, 'target/debug/deps/app')).toBe(true);
+	const { notes, calls } = overBudget(root);
 
-	expect(autoClean(root, 0).join()).toContain('Removed target/debug');
+	expect(calls).toEqual([root]);
+	expect(notes).toContain("Removed ABB's own crates from target/debug");
+	expect(has(root, WORKSPACE_BUILD)).toBe(false);
+	for (const kept of [
+		THIRD_PARTY_BUILD,
+		'target/abb-ffmpeg-cache/tree/dist/lib.a',
+		'.logs/untangle/decision-log.md',
+	]) {
+		expect(has(root, kept), kept).toBe(true);
+	}
+});
+
+it('removes all of target/debug when it is still over the ceiling after the targeted clean', () => {
+	const root = checkout([WORKSPACE_BUILD, THIRD_PARTY_BUILD, 'target/abb-ffmpeg-cache/lib.a']);
+	const cargo = cargoCleanFake();
+
+	const notes = autoClean(root, {
+		budgetKb: 0,
+		ceilingKb: 0,
+		openPaths: () => [],
+		cleanWorkspace: cargo.cleanWorkspace,
+	});
+
+	expect(notes.join()).toContain('Removed target/debug, still over');
 	expect(has(root, 'target/debug')).toBe(false);
-	expect(has(root, 'target/abb-ffmpeg-cache/tree/dist/lib.a')).toBe(true);
-	expect(has(root, '.logs/untangle/decision-log.md')).toBe(true);
+	expect(has(root, 'target/abb-ffmpeg-cache/lib.a')).toBe(true);
+});
+
+it('says why and keeps target/debug whole when cargo clean fails', () => {
+	const root = checkout([WORKSPACE_BUILD, THIRD_PARTY_BUILD]);
+	const failing = () => {
+		throw new Error('cargo clean failed (exit 101): error: package ID specification');
+	};
+
+	const notes = autoClean(root, {
+		budgetKb: 0,
+		ceilingKb: 0,
+		openPaths: () => [],
+		cleanWorkspace: failing,
+	});
+
+	expect(notes.join()).toContain('but it stays: cargo clean failed (exit 101)');
+	expect(has(root, WORKSPACE_BUILD)).toBe(true);
+	expect(has(root, THIRD_PARTY_BUILD)).toBe(true);
 });
 
 it('says so and keeps target/debug when over budget while a process uses it', () => {
-	const root = checkout(['target/debug/.cargo-lock', 'target/debug/deps/app']);
+	const root = checkout(['target/debug/.cargo-lock', WORKSPACE_BUILD]);
 	const held = openSync(path.join(root, 'target/debug/.cargo-lock'), 'r');
 	try {
-		expect(autoClean(root, 0).join()).toContain('a running process uses target/debug/.cargo-lock');
-		expect(has(root, 'target/debug/deps/app')).toBe(true);
+		const { notes, calls } = overBudget(root, systemOpenPaths);
+		expect(notes).toContain('a running process uses target/debug/.cargo-lock');
+		expect(calls).toEqual([]);
+		expect(has(root, WORKSPACE_BUILD)).toBe(true);
 	} finally {
 		closeSync(held);
 	}
 });
 
 it('keeps target/debug while a test binary runs from it, though no Cargo lock is held', () => {
-	const root = checkout(['target/debug/deps/app']);
+	const root = checkout([WORKSPACE_BUILD]);
 
-	const notes = autoClean(root, 0, runningFrom(root, 'target/debug/deps/app'));
+	const { notes, calls } = overBudget(root, runningFrom(root, WORKSPACE_BUILD));
 
-	expect(notes.join()).toContain('a running process uses target/debug/deps/app');
-	expect(has(root, 'target/debug/deps/app')).toBe(true);
+	expect(notes).toContain(`a running process uses ${WORKSPACE_BUILD}`);
+	expect(calls).toEqual([]);
+	expect(has(root, WORKSPACE_BUILD)).toBe(true);
 });
 
 it('keeps target/debug while a process has it as its working directory', () => {
-	const root = checkout(['target/debug/deps/app']);
+	const root = checkout([WORKSPACE_BUILD]);
 	const insideDebug = () => [realpathSync(path.join(root, 'target/debug/deps'))];
 
-	autoClean(root, 0, insideDebug);
+	const { calls } = overBudget(root, insideDebug);
 
-	expect(has(root, 'target/debug/deps/app')).toBe(true);
+	expect(calls).toEqual([]);
+	expect(has(root, WORKSPACE_BUILD)).toBe(true);
 });
 
-it('removes target/debug when a process uses only a sibling whose name starts the same', () => {
-	const root = checkout(['target/debug/deps/app', 'target/debug-docs/index.html']);
+it('cleans target/debug when a process uses only a sibling whose name starts the same', () => {
+	const root = checkout([WORKSPACE_BUILD, 'target/debug-docs/index.html']);
 
-	autoClean(root, 0, runningFrom(root, 'target/debug-docs/index.html'));
+	const { calls } = overBudget(root, runningFrom(root, 'target/debug-docs/index.html'));
 
-	expect(has(root, 'target/debug')).toBe(false);
+	expect(calls).toEqual([root]);
+	expect(has(root, WORKSPACE_BUILD)).toBe(false);
 });
 
 it('says why and keeps target/debug when it cannot check for running processes', () => {
-	const root = checkout(['target/debug/deps/app']);
+	const root = checkout([WORKSPACE_BUILD]);
 	const unavailable = () => {
 		throw new Error('lsof could not list running processes: spawn lsof ENOENT');
 	};
 
-	const notes = autoClean(root, 0, unavailable);
+	const { notes, calls } = overBudget(root, unavailable);
 
-	expect(notes.join()).toContain('could not check for running processes');
-	expect(notes.join()).toContain('spawn lsof ENOENT');
-	expect(has(root, 'target/debug/deps/app')).toBe(true);
+	expect(notes).toContain('could not check for running processes');
+	expect(notes).toContain('spawn lsof ENOENT');
+	expect(calls).toEqual([]);
+	expect(has(root, WORKSPACE_BUILD)).toBe(true);
 });
 
 it('refuses to clean when it cannot check for running processes', () => {
