@@ -1,5 +1,6 @@
-use super::media_fixtures::{decode_pcm_f32, ffmpeg, MediaLane};
+use super::media_fixtures::MediaLane;
 use crate::audio::{get_file_list_info, supported_audio_import_extensions, AacDecoder};
+use abb_test_fixtures::media::{decode_pcm_f32, ffmpeg};
 use std::path::{Path, PathBuf};
 
 struct Recipe {

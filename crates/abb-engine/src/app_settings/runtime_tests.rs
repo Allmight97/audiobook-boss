@@ -3,6 +3,7 @@ use tempfile::TempDir;
 use super::*;
 use crate::app_settings::SettingsUnit;
 use crate::audio::{AudioIntent, AudiobookFormat};
+use crate::test_cases::support::blocked_export::BlockedExport;
 
 struct Rig {
     root: TempDir,
@@ -375,7 +376,7 @@ async fn a_reset_while_the_file_cannot_be_kept_aside_waits_for_it_and_a_failed_r
 async fn a_change_the_scheduler_refuses_keeps_the_previous_concurrency() {
     let rig = start();
     let before = rig.settings.snapshot().await.concurrency;
-    let (_job, _permit) = rig.jobs.register_job().await.expect("a job is running");
+    let export = BlockedExport::start(&rig.jobs, 1).await;
 
     let reply = rig
         .send(SettingsIntent::SetConcurrency {
@@ -389,6 +390,7 @@ async fn a_change_the_scheduler_refuses_keeps_the_previous_concurrency() {
         rig.on_disk().max_concurrent_jobs,
         ConcurrencyPreference::Auto
     );
+    export.finish().await;
 }
 
 #[tokio::test]
@@ -426,7 +428,7 @@ async fn an_accepted_concurrency_survives_a_failed_write_and_retry_only_saves() 
     );
     assert!(reply.snapshot.save_error.is_some());
 
-    let (_job, _permit) = rig.jobs.register_job().await.expect("a job is running");
+    let export = BlockedExport::start(&rig.jobs, 1).await;
     rig.set_writable(true);
     let reply = rig.send(SettingsIntent::Retry).await;
 
@@ -435,6 +437,7 @@ async fn an_accepted_concurrency_survives_a_failed_write_and_retry_only_saves() 
         rig.on_disk().max_concurrent_jobs,
         ConcurrencyPreference::Fixed(2)
     );
+    export.finish().await;
 }
 
 #[tokio::test]
@@ -584,7 +587,7 @@ async fn reset_restores_defaults_and_automatic_concurrency() {
 async fn reset_during_an_export_explains_why_and_changes_nothing() {
     let rig = start();
     rig.remember_output("/custom").await;
-    let (_job, _permit) = rig.jobs.register_job().await.expect("running export");
+    let export = BlockedExport::start(&rig.jobs, 1).await;
 
     let reply = rig.send(SettingsIntent::Reset).await;
 
@@ -599,6 +602,7 @@ async fn reset_during_an_export_explains_why_and_changes_nothing() {
         error.message
     );
     assert_eq!(rig.on_disk().output_defaults, output_in("/custom"));
+    export.finish().await;
 }
 
 #[tokio::test]

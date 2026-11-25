@@ -1,5 +1,5 @@
 use super::media_fixtures::{
-    chapters_of, decode_pcm_f32, preflight_payload, run_planned_title, single_title_payload,
+    chapters_of, preflight_payload, run_planned_title, single_title_payload,
 };
 use super::support::encoders::{native_encoder_settings, opus_encoder_settings};
 use super::tag_interop_dump::{assert_snapshot, dump_tags, sha256_hex};
@@ -7,6 +7,7 @@ use super::tag_interop_seed::{seed_m4b, Edit};
 use crate::audio::{
     get_file_list_info, AacDecoder, AudioIntent, OutputAudio, SampleRateConfig, TitleAudioRequest,
 };
+use abb_test_fixtures::media::decode_pcm_f32;
 use mp4ameta::{Chapter, Tag, WriteConfig};
 use std::collections::HashMap;
 use std::fmt::Write as _;

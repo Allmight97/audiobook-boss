@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub(crate) fn files_under(root: &Path) -> Vec<PathBuf> {
+pub fn files_under(root: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
     let mut folders = vec![root.to_path_buf()];
     while let Some(folder) = folders.pop() {
@@ -18,7 +18,7 @@ pub(crate) fn files_under(root: &Path) -> Vec<PathBuf> {
     found
 }
 
-pub(crate) fn names_in(folder: &Path) -> Vec<String> {
+pub fn names_in(folder: &Path) -> Vec<String> {
     let mut names: Vec<_> = fs::read_dir(folder)
         .expect("read folder")
         .map(|entry| {

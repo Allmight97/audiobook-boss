@@ -10,7 +10,7 @@ use crate::processing::{ProcessPayload, SupplementalProcessingAsset};
 use crate::test_cases::media_fixtures::preflight_payload;
 use crate::test_cases::support::encoders::auto_encoder_settings;
 use crate::test_cases::support::session::idle_session;
-use crate::test_cases::support::wav::{write_silence_wav, write_sine_wav};
+use abb_test_fixtures::wav::{write_silence_wav, write_sine_wav};
 use std::collections::HashMap;
 use tempfile::TempDir;
 
@@ -89,7 +89,7 @@ fn execution_inspection_rejects_a_source_replaced_after_preflight() {
         .expect("valid source should be accepted during preflight");
 
     let original = temp_dir.path().join("source-original.wav");
-    crate::test_cases::move_test_file(&source, &original);
+    abb_test_fixtures::move_test_file(&source, &original);
     #[cfg(unix)]
     std::os::unix::fs::symlink(&original, &source).expect("replace source with symlink");
     #[cfg(not(unix))]
@@ -415,7 +415,7 @@ async fn metadata_two_pass_workflow(intent: crate::audio::AudioIntent) {
     let temp = TempDir::new().expect("metadata workflow workspace");
     let workspace = temp.path().join("workspace");
     let seeds = metadata_source_fixtures(temp.path(), &workspace).await;
-    let cover = crate::test_cases::media_fixtures::minimal_jpg_bytes();
+    let cover = abb_test_fixtures::media::minimal_jpg_bytes();
     let mut edits: HashMap<_, _> = seeds
         .iter()
         .map(|source| {
@@ -520,7 +520,7 @@ fn batch_identity(operation_id: &str) -> crate::processing::JobIdentity {
 
 #[tokio::test]
 async fn failed_output_validation_emits_started_and_failed_terminal_records() {
-    crate::test_cases::log_capture::install();
+    abb_test_fixtures::log_capture::install();
     let registry = std::sync::Arc::new(crate::processing::JobRegistry::new(2));
     let temp_dir = TempDir::new().expect("create temp dir");
     let invalid_output = temp_dir.path().join("output.mp3");
@@ -538,7 +538,7 @@ async fn failed_output_validation_emits_started_and_failed_terminal_records() {
         panic!("invalid extension should fail validation");
     }
 
-    let records = crate::test_cases::log_capture::records();
+    let records = abb_test_fixtures::log_capture::records();
     let started: Vec<&String> = records
         .iter()
         .filter(|record| record.contains("processing_job event=started operation_id=log-proof"))

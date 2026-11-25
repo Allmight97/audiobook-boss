@@ -5,7 +5,7 @@ use tempfile::TempDir;
 use super::*;
 use crate::audio::Muxer;
 use crate::metadata::{add_chapters, add_cover_stream, write_cover_packet, ChapterSpec};
-use crate::test_cases::media_fixtures::ffmpeg;
+use abb_test_fixtures::media::ffmpeg;
 
 type Chapters<'a> = &'a [(i64, i64, &'a str)];
 

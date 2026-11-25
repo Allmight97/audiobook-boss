@@ -1,12 +1,13 @@
-use super::media_fixtures::ffmpeg;
-use super::media_fixtures::{
-    audio_duration_ts, chapters_of, decode_pcm_f32, mux_chapters, write_sine_mp3_with, MediaLane,
-};
+use super::media_fixtures::{chapters_of, MediaLane};
 use super::support::encoders::faac_encoder_settings;
-use super::support::wav::{write_sine_wav, SAMPLE_RATE};
 use crate::audio::{execute_audio_engine, get_file_list_info, AacDecoder};
 use crate::metadata::{read_metadata, save_metadata_intent, MetadataIntentPatch, PatchOp};
 use crate::test_cases::support::session::idle_session;
+use abb_test_fixtures::media::ffmpeg;
+use abb_test_fixtures::media::{
+    audio_duration_ts, decode_pcm_f32, mux_chapters, write_sine_mp3_with,
+};
+use abb_test_fixtures::wav::{write_sine_wav, SAMPLE_RATE};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;

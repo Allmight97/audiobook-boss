@@ -1,11 +1,7 @@
+use super::media_fixtures::chapters_of;
 use super::media_fixtures::{
-    assert_ffprobe_tag, audio_duration_ts, chapters_of, decode_pcm_f32, ffprobe_format_tags,
-    mux_chapters,
-};
-use super::media_fixtures::{
-    audio_packet_bytes, duration_ms, ffmpeg, minimal_jpg_bytes, picture_codecs, picture_payloads,
-    preflight_payload, run_planned_title, single_title_payload, write_complete_frame_aac,
-    write_two_picture_fixture, MINIMAL_JPG,
+    audio_packet_bytes, duration_ms, picture_codecs, picture_payloads, preflight_payload,
+    run_planned_title, single_title_payload,
 };
 use super::support::encoders::{native_encoder_settings, opus_encoder_settings};
 use crate::audio::{
@@ -16,6 +12,12 @@ use crate::metadata::{
     read_metadata, save_metadata_intent, AlbumSortPatchOp, MetadataIntentPatch, PatchOp,
 };
 use abb_ffmpeg::CodecId;
+use abb_test_fixtures::media::{
+    assert_ffprobe_tag, audio_duration_ts, decode_pcm_f32, ffprobe_format_tags, mux_chapters,
+};
+use abb_test_fixtures::media::{
+    ffmpeg, minimal_jpg_bytes, write_complete_frame_aac, write_two_picture_fixture, MINIMAL_JPG,
+};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};

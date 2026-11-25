@@ -10,7 +10,7 @@ use crate::work_runtime::WorkOperationStatus;
 use crate::ShutdownOutcome;
 
 use super::integration_session_desk::Desk;
-use super::media_fixtures::{assert_ffprobe_tag, ffmpeg, ffprobe_format_tags};
+use abb_test_fixtures::media::{assert_ffprobe_tag, ffmpeg, ffprobe_format_tags};
 
 fn id_of(desk: &Desk, name: &str) -> String {
     desk.engine

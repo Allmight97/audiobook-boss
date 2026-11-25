@@ -1,0 +1,18 @@
+[package]
+name = "abb-test-fixtures"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+publish = false
+
+[lib]
+doctest = false
+
+[dependencies]
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png"] }
+log = "0.4.29"
+serde_json = "1.0.154"
+tokio = { version = "1.53.3", features = ["fs", "rt", "time"] }
+
+[lints]
+workspace = true

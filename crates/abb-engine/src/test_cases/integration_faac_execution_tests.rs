@@ -1,10 +1,7 @@
-use super::media_fixtures::ffmpeg;
 use super::media_fixtures::{
-    assert_auto_merge_stereo, assert_ffprobe_tag, audio_duration_ts, chapters_of, decode_pcm_f32,
-    ffprobe_format_tags, title_audio_request, MediaLane,
+    assert_auto_merge_stereo, chapters_of, title_audio_request, MediaLane,
 };
 use super::support::encoders::{faac_encoder_settings, native_encoder_settings};
-use super::support::wav::SAMPLE_RATE;
 use crate::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
     ChannelConfig, EncoderSettings, SampleRateConfig,
@@ -15,6 +12,11 @@ use crate::metadata::{
 };
 use crate::processing::{AudioHandling, OutputConfig, ProcessingContext};
 use crate::test_cases::support::session::idle_session;
+use abb_test_fixtures::media::ffmpeg;
+use abb_test_fixtures::media::{
+    assert_ffprobe_tag, audio_duration_ts, decode_pcm_f32, ffprobe_format_tags,
+};
+use abb_test_fixtures::wav::SAMPLE_RATE;
 use std::fs;
 use std::sync::Arc;
 

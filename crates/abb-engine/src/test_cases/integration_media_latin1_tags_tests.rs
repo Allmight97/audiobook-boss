@@ -1,7 +1,8 @@
-use super::media_fixtures::{write_sine_mp3_with, MediaLane};
-use super::support::wav::{riff_inam_bytes, write_wav_with_raw_title};
+use super::media_fixtures::MediaLane;
 use crate::audio::{get_file_list_info, AacDecoder};
 use crate::metadata::{read_metadata, save_metadata_intent, MetadataIntentPatch, PatchOp};
+use abb_test_fixtures::media::write_sine_mp3_with;
+use abb_test_fixtures::wav::{riff_inam_bytes, write_wav_with_raw_title};
 use std::path::Path;
 use tempfile::TempDir;
 

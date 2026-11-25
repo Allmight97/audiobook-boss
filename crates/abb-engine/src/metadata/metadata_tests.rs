@@ -1,5 +1,5 @@
 use super::*;
-use crate::test_cases::support::wav::write_sine_wav;
+use abb_test_fixtures::wav::write_sine_wav;
 
 #[test]
 fn a_truncated_saved_copy_is_refused_even_within_duration_tolerance() {

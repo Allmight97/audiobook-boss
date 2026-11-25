@@ -6,8 +6,10 @@ use crate::session::{AudioEdit, MetadataField, SessionIntent, SubmissionStatus, 
 use crate::work_runtime::WorkOperationStatus;
 
 use super::integration_session_desk::{submission, Desk};
-use super::media_fixtures::{audio_duration_ts, decode_pcm_f32, MediaLane};
-use super::media_fixtures::{audio_packet_bytes, ffmpeg, ffprobe};
+use super::media_fixtures::audio_packet_bytes;
+use super::media_fixtures::MediaLane;
+use abb_test_fixtures::media::{audio_duration_ts, decode_pcm_f32};
+use abb_test_fixtures::media::{ffmpeg, ffprobe};
 
 fn stream_fact(path: &Path, entry: &str) -> String {
     let out = ffprobe([

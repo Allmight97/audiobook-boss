@@ -1,6 +1,6 @@
 use super::support::encoders::{native_encoder_settings, opus_encoder_settings};
-use super::support::wav::SAMPLE_RATE;
 use crate::test_cases::support::session::idle_session;
+use abb_test_fixtures::wav::SAMPLE_RATE;
 use std::fs;
 use std::path::Path;
 
@@ -16,7 +16,7 @@ use std::sync::Arc;
 use tempfile::TempDir;
 
 use super::integration_session_desk::Desk;
-use super::media_fixtures::{ffmpeg, ffprobe};
+use abb_test_fixtures::media::{ffmpeg, ffprobe};
 
 const NOT_PRESERVABLE: &str = "Source audio is not a supported AAC or Opus container for preservation. Choose encoding settings or keep the sources as separate titles.";
 const CHANGED_SINCE_INSPECTION: &str =
@@ -155,14 +155,14 @@ async fn opus_in_an_m4b_is_kept_in_both_opus_formats_but_not_in_m4b() {
         sample_rate: SampleRateConfig::Auto,
     };
     let moved = dir.path().join("moved.m4b");
-    crate::test_cases::move_test_file(&source, &moved);
+    abb_test_fixtures::move_test_file(&source, &moved);
     assert_eq!(
         resolve_title_audio(&request, &info, false)
             .expect("a plan reads what inspection stored, not the file")
             .handling,
         AudioHandling::Preserve
     );
-    crate::test_cases::move_test_file(&moved, &source);
+    abb_test_fixtures::move_test_file(&moved, &source);
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(idle_session()),
         SAMPLE_RATE,

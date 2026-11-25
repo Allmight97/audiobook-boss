@@ -1,5 +1,5 @@
-use super::media_fixtures::{ffmpeg, minimal_jpg_bytes, write_sine_mp3};
 use crate::metadata::{save_metadata_intent, MetadataIntentPatch, PatchOp};
+use abb_test_fixtures::media::{ffmpeg, minimal_jpg_bytes, write_sine_mp3};
 use std::path::Path;
 use tempfile::TempDir;
 

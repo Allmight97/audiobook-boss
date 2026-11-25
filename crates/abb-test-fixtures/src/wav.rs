@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-pub(crate) const SAMPLE_RATE: u32 = 44_100;
+pub const SAMPLE_RATE: u32 = 44_100;
 const SINE_AMPLITUDE: f64 = 0.3;
 
 fn riff_chunk(id: &[u8; 4], body: &[u8]) -> Vec<u8> {
@@ -61,14 +61,14 @@ fn sine_samples(seconds: f64, tones_hz: &[f64]) -> Vec<u8> {
     pcm
 }
 
-pub(crate) fn write_wav(path: &Path, seconds: u32, title: Option<&str>, artist: Option<&str>) {
+pub fn write_wav(path: &Path, seconds: u32, title: Option<&str>, artist: Option<&str>) {
     let info = (title.is_some() || artist.is_some()).then(|| info_chunk(title, artist));
     let pcm = vec![0u8; (SAMPLE_RATE * 2 * seconds) as usize];
     fs::create_dir_all(path.parent().expect("a parent folder")).expect("create folder");
     fs::write(path, wav_file(1, info, &pcm)).expect("write a fixture WAV");
 }
 
-pub(crate) fn write_wav_with_raw_title(path: &Path, title: &[u8]) {
+pub fn write_wav_with_raw_title(path: &Path, title: &[u8]) {
     let mut text = title.to_vec();
     text.push(0);
     let mut info = b"INFO".to_vec();
@@ -78,7 +78,7 @@ pub(crate) fn write_wav_with_raw_title(path: &Path, title: &[u8]) {
         .expect("write a fixture WAV");
 }
 
-pub(crate) fn riff_inam_bytes(path: &Path) -> Vec<u8> {
+pub fn riff_inam_bytes(path: &Path) -> Vec<u8> {
     let bytes = fs::read(path).expect("read the WAV");
     let at = bytes
         .windows(4)
@@ -89,17 +89,17 @@ pub(crate) fn riff_inam_bytes(path: &Path) -> Vec<u8> {
     text.strip_suffix(&[0]).unwrap_or(text).to_vec()
 }
 
-pub(crate) fn write_silence_wav(path: &Path, channels: u16) {
+pub fn write_silence_wav(path: &Path, channels: u16) {
     let pcm = vec![0u8; (SAMPLE_RATE * 2 * u32::from(channels)) as usize];
     fs::write(path, wav_file(channels, None, &pcm)).expect("write WAV fixture");
 }
 
-pub(crate) fn write_sine_wav(path: &Path, seconds: f64, freq_hz: f64) {
+pub fn write_sine_wav(path: &Path, seconds: f64, freq_hz: f64) {
     fs::write(path, wav_file(1, None, &sine_samples(seconds, &[freq_hz])))
         .expect("write WAV fixture");
 }
 
-pub(crate) fn write_stereo_sine_wav(path: &Path, seconds: f64, left_hz: f64, right_hz: f64) {
+pub fn write_stereo_sine_wav(path: &Path, seconds: f64, left_hz: f64, right_hz: f64) {
     fs::write(
         path,
         wav_file(2, None, &sine_samples(seconds, &[left_hz, right_hz])),

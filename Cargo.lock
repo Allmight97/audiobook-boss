@@ -32,6 +32,7 @@ dependencies = [
  "abb-output-artifact-core",
  "abb-processing-core",
  "abb-remote-source-core",
+ "abb-test-fixtures",
  "aes",
  "apple-native-keyring-store",
  "aws-lc-rs",
@@ -121,6 +122,16 @@ dependencies = [
  "serde",
  "specta",
  "specta-typescript",
+]
+
+[[package]]
+name = "abb-test-fixtures"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "log",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

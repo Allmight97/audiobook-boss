@@ -4,7 +4,7 @@ use crate::metadata::{read_metadata, save_metadata_intent, AlbumSortPatchOp, Met
 use tempfile::TempDir;
 
 use super::id3_frames::{id3v2_text, id3v2_txxx_descriptions};
-use super::media_fixtures::write_sine_mp3_with;
+use abb_test_fixtures::media::write_sine_mp3_with;
 
 fn mp3_with_tag(path: &Path, key_and_value: &str) {
     write_sine_mp3_with(path, 0.5, 440.0, &["-metadata", key_and_value]);

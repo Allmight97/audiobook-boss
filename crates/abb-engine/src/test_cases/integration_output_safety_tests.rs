@@ -18,10 +18,10 @@ use super::integration_session_desk::{
     collision_review, engine_config, genre_on_disk, processing_sessions_dir,
     remote_staging_sessions_dir, submission, Desk,
 };
-use super::media_fixtures::ffmpeg;
-use super::support::fs_listing::names_in;
-use super::support::poll::until_true;
-use super::support::wav::write_sine_wav;
+use abb_test_fixtures::fs_listing::names_in;
+use abb_test_fixtures::media::ffmpeg;
+use abb_test_fixtures::poll::until_true;
+use abb_test_fixtures::wav::write_sine_wav;
 
 fn operation(desk: &Desk, id: &OperationId) -> OperationSnapshot {
     desk.engine

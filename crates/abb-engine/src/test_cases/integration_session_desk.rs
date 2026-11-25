@@ -15,7 +15,7 @@ use tempfile::TempDir;
 
 use super::media_fixtures::MediaLane;
 use super::support::form::field_of;
-use super::support::poll::until_true;
+use abb_test_fixtures::poll::until_true;
 
 pub(super) struct Desk {
     pub(super) root: TempDir,

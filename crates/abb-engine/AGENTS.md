@@ -42,6 +42,14 @@
 - Proofs that need private media boundaries live under `src/test_cases`, so
   hosts never see those boundaries; `tests/all_tests.rs` proves only the
   separately compiled `abb-dev`. A test never needs a wider export.
+- Test helpers that use no engine type (WAV and MP3 writers, `ffmpeg` and
+  `ffprobe` readback, log capture, polling) live in the dev-only
+  `abb-test-fixtures` crate, so every crate's tests share one copy;
+  `check-rust-tiers.sh` keeps it out of production dependency trees. Helpers
+  that build engine types stay in `src/test_cases`.
+- A test that needs the scheduler busy runs a real export held at its
+  output-file lock (`test_cases/support/blocked_export.rs`), not a
+  test-only registry hook, so it still holds when the registry moves crates.
 
 ## Outside facts
 

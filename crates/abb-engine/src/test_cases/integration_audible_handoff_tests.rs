@@ -4,7 +4,6 @@ use std::sync::Arc;
 use tempfile::TempDir;
 
 use super::support::form::field_of;
-use super::support::poll::until;
 use crate::app_settings::SettingsRuntime;
 use crate::audio::{AudioIntent, EncoderType};
 use crate::power::PowerManager;
@@ -15,6 +14,7 @@ use crate::remote_source::{
 };
 use crate::session::{AudioEdit, MetadataField, Session, SessionDeps, SessionIntent};
 use crate::work_runtime::WorkRuntime;
+use abb_test_fixtures::poll::until;
 
 const TITLE_ID: &str = "B0FIXTURE";
 
@@ -22,7 +22,7 @@ fn downloads_one_wav(seconds: u32, title: Option<&'static str>) -> AcquireTitles
     Arc::new(move |request| {
         Box::pin(async move {
             let path = request.job_dir.join("book.wav");
-            super::support::wav::write_wav(&path, seconds, title, None);
+            abb_test_fixtures::wav::write_wav(&path, seconds, title, None);
             Ok(TitlesOutcome {
                 files: vec![MaterializedSourceFile {
                     input_id: "remote-1".into(),

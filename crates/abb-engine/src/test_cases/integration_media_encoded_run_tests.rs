@@ -1,10 +1,5 @@
-use super::media_fixtures::{
-    assert_auto_merge_stereo, audio_duration_ts, audio_stream_timing, chapters_of, decode_pcm_f32,
-    ffmpeg, ffprobe, find_atom, minimal_jpg_bytes, next_atom, parse_mdhd, timed_text_chapter_track,
-    MediaLane,
-};
+use super::media_fixtures::{assert_auto_merge_stereo, chapters_of, MediaLane};
 use super::support::encoders::{native_encoder_settings, stereo_native_encoder_settings};
-use super::support::wav::{write_sine_wav, write_stereo_sine_wav, SAMPLE_RATE};
 use crate::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, EncoderSettings,
     SampleRateConfig,
@@ -15,6 +10,11 @@ use crate::metadata::{read_metadata, AudiobookMetadata, CoverArtPassthroughPolic
 use crate::processing::{AudioHandling, JobRegistry, OutputConfig, ProcessingContext};
 use crate::test_cases::support::session::{idle_session, session_with};
 use crate::AppError;
+use abb_test_fixtures::media::{
+    audio_duration_ts, audio_stream_timing, decode_pcm_f32, ffmpeg, ffprobe, find_atom,
+    minimal_jpg_bytes, next_atom, parse_mdhd, timed_text_chapter_track,
+};
+use abb_test_fixtures::wav::{write_sine_wav, write_stereo_sine_wav, SAMPLE_RATE};
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;

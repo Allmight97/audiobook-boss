@@ -1,7 +1,7 @@
 use super::media_fixtures::MediaLane;
-use super::support::fs_listing::names_in;
-use super::support::wav::SAMPLE_RATE;
 use crate::test_cases::support::session::idle_session;
+use abb_test_fixtures::fs_listing::names_in;
+use abb_test_fixtures::wav::SAMPLE_RATE;
 
 use crate::audio::{execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest};
 use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};

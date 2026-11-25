@@ -6,7 +6,7 @@ use crate::output_artifact::{
     PlannedOutputAction,
 };
 use crate::test_cases::support::session::session_with;
-use crate::test_cases::support::wav::SAMPLE_RATE;
+use abb_test_fixtures::wav::SAMPLE_RATE;
 
 use std::fs;
 use std::path::Path;
@@ -153,7 +153,7 @@ async fn a_cleanup_failure_after_publication_is_a_success_with_a_warning_and_a_r
     let session_dir = workspace.dir().to_path_buf();
     let sessions = local.path().join("processing").join("sessions");
     let backup = local.path().join("sessions-backup");
-    crate::test_cases::move_test_file(&sessions, &backup);
+    abb_test_fixtures::move_test_file(&sessions, &backup);
     fs::write(&sessions, b"a file where a folder is expected").expect("write blocker");
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
     let recorded = Arc::clone(&events);
@@ -185,7 +185,7 @@ async fn a_cleanup_failure_after_publication_is_a_success_with_a_warning_and_a_r
         ["Output created; temporary cleanup needs attention"]
     );
     fs::remove_file(&sessions).expect("clear the blocker");
-    crate::test_cases::move_test_file(&backup, &sessions);
+    abb_test_fixtures::move_test_file(&backup, &sessions);
     assert!(session_dir.exists(), "the workspace stays owned for retry");
     drop(workspace);
     assert!(!session_dir.exists(), "the retry on drop removes it");
@@ -233,7 +233,7 @@ async fn committed_output_survives_cleanup_failure_with_visible_warning_and_retr
     )
     .expect("publication remains successful when staged cleanup fails");
     let outcome = settle_published(published, &mut workspace, || {
-        crate::test_cases::move_test_file(&sessions, &backup);
+        abb_test_fixtures::move_test_file(&sessions, &backup);
         fs::write(&sessions, b"blocks cleanup traversal").expect("write test fixture");
         false
     });
@@ -251,7 +251,7 @@ async fn committed_output_survives_cleanup_failure_with_visible_warning_and_retr
         .result_message
         .contains("temporary files could not be removed"));
     fs::remove_file(&sessions).expect("remove test traversal blocker");
-    crate::test_cases::move_test_file(&backup, &sessions);
+    abb_test_fixtures::move_test_file(&backup, &sessions);
     drop(workspace);
     assert!(!staged.exists());
     assert_eq!(

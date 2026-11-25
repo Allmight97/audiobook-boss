@@ -1,4 +1,4 @@
-use super::support::wav::write_wav;
+use abb_test_fixtures::wav::write_wav;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -8,8 +8,9 @@ use crate::work_runtime::{ChildJobStatus, OperationId, WorkOperationStatus};
 use crate::ShutdownOutcome;
 
 use super::integration_session_desk::{collision_review, submission, Desk};
-use super::media_fixtures::{chapters_of, duration_ms, mux_chapters, write_sine_mp3};
-use super::support::fs_listing::files_under;
+use super::media_fixtures::{chapters_of, duration_ms};
+use abb_test_fixtures::fs_listing::files_under;
+use abb_test_fixtures::media::{mux_chapters, write_sine_mp3};
 
 fn imported(desk: &Desk) -> Vec<crate::audio::AudioFile> {
     desk.engine

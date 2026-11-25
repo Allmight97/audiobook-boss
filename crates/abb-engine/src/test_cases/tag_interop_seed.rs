@@ -1,5 +1,5 @@
-use super::media_fixtures::{ffmpeg, minimal_jpg_bytes, write_complete_frame_aac};
 use crate::metadata::{AlbumSortPatchOp, MetadataIntentPatch, PatchOp};
+use abb_test_fixtures::media::{ffmpeg, minimal_jpg_bytes, write_complete_frame_aac};
 use mp4ameta::{Data, FreeformIdent, Img, ImgFmt, Tag, WriteConfig};
 use std::fs;
 use std::path::{Path, PathBuf};

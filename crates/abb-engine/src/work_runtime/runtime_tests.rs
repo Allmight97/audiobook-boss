@@ -218,12 +218,12 @@ fn the_concurrency_lock_is_published_with_every_job_and_run_change_and_with_the_
     runtime.follow_concurrency_lock(&host, &registry);
     assert!(!runtime.list_operations().concurrency_locked);
 
-    let tagging = registry.register_job_without_permit();
-    let second = registry.register_job_without_permit();
+    let tagging = crate::processing::RegisteredJob::without_permit(&registry);
+    let second = crate::processing::RegisteredJob::without_permit(&registry);
     assert!(runtime.list_operations().concurrency_locked);
     let run = registry.hold_run();
-    registry.complete_job(tagging);
-    registry.complete_job(second);
+    tagging.complete();
+    second.complete();
     assert!(
         runtime.list_operations().concurrency_locked,
         "a held run keeps the lock"
@@ -302,7 +302,7 @@ async fn run_one_title_export(
 async fn export_on(runtime: &WorkRuntime, host: Host, operation_id: &OperationId) -> ExportRun {
     let tmp = tempfile::TempDir::new().expect("tempdir");
     let source = tmp.path().join("source.wav");
-    crate::test_cases::support::wav::write_sine_wav(&source, 1.0, 440.0);
+    abb_test_fixtures::wav::write_sine_wav(&source, 1.0, 440.0);
     let payload = crate::test_cases::media_fixtures::single_title_payload(
         &source,
         &tmp.path().join("out"),
@@ -346,7 +346,7 @@ async fn export_on(runtime: &WorkRuntime, host: Host, operation_id: &OperationId
         )
         .await
         .expect("accepted");
-    crate::test_cases::support::poll::until_true("the export settled and released its run", || {
+    abb_test_fixtures::poll::until_true("the export settled and released its run", || {
         !settled.lock().expect("settled").is_empty() && !registry.concurrency_locked()
     })
     .await;

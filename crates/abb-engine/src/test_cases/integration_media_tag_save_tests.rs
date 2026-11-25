@@ -1,9 +1,4 @@
-use super::media_fixtures::{
-    assert_ffprobe_tag, audio_packet_bytes, ffmpeg, ffprobe_format_tags, minimal_jpg_bytes,
-    picture_codecs, picture_payloads, write_sine_mp3, write_sine_mp3_with,
-    write_two_picture_fixture, MediaLane,
-};
-use super::support::wav::{write_sine_wav, SAMPLE_RATE};
+use super::media_fixtures::{audio_packet_bytes, picture_codecs, picture_payloads, MediaLane};
 use crate::audio::{execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest};
 use crate::metadata::{
     finalize_artifact_metadata, read_audio_cover_thumbnail, read_metadata,
@@ -12,6 +7,11 @@ use crate::metadata::{
 };
 use crate::processing::{AudioHandling, OutputConfig, ProcessingContext};
 use crate::test_cases::support::session::idle_session;
+use abb_test_fixtures::media::{
+    assert_ffprobe_tag, ffmpeg, ffprobe_format_tags, minimal_jpg_bytes, write_sine_mp3,
+    write_sine_mp3_with, write_two_picture_fixture,
+};
+use abb_test_fixtures::wav::{write_sine_wav, SAMPLE_RATE};
 use image::{GenericImageView, ImageFormat};
 use std::fs;
 use std::path::Path;

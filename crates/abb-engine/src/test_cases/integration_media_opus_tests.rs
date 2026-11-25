@@ -1,9 +1,8 @@
 use super::media_fixtures::{
-    accepted_chapters, audio_packet_bytes, chapters_of, decode_pcm_f32, ffmpeg, minimal_jpg_bytes,
-    picture_codecs, preflight_payload, run_planned_title, MediaLane,
+    accepted_chapters, audio_packet_bytes, chapters_of, picture_codecs, preflight_payload,
+    run_planned_title, MediaLane,
 };
 use super::support::encoders::native_encoder_settings;
-use super::support::wav::{write_stereo_sine_wav, SAMPLE_RATE};
 use crate::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
     ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
@@ -14,6 +13,8 @@ use crate::metadata::{
 };
 use crate::processing::{OutputConfig, ProcessingContext};
 use crate::test_cases::support::session::idle_session;
+use abb_test_fixtures::media::{decode_pcm_f32, ffmpeg, minimal_jpg_bytes};
+use abb_test_fixtures::wav::{write_stereo_sine_wav, SAMPLE_RATE};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;

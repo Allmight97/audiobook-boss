@@ -235,14 +235,12 @@ impl Rig {
     }
 
     async fn wait_for_titles(&self, count: usize) {
-        crate::test_cases::support::poll::until_true("titles listed", || {
-            self.listed_paths().len() == count
-        })
-        .await;
+        abb_test_fixtures::poll::until_true("titles listed", || self.listed_paths().len() == count)
+            .await;
     }
 
     async fn wait_for_notice(&self, notice: InputNotice) {
-        crate::test_cases::support::poll::until_true("notice shown", || {
+        abb_test_fixtures::poll::until_true("notice shown", || {
             self.session.snapshot().titles.expect("titles").notice == Some(notice.clone())
         })
         .await;
@@ -593,7 +591,7 @@ fn preview_path(rig: &Rig) -> String {
 
 fn staged_wav(dir: &std::path::Path, name: &str) -> PathBuf {
     let path = dir.join(format!("{name}.wav"));
-    crate::test_cases::support::wav::write_silence_wav(&path, 1);
+    abb_test_fixtures::wav::write_silence_wav(&path, 1);
     path
 }
 

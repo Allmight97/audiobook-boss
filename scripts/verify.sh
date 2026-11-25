@@ -167,6 +167,7 @@ lane_engine() {
 	cargo test --locked -p abb-ffmpeg --features bundled-ffmpeg
 	cargo test --locked -p abb-engine --features bundled-ffmpeg --doc
 	cargo clippy --locked -p abb-engine -p abb-ffmpeg --features bundled-ffmpeg --all-targets -- -D warnings
+	cargo clippy --locked -p abb-test-fixtures --all-targets -- -D warnings
 }
 
 lane_media() {

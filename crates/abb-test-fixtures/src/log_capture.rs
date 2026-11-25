@@ -23,7 +23,7 @@ static CAPTURING_LOGGER: CapturingLogger = CapturingLogger {
     records: Mutex::new(Vec::new()),
 };
 
-pub(crate) fn install() {
+pub fn install() {
     static INSTALL: Once = Once::new();
     INSTALL.call_once(|| {
         log::set_logger(&CAPTURING_LOGGER).expect("install capturing logger");
@@ -31,11 +31,11 @@ pub(crate) fn install() {
     });
 }
 
-pub(crate) fn records() -> Vec<String> {
+pub fn records() -> Vec<String> {
     records_at_or_above(log::Level::Trace)
 }
 
-pub(crate) fn error_records() -> Vec<String> {
+pub fn error_records() -> Vec<String> {
     records_at_or_above(log::Level::Error)
 }
 

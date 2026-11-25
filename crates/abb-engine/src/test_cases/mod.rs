@@ -70,8 +70,6 @@ mod integration_session_save_tests;
 mod integration_session_tests;
 #[path = "integration_settings_relaunch_tests.rs"]
 mod integration_settings_relaunch_tests;
-#[path = "log_capture.rs"]
-pub(crate) mod log_capture;
 #[path = "media_fixtures.rs"]
 pub(crate) mod media_fixtures;
 #[path = "support/mod.rs"]
@@ -80,11 +78,3 @@ pub(crate) mod support;
 pub(crate) mod tag_interop_dump;
 #[path = "tag_interop_seed.rs"]
 pub(crate) mod tag_interop_seed;
-
-#[expect(
-    clippy::disallowed_methods,
-    reason = "tests move their own temp files to stage a scenario"
-)]
-pub(crate) fn move_test_file(from: &std::path::Path, to: &std::path::Path) {
-    std::fs::rename(from, to).expect("move a test file");
-}

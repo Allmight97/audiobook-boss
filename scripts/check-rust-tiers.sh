@@ -3,7 +3,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 ui_toolkit='^(tauri|tauri-.*|wry|tao)$'
-core_forbidden="$ui_toolkit|^(abb-ffmpeg|ffmpeg-next|ffmpeg-sys-next|keyring|keyring-core|.*-keyring-store|abb-engine)$"
+test_fixtures='^abb-test-fixtures$'
+core_forbidden="$ui_toolkit|$test_fixtures|^(abb-ffmpeg|ffmpeg-next|ffmpeg-sys-next|keyring|keyring-core|.*-keyring-store|abb-engine)$"
 cores=()
 for manifest in crates/abb-*-core/Cargo.toml; do
 	cores+=("$(basename "$(dirname "$manifest")")")
@@ -30,10 +31,12 @@ check_direct() {
 	fi
 }
 
-check abb-engine "$ui_toolkit"
+check abb-engine "$ui_toolkit|$test_fixtures"
+check audiobook-boss "$test_fixtures"
+check abb-test-fixtures '^(abb-engine|abb-ffmpeg|abb-.*-core|audiobook-boss)$'
 check_direct abb-engine '^ffmpeg-(sys-)?next$'
 check_direct audiobook-boss '^ffmpeg-(sys-)?next$'
-check abb-ffmpeg '^(abb-engine|abb-.*-core|audiobook-boss|faac-sys)$'
+check abb-ffmpeg '^(abb-engine|abb-.*-core|abb-test-fixtures|audiobook-boss|faac-sys)$'
 for core in "${cores[@]}"; do
 	check "$core" "$core_forbidden"
 done

@@ -1,4 +1,4 @@
-use super::support::wav::SAMPLE_RATE;
+use abb_test_fixtures::wav::SAMPLE_RATE;
 use std::fs;
 use std::path::PathBuf;
 
@@ -7,7 +7,8 @@ use crate::session::{AudioEdit, MetadataField, SessionIntent, SessionOutcome};
 use crate::work_runtime::WorkOperationStatus;
 
 use super::integration_session_desk::Desk;
-use super::media_fixtures::{audio_duration_ts, chapters_of, ffprobe, mux_chapters};
+use super::media_fixtures::chapters_of;
+use abb_test_fixtures::media::{audio_duration_ts, ffprobe, mux_chapters};
 
 #[tokio::test]
 async fn a_preview_plays_ninety_seconds_with_the_edited_metadata_and_no_chapters() {

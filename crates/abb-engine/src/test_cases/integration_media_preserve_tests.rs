@@ -1,10 +1,8 @@
 use super::media_fixtures::{
-    audio_packet_bytes, chapters_of, decode_pcm_f32, ffmpeg, minimal_jpg_bytes, oversized_jpeg,
-    preflight_payload, run_planned_title, title_audio_request, write_complete_frame_aac,
-    write_sine_mp3, MediaLane,
+    audio_packet_bytes, chapters_of, preflight_payload, run_planned_title, title_audio_request,
+    MediaLane,
 };
 use super::support::encoders::{faac_encoder_settings, native_encoder_settings};
-use super::support::wav::SAMPLE_RATE;
 use crate::audio::{
     execute_audio_engine, get_file_list_info, AacDecoder, AudioExecutionRequest, BitrateMode,
     EncoderSettings, EncoderType, SampleRateConfig,
@@ -12,6 +10,11 @@ use crate::audio::{
 use crate::metadata::{read_metadata, CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp};
 use crate::processing::{AudioHandling, OutputConfig, ProcessingContext};
 use crate::test_cases::support::session::idle_session;
+use abb_test_fixtures::media::{
+    decode_pcm_f32, ffmpeg, minimal_jpg_bytes, oversized_jpeg, write_complete_frame_aac,
+    write_sine_mp3,
+};
+use abb_test_fixtures::wav::SAMPLE_RATE;
 use std::fs;
 use std::sync::Arc;
 use tempfile::TempDir;

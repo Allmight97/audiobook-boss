@@ -1,4 +1,4 @@
-use super::support::wav::SAMPLE_RATE;
+use abb_test_fixtures::wav::SAMPLE_RATE;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -9,10 +9,12 @@ use crate::work_runtime::WorkOperationStatus;
 use crate::ShutdownOutcome;
 
 use super::integration_session_desk::Desk;
-use super::media_fixtures::{
-    assert_ffprobe_tag, chapters_of, decode_pcm_f32, ffprobe_format_tags, write_sine_mp3,
+use super::media_fixtures::chapters_of;
+use super::media_fixtures::picture_codecs;
+use abb_test_fixtures::media::{
+    assert_ffprobe_tag, decode_pcm_f32, ffprobe_format_tags, write_sine_mp3,
 };
-use super::media_fixtures::{minimal_jpg_bytes, picture_codecs, timed_text_chapter_track};
+use abb_test_fixtures::media::{minimal_jpg_bytes, timed_text_chapter_track};
 
 fn encode_m4b() -> [AudioEdit; 3] {
     [

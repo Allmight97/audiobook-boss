@@ -16,7 +16,7 @@ use super::integration_session_desk::{
     collision_review, engine_config, genre_on_disk, processing_sessions_dir,
     remote_staging_sessions_dir, start_once_the_lock_frees, submission, Desk,
 };
-use super::media_fixtures::oversized_jpeg;
+use abb_test_fixtures::media::oversized_jpeg;
 
 #[tokio::test]
 async fn shutdown_finishes_an_accepted_save_without_a_host_waiting_for_its_reply() {

@@ -1,7 +1,7 @@
 use super::*;
 use crate::execution::OutputConfig;
 use crate::test_cases::support::session::{idle_session, session_with};
-use crate::test_cases::support::wav::SAMPLE_RATE;
+use abb_test_fixtures::wav::SAMPLE_RATE;
 
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -109,7 +109,7 @@ fn preserve_copy_rejects_a_regular_source_replaced_after_inspection() {
     let source_fingerprint = inspect_source_fingerprint(&inspected_path);
     std::fs::write(&replacement, b"different replacement audio").expect("write replacement");
     std::fs::remove_file(&source).expect("remove old source");
-    crate::test_cases::move_test_file(&replacement, &source);
+    abb_test_fixtures::move_test_file(&replacement, &source);
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(idle_session()),
         SAMPLE_RATE,

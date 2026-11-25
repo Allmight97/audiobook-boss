@@ -8,6 +8,7 @@ members = [
     "crates/abb-output-artifact-core",
     "crates/abb-processing-core",
     "crates/abb-remote-source-core",
+    "crates/abb-test-fixtures",
     "vendor/faac-sys",
     "src-tauri",
 ]

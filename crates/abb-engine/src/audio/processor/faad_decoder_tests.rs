@@ -109,7 +109,7 @@ fn packets_of_other_streams_do_not_use_up_format_discovery() {
         .collect();
     std::fs::write(&subtitles, cues).expect("write cues");
     let fixture = dir.path().join("late-audio.mkv");
-    crate::test_cases::media_fixtures::ffmpeg([
+    abb_test_fixtures::media::ffmpeg([
         "-hide_banner",
         "-loglevel",
         "error",

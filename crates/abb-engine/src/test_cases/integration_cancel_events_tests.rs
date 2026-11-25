@@ -1,6 +1,4 @@
 use super::support::encoders::native_encoder_settings;
-use super::support::poll::until_true;
-use super::support::wav::write_sine_wav;
 use crate::audio::{AacDecoder, AudioIntent, OutputAudio, SampleRateConfig, TitleAudioRequest};
 use crate::errors::AppError;
 use crate::power::PowerManager;
@@ -9,6 +7,8 @@ use crate::processing::run::{
     ProcessingRoots, ProcessingRun, RunMode,
 };
 use crate::processing::{EventStage, JobRegistry, ProcessPayload, ProgressEvent};
+use abb_test_fixtures::poll::until_true;
+use abb_test_fixtures::wav::write_sine_wav;
 use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};

@@ -88,54 +88,63 @@ async fn metadata_batch_cancels_remaining_items_between_writes() {
         .all(|event| event.stage == EventStage::Cancelled));
 }
 
-struct RegistryProbe {
+struct LockProbe {
     registry: crate::ManagedJobRegistry,
-    active_jobs: std::sync::Mutex<Vec<usize>>,
+    locked: std::sync::Mutex<Vec<bool>>,
 }
 
-impl crate::EventSink for RegistryProbe {
+impl crate::EventSink for LockProbe {
     fn emit(&self, _event: crate::EngineEvent) {
-        self.active_jobs
+        self.locked
             .lock()
             .expect("probe lock")
-            .push(self.registry.active_jobs());
+            .push(self.registry.concurrency_locked());
     }
+}
+
+fn missing_file(title: &str) -> Vec<MetadataSaveRequest> {
+    vec![MetadataSaveRequest {
+        file_path: "/definitely/missing.m4b".to_string(),
+        metadata_patch: title_patch(title),
+    }]
 }
 
 #[tokio::test]
 async fn a_save_runs_while_every_export_slot_is_held_and_stays_a_tracked_job() {
     let registry: crate::ManagedJobRegistry =
         std::sync::Arc::new(crate::processing::JobRegistry::new(1));
-    let probe = std::sync::Arc::new(RegistryProbe {
-        registry: registry.clone(),
-        active_jobs: Default::default(),
-    });
-    let host = Host::new(probe.clone(), crate::power::PowerManager::default());
     let runtime = WorkRuntime::new(crate::engine_tasks::EngineTasks::default());
-    let (held_job, held_slot) = registry.register_job().await.expect("hold the only slot");
-    registry.complete_job(held_job);
-    let items = vec![MetadataSaveRequest {
-        file_path: "/definitely/missing.m4b".to_string(),
-        metadata_patch: title_patch("A"),
-    }];
+    let quiet = Host::new(
+        std::sync::Arc::new(crate::DiscardEvents),
+        crate::power::PowerManager::default(),
+    );
+    let export =
+        crate::test_cases::support::blocked_export::BlockedExport::start(&registry, 1).await;
 
     let saved = tokio::time::timeout(
         std::time::Duration::from_secs(2),
-        save_metadata_batch(&host, &runtime, &registry, items),
+        save_metadata_batch(&quiet, &runtime, &registry, missing_file("A")),
     )
     .await
     .expect("a save does not wait for an export slot")
     .expect("the save reports its files");
-
     assert_eq!(saved.summary.total, 1);
     assert_eq!(saved.summary.failed, 1);
-    let seen = probe.active_jobs.lock().expect("probe lock").clone();
+    export.finish().await;
+
+    let probe = std::sync::Arc::new(LockProbe {
+        registry: registry.clone(),
+        locked: Default::default(),
+    });
+    let host = Host::new(probe.clone(), crate::power::PowerManager::default());
+    save_metadata_batch(&host, &runtime, &registry, missing_file("B"))
+        .await
+        .expect("the save reports its files");
+    let seen = probe.locked.lock().expect("probe lock").clone();
     assert!(
-        seen.contains(&1),
+        seen.contains(&true),
         "the running save is a tracked job: {seen:?}"
     );
-    assert_eq!(registry.active_jobs(), 0);
-    drop(held_slot);
     assert_eq!(
         registry
             .update_max_concurrent(2)

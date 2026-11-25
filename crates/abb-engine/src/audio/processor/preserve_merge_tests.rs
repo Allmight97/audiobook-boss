@@ -4,7 +4,7 @@ use crate::errors::AppError;
 use crate::execution::{OutputConfig, ProcessingContext};
 use crate::metadata::CoverArtPassthroughPolicy;
 use crate::test_cases::support::session::session_with;
-use crate::test_cases::support::wav::SAMPLE_RATE;
+use abb_test_fixtures::wav::SAMPLE_RATE;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -15,7 +15,7 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
     let tmp = tempfile::tempdir().expect("join fixture");
     let sources = [tmp.path().join("part-1.m4a"), tmp.path().join("part-2.m4a")];
     for (source, frequency) in sources.iter().zip([440, 880]) {
-        crate::test_cases::media_fixtures::write_complete_frame_aac(source, frequency);
+        abb_test_fixtures::media::write_complete_frame_aac(source, frequency);
     }
     let original_bytes: Vec<_> = sources
         .iter()

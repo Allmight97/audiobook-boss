@@ -2,7 +2,7 @@ use super::*;
 use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
 use crate::execution::OutputConfig;
 use crate::test_cases::support::session::idle_session;
-use crate::test_cases::support::wav::SAMPLE_RATE;
+use abb_test_fixtures::wav::SAMPLE_RATE;
 
 use std::path::PathBuf;
 use std::sync::Arc;
