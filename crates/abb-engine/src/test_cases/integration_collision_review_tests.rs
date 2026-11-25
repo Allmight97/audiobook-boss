@@ -345,3 +345,57 @@ async fn a_decoder_change_after_submit_is_accepted_does_not_change_that_export()
         "the export must decode with FAAD3, the setting it was accepted under"
     );
 }
+
+#[tokio::test]
+async fn replacing_a_file_that_differs_only_in_case_keeps_its_name() {
+    use abb_media_pipeline::output_artifact::CollisionPolicy;
+    use abb_test_fixtures::media::decode_pcm_f32;
+
+    let desk = Desk::new();
+    let old_book = desk
+        .audiobook(&desk.root.path().join("old/book.m4b"), 1.0)
+        .await;
+    let source = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 3.0)
+        .await;
+    desk.import(&source).await;
+    desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
+        field: MetadataField::Title,
+        value: "book".to_string(),
+    })
+    .await;
+    desk.prepare_export().await;
+    let folder = desk.root.path().join("exports/Source Author/book");
+    fs::create_dir_all(&folder).expect("title folder");
+    fs::copy(&old_book, folder.join("Book.m4b")).expect("existing book");
+
+    desk.send(SessionIntent::Submit).await;
+    assert!(
+        matches!(submission(&desk), Some(SubmissionStatus::ReviewRequired)),
+        "{:?}",
+        submission(&desk)
+    );
+    desk.send(SessionIntent::ChooseCollisionPolicy {
+        review_id: collision_review(&desk).review_id,
+        policy: CollisionPolicy::ReplaceExisting,
+    })
+    .await;
+    let replaced = desk.finish_submitted_export().await;
+    assert_eq!(
+        desk.export_status(&replaced),
+        WorkOperationStatus::Completed
+    );
+
+    let names: Vec<_> = fs::read_dir(&folder)
+        .expect("title folder")
+        .map(|entry| entry.expect("entry").file_name())
+        .collect();
+    assert_eq!(names, ["Book.m4b"]);
+    let old_samples = decode_pcm_f32(&old_book).len();
+    let new_samples = decode_pcm_f32(&folder.join("Book.m4b")).len();
+    assert!(
+        new_samples > old_samples * 2,
+        "the new audio replaced the old: {new_samples} vs {old_samples} samples"
+    );
+}

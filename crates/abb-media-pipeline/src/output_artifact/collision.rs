@@ -148,29 +148,27 @@ pub(crate) fn path_entry_exists(path: &Path) -> Result<bool> {
     }
 }
 
-fn find_case_insensitive_disk_conflict(
-    candidate: &Path,
-    cache: &mut OutputCollisionCache,
-) -> Result<Option<PathBuf>> {
+fn find_disk_entry(candidate: &Path, cache: &mut OutputCollisionCache) -> Result<Option<PathBuf>> {
     let parent = candidate.parent().unwrap_or_else(|| Path::new("."));
     let candidate_name = candidate
         .file_name()
-        .map(|value| value.to_string_lossy().to_lowercase())
         .ok_or_else(|| AppError::InvalidInput("Invalid output filename".to_string()))?;
+    let folded_name = candidate_name.to_string_lossy().to_lowercase();
+    let entries = cache.disk_entries_for_dir(parent)?;
 
-    for path in cache.disk_entries_for_dir(parent)? {
-        let Some(name) = path
-            .file_name()
-            .map(|value| value.to_string_lossy().to_lowercase())
-        else {
-            continue;
-        };
-        if name == candidate_name && path != candidate {
-            return Ok(Some(path.clone()));
-        }
+    if let Some(exact) = entries
+        .iter()
+        .find(|path| path.file_name() == Some(candidate_name))
+    {
+        return Ok(Some(exact.clone()));
     }
-
-    Ok(None)
+    Ok(entries
+        .iter()
+        .find(|path| {
+            path.file_name()
+                .is_some_and(|name| name.to_string_lossy().to_lowercase() == folded_name)
+        })
+        .cloned())
 }
 
 fn detect_source_overlap(
@@ -236,26 +234,34 @@ pub(crate) fn detect_output_collision(
         }));
     }
 
-    if path_entry_exists(candidate)? {
-        return Ok(Some(OutputCollision {
-            kind: OutputCollisionKind::ExistingFile,
-            conflicting_path: Some(candidate.to_path_buf()),
-            detail: Some("An existing file already occupies the destination path.".to_string()),
-        }));
+    let exists = path_entry_exists(candidate)?;
+    let on_disk = match find_disk_entry(candidate, cache)? {
+        Some(entry) => entry,
+        None if exists => candidate.to_path_buf(),
+        None => return Ok(None),
+    };
+    if on_disk != candidate {
+        if let Some(overlap) = detect_source_overlap(&on_disk, source_paths, cache) {
+            return Ok(Some(overlap));
+        }
     }
 
-    if let Some(conflict) = find_case_insensitive_disk_conflict(candidate, cache)? {
-        return Ok(Some(OutputCollision {
-            kind: OutputCollisionKind::CaseInsensitiveMatch,
-            conflicting_path: Some(conflict),
-            detail: Some(
-                "An existing file already occupies the destination path when compared case-insensitively."
-                    .to_string(),
-            ),
-        }));
-    }
-
-    Ok(None)
+    let (kind, detail) = if exists {
+        (
+            OutputCollisionKind::ExistingFile,
+            "An existing file already occupies the destination path.",
+        )
+    } else {
+        (
+            OutputCollisionKind::CaseInsensitiveMatch,
+            "An existing file already occupies the destination path when compared case-insensitively.",
+        )
+    };
+    Ok(Some(OutputCollision {
+        kind,
+        conflicting_path: Some(on_disk),
+        detail: Some(detail.to_string()),
+    }))
 }
 
 pub(crate) fn next_rename_candidate(

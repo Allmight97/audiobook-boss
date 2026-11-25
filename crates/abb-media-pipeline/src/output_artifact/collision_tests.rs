@@ -38,11 +38,10 @@ fn a_name_differing_only_in_case_collides_whatever_the_volume() {
 
     if volume_ignores_case {
         assert_eq!(collision.kind, OutputCollisionKind::ExistingFile);
-        assert_eq!(collision.conflicting_path, Some(candidate));
     } else {
         assert_eq!(collision.kind, OutputCollisionKind::CaseInsensitiveMatch);
-        assert_eq!(collision.conflicting_path, Some(existing_path));
     }
+    assert_eq!(collision.conflicting_path, Some(existing_path));
 }
 
 #[test]

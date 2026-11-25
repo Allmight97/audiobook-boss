@@ -22,6 +22,7 @@ struct Scenario {
     requested: PathBuf,
     sources: Vec<PathBuf>,
     protected: Vec<PathBuf>,
+    replaced: Option<PathBuf>,
     ledger: OutputPlanLedger,
     actions: [PlannedOutputAction; 4],
 }
@@ -65,6 +66,7 @@ fn scenario(
         requested,
         sources: vec![],
         protected: vec![],
+        replaced: None,
         ledger: OutputPlanLedger::new(),
         actions,
     }
@@ -105,7 +107,8 @@ fn on_disk_scenarios(folder: &Path) -> Vec<Scenario> {
         cased.join("book.m4b"),
         [ReviewRequired, ReplaceExisting, RenameNew, SkipExisting],
     );
-    cased_file.protected = vec![other_case];
+    cased_file.protected = vec![other_case.clone()];
+    cased_file.replaced = Some(other_case);
 
     vec![free, existing_file, cased_file]
 }
@@ -161,7 +164,22 @@ fn source_scenarios(folder: &Path) -> Vec<Scenario> {
     through_link.sources = vec![linked_source.clone()];
     through_link.protected = vec![linked_source];
 
-    vec![itself, through_link]
+    let cased_source = file_in(&folder.join("cased-source"), "Book.m4b");
+    let overlap_kind = if case_insensitive_folder(&folder.join("cased-source")) {
+        Kind::CanonicalPathOverlap
+    } else {
+        Kind::SourceDestinationOverlap
+    };
+    let mut other_case = scenario(
+        "the source book in other letter case",
+        Some(overlap_kind),
+        folder.join("cased-source").join("book.m4b"),
+        [PlannedOutputAction::ReviewRequired; 4],
+    );
+    other_case.sources = vec![cased_source.clone()];
+    other_case.protected = vec![cased_source];
+
+    vec![itself, through_link, other_case]
 }
 
 fn scenarios(folder: &Path) -> Vec<Scenario> {
@@ -210,6 +228,16 @@ fn publish(scenario: &Scenario, plan: &super::ResolvedOutputPlan, label: &str, f
         PlannedOutputAction::ReplaceExisting => {
             committed.unwrap_or_else(|error| panic!("{label}: {error}"));
             assert_eq!(fs::read(&plan.resolved_path).expect("replaced"), NEW_BOOK);
+            let folder = plan.resolved_path.parent().expect("output folder");
+            let names: Vec<_> = fs::read_dir(folder)
+                .expect("output folder")
+                .map(|entry| entry.expect("entry").file_name())
+                .collect();
+            assert_eq!(
+                names,
+                [plan.resolved_path.file_name().expect("name")],
+                "{label}: the replaced file keeps its name"
+            );
         }
     }
     for (path, bytes) in scenario.protected.iter().zip(before) {
@@ -256,10 +284,13 @@ fn every_collision_kind_under_every_policy_plans_reviews_and_publishes_as_pinned
                 RenameOption::Unneeded
             };
             assert_eq!(plan.rename, expected_rename, "{label}: rename option");
-            let expected_path = if plan.action == PlannedOutputAction::RenameNew {
-                free_name
-            } else {
-                scenario.requested.clone()
+            let expected_path = match plan.action {
+                PlannedOutputAction::RenameNew => free_name,
+                PlannedOutputAction::ReplaceExisting => scenario
+                    .replaced
+                    .clone()
+                    .unwrap_or_else(|| scenario.requested.clone()),
+                _ => scenario.requested.clone(),
             };
             assert_eq!(plan.resolved_path, expected_path, "{label}: resolved path");
 

@@ -94,6 +94,10 @@ fn resolve_output_plan_with_cache(
 
     let resolved_path = match action {
         PlannedOutputAction::RenameNew => renamed_path(&rename, &requested_path)?,
+        PlannedOutputAction::ReplaceExisting => collision
+            .as_ref()
+            .and_then(|value| value.conflicting_path.clone())
+            .unwrap_or_else(|| requested_path.clone()),
         _ => requested_path.clone(),
     };
 
