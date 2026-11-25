@@ -81,12 +81,10 @@ pub(super) fn build(
         let output = &job.output;
         input.path(&output.requested_path);
         input.path(&output.resolved_path);
-        input.path(
-            output
-                .rename_candidate
-                .as_deref()
-                .unwrap_or(std::path::Path::new("")),
-        );
+        match &output.rename {
+            abb_output_artifact_core::RenameOption::Free(path) => input.path(path),
+            other => input.text(format!("{other:?}")),
+        }
         input.text(format!("{:?}", output.kind));
         input.text(format!("{:?}", output.action));
         input.text(collision_kind_label(output));

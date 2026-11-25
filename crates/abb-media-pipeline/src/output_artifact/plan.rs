@@ -2,6 +2,7 @@ use super::collision::{detect_output_collision, next_rename_candidate, OutputCol
 use super::derive_output_artifact_path;
 use super::types::{CollisionPolicy, OutputKind, PlannedOutputAction, ResolvedOutputPlan};
 use crate::errors::{AppError, Result};
+use abb_output_artifact_core::RenameOption;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -79,10 +80,10 @@ fn resolve_output_plan_with_cache(
             .as_ref()
             .is_some_and(|path| claimed.contains(path))
     });
-    let rename_candidate = if collision.is_some() && !hard_block {
+    let rename = if collision.is_some() && !hard_block {
         next_rename_candidate(&requested_path, claimed, source_paths, cache)?
     } else {
-        None
+        RenameOption::Unneeded
     };
 
     let action = abb_output_artifact_core::resolve_action(
@@ -92,11 +93,7 @@ fn resolve_output_plan_with_cache(
     );
 
     let resolved_path = match action {
-        PlannedOutputAction::RenameNew => rename_candidate.clone().ok_or_else(|| {
-            AppError::InvalidInput(
-                "A renamed output name would be too long for a file name. Shorten the title or the naming template, or replace the existing file.".to_string(),
-            )
-        })?,
+        PlannedOutputAction::RenameNew => renamed_path(&rename, &requested_path)?,
         _ => requested_path.clone(),
     };
 
@@ -104,10 +101,35 @@ fn resolve_output_plan_with_cache(
         kind,
         requested_path,
         resolved_path,
-        rename_candidate,
+        rename,
         collision,
         action,
     })
+}
+
+fn renamed_path(rename: &RenameOption, requested_path: &Path) -> Result<PathBuf> {
+    match rename {
+        RenameOption::Free(path) => Ok(path.clone()),
+        RenameOption::TooLong => Err(AppError::InvalidInput(
+            "A renamed output name would be too long for a file name. Shorten the title or the naming template, or choose another way to handle the collision.".to_string(),
+        )),
+        RenameOption::Unneeded => Err(AppError::General(
+            "A rename was planned for an output with no collision.".to_string(),
+        )),
+        RenameOption::Exhausted => {
+            let stem = requested_path
+                .file_stem()
+                .map(|value| value.to_string_lossy())
+                .unwrap_or_default();
+            let ext = requested_path
+                .extension()
+                .map(|value| value.to_string_lossy())
+                .unwrap_or_default();
+            Err(AppError::FileValidation(format!(
+                "Every renamed name from \"{stem}-1.{ext}\" to \"{stem}-99.{ext}\" is already taken. Choose another way to handle the collision, or change the title or naming template."
+            )))
+        }
+    }
 }
 
 #[cfg(test)]

@@ -1,5 +1,6 @@
 use super::types::{OutputCollision, OutputCollisionKind};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
+use abb_output_artifact_core::RenameOption;
 use std::collections::{HashMap, HashSet};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -262,7 +263,7 @@ pub(crate) fn next_rename_candidate(
     claimed: &HashSet<PathBuf>,
     source_paths: &[PathBuf],
     cache: &mut OutputCollisionCache,
-) -> Result<Option<PathBuf>> {
+) -> Result<RenameOption> {
     let parent = requested_path.parent().unwrap_or_else(|| Path::new("."));
     let stem = requested_path
         .file_stem()
@@ -279,16 +280,14 @@ pub(crate) fn next_rename_candidate(
             .file_name()
             .is_some_and(abb_output_artifact_core::name_fits)
         {
-            return Ok(None);
+            return Ok(RenameOption::TooLong);
         }
         if detect_output_collision(&candidate, claimed, source_paths, cache)?.is_none() {
-            return Ok(Some(candidate));
+            return Ok(RenameOption::Free(candidate));
         }
     }
 
-    Err(AppError::FileValidation(
-        "Could not find collision-free output filename after 99 attempts".to_string(),
-    ))
+    Ok(RenameOption::Exhausted)
 }
 
 #[cfg(test)]

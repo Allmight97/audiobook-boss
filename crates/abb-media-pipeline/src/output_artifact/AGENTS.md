@@ -24,8 +24,6 @@
   that passes preflight commits. The sweep runs only after a successful
   publish, and `replace_file` returns `CrossesDevices` before moving an
   existing destination aside.
-- A rename alternative that would be too long removes only the rename option,
-  so a valid ReplaceExisting still plans.
 - Publication fixes final artifact truth: a staged-source cleanup failure
   afterward is a success warning, retried by the cleanup guard.
 - Audiobookshelf's folder parser is documented in its

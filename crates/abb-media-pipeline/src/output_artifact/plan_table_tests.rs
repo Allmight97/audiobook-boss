@@ -2,6 +2,7 @@ use super::{
     commit_output_artifact, enforce_output_plan_review, CollisionPolicy, OutputCollisionKind,
     OutputCommitRequest, OutputKind, OutputPlanLedger, OutputPlanReview, PlannedOutputAction,
 };
+use abb_output_artifact_core::RenameOption;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -249,11 +250,12 @@ fn every_collision_kind_under_every_policy_plans_reviews_and_publishes_as_pinned
             );
             let free_name = scenario.requested.with_file_name("book-1.m4b");
             let wants_free_name = scenario.kind.is_some() && !scenario.hard_block();
-            assert_eq!(
-                plan.rename_candidate,
-                wants_free_name.then(|| free_name.clone()),
-                "{label}: rename candidate"
-            );
+            let expected_rename = if wants_free_name {
+                RenameOption::Free(free_name.clone())
+            } else {
+                RenameOption::Unneeded
+            };
+            assert_eq!(plan.rename, expected_rename, "{label}: rename option");
             let expected_path = if plan.action == PlannedOutputAction::RenameNew {
                 free_name
             } else {
@@ -302,6 +304,35 @@ fn every_collision_kind_under_every_policy_plans_reviews_and_publishes_as_pinned
             );
 
             publish(&scenario, &plan, &label, root.path());
+        }
+    }
+}
+
+#[test]
+fn exhausted_rename_suffixes_refuse_only_rename() {
+    let root = TempDir::new().expect("scenario root");
+    let requested = file_in(root.path(), "book.m4b");
+    for suffix in 1..=99 {
+        file_in(root.path(), &format!("book-{suffix}.m4b"));
+    }
+    let expected = [
+        Some(PlannedOutputAction::ReviewRequired),
+        Some(PlannedOutputAction::ReplaceExisting),
+        None,
+        Some(PlannedOutputAction::SkipExisting),
+    ];
+    for (policy, expected) in POLICIES.into_iter().zip(expected) {
+        let planned = OutputPlanLedger::new().resolve(&requested, OutputKind::Final, policy, &[]);
+        match expected {
+            Some(action) => assert_eq!(
+                planned.map(|plan| plan.action).ok(),
+                Some(action),
+                "{policy:?}"
+            ),
+            None => {
+                let error = planned.expect_err("no free renamed name");
+                assert!(error.to_string().contains("book-99.m4b"), "{error}");
+            }
         }
     }
 }

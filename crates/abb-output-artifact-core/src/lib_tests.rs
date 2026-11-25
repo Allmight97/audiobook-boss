@@ -284,7 +284,7 @@ fn an_output_that_resolves_to_its_own_source_is_blocked() {
         kind: OutputKind::Final,
         requested_path: PathBuf::from("/tmp/input.m4b"),
         resolved_path: PathBuf::from("/tmp/input.m4b"),
-        rename_candidate: None,
+        rename: RenameOption::Unneeded,
         collision: Some(OutputCollision {
             kind: OutputCollisionKind::SourceDestinationOverlap,
             conflicting_path: Some(PathBuf::from("/tmp/input.m4b")),

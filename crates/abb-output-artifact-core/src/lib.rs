@@ -109,11 +109,19 @@ pub struct OutputCollision {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RenameOption {
+    Unneeded,
+    Free(PathBuf),
+    TooLong,
+    Exhausted,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedOutputPlan {
     pub kind: OutputKind,
     pub requested_path: PathBuf,
     pub resolved_path: PathBuf,
-    pub rename_candidate: Option<PathBuf>,
+    pub rename: RenameOption,
     pub collision: Option<OutputCollision>,
     pub action: PlannedOutputAction,
 }

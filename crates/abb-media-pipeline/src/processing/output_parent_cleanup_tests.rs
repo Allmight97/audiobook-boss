@@ -17,7 +17,7 @@ fn output_plan(path: impl Into<PathBuf>) -> ResolvedOutputPlan {
         kind: OutputKind::Final,
         requested_path: path.clone(),
         resolved_path: path,
-        rename_candidate: None,
+        rename: abb_output_artifact_core::RenameOption::Unneeded,
         collision: None,
         action: PlannedOutputAction::Write,
     }

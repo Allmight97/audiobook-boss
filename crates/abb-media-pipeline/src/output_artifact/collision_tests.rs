@@ -59,7 +59,10 @@ fn next_rename_candidate_skips_claimed_and_existing_paths() {
     let candidate = next_rename_candidate(&requested_path, &claimed, &[], &mut cache)
         .expect("rename candidate");
 
-    assert_eq!(candidate, Some(temp_dir.path().join("book-3.m4b")));
+    assert_eq!(
+        candidate,
+        abb_output_artifact_core::RenameOption::Free(temp_dir.path().join("book-3.m4b"))
+    );
 }
 
 #[cfg(unix)]

@@ -232,7 +232,7 @@ pub fn publish_supplemental_pdf(
         kind: super::OutputKind::Final,
         requested_path: request.destination.clone(),
         resolved_path: request.destination.clone(),
-        rename_candidate: None,
+        rename: abb_output_artifact_core::RenameOption::Unneeded,
         collision: None,
         action: super::PlannedOutputAction::Write,
     };

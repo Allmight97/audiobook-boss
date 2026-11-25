@@ -28,7 +28,10 @@ fn output_artifact_plan_contract_blocks_source_destination_overlap() {
         plan.collision.as_ref().map(|collision| collision.kind),
         Some(OutputCollisionKind::SourceDestinationOverlap)
     );
-    assert_eq!(plan.rename_candidate, None);
+    assert_eq!(
+        plan.rename,
+        abb_output_artifact_core::RenameOption::Unneeded
+    );
 
     let public = plan.to_public(0, &source);
     assert_eq!(public.input_index, 0);
