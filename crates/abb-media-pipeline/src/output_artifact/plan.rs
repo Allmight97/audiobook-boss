@@ -101,11 +101,18 @@ fn resolve_output_plan_with_cache(
         _ => requested_path.clone(),
     };
 
+    let choices = abb_output_artifact_core::output_choices(
+        collision.as_ref().map(|value| value.kind),
+        claimed_conflict,
+        &rename,
+    );
+
     Ok(ResolvedOutputPlan {
         kind,
         requested_path,
         resolved_path,
         rename,
+        choices,
         collision,
         action,
     })

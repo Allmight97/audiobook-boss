@@ -56,6 +56,7 @@ impl SubmitRefusal {
 pub struct CollisionReview {
     pub review_id: u64,
     pub outputs: Vec<PlannedOutput>,
+    pub choices: abb_output_artifact_core::CollisionChoices,
 }
 
 pub(crate) struct PendingReview {

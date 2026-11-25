@@ -16,6 +16,7 @@ fn job() -> PlannedProcessingJob {
             requested_path: PathBuf::from("/out/A.m4b"),
             resolved_path: PathBuf::from("/out/A.m4b"),
             rename: abb_output_artifact_core::RenameOption::Unneeded,
+            choices: Default::default(),
             collision: None,
             action: PlannedOutputAction::Write,
         },

@@ -2,7 +2,7 @@ use super::OutputPlanLedger;
 use crate::output_artifact::{
     CollisionPolicy, OutputCollisionKind, OutputKind, PlannedOutputAction,
 };
-use abb_output_artifact_core::RenameOption;
+use abb_output_artifact_core::{ChoiceAvailability, CollisionChoices, RenameOption, RenameRefusal};
 use std::fs::write;
 use tempfile::TempDir;
 
@@ -241,15 +241,22 @@ fn two_full_length_titles_in_one_run_refuse_replace_and_rename_but_skip() {
         assert_eq!(first.action, PlannedOutputAction::Write);
         ledger
             .resolve(&requested, OutputKind::Final, policy, &[])
-            .map(|plan| (plan.action, plan.rename))
+            .map(|plan| (plan.action, plan.choices))
             .map_err(|error| error.to_string())
     })
     .collect();
 
     let too_long = "A renamed output name would be too long";
+    let refused = ChoiceAvailability::Refused {
+        reason: RenameRefusal::TooLong,
+    };
+    let choices = CollisionChoices {
+        replace: refused,
+        rename: refused,
+    };
     assert_eq!(
         outcomes[0],
-        Ok((PlannedOutputAction::ReviewRequired, RenameOption::TooLong))
+        Ok((PlannedOutputAction::ReviewRequired, choices))
     );
     assert!(
         matches!(&outcomes[1], Err(error) if error.contains(too_long)),
@@ -263,6 +270,6 @@ fn two_full_length_titles_in_one_run_refuse_replace_and_rename_but_skip() {
     );
     assert_eq!(
         outcomes[3],
-        Ok((PlannedOutputAction::SkipExisting, RenameOption::TooLong))
+        Ok((PlannedOutputAction::SkipExisting, choices))
     );
 }

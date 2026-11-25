@@ -2,6 +2,7 @@ use super::OperationResultSummary;
 use crate::audio;
 use crate::errors::AppErrorEnvelope;
 use crate::output_artifact::{CollisionPolicy, OutputNamingConfig, PlannedOutput};
+use abb_output_artifact_core::CollisionChoices;
 pub use abb_processing_core::ProcessResultStatus;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -108,6 +109,7 @@ pub struct ProcessingPreflightPlan {
     pub collision_policy: CollisionPolicy,
     pub plan_signature: String,
     pub outputs: Vec<PlannedOutput>,
+    pub choices: CollisionChoices,
     pub audio_plans: Vec<audio::TitleAudioPlan>,
 }
 

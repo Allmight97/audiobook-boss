@@ -285,6 +285,7 @@ fn an_output_that_resolves_to_its_own_source_is_blocked() {
         requested_path: PathBuf::from("/tmp/input.m4b"),
         resolved_path: PathBuf::from("/tmp/input.m4b"),
         rename: RenameOption::Unneeded,
+        choices: Default::default(),
         collision: Some(OutputCollision {
             kind: OutputCollisionKind::SourceDestinationOverlap,
             conflicting_path: Some(PathBuf::from("/tmp/input.m4b")),
@@ -402,5 +403,101 @@ fn only_a_review_required_output_needs_a_decision_and_a_source_overlap_can_never
     assert_eq!(
         output_verdict(PlannedOutputAction::Write, None),
         OutputVerdict::Proceed
+    );
+}
+
+#[test]
+fn a_rename_that_cannot_be_made_refuses_every_choice_that_would_rename() {
+    use ChoiceAvailability::{Available, Refused};
+    let too_long = Refused {
+        reason: RenameRefusal::TooLong,
+    };
+    let exhausted = Refused {
+        reason: RenameRefusal::Exhausted,
+    };
+    let cases = [
+        (
+            OutputCollisionKind::ExistingFile,
+            false,
+            RenameOption::TooLong,
+            Available,
+            too_long,
+        ),
+        (
+            OutputCollisionKind::ExistingFile,
+            false,
+            RenameOption::Exhausted,
+            Available,
+            exhausted,
+        ),
+        (
+            OutputCollisionKind::BatchDuplicate,
+            false,
+            RenameOption::TooLong,
+            too_long,
+            too_long,
+        ),
+        (
+            OutputCollisionKind::CaseInsensitiveMatch,
+            true,
+            RenameOption::Exhausted,
+            exhausted,
+            exhausted,
+        ),
+        (
+            OutputCollisionKind::CaseInsensitiveMatch,
+            false,
+            RenameOption::TooLong,
+            Available,
+            too_long,
+        ),
+        (
+            OutputCollisionKind::BatchDuplicate,
+            false,
+            RenameOption::Free(PathBuf::from("book-1.m4b")),
+            Available,
+            Available,
+        ),
+    ];
+    for (kind, claimed, rename, replace, renamed) in cases {
+        assert_eq!(
+            output_choices(Some(kind), claimed, &rename),
+            CollisionChoices {
+                replace,
+                rename: renamed
+            },
+            "{kind:?} claimed={claimed} {rename:?}"
+        );
+    }
+}
+
+#[test]
+fn merged_choices_keep_the_first_refusal_of_any_title() {
+    let too_long = ChoiceAvailability::Refused {
+        reason: RenameRefusal::TooLong,
+    };
+    let exhausted = ChoiceAvailability::Refused {
+        reason: RenameRefusal::Exhausted,
+    };
+    let titles = [
+        CollisionChoices::default(),
+        CollisionChoices {
+            replace: ChoiceAvailability::Available,
+            rename: too_long,
+        },
+        CollisionChoices {
+            replace: exhausted,
+            rename: exhausted,
+        },
+    ];
+    let merged = titles
+        .into_iter()
+        .fold(CollisionChoices::default(), CollisionChoices::merge);
+    assert_eq!(
+        merged,
+        CollisionChoices {
+            replace: exhausted,
+            rename: too_long
+        }
     );
 }

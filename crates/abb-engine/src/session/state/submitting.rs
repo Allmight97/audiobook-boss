@@ -286,13 +286,19 @@ impl SessionState {
         self.keeping_locations > 0
     }
 
-    pub(crate) fn await_review(&mut self, mut draft: Draft, outputs: Vec<PlannedOutput>) {
+    pub(crate) fn await_review(
+        &mut self,
+        mut draft: Draft,
+        outputs: Vec<PlannedOutput>,
+        choices: abb_output_artifact_core::CollisionChoices,
+    ) {
         draft.payload.collision_policy = None;
         draft.reviewed = Some(collisions(&outputs));
         self.review_serial += 1;
         let view = CollisionReview {
             review_id: self.review_serial,
             outputs,
+            choices,
         };
         self.submission = Some(SubmissionStatus::ReviewRequired);
         self.enter(Submission::AwaitingReview {

@@ -241,6 +241,7 @@ fn written_at(path: PathBuf) -> ResolvedOutputPlan {
         requested_path: path.clone(),
         resolved_path: path,
         rename: abb_output_artifact_core::RenameOption::Unneeded,
+        choices: Default::default(),
         collision: None,
         action: PlannedOutputAction::Write,
     }

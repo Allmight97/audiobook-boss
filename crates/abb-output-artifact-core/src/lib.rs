@@ -116,12 +116,75 @@ pub enum RenameOption {
     Exhausted,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum RenameRefusal {
+    TooLong,
+    Exhausted,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ChoiceAvailability {
+    #[default]
+    Available,
+    Refused {
+        reason: RenameRefusal,
+    },
+}
+
+impl ChoiceAvailability {
+    fn merge(self, other: Self) -> Self {
+        match self {
+            Self::Available => other,
+            refused => refused,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CollisionChoices {
+    pub replace: ChoiceAvailability,
+    pub rename: ChoiceAvailability,
+}
+
+impl CollisionChoices {
+    pub fn merge(self, other: Self) -> Self {
+        Self {
+            replace: self.replace.merge(other.replace),
+            rename: self.rename.merge(other.rename),
+        }
+    }
+}
+
+pub fn output_choices(
+    kind: Option<OutputCollisionKind>,
+    claimed_conflict: bool,
+    rename: &RenameOption,
+) -> CollisionChoices {
+    let availability = |policy| match (resolve_action(kind, claimed_conflict, policy), rename) {
+        (PlannedOutputAction::RenameNew, RenameOption::TooLong) => ChoiceAvailability::Refused {
+            reason: RenameRefusal::TooLong,
+        },
+        (PlannedOutputAction::RenameNew, RenameOption::Exhausted) => ChoiceAvailability::Refused {
+            reason: RenameRefusal::Exhausted,
+        },
+        _ => ChoiceAvailability::Available,
+    };
+    CollisionChoices {
+        replace: availability(CollisionPolicy::ReplaceExisting),
+        rename: availability(CollisionPolicy::RenameNew),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedOutputPlan {
     pub kind: OutputKind,
     pub requested_path: PathBuf,
     pub resolved_path: PathBuf,
     pub rename: RenameOption,
+    pub choices: CollisionChoices,
     pub collision: Option<OutputCollision>,
     pub action: PlannedOutputAction,
 }

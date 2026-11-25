@@ -11,6 +11,7 @@ use crate::output_artifact::{
     OutputPlanReview, PlannedOutputAction, ResolvedOutputPlan,
 };
 use crate::processing::{ProcessPayload, ProcessingPreflightPlan};
+use abb_output_artifact_core::CollisionChoices;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -349,6 +350,12 @@ impl ResolvedProcessingPlan {
             collision_policy: self.collision_policy,
             plan_signature: self.plan_signature.clone(),
             outputs,
+            choices: self
+                .jobs
+                .iter()
+                .fold(CollisionChoices::default(), |merged, job| {
+                    merged.merge(job.output.choices)
+                }),
             audio_plans: self.jobs.iter().map(|job| job.audio_plan.clone()).collect(),
         }
     }

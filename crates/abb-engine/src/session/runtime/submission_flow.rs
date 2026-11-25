@@ -10,6 +10,7 @@ use crate::work_runtime::SubmitProcessingOperationRequest;
 use abb_media_pipeline::errors::{AppError, AppErrorEnvelope};
 use abb_media_pipeline::output_artifact::CollisionPolicy;
 use abb_media_pipeline::processing::run::{inspect_processing_plan, InspectedRun};
+use abb_output_artifact_core::CollisionChoices;
 
 impl Session {
     pub(super) fn begin_submission(&self, preview: bool) -> Rest {
@@ -65,9 +66,9 @@ impl Session {
                 self.end_submission(&draft, SubmissionStatus::Blocked { message })
             }
             PlanVerdict::Review(outputs) if draft.payload.collision_policy.is_none() => {
-                self.hold_for_review(draft, outputs)
+                self.hold_for_review(draft, outputs, public.choices)
             }
-            _ if unreviewed => self.hold_for_review(draft, collided),
+            _ if unreviewed => self.hold_for_review(draft, collided, public.choices),
             PlanVerdict::Review(_) | PlanVerdict::Proceed => {
                 self.accept(
                     draft.approved(public.collision_policy, public.plan_signature),
@@ -82,13 +83,14 @@ impl Session {
         &self,
         draft: Draft,
         outputs: Vec<abb_media_pipeline::output_artifact::PlannedOutput>,
+        choices: CollisionChoices,
     ) -> SessionOutcome {
         let closing_draft = draft.clone();
         match self
             .inner
             .deps
             .tasks
-            .admit(|| self.transition(|state| state.await_review(draft, outputs)))
+            .admit(|| self.transition(|state| state.await_review(draft, outputs, choices)))
         {
             Ok(()) => SessionOutcome::Applied,
             Err(_) => {

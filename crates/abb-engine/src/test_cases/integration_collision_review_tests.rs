@@ -399,3 +399,47 @@ async fn replacing_a_file_that_differs_only_in_case_keeps_its_name() {
         "the new audio replaced the old: {new_samples} vs {old_samples} samples"
     );
 }
+
+#[tokio::test]
+async fn a_review_with_every_renamed_name_taken_offers_replace_and_refuses_rename() {
+    use abb_media_pipeline::output_artifact::CollisionPolicy;
+    use abb_output_artifact_core::{ChoiceAvailability, CollisionChoices, RenameRefusal};
+
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
+        .await;
+    desk.import(&book).await;
+    let first = desk.export_and_finish().await;
+    let published = desk.output_of(&first);
+    for suffix in 1..=99 {
+        fs::copy(
+            &published,
+            published.with_file_name(format!("Alpha-{suffix}.m4b")),
+        )
+        .expect("taken renamed name");
+    }
+
+    desk.send(SessionIntent::Submit).await;
+    let review = collision_review(&desk);
+    assert_eq!(
+        review.choices,
+        CollisionChoices {
+            replace: ChoiceAvailability::Available,
+            rename: ChoiceAvailability::Refused {
+                reason: RenameRefusal::Exhausted
+            },
+        }
+    );
+    desk.send(SessionIntent::ChooseCollisionPolicy {
+        review_id: review.review_id,
+        policy: CollisionPolicy::ReplaceExisting,
+    })
+    .await;
+    let replaced = desk.finish_submitted_export().await;
+    assert_eq!(
+        desk.export_status(&replaced),
+        WorkOperationStatus::Completed
+    );
+    assert_eq!(desk.output_of(&replaced), published);
+}

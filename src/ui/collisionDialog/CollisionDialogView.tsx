@@ -105,6 +105,10 @@ function CollisionQuestion(props: { readonly reviewId: number }): JSX.Element {
 							id="collision-dialog-replace"
 							tone="primary"
 							data-testid="collision-dialog-replace"
+							disabled={view().replaceRefusal !== null}
+							aria-describedby={
+								view().replaceRefusal ? 'collision-dialog-replace-refusal' : undefined
+							}
 							onClick={choose('replace_existing')}
 						>
 							Overwrite Existing
@@ -123,6 +127,10 @@ function CollisionQuestion(props: { readonly reviewId: number }): JSX.Element {
 						<Button
 							id="collision-dialog-rename"
 							data-testid="collision-dialog-rename"
+							disabled={view().renameRefusal !== null}
+							aria-describedby={
+								view().renameRefusal ? 'collision-dialog-rename-refusal' : undefined
+							}
 							onClick={choose('rename_new')}
 						>
 							Keep Existing
@@ -138,6 +146,20 @@ function CollisionQuestion(props: { readonly reviewId: number }): JSX.Element {
 						</Button>
 					</div>
 				</div>
+				<Show when={view().replaceRefusal}>
+					{(reason) => (
+						<p id="collision-dialog-replace-refusal" class="muted-text">
+							{reason()}
+						</p>
+					)}
+				</Show>
+				<Show when={view().renameRefusal}>
+					{(reason) => (
+						<p id="collision-dialog-rename-refusal" class="muted-text">
+							{reason()}
+						</p>
+					)}
+				</Show>
 			</Dialog.Body>
 		</Dialog>
 	);

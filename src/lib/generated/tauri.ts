@@ -230,13 +230,21 @@ export type ChildJobSnapshot = {
 
 export type ChildJobStatus = { kind: "queued"; position: number; of: number } | { kind: "running" } | { kind: "completed" } | { kind: "skipped" } | { kind: "cancelled" } | { kind: "failed" };
 
+export type ChoiceAvailability = { kind: "available" } | { kind: "refused"; reason: RenameRefusal };
+
 export type CodecFamily = "aac" | "opus";
+
+export type CollisionChoices = {
+	replace: ChoiceAvailability,
+	rename: ChoiceAvailability,
+};
 
 export type CollisionPolicy = "fail" | "replace_existing" | "rename_new" | "skip_existing";
 
 export type CollisionReview = {
 	reviewId: number,
 	outputs: PlannedOutput[],
+	choices: CollisionChoices,
 };
 
 export type ConcurrencyPreference = { mode: "auto" } | { mode: "fixed"; value: number };
@@ -723,6 +731,8 @@ export type RemoteUiSnapshot = {
 	busy: boolean,
 	audibleMessage: string,
 };
+
+export type RenameRefusal = "tooLong" | "exhausted";
 
 export type RestartOffer = {
 	titleId: string,

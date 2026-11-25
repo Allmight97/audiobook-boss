@@ -49,7 +49,8 @@ fn a_refused_second_submission_does_not_let_a_third_through() {
         .state
         .begin_submission(false)
         .expect("first submission");
-    desk.state.await_review(first, Vec::new());
+    desk.state
+        .await_review(first, Vec::new(), Default::default());
     let review = desk
         .state
         .output_snapshot(0)
@@ -79,7 +80,8 @@ fn collision_answers_are_scoped_to_the_question_even_after_rereview_cancel_and_c
     let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
     desk.state.output.set_directory("/library".into());
     let draft = desk.state.begin_submission(false).expect("submission");
-    desk.state.await_review(draft, Vec::new());
+    desk.state
+        .await_review(draft, Vec::new(), Default::default());
     let old = desk
         .state
         .output_snapshot(0)
@@ -88,7 +90,8 @@ fn collision_answers_are_scoped_to_the_question_even_after_rereview_cancel_and_c
         .review_id;
     let draft = desk.state.take_review(old).expect("named approval");
     assert!(desk.state.take_review(old).is_none());
-    desk.state.await_review(draft, Vec::new());
+    desk.state
+        .await_review(draft, Vec::new(), Default::default());
     let next = desk
         .state
         .output_snapshot(0)
@@ -120,7 +123,8 @@ fn collision_answers_are_scoped_to_the_question_even_after_rereview_cancel_and_c
         .state
         .begin_submission(false)
         .expect("new session submission");
-    desk.state.await_review(draft, Vec::new());
+    desk.state
+        .await_review(draft, Vec::new(), Default::default());
     let current = desk
         .state
         .output_snapshot(0)
@@ -247,7 +251,8 @@ fn restart_questions_wait_for_answer_work_and_answered_offers_stay_retryable() {
 
     let (draft, _) = desk.state.begin_restart("beta", revision).expect("restart");
     assert_eq!(prompted_title(&desk), None);
-    desk.state.await_review(draft, Vec::new());
+    desk.state
+        .await_review(draft, Vec::new(), Default::default());
     assert_eq!(prompted_title(&desk), None);
     desk.state.cancel_review();
     assert_eq!(prompted_title(&desk), None);
@@ -421,7 +426,8 @@ fn the_list_lock_follows_every_submission_transition() {
     assert_gate(&desk, true, false, "export preparing");
     assert!(desk.state.begin_submission(false).is_none());
     assert_gate(&desk, true, false, "busy refusal");
-    desk.state.await_review(export.clone(), Vec::new());
+    desk.state
+        .await_review(export.clone(), Vec::new(), Default::default());
     assert_gate(&desk, true, true, "export awaiting review");
     let review_id = desk
         .state
@@ -436,7 +442,8 @@ fn the_list_lock_follows_every_submission_transition() {
     assert_gate(&desk, false, false, "export ended");
 
     let preview = desk.state.begin_submission(true).expect("preview");
-    desk.state.await_review(preview.clone(), Vec::new());
+    desk.state
+        .await_review(preview.clone(), Vec::new(), Default::default());
     assert_gate(&desk, true, true, "preview awaiting review");
     let review_id = desk
         .state

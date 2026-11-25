@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
-import type { PlannedOutput } from '../../lib/generated/tauri';
+import type { CollisionChoices, PlannedOutput } from '../../lib/generated/tauri';
 import { CollisionDialogView } from './CollisionDialogView';
 
 const offer = {
@@ -22,6 +22,10 @@ const existingOutput: PlannedOutput = {
 	collision: { kind: 'existing_file', detail: 'exists' },
 	action: 'review_required',
 };
+const available: CollisionChoices = {
+	replace: { kind: 'available' },
+	rename: { kind: 'available' },
+};
 const runtimes: AppRuntime[] = [];
 afterEach(() => {
 	cleanup();
@@ -40,7 +44,11 @@ async function mount(engine: FakeEngine) {
 function seed(engine: FakeEngine, kind: 'collision' | 'restart'): void {
 	engine.change((state) => {
 		if (kind === 'collision') {
-			state.output.collisionReview = { reviewId: 7, outputs: [existingOutput] };
+			state.output.collisionReview = {
+				reviewId: 7,
+				outputs: [existingOutput],
+				choices: available,
+			};
 			state.output.submissionInProgress = true;
 		} else {
 			state.output.restartOffers = [{ ...offer, titleId: 'alpha' }, offer];
@@ -98,6 +106,7 @@ describe('engine decision dialogs', () => {
 			state.output.collisionReview = {
 				reviewId: 8,
 				outputs: [existingOutput, { ...existingOutput, resolvedPath: '/out/c.m4b' }],
+				choices: available,
 			};
 		});
 		await vi.waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('2 files'));
@@ -124,6 +133,38 @@ describe('engine decision dialogs', () => {
 		fireEvent.click(button, { detail: 2 });
 		await vi.waitFor(() => expect(engine.sessionIntents).toHaveLength(1));
 		expect(engine.sessionIntents).toEqual([{ kind: 'chooseCollisionPolicy', reviewId: 7, policy }]);
+	});
+
+	it('disables a choice the engine refuses, says why, and still answers the rest', async () => {
+		const engine = createFakeEngine();
+		seed(engine, 'collision');
+		engine.change((state) => {
+			if (!state.output.collisionReview) throw new Error('a review was seeded');
+			state.output.collisionReview.choices = {
+				replace: { kind: 'refused', reason: 'tooLong' },
+				rename: { kind: 'refused', reason: 'exhausted' },
+			};
+		});
+		await mount(engine);
+		const replace = screen.getByRole('button', { name: 'Overwrite Existing' });
+		const rename = screen.getByRole('button', { name: 'Keep Existing' });
+		expect(replace).toBeDisabled();
+		expect(rename).toBeDisabled();
+		expect(replace).toHaveAccessibleDescription(/numbered name would be too long/);
+		expect(rename).toHaveAccessibleDescription(
+			/every numbered name from -1 to -99 is already taken/,
+		);
+		expect(screen.getByRole('dialog')).toHaveTextContent('Overwrite Existing is unavailable');
+		expect(screen.getByRole('dialog')).toHaveTextContent('Keep Existing is unavailable');
+
+		fireEvent.click(replace);
+		fireEvent.click(rename);
+		fireEvent.click(screen.getByRole('button', { name: 'Skip Existing' }));
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents).toEqual([
+				{ kind: 'chooseCollisionPolicy', reviewId: 7, policy: 'skip_existing' },
+			]),
+		);
 	});
 
 	it('restarts once when Restart is pressed twice', async () => {
