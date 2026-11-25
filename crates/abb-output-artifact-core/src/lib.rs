@@ -707,10 +707,9 @@ fn build_output_path_inner(
     naming: &OutputNamingConfig,
     extension: &str,
 ) -> Result<PathBuf> {
-    let mut dir = base_dir.to_path_buf();
-    let filename = match naming.preset {
+    match naming.preset {
         NamingPreset::AbsDefault => {
-            dir = dir.join(&values.author);
+            let mut dir = base_dir.join(&values.author);
             if let Some(series) = &values.series {
                 if !series.is_empty() {
                     dir = dir.join(series);
@@ -726,8 +725,9 @@ fn build_output_path_inner(
             let book_part = values.series_part.as_deref();
             let title_folder =
                 build_abs_title(&values.title, book_part, values.year, naming.include_year);
-            dir = dir.join(&title_folder);
-            format!("{title_folder}.{extension}")
+            Ok(dir
+                .join(&title_folder)
+                .join(format!("{title_folder}.{extension}")))
         }
         NamingPreset::CustomTemplate => {
             let template = naming.custom_template.as_deref().ok_or_else(|| {
@@ -736,23 +736,9 @@ fn build_output_path_inner(
                 )
             })?;
             let rendered = render_custom_template(template, values)?;
-            let relative = sanitize_template_relative_path(&rendered, extension)?;
-            let parent = relative.parent().unwrap_or_else(|| Path::new(""));
-            if !parent.as_os_str().is_empty() {
-                dir = dir.join(parent);
-            }
-            relative
-                .file_name()
-                .map(|f| f.to_string_lossy().to_string())
-                .ok_or_else(|| {
-                    OutputArtifactCoreError::InvalidInput(
-                        "Custom template did not produce a valid output filename".to_string(),
-                    )
-                })?
+            Ok(base_dir.join(sanitize_template_relative_path(&rendered, extension)?))
         }
-    };
-
-    Ok(dir.join(filename))
+    }
 }
 
 #[cfg(test)]
