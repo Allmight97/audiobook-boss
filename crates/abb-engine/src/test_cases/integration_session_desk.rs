@@ -32,7 +32,7 @@ pub(super) fn engine_config(root: &Path) -> EngineConfig {
 }
 
 pub(super) fn processing_sessions_dir(root: &Path) -> PathBuf {
-    abb_media_pipeline::audio::processing_workspace_root(&engine_config(root).cache_dir)
+    engine_config(root).cache_dir.join("processing/sessions")
 }
 
 pub(super) fn remote_staging_sessions_dir(root: &Path) -> PathBuf {

@@ -33,7 +33,7 @@ check_direct() {
 
 call_ffmpeg='call abb_ffmpeg.'
 check abb-engine "$ui_toolkit|$test_fixtures"
-check abb-media-pipeline '^(abb-engine|tauri|tauri-.*|wry|tao|keyring|keyring-core|.*-keyring-store|reqwest|bogon|abb-test-fixtures)$'
+check abb-media-pipeline '^(abb-engine|abb-audible-core|abb-remote-source-core|tauri|tauri-.*|wry|tao|keyring|keyring-core|.*-keyring-store|reqwest|bogon|secrecy|aws-lc-rs|abb-test-fixtures)$'
 check audiobook-boss "$test_fixtures"
 check abb-test-fixtures '^(abb-engine|abb-media-pipeline|abb-ffmpeg|abb-.*-core|audiobook-boss)$'
 check_direct abb-engine '^ffmpeg-(sys-)?next$' "$call_ffmpeg"

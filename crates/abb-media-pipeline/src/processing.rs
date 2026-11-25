@@ -19,10 +19,10 @@ pub use types::{
 };
 
 pub use crate::audio::AudioHandling;
-pub use crate::execution::{
-    CancellationChecker, JobIdentity, OutputConfig, ProcessingContext, ProcessingSession,
-    ProgressEventListener, PREVIEW_SECONDS,
-};
+pub use crate::execution::{CancellationChecker, ProgressEventListener, PREVIEW_SECONDS};
 pub use crate::execution::{EventStage, ProgressEvent};
+pub(crate) use crate::execution::{
+    JobIdentity, OutputConfig, ProcessingContext, ProcessingSession,
+};
 pub use job_registry::{JobRegistry, RegisteredJob};
 pub use title_output::TitleOutput;

@@ -8,10 +8,8 @@ pub use abb_metadata_core::{
     parse_cue, validate_chapters, ChapterSpec, CueInterpretation, CueSheet,
 };
 use container::Container;
-pub use cue::{
-    inspect_chapter_source, source_fingerprint, source_fingerprint_from_metadata,
-    validate_chapter_plan, validate_source_fingerprint,
-};
+pub(crate) use cue::{inspect_chapter_source, validate_chapter_plan, validate_source_fingerprint};
+pub use cue::{source_fingerprint, source_fingerprint_from_metadata};
 pub use cue::{ChapterPlan, CueChoice, CueSource, CueStatus};
 mod chapter_count;
 mod cover_art;
@@ -54,15 +52,15 @@ impl From<MetadataCoreError> for AppError {
 
 pub(crate) use reader::display_tags;
 pub use reader::read_metadata;
+pub use thumbnail::optimize_cover_art;
+pub(crate) use thumbnail::prepare_cover_art_for_write;
 pub use thumbnail::read_audio_cover_thumbnail;
 pub use thumbnail::render_display_thumbnail;
-pub use thumbnail::{optimize_cover_art, prepare_cover_art_for_write};
 
-pub use cover_art::{add_cover_stream, write_cover_packet, ResolvedCover};
-pub use ffmpeg_dict::set_container_metadata;
-pub use passthrough::{
-    add_chapters, chapter_specs, prepare_output_cover_art, read_chapters, titled_chapter,
-};
+pub(crate) use cover_art::{add_cover_stream, write_cover_packet, ResolvedCover};
+pub(crate) use ffmpeg_dict::set_container_metadata;
+pub(crate) use passthrough::{add_chapters, prepare_output_cover_art, read_chapters};
+pub use passthrough::{chapter_specs, titled_chapter};
 pub use passthrough::{
     extract_passthrough_metadata, verify_chapters, PassthroughMetadata, PassthroughSource,
 };
@@ -221,7 +219,7 @@ fn audio_shape(path: &std::path::Path) -> Result<AudioShape> {
     })
 }
 
-pub fn finalize_artifact_metadata(
+pub(crate) fn finalize_artifact_metadata(
     path: &std::path::Path,
     metadata: Option<&AudiobookMetadata>,
     passthrough: Option<&PassthroughMetadata>,

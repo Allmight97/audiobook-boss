@@ -147,19 +147,16 @@ fn link_both(desk: &mut Desk) -> Vec<Arc<TitleOutput>> {
     let outputs: Vec<_> = ["alpha", "beta"]
         .iter()
         .map(|name| {
-            TitleOutput::with_writer(
-                TitleOutputPlan {
-                    anchor: path(name),
-                    sources: Vec::new(),
-                    base: abb_media_pipeline::metadata::AudiobookMetadata::default(),
-                    accepted: None,
-                    output_dir: PathBuf::from("/library"),
-                    naming: OutputNamingConfig::default(),
-                    extension: "m4b".into(),
-                    requested: PathBuf::from(format!("/library/{name}.m4b")),
-                },
-                Box::new(|_, _| Ok(())),
-            )
+            TitleOutput::new(TitleOutputPlan {
+                anchor: path(name),
+                sources: Vec::new(),
+                base: abb_media_pipeline::metadata::AudiobookMetadata::default(),
+                accepted: None,
+                output_dir: PathBuf::from("/library"),
+                naming: OutputNamingConfig::default(),
+                extension: "m4b".into(),
+                requested: PathBuf::from(format!("/library/{name}.m4b")),
+            })
             .expect("output")
         })
         .collect();

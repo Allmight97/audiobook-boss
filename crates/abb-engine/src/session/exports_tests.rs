@@ -3,19 +3,16 @@ use abb_media_pipeline::metadata::PatchOp;
 use abb_media_pipeline::processing::title_output::TitleOutputPlan;
 
 fn output() -> Arc<TitleOutput> {
-    TitleOutput::with_writer(
-        TitleOutputPlan {
-            anchor: PathBuf::from("/books/alpha.m4b"),
-            sources: Vec::new(),
-            base: abb_media_pipeline::metadata::AudiobookMetadata::default(),
-            accepted: None,
-            output_dir: PathBuf::from("/library"),
-            naming: OutputNamingConfig::default(),
-            extension: "m4b".to_string(),
-            requested: PathBuf::from("/library/alpha.m4b"),
-        },
-        Box::new(|_, _| Ok(())),
-    )
+    TitleOutput::new(TitleOutputPlan {
+        anchor: PathBuf::from("/books/alpha.m4b"),
+        sources: Vec::new(),
+        base: abb_media_pipeline::metadata::AudiobookMetadata::default(),
+        accepted: None,
+        output_dir: PathBuf::from("/library"),
+        naming: OutputNamingConfig::default(),
+        extension: "m4b".to_string(),
+        requested: PathBuf::from("/library/alpha.m4b"),
+    })
     .expect("output")
 }
 

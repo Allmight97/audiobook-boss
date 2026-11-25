@@ -95,11 +95,11 @@ impl std::fmt::Debug for TitleOutput {
 }
 
 impl TitleOutput {
-    pub(crate) fn new(plan: TitleOutputPlan) -> Result<Arc<Self>> {
+    pub fn new(plan: TitleOutputPlan) -> Result<Arc<Self>> {
         Self::with_writer(plan, Box::new(crate::metadata::save_metadata_intent))
     }
 
-    pub fn with_writer(plan: TitleOutputPlan, write: Box<Writer>) -> Result<Arc<Self>> {
+    fn with_writer(plan: TitleOutputPlan, write: Box<Writer>) -> Result<Arc<Self>> {
         let carried = plan.tags(plan.accepted.as_ref())?.0;
         Ok(Arc::new(Self {
             plan,

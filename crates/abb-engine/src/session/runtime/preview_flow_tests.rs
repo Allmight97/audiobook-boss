@@ -72,6 +72,18 @@ async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply
         shown.to_vec(),
         abb_media_pipeline::metadata::render_display_thumbnail(&cover).expect("thumbnail")
     );
+    abb_test_fixtures::poll::until("every preview child waits for a scheduler slot", || {
+        output(&rig).preview_run.filter(|run| {
+            !run.operation.children.is_empty()
+                && run.operation.children.iter().all(|child| {
+                    matches!(
+                        child.status,
+                        crate::work_runtime::ChildJobStatus::Queued { .. }
+                    )
+                })
+        })
+    })
+    .await;
     assert_eq!(
         rig.send(SessionIntent::CancelPreview {
             run_id: id.to_string(),

@@ -4,11 +4,11 @@ use std::sync::Arc;
 use crate::work_runtime::{
     ChildJobStatus, OperationId, SubmitProcessingOperationRequest, WorkRuntime,
 };
-use abb_media_pipeline::output_artifact::lock_output_file;
+use abb_media_pipeline::output_artifact::{lock_output_file, OutputFileLock};
 
 pub(crate) struct BlockedExport {
     _root: tempfile::TempDir,
-    locks: Vec<Box<dyn Send>>,
+    locks: Vec<OutputFileLock>,
     settled: Arc<AtomicBool>,
 }
 
@@ -52,7 +52,7 @@ impl BlockedExport {
                 let output = std::path::Path::new(&planned.resolved_path);
                 std::fs::create_dir_all(output.parent().expect("output folder"))
                     .expect("create the output folder");
-                Box::new(lock_output_file(output)) as Box<dyn Send>
+                lock_output_file(output)
             })
             .collect();
         let abb_media_pipeline::processing::run::InspectedRun::Export(plan) = run else {

@@ -20,14 +20,16 @@ use std::path::{Path, PathBuf};
 pub(crate) use commit::{
     cleanup_failure_warning, commit_output_artifact, finalized_output_success, OutputCommitRequest,
 };
-pub use file_lock::{lock_output_file, FileIdentity};
+pub use file_lock::{lock_output_file, FileIdentity, OutputFileLock};
 pub use folder_records::OutputFolderRecords;
-pub use parent_dirs::{ensure_output_parent_dirs, OutputParentDirCleanup};
-pub use plan::OutputPlanLedger;
-pub use review::{enforce_output_plan_review, OutputPlanReview};
+pub use parent_dirs::ensure_output_parent_dirs;
+pub(crate) use parent_dirs::OutputParentDirCleanup;
+pub(crate) use plan::OutputPlanLedger;
+pub(crate) use review::{enforce_output_plan_review, OutputPlanReview};
+pub(crate) use supplemental::commit_supplemental_output_assets_for_output;
 pub use supplemental::{
-    commit_supplemental_output_assets_for_output, publish_supplemental_pdf,
-    SupplementalOutputAssetCommitRequest, SupplementalOutputAssetsCommitRequest,
+    publish_supplemental_pdf, SupplementalOutputAssetCommitRequest,
+    SupplementalOutputAssetsCommitRequest,
 };
 pub use types::{
     CollisionPolicy, NamingPreset, OutputCollisionInfo, OutputCollisionKind, OutputKind,

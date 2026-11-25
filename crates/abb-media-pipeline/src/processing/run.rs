@@ -15,7 +15,7 @@ mod run_job;
 mod run_options;
 mod run_validation;
 
-pub use run_job::supplemental_assets_for_input;
+pub(crate) use run_job::supplemental_assets_for_input;
 pub use run_options::{ExportPlan, ExportTitle, InspectedRun, PreviewPlan, ProcessingRun, RunMode};
 use run_validation::inspect_and_validate_external_processing_contract;
 

@@ -153,9 +153,10 @@ pub enum SampleRateConfig {
 pub use ffmpeg_log::limit_ffmpeg_logging;
 pub use file_list::{apply_chapter_plans, get_file_list_info, FileListInfo};
 pub use format::CodecFamily;
-pub use format::{
-    format_for_extension, is_matroska_format, is_mp4_family_format, muxer_for_path, Muxer, FORMATS,
+pub(crate) use format::{
+    format_for_extension, is_matroska_format, is_mp4_family_format, muxer_for_path,
 };
+pub use format::{Muxer, FORMATS};
 pub use imports::discover_audio_import_paths;
 pub use imports::{
     supported_audio_import_extensions, supported_audio_import_formats_text,
@@ -163,15 +164,16 @@ pub use imports::{
 };
 pub use output_header::write_output_header;
 pub use path_validation::{validate_input_audio_path, validate_input_image_path};
-pub use processor::{
-    codec_library_versions, execute_audio_engine, probe_builtin_audio_decoder,
-    AudioExecutionRequest, AudioRunOutcome,
+pub use processor::probe_builtin_audio_decoder;
+pub(crate) use processor::{
+    codec_library_versions, execute_audio_engine, AudioExecutionRequest, AudioRunOutcome,
 };
 pub(crate) use processor::{passthrough_sources_from_audio_files, validate_preserved_title};
 #[cfg(test)]
 pub(crate) use settings::automatic_sample_rate;
+pub use settings::check_output_directory;
+pub(crate) use settings::validate_output_target;
 pub use settings::validate_sample_rate_config;
-pub use settings::{check_output_directory, validate_output_target};
 
 impl AudioFile {
     pub fn own_status(&self) -> TitleStatus {
@@ -204,9 +206,7 @@ pub use settings_encoder::{
     BitrateMode, BitrateModeKind, ChannelConfig, EncoderSettings, EncoderType, FaacProfile,
 };
 
-pub fn processing_workspace_root(cache_dir: &Path) -> PathBuf {
-    processor::processing_workspace_root(cache_dir)
-}
+pub(crate) use processor::processing_workspace_root;
 
 pub fn cleanup_abandoned_processing_workspaces(cache_dir: &Path) -> crate::errors::Result<()> {
     processor::cleanup_abandoned_processing_workspaces(cache_dir)
