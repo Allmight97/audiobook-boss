@@ -2,10 +2,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use super::{blocking, Bound, Session};
-use crate::audio;
-use crate::errors::{AppError, AppErrorEnvelope};
-use crate::output_artifact::{publish_supplemental_pdf, SupplementalOutputAssetCommitRequest};
-use crate::processing::SupplementalProcessingAsset;
 use crate::remote_source::{
     AcquiredContent, AcquiredJob, AcquisitionHandoff, Handoff, HandoffOutcome, HandoffRefusal,
     MaterializedSourceFile, PdfHandoff, PdfTitle, RemoteAcquisitionFailureKind,
@@ -14,6 +10,12 @@ use crate::remote_source::{
 use crate::session::output::OutputPlan;
 use crate::session::state::SessionState;
 use crate::work_runtime::OperationSnapshot;
+use abb_media_pipeline::audio;
+use abb_media_pipeline::errors::{AppError, AppErrorEnvelope};
+use abb_media_pipeline::output_artifact::{
+    publish_supplemental_pdf, SupplementalOutputAssetCommitRequest,
+};
+use abb_media_pipeline::processing::SupplementalProcessingAsset;
 
 const SESSION_GONE: &str = "ABB was closing, so the Supplemental PDF was not saved.";
 
@@ -290,8 +292,8 @@ fn group_files_by_title(
 fn analyze_acquired_title(
     title_id: &str,
     paths: &[PathBuf],
-    aac_decoder: crate::audio::AacDecoder,
-) -> crate::errors::Result<Vec<crate::audio::AudioFile>> {
+    aac_decoder: abb_media_pipeline::audio::AacDecoder,
+) -> abb_media_pipeline::errors::Result<Vec<abb_media_pipeline::audio::AudioFile>> {
     let discovery = audio::discover_audio_import_paths(paths);
     if let Some((_, error)) = discovery.skipped.into_iter().next() {
         return Err(AppError::FileValidation(format!(
@@ -328,7 +330,7 @@ fn list_acquired(
     job_id: &str,
     files: &[MaterializedSourceFile],
     assets: &[SupplementalAsset],
-    analyzed: Vec<crate::audio::AudioFile>,
+    analyzed: Vec<abb_media_pipeline::audio::AudioFile>,
     refused_paths: &[PathBuf],
 ) -> std::result::Result<(Bound, usize), HandoffRefusal> {
     let before = state.working_set.source_paths();

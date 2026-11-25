@@ -1,16 +1,16 @@
 use std::fs;
 use std::path::Path;
 
-use crate::metadata::{read_metadata, AudiobookMetadata};
 use crate::session::{
     FieldAction, MetadataField, MetadataStatus, OutputEdits, SelectionModifiers, SessionIntent,
     SessionOutcome, TitlePlan,
 };
 use crate::work_runtime::WorkOperationStatus;
 use crate::ShutdownOutcome;
+use abb_media_pipeline::metadata::{read_metadata, AudiobookMetadata};
 
 use super::integration_session_desk::Desk;
-use super::media_fixtures::{assert_ffprobe_tag, ffmpeg, ffprobe_format_tags};
+use abb_test_fixtures::media::{assert_ffprobe_tag, ffmpeg, ffprobe_format_tags};
 
 fn id_of(desk: &Desk, name: &str) -> String {
     desk.engine

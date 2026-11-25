@@ -7,7 +7,7 @@ use cbc::cipher::{block_padding::NoPadding, BlockModeEncrypt, KeyIvInit};
 use sha1::{Digest, Sha1};
 use tempfile::TempDir;
 
-use crate::test_cases::media_fixtures::ffmpeg;
+use abb_test_fixtures::media::ffmpeg;
 pub(crate) const EDIT_LIST_SECONDS: &str = "12.3";
 pub(crate) const EDIT_LIST_PLAYED_SAMPLES: usize = 542_430;
 pub(crate) const AAXC_KEY_HEX: &str = "000102030405060708090a0b0c0d0e0f";

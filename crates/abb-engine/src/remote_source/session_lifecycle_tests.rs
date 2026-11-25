@@ -76,7 +76,7 @@ async fn a_cancel_removes_the_staging_folder_even_when_the_first_purges_are_refu
     let root = TempDir::new().expect("temp root");
     let (settings, _, _) = crate::app_settings::SettingsRuntime::start(
         root.path().join("config"),
-        crate::power::PowerManager::default(),
+        abb_media_pipeline::power::PowerManager::default(),
     );
     let (arrived, at_work) = tokio::sync::oneshot::channel();
     let runtime = test_runtime_acquiring(&root, settings, acquire_until_cancelled(arrived));
@@ -147,8 +147,9 @@ async fn an_acquisition_auth_rejection_persists_needs_auth_in_the_vault() {
 #[tokio::test]
 async fn a_failed_vault_write_on_acquisition_auth_rejection_adds_a_diagnostic() {
     let root = TempDir::new().expect("temp root");
-    let vault = crate::remote_source::test_support::MemoryVault::default()
-        .failing_writes(|| crate::errors::AppError::ResourceCleanup("keychain locked".to_string()));
+    let vault = crate::remote_source::test_support::MemoryVault::default().failing_writes(|| {
+        abb_media_pipeline::errors::AppError::ResourceCleanup("keychain locked".to_string())
+    });
     let auth = crate::remote_source::providers::audible::tests::fixture_auth();
     vault.seed(
         "audible.us.auth",
@@ -177,8 +178,9 @@ async fn a_failed_vault_write_on_acquisition_auth_rejection_adds_a_diagnostic() 
 #[tokio::test]
 async fn a_locked_keychain_during_acquisition_does_not_reject_a_connected_account() {
     let root = TempDir::new().expect("temp root");
-    let vault = crate::remote_source::test_support::MemoryVault::default()
-        .failing_reads(|| crate::errors::AppError::ResourceCleanup("keychain locked".to_string()));
+    let vault = crate::remote_source::test_support::MemoryVault::default().failing_reads(|| {
+        abb_media_pipeline::errors::AppError::ResourceCleanup("keychain locked".to_string())
+    });
     let auth = crate::remote_source::providers::audible::tests::fixture_auth();
     vault.seed(
         "audible.us.auth",

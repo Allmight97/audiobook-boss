@@ -1,7 +1,6 @@
 use super::super::auth::Auth;
 use super::AudibleAcquisitionResult;
 use super::TitleAcquisitionCtx;
-use crate::errors::AppError;
 use crate::remote_source::providers::audible::diagnostics::AudibleAcquisitionError;
 use crate::remote_source::providers::audible::license::AudibleTitleDetails;
 use crate::remote_source::providers::audible::license_plan::LicenseReply;
@@ -14,6 +13,7 @@ use crate::remote_source::{
     SupplementalAsset,
 };
 use abb_audible_core::supplemental_pdf_display_file_name;
+use abb_media_pipeline::errors::AppError;
 
 pub(super) struct SupplementalPdfAcquisitionRequest<'a> {
     pub(super) auth: &'a Auth,

@@ -34,6 +34,8 @@ shared: &shared
   - vendor/**
   - scripts/setup.sh
   - scripts/verify.sh
+  - "!crates/**/*.md"
+  - "!src-tauri/**/*.md"
 core:
   - *shared
   - scripts/check-rust-tiers.sh
@@ -48,8 +50,6 @@ engine:
 media:
   - *shared
   - crates/**
-  - scripts/abb-dev.sh
-  - scripts/golden-path/**
 apple:
   - *shared
   - crates/**
@@ -59,7 +59,6 @@ host:
   - src-tauri/**
   - src/lib/generated/**
   - scripts/check-generated-bindings.sh
-  - package.json
 supply-chain:
   - Cargo.lock
   - Cargo.toml

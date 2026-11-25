@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::sync::{Arc, Mutex, PoisonError};
 
-use crate::errors::{AppError, Result};
+use abb_media_pipeline::errors::{AppError, Result};
 use tokio_util::task::TaskTracker;
 
 #[derive(Clone, Default)]

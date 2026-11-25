@@ -21,7 +21,7 @@ mod title_totals;
 pub use title_totals::{PreviewLength, TitleTotals};
 mod working_set;
 
-pub use crate::metadata::CueChoice;
+pub use abb_media_pipeline::metadata::CueChoice;
 pub use audio::{
     AudioChoiceView, AudioField, AudioRefusal, AudioSnapshot, SelectionAudio, TitleAudio,
 };

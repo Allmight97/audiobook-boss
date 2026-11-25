@@ -8,9 +8,9 @@ use super::{
     provider_private_failure, AUDIBLE_DOWNLOAD_USER_AGENT, MAX_DOWNLOAD_ATTEMPTS,
     MAX_DOWNLOAD_REDIRECTS,
 };
-use crate::errors::{AppError, Result};
 use crate::remote_source::scoped_output::{rollback_committed_file, StagedTempFile};
 use abb_audible_core::{classify_download_response, title_ref, DownloadResponseError};
+use abb_media_pipeline::errors::{AppError, Result};
 use abb_remote_source_core::{acquisition_progress, AcquisitionProgress, AcquisitionStage};
 use reqwest::header::{CONTENT_RANGE, RANGE, USER_AGENT};
 use tokio::io::AsyncWriteExt;

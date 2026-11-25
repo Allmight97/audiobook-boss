@@ -3,7 +3,7 @@ use super::super::audio_choice::AudioEdit;
 use super::super::plans::{estimate_size, PlanFailure, PlanInput, PlanTicket};
 use super::super::submission::title_label;
 use super::SessionState;
-use crate::audio::TitleAudioRequest;
+use abb_media_pipeline::audio::TitleAudioRequest;
 
 impl SessionState {
     pub(super) fn audio_snapshot(&self, revision: u64) -> AudioSnapshot {
@@ -16,7 +16,7 @@ impl SessionState {
                 let request = self.working_set.audio_request(id)?;
                 let mut view = self.audio.title_view(request);
                 view.facts.downmix_warning = view.choice.channels
-                    != crate::audio::ChannelConfig::Auto
+                    != abb_media_pipeline::audio::ChannelConfig::Auto
                     && self.working_set.sources_for(file).iter().any(|source| {
                         source.is_valid && source.channels.is_some_and(|channels| channels > 2)
                     });
@@ -78,7 +78,7 @@ impl SessionState {
     pub(crate) fn finish_plan(
         &mut self,
         ticket: &PlanTicket,
-        result: Result<crate::audio::TitleAudioPlan, PlanFailure>,
+        result: Result<abb_media_pipeline::audio::TitleAudioPlan, PlanFailure>,
     ) {
         self.plans.finish(ticket, result);
     }

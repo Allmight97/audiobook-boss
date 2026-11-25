@@ -1,9 +1,8 @@
 use super::snapshot::new_processing_snapshot;
 use super::state::WorkRuntimeState;
 use super::{ChildJobStatus, OperationId, OperationPhase, WorkOperationStatus, WorkProgressStage};
-use crate::processing::{
-    EventStage, OperationKind, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus,
-    ProgressEvent,
+use abb_media_pipeline::processing::{
+    EventStage, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus, ProgressEvent,
 };
 use abb_processing_core::summarize_result_statuses;
 
@@ -22,7 +21,6 @@ fn accepted_state() -> (WorkRuntimeState, OperationId) {
 
 fn event(stage: EventStage, message: &str) -> ProgressEvent {
     ProgressEvent {
-        operation_kind: OperationKind::ProcessingBatch,
         stage,
         percentage: 0.0,
         message: message.to_string(),

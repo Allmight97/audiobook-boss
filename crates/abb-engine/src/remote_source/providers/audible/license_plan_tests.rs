@@ -185,7 +185,7 @@ fn a_denied_reply_is_refused_whether_or_not_it_carries_a_url() {
 
 #[test]
 fn the_classification_log_names_the_reader_that_found_the_key() {
-    crate::test_cases::log_capture::install();
+    abb_test_fixtures::log_capture::install();
     let classify_for = |job_id: &str, license: Value| {
         classify_license(
             job_id,
@@ -209,7 +209,7 @@ fn the_classification_log_names_the_reader_that_found_the_key() {
     );
 
     let line_for = |job_id: &str| {
-        crate::test_cases::log_capture::records()
+        abb_test_fixtures::log_capture::records()
             .into_iter()
             .find(|line| line.contains("stage=license_classification") && line.contains(job_id))
             .expect("classification log line")

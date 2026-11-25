@@ -1,22 +1,27 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::app_settings::{ConcurrencyPreference, SettingsIntent};
-use crate::output_artifact::{
+use crate::session::{
+    MetadataField, SelectionModifiers, SessionIntent, SessionOutcome, SubmissionStatus,
+};
+use crate::work_runtime::{ChildJobStatus, OperationId, OperationSnapshot, WorkOperationStatus};
+use crate::ShutdownOutcome;
+use abb_media_pipeline::output_artifact::{
     ensure_output_parent_dirs, lock_output_file, CollisionPolicy, OutputFolderRecords, OutputKind,
     PlannedOutputAction, ResolvedOutputPlan,
 };
-use crate::session::{MetadataField, SelectionModifiers, SessionIntent, SubmissionStatus};
-use crate::work_runtime::{ChildJobStatus, OperationId, OperationSnapshot, WorkOperationStatus};
-use crate::ShutdownOutcome;
+use abb_media_pipeline::processing::OperationKind;
 
 use super::integration_session_desk::{
     collision_review, engine_config, genre_on_disk, processing_sessions_dir,
     remote_staging_sessions_dir, submission, Desk,
 };
-use super::support::fs_listing::names_in;
-use super::support::poll::until_true;
+use abb_test_fixtures::fs_listing::names_in;
+use abb_test_fixtures::media::ffmpeg;
+use abb_test_fixtures::poll::until_true;
+use abb_test_fixtures::wav::write_sine_wav;
 
 fn operation(desk: &Desk, id: &OperationId) -> OperationSnapshot {
     desk.engine
@@ -270,4 +275,126 @@ async fn a_relaunch_removes_only_the_empty_output_folders_a_crash_left() {
     );
     assert!(published.join("Kept.m4b").exists());
     drop(desk);
+}
+
+fn tone_hz(path: &Path) -> f64 {
+    let samples: Vec<f32> = ffmpeg([
+        "-v",
+        "error",
+        "-i",
+        path.to_str().expect("utf8 path"),
+        "-map",
+        "0:a:0",
+        "-ac",
+        "1",
+        "-ar",
+        "44100",
+        "-f",
+        "f32le",
+        "-c:a",
+        "pcm_f32le",
+        "pipe:1",
+    ])
+    .as_chunks::<4>()
+    .0
+    .iter()
+    .map(|bytes| f32::from_le_bytes(*bytes))
+    .collect();
+    let crossings = samples
+        .windows(2)
+        .filter(|pair| (pair[0] < 0.0) != (pair[1] < 0.0))
+        .count();
+    crossings as f64 * 44_100.0 / (2.0 * samples.len() as f64)
+}
+
+fn metadata_save(desk: &Desk) -> Option<OperationSnapshot> {
+    desk.engine
+        .list_work_operations()
+        .operations
+        .into_iter()
+        .find(|snapshot| snapshot.kind == OperationKind::MetadataSave)
+}
+
+#[tokio::test]
+async fn a_save_on_a_replacement_exports_destination_never_restores_the_old_audio() {
+    let desk = Desk::new();
+    let existing = desk
+        .audiobook(
+            &desk
+                .root
+                .path()
+                .join("exports/Source Author/Alpha/Alpha.m4b"),
+            2.0,
+        )
+        .await;
+    let old_bytes = fs::read(&existing).expect("existing output");
+    assert!((tone_hz(&existing) - 440.0).abs() < 20.0);
+    let replacement = desk.root.path().join("library/replacement.wav");
+    fs::create_dir_all(replacement.parent().expect("parent")).expect("library");
+    write_sine_wav(&replacement, 2.0, 880.0);
+    desk.import(&replacement).await;
+    for (field, value) in [
+        (MetadataField::Title, "Alpha"),
+        (MetadataField::Author, "Source Author"),
+    ] {
+        desk.send(SessionIntent::SetField {
+            binding: desk.metadata().binding,
+            field,
+            value: value.to_string(),
+        })
+        .await;
+    }
+    desk.prepare_export().await;
+    desk.send(SessionIntent::Submit).await;
+    let review_id = collision_review(&desk).review_id;
+    let publication = lock_output_file(&existing);
+    desk.send(SessionIntent::ChooseCollisionPolicy {
+        review_id,
+        policy: CollisionPolicy::ReplaceExisting,
+    })
+    .await;
+    let export = desk.submitted_operation();
+    assert_eq!(
+        desk.send(SessionIntent::ClearAll).await,
+        SessionOutcome::Applied
+    );
+    desk.import(&existing).await;
+    desk.send(SessionIntent::SetField {
+        binding: desk.metadata().binding,
+        field: MetadataField::Genre,
+        value: "Mystery".to_string(),
+    })
+    .await;
+
+    let desk = &desk;
+    let held = async {
+        desk.wait_until("the save starts", |desk| metadata_save(desk).is_some())
+            .await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        let untouched = fs::read(&existing).expect("existing output") == old_bytes;
+        drop(publication);
+        untouched
+    };
+    let (saved, untouched) = tokio::join!(desk.send(SessionIntent::Save), held);
+    assert!(untouched, "the save waited while publication held the file");
+    assert_eq!(saved, SessionOutcome::Applied);
+    desk.wait_until("the export finishes", |desk| desk.export_finished(&export))
+        .await;
+
+    assert_eq!(desk.export_status(&export), WorkOperationStatus::Completed);
+    assert_eq!(desk.output_of(&export), existing);
+    assert_eq!(
+        metadata_save(desk).map(|save| save.status),
+        Some(WorkOperationStatus::Completed)
+    );
+    let hz = tone_hz(&existing);
+    assert!(
+        (hz - 880.0).abs() < 20.0,
+        "the replacement's audio: {hz} Hz"
+    );
+    assert!(
+        matches!(genre_on_disk(&existing).as_deref(), None | Some("Mystery")),
+        "{:?}",
+        genre_on_disk(&existing)
+    );
 }

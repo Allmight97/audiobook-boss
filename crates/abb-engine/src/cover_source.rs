@@ -1,6 +1,6 @@
-use crate::audio::validate_input_image_path;
-use crate::errors::{AppError, Result};
-use crate::metadata::optimize_cover_art;
+use abb_media_pipeline::audio::validate_input_image_path;
+use abb_media_pipeline::errors::{AppError, Result};
+use abb_media_pipeline::metadata::optimize_cover_art;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use reqwest::header::CONTENT_TYPE;
 use reqwest::StatusCode;
@@ -19,7 +19,7 @@ pub(crate) fn dropped_cover_path(paths: Vec<String>) -> Option<String> {
                 .extension()
                 .and_then(|ext| ext.to_str())
                 .is_some_and(|ext| {
-                    crate::audio::ALLOWED_IMAGE_EXTENSIONS
+                    abb_media_pipeline::audio::ALLOWED_IMAGE_EXTENSIONS
                         .iter()
                         .any(|allowed| ext.eq_ignore_ascii_case(allowed))
                 })

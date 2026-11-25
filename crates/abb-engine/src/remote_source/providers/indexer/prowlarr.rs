@@ -6,11 +6,11 @@ use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 
 use super::api_key::api_key_header_value;
-use crate::errors::{AppError, Result};
 use crate::remote_source::types::{
     release_key, ProviderId, RemoteAcquisitionFailureKind, RemoteRelease, RemoteReleaseCategory,
     RemoteReleaseProtocol, RemoteReleaseSearchRequest, RemoteSourceDiagnostic,
 };
+use abb_media_pipeline::errors::{AppError, Result};
 
 pub(super) const PROWLARR_USER_AGENT: &str = "audiobook-boss/indexer";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);

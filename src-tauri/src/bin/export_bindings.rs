@@ -14,7 +14,7 @@ fn main() {
         .unwrap_or_else(|| {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src/lib/generated/tauri.ts")
         });
-    audiobook_boss_lib::ipc_contract::export_typescript_bindings(&output)
+    audiobook_boss::ipc_contract::export_typescript_bindings(&output)
         .expect("failed to export tauri-specta TypeScript bindings");
     let fixtures = output
         .parent()

@@ -15,6 +15,7 @@ doctest = false
 [dependencies]
 abb-audible-core = { path = "../abb-audible-core" }
 abb-media-core = { path = "../abb-media-core" }
+abb-media-pipeline = { path = "../abb-media-pipeline" }
 abb-metadata-core = { path = "../abb-metadata-core" }
 abb-output-artifact-core = { path = "../abb-output-artifact-core" }
 abb-processing-core = { path = "../abb-processing-core" }
@@ -22,16 +23,12 @@ abb-remote-source-core = { path = "../abb-remote-source-core" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.154"
 toml = "1.1.8"
-thiserror = "2.0.18"
 tokio = { version = "1.53.3", features = ["fs", "io-util", "macros", "net", "rt", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = { version = "0.7.20", features = ["rt"] }
 uuid = { version = "1.28.0", features = ["v4"] }
 log = "0.4.29"
 abb-ffmpeg = { path = "../abb-ffmpeg" }
-faac-sys = { path = "../../vendor/faac-sys" }
-image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls", "http2", "stream", "json", "query", "form"] }
-mp4ameta = "0.13.0"
 bogon = "0.3"
 url = "2.5.8"
 percent-encoding = "2.3.2"
@@ -47,9 +44,6 @@ base64 = "0.23.1"
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { version = "1.0.0", features = ["keychain"] }
 
-[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
-keepawake = "0.6.1"
-
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-native-keyring-store = "1.1.0"
 
@@ -59,9 +53,12 @@ zbus-secret-service-keyring-store = { version = "1.0.1", features = ["rt-async-i
 
 [features]
 default = []
-bundled-ffmpeg = ["abb-ffmpeg/bundled-ffmpeg"]
+bundled-ffmpeg = ["abb-media-pipeline/bundled-ffmpeg", "abb-ffmpeg/bundled-ffmpeg"]
 
 [dev-dependencies]
+abb-test-fixtures = { path = "../abb-test-fixtures" }
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
+mp4ameta = "0.13.0"
 tempfile = "3.27.0"
 aes = "0.9.3"
 cbc = "0.2.1"

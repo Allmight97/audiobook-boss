@@ -20,28 +20,28 @@
   titles, because each spends the owner's account; then delete its state
   folder, because it holds decrypted audiobooks.
 - Provider-private details stay out of other owners, logs, and host payloads.
-- Callers request a metadata outcome; the metadata owner picks MP4 or FFmpeg
-  handling from the actual media, never the caller.
 - Log transitions and cleanup at their owners. A refusal or a failed cover
   load logs one line with its kind; a cover names a remote origin only.
   Metadata diagnostics describe field actions and cover sizes and formats,
   never tag values or artwork bytes. Per-packet tracing stays at debug.
-- Diagnostic records never change an operation result, and artifact IDs
-  correlate paths without exposing parent folders.
-- `power::PowerManager` holds idle sleep off through a macOS power assertion
-  or a Linux logind inhibitor; without D-Bus it logs and work continues.
-  Encoding, metadata saves, Audible acquisition, and Indexer handoff hold an
-  `ActiveWork` guard after their scheduler wait and through final writes and
-  cleanup; opening ABB and browsing do not.
 - A lock that guards state a panic cannot half-apply is taken with
   `PoisonError::into_inner`, so one panic does not fail every later call
   (session transitions, job-registry admission, `WorkRuntime::operations`).
 - Validate input audio paths where they enter the engine
   (`validate_input_audio_path`). Paths the engine hands back are canonical;
   compare paths in that spelling.
-- Proofs that need private media boundaries live under `src/test_cases`, so
-  hosts never see those boundaries; `tests/all_tests.rs` proves only the
-  separately compiled `abb-dev`. A test never needs a wider export.
+- Media proofs live in `abb-media-pipeline`. Engine proofs that need private
+  engine boundaries live under `src/test_cases`, so hosts never see those
+  boundaries; `tests/all_tests.rs` proves only the separately compiled
+  `abb-dev`. A test never needs a wider export.
+- Test helpers that use no engine type (WAV and MP3 writers, `ffmpeg` and
+  `ffprobe` readback, log capture, polling) live in the dev-only
+  `abb-test-fixtures` crate, so every crate's tests share one copy;
+  `check-rust-tiers.sh` keeps it out of production dependency trees. Helpers
+  that build engine types stay in `src/test_cases`.
+- A test that needs the scheduler busy runs a real export held at its
+  output-file lock (`test_cases/support/blocked_export.rs`), not a
+  test-only registry hook, so it still holds when the registry moves crates.
 
 ## Outside facts
 
@@ -52,8 +52,6 @@
   `rt-async-io-crypto-rust`, because zbus's tokio feature is crate-wide and
   keepawake's blocking bus calls would then start a runtime inside the
   engine's runtime.
-- `errors.rs` `log_label` values are parsed from captured dev sessions by
-  `scripts/dev-log-analysis.ts`; keep them stable.
 - `cover_source.rs`: an IP-literal host never reaches the resolver, so it is
   judged from the parsed host, not its bracketed text. A resolved address
   carries port 0 because reqwest replaces it with the URL's port.

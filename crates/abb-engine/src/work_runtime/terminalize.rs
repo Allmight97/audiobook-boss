@@ -1,7 +1,7 @@
 use super::stage_table::{for_finished_operation, for_result};
 use super::state::push_operation_log;
 use super::types::{OperationSnapshot, WorkOperationStatus};
-use crate::processing::{ProcessResultEntry, ProcessResultStatus};
+use abb_media_pipeline::processing::{ProcessResultEntry, ProcessResultStatus};
 
 pub(super) struct ChildOutcome<'a> {
     position: usize,

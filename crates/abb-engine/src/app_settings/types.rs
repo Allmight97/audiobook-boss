@@ -1,9 +1,9 @@
-use crate::audio::{
+use abb_media_pipeline::audio::{
     validate_encoder_settings, validate_sample_rate_config, AacDecoder, AudioIntent,
     AudiobookFormat, EncoderSettings, SampleRateConfig,
 };
-use crate::errors::{AppError, Result};
-use crate::output_artifact::OutputNamingConfig;
+use abb_media_pipeline::errors::{AppError, Result};
+use abb_media_pipeline::output_artifact::OutputNamingConfig;
 
 #[derive(
     Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type,
@@ -291,7 +291,8 @@ impl ConcurrencyPreference {
     }
 
     pub(super) fn validate(self) -> Result<()> {
-        let capabilities = crate::processing::JobRegistry::max_concurrent_jobs_capabilities();
+        let capabilities =
+            abb_media_pipeline::processing::JobRegistry::max_concurrent_jobs_capabilities();
         match self {
             Self::Auto => Ok(()),
             Self::Fixed(value) if capabilities.fixed_options.contains(&value) => Ok(()),

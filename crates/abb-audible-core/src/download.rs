@@ -40,15 +40,16 @@ pub fn classify_download_response(
         return Err(DownloadResponseError::RedirectNotHttps);
     }
     if status == HTTP_PARTIAL_CONTENT {
-        if let Some(range) = content_range.and_then(parse_content_range) {
-            if range.start != offset || range.end < range.start {
-                return Err(DownloadResponseError::ContentRange);
+        return match content_range.and_then(parse_content_range) {
+            Some(range) if range.start != offset || range.end < range.start => {
+                Err(DownloadResponseError::ContentRange)
             }
-            return Ok(range
+            Some(range) => Ok(range
                 .total
-                .or_else(|| content_length.map(|length| offset + length)));
-        }
-        return Ok(content_length.map(|length| offset + length));
+                .or_else(|| content_length.map(|length| offset + length))),
+            None if offset > 0 => Err(DownloadResponseError::ContentRange),
+            None => Ok(content_length.map(|length| offset + length)),
+        };
     }
     if status == HTTP_OK && offset == 0 && content_length.is_some() {
         return Ok(content_length);

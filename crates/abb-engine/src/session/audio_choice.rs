@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::app_settings::EncoderDefaults;
-use crate::audio::{
+use abb_media_pipeline::audio::{
     AudioIntent, AudiobookFormat, BitrateMode, BitrateModeKind, ChannelConfig, CodecFamily,
     EncoderConfigurationCapability, EncoderSettings, EncoderSettingsCapabilities, EncoderType,
     FaacProfile, OutputAudio, SampleRateConfig, TitleAudioRequest, FORMATS,
@@ -85,7 +85,7 @@ impl Default for AudioChoice {
             saved_mode: settings.bitrate_mode,
             faac_profile: FaacProfile::Auto,
             faac_rate_control: FaacRateControl::Abr,
-            faac_quality: crate::audio::DEFAULT_FAAC_QUALITY,
+            faac_quality: abb_media_pipeline::audio::DEFAULT_FAAC_QUALITY,
             native_speed: 0,
             channels: ChannelConfig::Auto,
             sample_rate: SampleRateConfig::Auto,

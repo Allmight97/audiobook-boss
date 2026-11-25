@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 
 use secrecy::{ExposeSecret, SecretString};
 
-use crate::errors::{AppError, Result};
+use abb_media_pipeline::errors::{AppError, Result};
 
 pub(super) trait SecretVault: Send + Sync {
     fn get_secret(&self, key: &str) -> Result<Option<SecretString>>;

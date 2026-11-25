@@ -1,5 +1,5 @@
 use super::types::{ChildJobStatus, WorkOperationStatus, WorkProgressStage};
-use crate::processing::{EventStage, ProcessResultStatus};
+use abb_media_pipeline::processing::{EventStage, ProcessResultStatus};
 
 pub(super) const CANCELLING_STAGE: WorkProgressStage = WorkProgressStage::Cleaning;
 

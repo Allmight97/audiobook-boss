@@ -1,10 +1,11 @@
 use super::*;
+use crate::test_cases::support::blocked_export::BlockedExport;
 
 async fn wait_preview(
     rig: &Rig,
     status: crate::work_runtime::WorkOperationStatus,
 ) -> crate::session::preview::PreviewSnapshot {
-    crate::test_cases::support::poll::until(&format!("the preview reaches {status:?}"), || {
+    abb_test_fixtures::poll::until(&format!("the preview reaches {status:?}"), || {
         output(rig)
             .preview_run
             .filter(|preview| preview.operation.status == status)
@@ -17,10 +18,12 @@ async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply
     let rig = rig();
     let lane = crate::test_cases::media_fixtures::MediaLane::with_fixtures(&[0.2]);
     let source = lane
-        .process(Some(AudiobookMetadata {
-            title: Some("Preview".to_string()),
+        .export(abb_media_pipeline::metadata::MetadataIntentPatch {
+            title: Some(abb_media_pipeline::metadata::PatchOp::Set(
+                "Preview".to_string(),
+            )),
             ..Default::default()
-        }))
+        })
         .await;
     std::fs::create_dir_all(rig._config.path().join("previews")).expect("preview folder");
     rig.send(SessionIntent::Import {
@@ -46,8 +49,7 @@ async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply
     .await;
     let cover = rig.cover_shown().await.expect("accepted normalized cover");
     let jobs = &rig.session.inner.deps.jobs;
-    let (first, first_permit) = jobs.register_job().await.expect("hold first slot");
-    let (second, second_permit) = jobs.register_job().await.expect("hold second slot");
+    let export = BlockedExport::start(jobs, jobs.max_concurrent()).await;
     let run = rig.session.begin(SessionIntent::Preview);
     drop(run);
     let id = output(&rig)
@@ -68,8 +70,20 @@ async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply
         .expect("a custom cover");
     assert_eq!(
         shown.to_vec(),
-        crate::metadata::render_display_thumbnail(&cover).expect("thumbnail")
+        abb_media_pipeline::metadata::render_display_thumbnail(&cover).expect("thumbnail")
     );
+    abb_test_fixtures::poll::until("every preview child waits for a scheduler slot", || {
+        output(&rig).preview_run.filter(|run| {
+            !run.operation.children.is_empty()
+                && run.operation.children.iter().all(|child| {
+                    matches!(
+                        child.status,
+                        crate::work_runtime::ChildJobStatus::Queued { .. }
+                    )
+                })
+        })
+    })
+    .await;
     assert_eq!(
         rig.send(SessionIntent::CancelPreview {
             run_id: id.to_string(),
@@ -95,9 +109,7 @@ async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply
         SessionOutcome::PreviewOutput { path: None }
     );
     assert!(!rig.session.snapshot().titles.expect("titles").order_locked);
-    jobs.complete_job(first);
-    jobs.complete_job(second);
-    drop((first_permit, second_permit));
+    export.finish().await;
 }
 
 async fn imported_preview_rig(
@@ -106,10 +118,12 @@ async fn imported_preview_rig(
     let rig = rig();
     let lane = crate::test_cases::media_fixtures::MediaLane::with_fixtures(lengths);
     let source = lane
-        .process(Some(AudiobookMetadata {
-            title: Some("Preview".to_string()),
+        .export(abb_media_pipeline::metadata::MetadataIntentPatch {
+            title: Some(abb_media_pipeline::metadata::PatchOp::Set(
+                "Preview".to_string(),
+            )),
             ..Default::default()
-        }))
+        })
         .await;
     let previews = rig._config.path().join("previews");
     std::fs::create_dir_all(&previews).expect("preview folder");
@@ -178,8 +192,7 @@ async fn one_title_of_a_preview_cancelled_before_it_starts_ends_cancelled() {
 async fn one_title_of_a_running_preview_stops_on_its_own_cancel() {
     let (rig, _lane) = imported_preview_rig(&[0.2]).await;
     let jobs = &rig.session.inner.deps.jobs;
-    let (first, first_permit) = jobs.register_job().await.expect("hold first slot");
-    let (second, second_permit) = jobs.register_job().await.expect("hold second slot");
+    let export = BlockedExport::start(jobs, jobs.max_concurrent()).await;
     let (id, child) = accepted_preview(&rig);
     wait_preview(&rig, crate::work_runtime::WorkOperationStatus::Running).await;
 
@@ -194,7 +207,5 @@ async fn one_title_of_a_running_preview_stops_on_its_own_cancel() {
 
     let preview = wait_preview(&rig, crate::work_runtime::WorkOperationStatus::Cancelled).await;
     assert!(!preview.open_ready);
-    jobs.complete_job(first);
-    jobs.complete_job(second);
-    drop((first_permit, second_permit));
+    export.finish().await;
 }

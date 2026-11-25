@@ -30,31 +30,29 @@ const OWNED_SHELL = (file: string) =>
 const OWNED_RUST = (file: string) => file.endsWith('.rs') && !file.startsWith('vendor/');
 const RUST_TEST_FILE = (file: string) =>
 	/(^|\/|_)tests\.rs$/.test(file) || /(^|\/)(tests|test_cases)\//.test(file);
+const ENGINE_TIER_SOURCES = ['crates/abb-engine/src/', 'crates/abb-media-pipeline/src/'];
+const ENGINE_TIER_SOURCE = (file: string) =>
+	ENGINE_TIER_SOURCES.some((root) => file.startsWith(root));
 const FAAC_AND_FAAD_ADAPTERS = new Set([
-	'crates/abb-engine/src/audio/processor/encoder/faac.rs',
-	'crates/abb-engine/src/audio/processor/faad_decoder.rs',
+	'crates/abb-media-pipeline/src/audio/processor/encoder/faac.rs',
+	'crates/abb-media-pipeline/src/audio/processor/faad_decoder.rs',
 ]);
 const ENGINE_OUTSIDE_CODEC_ADAPTERS = (file: string) =>
 	OWNED_RUST(file) &&
 	!RUST_TEST_FILE(file) &&
-	file.startsWith('crates/abb-engine/src/') &&
+	ENGINE_TIER_SOURCE(file) &&
 	!FAAC_AND_FAAD_ADAPTERS.has(file);
 const SOLID_SOURCE = (file: string) => file.startsWith('src/') && file.endsWith('.tsx');
 const DESTRUCTURED_PROPS =
 	/\bfunction [A-Z]\w*\s*\(\s*\{|\b(?:const|let) [A-Z]\w*\s*=\s*\(\s*\{|\b(?:const|let)\s*\{[^}]*\}\s*=\s*props\b/;
 const ENGINE_DIR = (dir: string) => (file: string) =>
-	OWNED_RUST(file) && !RUST_TEST_FILE(file) && file.startsWith(`crates/abb-engine/src/${dir}/`);
+	OWNED_RUST(file) &&
+	!RUST_TEST_FILE(file) &&
+	ENGINE_TIER_SOURCES.some((root) => file.startsWith(`${root}${dir}/`));
 const PURE_CORE = (file: string) =>
 	OWNED_RUST(file) && !RUST_TEST_FILE(file) && /^crates\/abb-[a-z-]+-core\/src\//.test(file);
-const PROVIDER_NEUTRAL_OWNERS = [
-	'processing',
-	'audio',
-	'metadata',
-	'output_artifact',
-	'work_runtime',
-];
 const PROCESSING_SOURCE = (file: string) =>
-	file === 'crates/abb-engine/src/processing.rs' || ENGINE_DIR('processing')(file);
+	file === 'crates/abb-media-pipeline/src/processing.rs' || ENGINE_DIR('processing')(file);
 const FRONTEND_SOURCE = (file: string) =>
 	/^src\/.*\.tsx?$/.test(file) &&
 	!/\.test\.tsx?$/.test(file) &&
@@ -62,8 +60,8 @@ const FRONTEND_SOURCE = (file: string) =>
 	!file.startsWith('src/lib/generated/');
 const FRONTEND_TEST = (file: string) => /^src\/.*\.test\.tsx?$/.test(file);
 const FORMAT_CLASSIFIER_HOMES = new Set([
-	'crates/abb-engine/src/metadata/container.rs',
-	'crates/abb-engine/src/audio/format.rs',
+	'crates/abb-media-pipeline/src/metadata/container.rs',
+	'crates/abb-media-pipeline/src/audio/format.rs',
 ]);
 const FORMAT_ONLY_NAME = '"(?:matroska|mov|mj2|3gp|3g2|adts|ipod)"';
 const EXTENSION_LIKE_NAME = '"(?:mp4|m4a|mp3|wav|flac|ogg|webm|aac)"';
@@ -245,7 +243,7 @@ const RULES: Rule[] = [
 		appliesTo: (file) =>
 			OWNED_RUST(file) &&
 			!RUST_TEST_FILE(file) &&
-			file !== 'crates/abb-engine/src/audio/output_header.rs',
+			file !== 'crates/abb-media-pipeline/src/audio/output_header.rs',
 		comment: /^\s*\/\//,
 		findIn: (line) => CODE_ONLY(line).match(/\.write_header(?:_with)?\(/)?.[0] ?? null,
 		message:
@@ -256,7 +254,7 @@ const RULES: Rule[] = [
 		comment: /^\s*\/\//,
 		findIn: (line) => CODE_ONLY(line).match(/\b(?:std::(?:fs|net|process)|tokio)::/)?.[0] ?? null,
 		message:
-			'does I/O in a pure core. Fix: take the bytes, paths, or facts as input and let abb-engine do the I/O.',
+			'does I/O in a pure core. Fix: take the bytes, paths, or facts as input and let an engine-tier crate do the I/O.',
 	},
 	{
 		appliesTo: (file) => PURE_CORE(file) && file.startsWith('crates/abb-remote-source-core/'),
@@ -318,7 +316,7 @@ const RULES: Rule[] = [
 			'reaches up into processing from the audio pipeline. Fix: import the leaf name from crate::execution, which processing only re-exports.',
 	},
 	{
-		appliesTo: (file) => PROVIDER_NEUTRAL_OWNERS.some((dir) => ENGINE_DIR(dir)(file)),
+		appliesTo: ENGINE_DIR('work_runtime'),
 		comment: /^\s*\/\//,
 		findIn: (line) => line.match(/\bcrate::remote_source\b/)?.[0] ?? null,
 		message:
@@ -335,7 +333,7 @@ const RULES: Rule[] = [
 		appliesTo: (file) =>
 			OWNED_RUST(file) &&
 			!RUST_TEST_FILE(file) &&
-			file.startsWith('crates/abb-engine/src/') &&
+			ENGINE_TIER_SOURCE(file) &&
 			!FORMAT_CLASSIFIER_HOMES.has(file),
 		comment: /^\s*\/\//,
 		findIn: (line) => {

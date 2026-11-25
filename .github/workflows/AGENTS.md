@@ -15,6 +15,10 @@
 - rust-cache keys on every installed toolchain, so an image's extra stable
   toolchain would change the key. Its post step cleans every unknown folder
   under `target/`, so the FFmpeg build tree has its own cache.
+- Every Rust workflow sets `cache-workspace-crates: false`: a fresh
+  checkout gives every source file a new mtime, and Cargo rebuilds a path
+  crate whose sources are newer than its build, so a cached copy only
+  spends the repository's 10 GB cache.
 - An Actions cache key cannot be overwritten, so every restore is a prefix
   match and a job that compiled a tree saves under its own run key.
 - `claude-review.yml` and `claude.yml` pin the model, because the action

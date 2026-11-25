@@ -114,8 +114,7 @@ async fn a_change_before_the_retry_delay_has_passed_does_not_retry_a_failed_remo
 
     tokio::time::sleep(crate::session::staged::RETRY_DELAY).await;
     rig.send(SessionIntent::ClearAll).await;
-    crate::test_cases::support::poll::until_true("the removal is retried", || attempts() == 2)
-        .await;
+    abb_test_fixtures::poll::until_true("the removal is retried", || attempts() == 2).await;
 }
 
 #[tokio::test(start_paused = true)]
@@ -133,8 +132,7 @@ async fn a_failed_removal_is_retried_after_the_delay_with_no_other_change() {
     assert_eq!(attempts(), 1);
 
     tokio::time::sleep(crate::session::staged::RETRY_DELAY * 2).await;
-    crate::test_cases::support::poll::until_true("the removal is retried", || attempts() == 2)
-        .await;
+    abb_test_fixtures::poll::until_true("the removal is retried", || attempts() == 2).await;
 }
 
 #[tokio::test(start_paused = true)]

@@ -4,10 +4,10 @@ use std::path::{Path, PathBuf};
 use super::super::cover_address;
 use super::super::working_set::TitlesSnapshot;
 use super::{CoverNotice, SessionState};
-use crate::audio::AudioFile;
-use crate::errors::{AppError, AppErrorEnvelope};
-use crate::metadata::{MetadataIntentPatch, PatchOp};
 use crate::session::tag_cache::ReadTicket;
+use abb_media_pipeline::audio::AudioFile;
+use abb_media_pipeline::errors::{AppError, AppErrorEnvelope};
+use abb_media_pipeline::metadata::{MetadataIntentPatch, PatchOp};
 
 #[derive(Debug, Default)]
 pub(super) struct Cover {

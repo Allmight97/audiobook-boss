@@ -1,6 +1,6 @@
 use super::*;
-use crate::test_cases::support::fs_listing::files_under;
 use abb_audible_core::{AcquisitionStrategy, DecryptKind};
+use abb_test_fixtures::fs_listing::files_under;
 use secrecy::ExposeSecret;
 use serde_json::json;
 
@@ -299,7 +299,7 @@ impl FinalizeFixture {
     fn new() -> Self {
         let root = tempfile::TempDir::new().expect("temp root");
         let audio = root.path().join("Book.m4b");
-        crate::test_cases::media_fixtures::write_complete_frame_aac(&audio, 440);
+        abb_test_fixtures::media::write_complete_frame_aac(&audio, 440);
         Self {
             root,
             audio,

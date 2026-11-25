@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use crate::work_runtime::{ChildJobStatus, OperationId, WorkOperationStatus};
 
 use super::integration_session_desk::Desk;
-use super::log_capture;
-use crate::output_artifact::lock_output_file;
+use abb_media_pipeline::output_artifact::lock_output_file;
+use abb_test_fixtures::log_capture;
 
 fn job_records(operation: &OperationId) -> Vec<String> {
     let marker = format!(" operation_id={} ", operation.as_str());

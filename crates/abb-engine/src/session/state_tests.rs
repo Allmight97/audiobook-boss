@@ -3,9 +3,6 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use super::*;
-use crate::audio::{AudioFile, AudioIntent, TitleAudioRequest};
-use crate::errors::AppError;
-use crate::metadata::PatchOp;
 use crate::session::cover_address::{tests::host_request, CoverRequest};
 use crate::session::exports::OutputEdits;
 use crate::session::metadata_form::{FieldAction, FieldSnapshot, MetadataField, SeriesPartWarning};
@@ -14,6 +11,9 @@ use crate::session::submission::{SubmissionStatus, SubmitRefusal};
 use crate::session::tag_cache::ReadTicket;
 use crate::session::working_set::SelectionModifiers;
 use crate::work_runtime::ChildJobStatus;
+use abb_media_pipeline::audio::{AudioFile, AudioIntent, TitleAudioRequest};
+use abb_media_pipeline::errors::AppError;
+use abb_media_pipeline::metadata::PatchOp;
 
 const ONE: SelectionModifiers = SelectionModifiers {
     multi: false,
@@ -36,7 +36,7 @@ fn audio_file(name: &str, valid: bool) -> AudioFile {
 }
 
 fn audio_request() -> TitleAudioRequest {
-    TitleAudioRequest::default_m4b(AudioIntent::Auto)
+    crate::test_cases::support::audio::default_m4b(AudioIntent::Auto)
 }
 
 fn written_batch(items: &[SaveItem]) -> WriteBatch {

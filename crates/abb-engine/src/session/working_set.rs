@@ -3,11 +3,11 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::audio::{AudioFile, TitleAudioRequest};
-use crate::errors::AppErrorEnvelope;
-use crate::metadata::{CueChoice, CueStatus, MetadataIntentPatch, PatchOp};
 use crate::metadata_save::Rewrite;
-use crate::natural_order::natural_cmp;
+use abb_media_pipeline::audio::{AudioFile, TitleAudioRequest};
+use abb_media_pipeline::errors::AppErrorEnvelope;
+use abb_media_pipeline::metadata::{CueChoice, CueStatus, MetadataIntentPatch, PatchOp};
+use abb_media_pipeline::natural_order::natural_cmp;
 
 use super::title_status;
 use super::title_totals::{title_totals, PreviewLength, TitleTotals};
@@ -45,7 +45,7 @@ pub enum InputNotice {
     },
     DuplicatesOnly,
     SkippedPaths {
-        skipped: Vec<crate::audio::SkippedImportPath>,
+        skipped: Vec<abb_media_pipeline::audio::SkippedImportPath>,
     },
     AnalysisFailed {
         error: AppErrorEnvelope,

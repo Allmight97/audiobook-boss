@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { analyzeDevLog, renderDevLogAnalysis, stripAnsi } from './dev-log-analysis';
 
-const APP_START =
-	'[2026-07-10T15:15:21Z INFO  audiobook_boss_lib] Starting AudioBook Boss application';
+const APP_START = '[2026-07-10T15:15:21Z INFO  audiobook_boss] Starting AudioBook Boss application';
 
 describe('analyzeDevLog', () => {
 	it('classifies a completed operation and job as clean', () => {
@@ -202,7 +201,7 @@ describe('analyzeDevLog', () => {
 
 	it('degrades on actionable backend warnings', () => {
 		const analysis = analyzeDevLog(
-			`${APP_START}\n[WARN audiobook_boss_lib] output_parent_cleanup status=terminal_cleanup_err err=permission denied`,
+			`${APP_START}\n[WARN audiobook_boss] output_parent_cleanup status=terminal_cleanup_err err=permission denied`,
 			'',
 			0,
 		);
@@ -217,7 +216,7 @@ describe('analyzeDevLog', () => {
 			[
 				APP_START,
 				'processing_job event=started operation_id=op-cancel job_id=job-cancel input_index=0 kind=processing_batch status=running',
-				'[WARN audiobook_boss_lib] processing_job event=terminal operation_id=op-cancel job_id=job-cancel input_index=0 kind=processing_batch status=cancelled elapsed_ms=12',
+				'[WARN audiobook_boss] processing_job event=terminal operation_id=op-cancel job_id=job-cancel input_index=0 kind=processing_batch status=cancelled elapsed_ms=12',
 			].join('\n'),
 			'',
 			0,
@@ -339,7 +338,7 @@ describe('analyzeDevLog', () => {
 
 	it('ignores unstructured output_plan warning lines', () => {
 		const analysis = analyzeDevLog(
-			`${APP_START}\n[WARN audiobook_boss_lib] output_plan source canonicalization failed path=/tmp/book.m4b error=permission denied`,
+			`${APP_START}\n[WARN audiobook_boss] output_plan source canonicalization failed path=/tmp/book.m4b error=permission denied`,
 			'',
 			0,
 		);
@@ -413,7 +412,7 @@ describe('analyzeDevLog', () => {
 			[
 				APP_START,
 				'processing_job event=started operation_id=op-apple job_id=job-apple input_index=0 kind=processing_batch status=running',
-				'[WARN audiobook_boss_lib] processing_job event=terminal operation_id=op-apple job_id=job-apple input_index=0 kind=processing_batch status=cancelled elapsed_ms=12',
+				'[WARN audiobook_boss] processing_job event=terminal operation_id=op-apple job_id=job-apple input_index=0 kind=processing_batch status=cancelled elapsed_ms=12',
 			].join('\n'),
 			[
 				'--- in-process-encoder run 1 ---',

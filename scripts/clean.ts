@@ -8,16 +8,19 @@ const USAGE = `Usage: bun run clean [--all]
   (no flag)  Remove build output and machine-written logs. Keeps the FFmpeg cache.
   --all      Also remove the FFmpeg cache and node_modules.
              bash scripts/setup.sh restores them.
-  --auto     Remove target/debug when it is over budget and no running process
-             uses it, and keep the newest verification runs. verify.sh and
-             app:dev:log run this.
+  --auto     When target/debug is over 14 GB and no running process uses it,
+             remove the frequently rebuilt workspace crates from it
+             (cargo clean -p) and keep third-party builds; remove all of
+             target/debug if it is still over 14 GB. Keep the newest
+             verification runs. verify.sh and app:dev:log run this.
 
 Other folders under .logs/ and verification receipts always stay.`;
 
 const FFMPEG_DIRS = new Set(['abb-ffmpeg-cache', 'abb-ffmpeg-source', 'abb-ffmpeg-upstream']);
 const BUILD_OUTPUT = ['dist', 'node_modules/.vite'];
 
-const DEBUG_BUDGET_KB = 25 * 1024 * 1024;
+const DEBUG_BUDGET_KB = 14 * 1024 * 1024;
+const WORKSPACE_PACKAGES = ['abb-media-pipeline', 'abb-engine', 'audiobook-boss'];
 export const KEPT_RUNS = 5;
 
 function remove(root: string, relative: string): void {
@@ -132,10 +135,34 @@ function sizeKb(directory: string): number {
 	return size;
 }
 
+type CleanWorkspace = (root: string) => void;
+
+const cargoCleanWorkspace: CleanWorkspace = (root) => {
+	const packages = WORKSPACE_PACKAGES.flatMap((name) => ['-p', name]);
+	const result = spawnSync('cargo', ['clean', '--locked', '--profile', 'dev', ...packages], {
+		cwd: root,
+		encoding: 'utf8',
+	});
+	if (result.error) throw new Error(`cargo clean could not start: ${result.error.message}`);
+	if (result.status !== 0)
+		throw new Error(`cargo clean failed (exit ${result.status}): ${result.stderr.trim()}`);
+};
+
+interface AutoCleanOptions {
+	budgetKb?: number;
+	openPaths?: OpenPaths;
+	cleanWorkspace?: CleanWorkspace;
+}
+
+const gigabytes = (kb: number) => Math.round(kb / (1024 * 1024));
+
 export function autoClean(
 	root: string,
-	budgetKb: number = DEBUG_BUDGET_KB,
-	openPaths: OpenPaths = systemOpenPaths,
+	{
+		budgetKb = DEBUG_BUDGET_KB,
+		openPaths = systemOpenPaths,
+		cleanWorkspace = cargoCleanWorkspace,
+	}: AutoCleanOptions = {},
 ): string[] {
 	const { verification, verifyAbb } = runsOldestFirst(root);
 	const removed = [verification, verifyAbb].flatMap((runs) => runs.slice(0, -KEPT_RUNS));
@@ -146,8 +173,7 @@ export function autoClean(
 	if (!existsSync(debug)) return notes;
 	const size = sizeKb(debug);
 	if (size <= budgetKb) return notes;
-	const gigabytes = Math.round(size / (1024 * 1024));
-	const stays = `target/debug is ${gigabytes} GB, but it stays`;
+	const stays = `target/debug is ${gigabytes(size)} GB, but it stays`;
 	let busy: string | undefined;
 	try {
 		busy = busyPath(debug, openPaths);
@@ -161,8 +187,21 @@ export function autoClean(
 			`${stays}: a running process uses ${path.relative(realpathSync(root), busy)}.`,
 		];
 	}
+	try {
+		cleanWorkspace(root);
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : String(error);
+		return [...notes, `${stays}: ${reason}.`];
+	}
+	const after = existsSync(debug) ? sizeKb(debug) : 0;
+	const cleaned = `Removed ABB's frequently rebuilt crates from target/debug (${gigabytes(size)} GB to ${gigabytes(after)} GB).`;
+	if (after <= budgetKb) return [...notes, cleaned];
 	remove(root, 'target/debug');
-	return [...notes, `Removed target/debug (${gigabytes} GB). The next build recompiles Rust.`];
+	return [
+		...notes,
+		cleaned,
+		`Removed target/debug, still over ${gigabytes(budgetKb)} GB. The next build recompiles all Rust.`,
+	];
 }
 
 function main(): number {

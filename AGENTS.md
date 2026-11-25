@@ -57,8 +57,9 @@ simpler design.
   contract change updates its owner, callers, and focused proof; pause when a
   consequential choice or data-loss risk is unresolved.
 - Working-session and settings truth live in `abb-engine`, and new product
-  rules go there. The Tauri host and the frontend send intents and render
-  snapshots; a rule added there is a second copy no engine test can prove.
+  rules go in the engine-tier crates (`abb-engine` and `abb-media-pipeline`).
+  The Tauri host and the frontend send intents and render snapshots; a rule
+  added there is a second copy no engine test can prove.
   A provider's protocol rules (Audible license keys, strategy) live in its
   own core, never in `abb-remote-source-core`.
 - ABB ships one Tauri host and this UI, for macOS and Linux. Windows has no

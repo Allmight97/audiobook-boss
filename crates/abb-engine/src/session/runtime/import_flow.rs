@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
 use super::{blocking, Bound, Rest, Session};
-use crate::audio;
-use crate::audio::AudioFile;
-use crate::errors::{AppErrorEnvelope, Result};
 use crate::session::intent::SessionOutcome;
 use crate::session::state::SessionState;
 use crate::session::working_set::InputNotice;
+use abb_media_pipeline::audio;
+use abb_media_pipeline::audio::AudioFile;
+use abb_media_pipeline::errors::{AppErrorEnvelope, Result};
 
 impl Session {
     fn import_failed(&self, notice: InputNotice) -> SessionOutcome {

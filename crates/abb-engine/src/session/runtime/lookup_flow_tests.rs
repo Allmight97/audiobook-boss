@@ -21,8 +21,10 @@ async fn lookup_queues_the_selected_titles_and_searches_for_the_first() {
     rig.load(&["alpha", "beta"]);
     rig.select(&[0, 1]).await;
     rig.session.transition(|state| {
-        let saved = crate::metadata::MetadataIntentPatch {
-            title: Some(crate::metadata::PatchOp::Set("Listed Name".to_string())),
+        let saved = abb_media_pipeline::metadata::MetadataIntentPatch {
+            title: Some(abb_media_pipeline::metadata::PatchOp::Set(
+                "Listed Name".to_string(),
+            )),
             ..Default::default()
         };
         state.working_set.note_saved_names(&path("alpha"), &saved);

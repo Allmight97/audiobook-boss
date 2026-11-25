@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use super::*;
-use crate::audio::{
+use abb_media_pipeline::audio::{
     AudiobookFormat, EncoderSettings, OutputAudio, SampleRateConfig, TitleAudioPlan,
 };
-use crate::metadata::{CueSource, CueStatus};
+use abb_media_pipeline::metadata::{CueSource, CueStatus};
 
 fn source(name: &str, seconds: f64, bytes: f64) -> AudioFile {
     let mut file = AudioFile::new(PathBuf::from(format!("/books/{name}.m4b")));

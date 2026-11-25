@@ -5,9 +5,9 @@ use super::super::lookup::{
     LookupSnapshot, LookupSource, LookupStatus, QueueStep,
 };
 use super::SessionState;
-use crate::metadata::AudiobookMetadata;
 use crate::metadata_lookup::{MetadataLookupResponse, MetadataSource, OnlineMetadataResult};
 use crate::session::working_set::SelectionModifiers;
+use abb_media_pipeline::metadata::AudiobookMetadata;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct QueuedTitle {
@@ -214,7 +214,7 @@ impl LookupState {
     fn finish_search(
         &mut self,
         after: Option<QueueStep>,
-        response: crate::errors::Result<MetadataLookupResponse>,
+        response: abb_media_pipeline::errors::Result<MetadataLookupResponse>,
         elapsed: std::time::Duration,
     ) {
         match response {
@@ -337,7 +337,7 @@ impl SessionState {
         &mut self,
         request: u64,
         after: Option<QueueStep>,
-        response: crate::errors::Result<MetadataLookupResponse>,
+        response: abb_media_pipeline::errors::Result<MetadataLookupResponse>,
         elapsed: std::time::Duration,
     ) -> Option<()> {
         self.lookup

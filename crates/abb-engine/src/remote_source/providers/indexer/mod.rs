@@ -5,13 +5,13 @@ mod prowlarr;
 use secrecy::SecretString;
 
 use crate::app_settings::IndexerConnection;
-use crate::errors::{AppError, Result};
 use crate::remote_source::types::{
     ProviderId, RemoteAccountStatus, RemoteIndexerConnectionUpdate, RemoteRelease,
     RemoteReleaseGrabRequest, RemoteReleaseGrabResponse, RemoteReleaseSearchRequest,
     RemoteReleaseSearchResponse, RemoteSourceAccountState, RemoteSourceProviderCapabilities,
 };
 use crate::remote_source::vault::{account_message, SecretVault};
+use abb_media_pipeline::errors::{AppError, Result};
 
 use connection::{api_key_configured, apply_key_change, configured_connection, draft_credentials};
 use prowlarr::{build_search_params, ProwlarrSearchOutcome};

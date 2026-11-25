@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use crate::metadata::{AudiobookMetadata, MetadataIntentPatch};
+use abb_media_pipeline::metadata::{AudiobookMetadata, MetadataIntentPatch};
 
 #[derive(Debug)]
 pub(crate) struct ReadTicket {

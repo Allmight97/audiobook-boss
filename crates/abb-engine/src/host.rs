@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use crate::app_settings::SettingsSnapshot;
-use crate::power::{ActiveWork, PowerManager};
 use crate::session::SessionUpdate;
 use crate::work_runtime::WorkOperationsUpdate;
+use abb_media_pipeline::power::{ActiveWork, PowerManager};
 
 #[expect(
     clippy::large_enum_variant,
@@ -44,5 +44,9 @@ impl Host {
 
     pub(crate) fn begin_active_work(&self) -> ActiveWork {
         self.power.begin()
+    }
+
+    pub(crate) fn power(&self) -> PowerManager {
+        self.power.clone()
     }
 }

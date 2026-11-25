@@ -28,19 +28,19 @@ dependencies = [
  "abb-audible-core",
  "abb-ffmpeg",
  "abb-media-core",
+ "abb-media-pipeline",
  "abb-metadata-core",
  "abb-output-artifact-core",
  "abb-processing-core",
  "abb-remote-source-core",
+ "abb-test-fixtures",
  "aes",
  "apple-native-keyring-store",
  "aws-lc-rs",
  "base64 0.23.1",
  "bogon",
  "cbc",
- "faac-sys",
  "image",
- "keepawake",
  "keyring-core",
  "linux-keyutils-keyring-store",
  "log",
@@ -58,7 +58,6 @@ dependencies = [
  "specta",
  "specta-typescript",
  "tempfile",
- "thiserror 2.0.21",
  "tokio",
  "tokio-rustls",
  "tokio-util",
@@ -85,6 +84,34 @@ dependencies = [
  "serde",
  "sha2 0.11.1",
  "specta",
+]
+
+[[package]]
+name = "abb-media-pipeline"
+version = "0.1.0"
+dependencies = [
+ "abb-ffmpeg",
+ "abb-media-core",
+ "abb-metadata-core",
+ "abb-output-artifact-core",
+ "abb-processing-core",
+ "abb-test-fixtures",
+ "base64 0.23.1",
+ "faac-sys",
+ "image",
+ "keepawake",
+ "log",
+ "mp4ameta",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "specta",
+ "specta-typescript",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
+ "uuid",
 ]
 
 [[package]]
@@ -121,6 +148,16 @@ dependencies = [
  "serde",
  "specta",
  "specta-typescript",
+]
+
+[[package]]
+name = "abb-test-fixtures"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "log",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

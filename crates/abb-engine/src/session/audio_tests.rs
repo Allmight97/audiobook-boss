@@ -1,7 +1,7 @@
 use super::*;
-use crate::audio::{AudioPlanField, ChannelConfig, SampleRateConfig};
-use crate::processing::AudioHandling;
 use crate::session::audio_choice::AudioChoice;
+use abb_media_pipeline::audio::{AudioPlanField, ChannelConfig, SampleRateConfig};
+use abb_media_pipeline::processing::AudioHandling;
 
 fn title(choice: AudioChoice, plan: TitlePlan) -> TitleAudio {
     let view = AudioChoiceView {
@@ -14,7 +14,7 @@ fn title(choice: AudioChoice, plan: TitlePlan) -> TitleAudio {
 
 fn resolved(sample_rate: u32, channels: u8) -> TitlePlan {
     TitlePlan::Resolved {
-        plan: crate::audio::TitleAudioPlan {
+        plan: abb_media_pipeline::audio::TitleAudioPlan {
             format: AudiobookFormat::M4b,
             handling: AudioHandling::Preserve,
             sample_rate,

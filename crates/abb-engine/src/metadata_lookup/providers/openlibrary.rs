@@ -1,4 +1,4 @@
-use crate::errors::{AppError, Result};
+use abb_media_pipeline::errors::{AppError, Result};
 use reqwest::Client;
 use serde::Deserialize;
 

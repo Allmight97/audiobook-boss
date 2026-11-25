@@ -66,47 +66,53 @@ describe('check-known-mistakes', () => {
 
 	it('sends every output header through its owner', () => {
 		expect(
-			found('crates/abb-engine/src/metadata/remux.rs', '    octx.write_header_with(options)'),
+			found(
+				'crates/abb-media-pipeline/src/metadata/remux.rs',
+				'    octx.write_header_with(options)',
+			),
 		).toHaveLength(1);
 		expect(
-			found('crates/abb-engine/src/audio/processor/merge.rs', 'output.write_header()?;'),
+			found('crates/abb-media-pipeline/src/audio/processor/merge.rs', 'output.write_header()?;'),
 		).toHaveLength(1);
 		expect(
-			found('crates/abb-engine/src/audio/output_header.rs', 'octx.write_header_with(options)?;'),
+			found(
+				'crates/abb-media-pipeline/src/audio/output_header.rs',
+				'octx.write_header_with(options)?;',
+			),
 		).toEqual([]);
 		expect(
-			found('crates/abb-engine/src/metadata/remux.rs', 'write_output_header(octx, options)'),
+			found(
+				'crates/abb-media-pipeline/src/metadata/remux.rs',
+				'write_output_header(octx, options)',
+			),
 		).toEqual([]);
 	});
 
 	it('keeps engine owners inside their boundaries', () => {
 		expect(
-			found('crates/abb-engine/src/metadata/save.rs', 'use crate::audio::AudioFile;'),
+			found('crates/abb-media-pipeline/src/metadata/save.rs', 'use crate::audio::AudioFile;'),
 		).toHaveLength(1);
 		expect(
 			found(
-				'crates/abb-engine/src/metadata/save.rs',
+				'crates/abb-media-pipeline/src/metadata/save.rs',
 				'use crate::audio::{AudioIntent, AudioFile};',
 			),
 		).toHaveLength(1);
 		expect(
-			found('crates/abb-engine/src/metadata/save.rs', 'use crate::audio::AudioIntent;'),
+			found('crates/abb-media-pipeline/src/metadata/save.rs', 'use crate::audio::AudioIntent;'),
 		).toEqual([]);
 		expect(
 			found(
-				'crates/abb-engine/src/audio/processor/finalize.rs',
+				'crates/abb-media-pipeline/src/audio/processor/finalize.rs',
 				'use crate::processing::ProcessingContext;',
 			),
 		).toHaveLength(1);
 		expect(
 			found(
-				'crates/abb-engine/src/audio/processor/finalize.rs',
+				'crates/abb-media-pipeline/src/audio/processor/finalize.rs',
 				'use crate::execution::ProcessingContext;',
 			),
 		).toEqual([]);
-		expect(
-			found('crates/abb-engine/src/processing/run.rs', 'use crate::remote_source::RemoteTitle;'),
-		).toHaveLength(1);
 		expect(
 			found('crates/abb-engine/src/session/state.rs', 'use crate::remote_source::RemoteTitle;'),
 		).toEqual([]);
@@ -122,18 +128,18 @@ describe('check-known-mistakes', () => {
 	});
 
 	it('keeps final artifact moves inside output_artifact', () => {
-		const processor = 'crates/abb-engine/src/audio/processor/finalize.rs';
+		const processor = 'crates/abb-media-pipeline/src/audio/processor/finalize.rs';
 		expect(found(processor, '\tstd::fs::copy(&staged, &final_path)?;')).toEqual([
 			expect.stringMatching(/^1: `fs::copy` moves a file outside the output artifact boundary/),
 		]);
 		expect(found(processor, '\ttokio::fs::hard_link(a, b).await?;')).toHaveLength(1);
 		expect(found(processor, '\tlet name = "fs::rename";\n\t// fs::copy')).toEqual([]);
 		expect(
-			found('crates/abb-engine/src/audio/processor/finalize_tests.rs', 'fs::copy(a, b)?;'),
+			found('crates/abb-media-pipeline/src/audio/processor/finalize_tests.rs', 'fs::copy(a, b)?;'),
 		).toEqual([]);
-		expect(found('crates/abb-engine/src/output_artifact/commit.rs', 'fs::copy(a, b)?;')).toEqual(
-			[],
-		);
+		expect(
+			found('crates/abb-media-pipeline/src/output_artifact/commit.rs', 'fs::copy(a, b)?;'),
+		).toEqual([]);
 	});
 
 	it('keeps file I/O out of the session state modules', () => {
@@ -276,9 +282,9 @@ describe('check-known-mistakes', () => {
 		expect(
 			found('crates/abb-media-core/src/lib_tests.rs', 'let bytes = std::fs::read(path)?;'),
 		).toEqual([]);
-		expect(found('crates/abb-engine/src/audio/x.rs', 'let bytes = std::fs::read(path)?;')).toEqual(
-			[],
-		);
+		expect(
+			found('crates/abb-media-pipeline/src/audio/x.rs', 'let bytes = std::fs::read(path)?;'),
+		).toEqual([]);
 		expect(
 			found('crates/abb-remote-source-core/src/lib.rs', 'pub fn audible_region() {}'),
 		).toHaveLength(1);
@@ -301,10 +307,16 @@ describe('check-known-mistakes', () => {
 			1,
 		);
 		expect(
-			found('crates/abb-engine/src/metadata/mod.rs', declare('#[path = "metadata_tests.rs"]')),
+			found(
+				'crates/abb-media-pipeline/src/metadata/mod.rs',
+				declare('#[path = "metadata_tests.rs"]'),
+			),
 		).toEqual([]);
 		expect(
-			found('crates/abb-engine/src/processing/job_registry/mod.rs', '#[cfg(test)]\nmod tests;'),
+			found(
+				'crates/abb-media-pipeline/src/processing/job_registry/mod.rs',
+				'#[cfg(test)]\nmod tests;',
+			),
 		).toEqual([]);
 		expect(
 			found('crates/abb-engine/src/bin/abb_dev.rs', declare('#[path = "abb_dev/tests.rs"]')),
@@ -431,7 +443,9 @@ describe('check-known-mistakes', () => {
 		);
 		expect(found('crates/abb-engine/src/x.rs', 'proptest! {\n    fn p() {}\n}')).toHaveLength(1);
 		expect(found('crates/abb-engine/src/session/state_tests.rs', inline)).toEqual([]);
-		expect(found('crates/abb-engine/src/processing/job_registry/tests.rs', inline)).toEqual([]);
+		expect(found('crates/abb-media-pipeline/src/processing/job_registry/tests.rs', inline)).toEqual(
+			[],
+		);
 		expect(found('crates/abb-engine/src/test_cases/unit_x.rs', inline)).toEqual([]);
 		expect(found('crates/abb-engine/tests/all_tests.rs', inline)).toEqual([]);
 		expect(found('crates/abb-engine/src/x.rs', '// #[test]\nlet s = "#[test]";')).toEqual([]);
@@ -442,14 +456,20 @@ describe('check-known-mistakes', () => {
 		expect(found('crates/abb-engine/src/session/state.rs', block)).toEqual([
 			expect.stringMatching(/^1: `unsafe \{` is unsafe in the engine/),
 		]);
-		expect(found('crates/abb-engine/src/metadata/remux.rs', block)).toHaveLength(1);
-		expect(found('crates/abb-engine/src/audio/buffer.rs', block)).toHaveLength(1);
+		expect(found('crates/abb-media-pipeline/src/metadata/remux.rs', block)).toHaveLength(1);
+		expect(found('crates/abb-media-pipeline/src/audio/buffer.rs', block)).toHaveLength(1);
 		expect(
 			found('crates/abb-engine/src/x.rs', 'pub unsafe fn f() {}\nunsafe impl Send for X {}'),
 		).toHaveLength(2);
-		expect(found('crates/abb-engine/src/audio/processor/encoder/faac.rs', block)).toEqual([]);
-		expect(found('crates/abb-engine/src/audio/processor/faad_decoder.rs', block)).toEqual([]);
-		expect(found('crates/abb-engine/src/audio/processor/encoder/faac_tests.rs', block)).toEqual([]);
+		expect(found('crates/abb-media-pipeline/src/audio/processor/encoder/faac.rs', block)).toEqual(
+			[],
+		);
+		expect(found('crates/abb-media-pipeline/src/audio/processor/faad_decoder.rs', block)).toEqual(
+			[],
+		);
+		expect(
+			found('crates/abb-media-pipeline/src/audio/processor/encoder/faac_tests.rs', block),
+		).toEqual([]);
 		expect(found('crates/abb-media-core/src/lib.rs', block)).toEqual([]);
 		expect(
 			found(
@@ -485,28 +505,34 @@ describe('check-known-mistakes', () => {
 
 	it('keeps output artifact types out of the processing re-exports', () => {
 		expect(
-			found('crates/abb-engine/src/processing.rs', 'pub use crate::output_artifact::OutputPlan;'),
+			found(
+				'crates/abb-media-pipeline/src/processing.rs',
+				'pub use crate::output_artifact::OutputPlan;',
+			),
 		).toEqual([expect.stringMatching(/^1: .*re-exports output artifact types/)]);
 		expect(
 			found(
-				'crates/abb-engine/src/processing/run.rs',
+				'crates/abb-media-pipeline/src/processing/run.rs',
 				'pub(crate) use crate::{audio::X, output_artifact::Y};',
 			),
 		).toHaveLength(1);
 		expect(
 			found(
-				'crates/abb-engine/src/processing/run.rs',
+				'crates/abb-media-pipeline/src/processing/run.rs',
 				'pub(crate) use crate::{\n    audio::X,\n    output_artifact::{Y, Z},\n};',
 			),
 		).toEqual([expect.stringMatching(/^1: .*re-exports output artifact types/)]);
 		expect(
 			found(
-				'crates/abb-engine/src/processing.rs',
+				'crates/abb-media-pipeline/src/processing.rs',
 				'// pub use crate::output_artifact::OutputPlan;',
 			),
 		).toEqual([]);
 		expect(
-			found('crates/abb-engine/src/processing.rs', 'use crate::output_artifact::OutputPlan;'),
+			found(
+				'crates/abb-media-pipeline/src/processing.rs',
+				'use crate::output_artifact::OutputPlan;',
+			),
 		).toEqual([]);
 		expect(
 			found('crates/abb-engine/src/session.rs', 'pub use crate::output_artifact::OutputPlan;'),
@@ -528,7 +554,7 @@ describe('check-known-mistakes', () => {
 	});
 
 	it('keeps FFmpeg format name comparisons in the two classifiers', () => {
-		const file = 'crates/abb-engine/src/audio/file_list.rs';
+		const file = 'crates/abb-media-pipeline/src/audio/file_list.rs';
 		expect(
 			found(file, '    if !input.format_name().split(\',\').any(|name| name == "mp4") {'),
 		).toEqual([expect.stringMatching(/^1: .*compares an FFmpeg format or muxer name/)]);
@@ -544,18 +570,21 @@ describe('check-known-mistakes', () => {
 		expect(found(file, '    // name == "mp4"')).toEqual([]);
 		expect(
 			found(
-				'crates/abb-engine/src/metadata/container.rs',
+				'crates/abb-media-pipeline/src/metadata/container.rs',
 				'            "matroska" => Container::Matroska,',
 			),
 		).toEqual([]);
 		expect(
 			found(
-				'crates/abb-engine/src/audio/format.rs',
+				'crates/abb-media-pipeline/src/audio/format.rs',
 				'    name.split(\',\').any(|alias| alias == "mp4")',
 			),
 		).toEqual([]);
 		expect(
-			found('crates/abb-engine/src/audio/file_list_tests.rs', '    assert!(name == "matroska");'),
+			found(
+				'crates/abb-media-pipeline/src/audio/file_list_tests.rs',
+				'    assert!(name == "matroska");',
+			),
 		).toEqual([]);
 	});
 

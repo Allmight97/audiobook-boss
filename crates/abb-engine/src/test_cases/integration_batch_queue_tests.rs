@@ -1,10 +1,10 @@
 use std::fs;
 
 use crate::app_settings::{ConcurrencyPreference, SettingsIntent};
-use crate::output_artifact::lock_output_file;
 use crate::session::{MetadataField, SelectionModifiers, SessionIntent};
 use crate::work_runtime::{ChildCounts, ChildJobStatus, OperationId, OperationSnapshot};
 use crate::ShutdownOutcome;
+use abb_media_pipeline::output_artifact::lock_output_file;
 
 use super::integration_session_desk::Desk;
 

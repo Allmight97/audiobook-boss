@@ -8,8 +8,8 @@ use super::super::output::{OutputPlan, OutputPreview, OutputSnapshot};
 use super::super::working_set::{SelectionSnapshot, TitlesSnapshot, WorkingSet};
 use super::lookup::LookupState;
 use super::{CoverSnapshot, MetadataSnapshot, SessionState, SessionUpdate, TagPreview};
-use crate::audio::{AudioFile, TitleAudioRequest};
-use crate::metadata::{processing_album_sort, AudiobookMetadata};
+use abb_media_pipeline::audio::{AudioFile, TitleAudioRequest};
+use abb_media_pipeline::metadata::{processing_album_sort, AudiobookMetadata};
 
 pub(super) struct Parts {
     revision: u64,

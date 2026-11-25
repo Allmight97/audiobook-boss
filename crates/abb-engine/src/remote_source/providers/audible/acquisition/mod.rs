@@ -16,7 +16,6 @@ use super::license::{
 use super::license_plan::{LicensePlan, LicenseReply};
 use super::materialization::materialize_protected_download;
 use crate::engine_tasks::EngineTasks;
-use crate::errors::Result;
 use crate::remote_source::job_state::{AcquisitionOutcome, TitlesOutcome};
 use crate::remote_source::scoped_output::ProvisionalCommittedFile;
 use crate::remote_source::staging;
@@ -27,6 +26,7 @@ use crate::remote_source::{
 };
 use abb_audible_core::AudibleDecryptionMaterial;
 use abb_audible_core::{title_ref, AudibleLicenseDecryptContext};
+use abb_media_pipeline::errors::Result;
 use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage};
 
 pub(super) enum AcquiredTitle {

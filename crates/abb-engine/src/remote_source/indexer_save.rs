@@ -4,8 +4,8 @@ use super::{
 use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::app_settings::{IndexerConnection, SettingsOutcome, SettingsRun};
-use crate::errors::{AppError, Result};
 use crate::remote_source::{IndexerProvider, ProviderId, RemoteSourceRuntime};
+use abb_media_pipeline::errors::{AppError, Result};
 
 pub(super) struct AcceptedSave {
     pub(super) revision: u64,

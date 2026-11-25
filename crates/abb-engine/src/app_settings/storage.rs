@@ -8,12 +8,12 @@ use crate::app_settings::{
     AcquisitionLane, AppSettings, ConcurrencyPreference, EncoderDefaults, IndexerConnection,
     OutputDefaults, PinnedDefaults, SettingsUnit, StartupBehavior,
 };
-use crate::audio::{
+use abb_media_pipeline::audio::{
     AacDecoder, AudioIntent, AudiobookFormat, BitrateMode, ChannelConfig, EncoderSettings,
     EncoderType, FaacProfile, SampleRateConfig,
 };
-use crate::errors::{AppError, Result};
-use crate::output_artifact::{NamingPreset, OutputNamingConfig};
+use abb_media_pipeline::errors::{AppError, Result};
+use abb_media_pipeline::output_artifact::{NamingPreset, OutputNamingConfig};
 
 const SETTINGS_FILE_NAME: &str = "settings.toml";
 
@@ -156,7 +156,10 @@ pub(super) fn set_aside(config_dir: &Path) -> io::Result<Option<String>> {
 pub(super) fn save(config_dir: &Path, settings: &AppSettings) -> Result<()> {
     let content = toml::to_string(&SavedSettings::from(settings))
         .map_err(|error| AppError::General(format!("Failed to write app settings: {error}")))?;
-    crate::file_replace::write_atomically(&settings_path(config_dir), content.as_bytes())?;
+    abb_media_pipeline::file_replace::write_atomically(
+        &settings_path(config_dir),
+        content.as_bytes(),
+    )?;
     Ok(())
 }
 

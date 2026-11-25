@@ -1,18 +1,20 @@
-use super::support::wav::SAMPLE_RATE;
+use abb_test_fixtures::wav::SAMPLE_RATE;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::audio::{AudioIntent, AudiobookFormat, EncoderType};
-use crate::metadata::{AudiobookMetadata, MetadataIntentPatch, PatchOp};
 use crate::session::{AudioEdit, CueChoice, MetadataField, SessionIntent, TitlePlan};
 use crate::work_runtime::WorkOperationStatus;
 use crate::ShutdownOutcome;
+use abb_media_pipeline::audio::{AudioIntent, AudiobookFormat, EncoderType};
+use abb_media_pipeline::metadata::{AudiobookMetadata, MetadataIntentPatch, PatchOp};
 
 use super::integration_session_desk::Desk;
-use super::media_fixtures::{
-    assert_ffprobe_tag, chapters_of, decode_pcm_f32, ffprobe_format_tags, write_sine_mp3,
+use super::media_fixtures::chapters_of;
+use super::media_fixtures::picture_codecs;
+use abb_test_fixtures::media::{
+    assert_ffprobe_tag, decode_pcm_f32, ffprobe_format_tags, write_sine_mp3,
 };
-use super::media_fixtures::{minimal_jpg_bytes, picture_codecs, timed_text_chapter_track};
+use abb_test_fixtures::media::{minimal_jpg_bytes, timed_text_chapter_track};
 
 fn encode_m4b() -> [AudioEdit; 3] {
     [
@@ -30,7 +32,7 @@ fn preserve() -> [AudioEdit; 2] {
 }
 
 fn tags(path: &Path) -> AudiobookMetadata {
-    crate::metadata::read_metadata(path).expect("read tags back")
+    abb_media_pipeline::metadata::read_metadata(path).expect("read tags back")
 }
 
 async fn plan_settled(desk: &Desk) -> TitlePlan {
@@ -149,8 +151,10 @@ async fn an_edited_grouped_title_exports_every_field_and_the_chosen_cover() {
     assert_eq!(
         read.cover_art,
         Some(
-            crate::metadata::optimize_cover_art(&fs::read(&png).expect("read cover image"))
-                .expect("optimize cover")
+            abb_media_pipeline::metadata::optimize_cover_art(
+                &fs::read(&png).expect("read cover image")
+            )
+            .expect("optimize cover")
         )
     );
     let chapters = chapters_of(&out);
@@ -196,7 +200,7 @@ async fn cleared_cover_export(
             write_sine_mp3(&src, 0.5, 440.0);
         }
     }
-    crate::metadata::save_metadata_intent(
+    abb_media_pipeline::metadata::save_metadata_intent(
         &src,
         &MetadataIntentPatch {
             cover_art: Some(PatchOp::Set(minimal_jpg_bytes())),

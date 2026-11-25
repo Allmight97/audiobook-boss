@@ -1,7 +1,7 @@
 use super::http::AudibleRequestError;
-use crate::errors::AppError;
 use crate::remote_source::cancellation::remote_acquisition_cancelled;
 use crate::remote_source::{RemoteAcquisitionFailureKind, RemoteSourceDiagnostic};
+use abb_media_pipeline::errors::AppError;
 
 #[derive(Debug)]
 pub(super) struct AudibleAcquisitionError {

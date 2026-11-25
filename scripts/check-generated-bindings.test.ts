@@ -19,9 +19,10 @@ for (const exitCode of ['0', '7']) {
 					mode: 0o755,
 				});
 				writeFileSync(
-					path.join(root, 'bin/bun'),
+					path.join(root, 'bin/cargo'),
 					`#!/bin/bash
-out="\${3:-src/lib/generated/tauri.ts}"
+out="\${@: -1}"
+if [[ "$out" == "--" ]]; then out="src/lib/generated/tauri.ts"; fi
 printf 'generated content\\n' > "$out"
 exit ${exitCode}
 `,

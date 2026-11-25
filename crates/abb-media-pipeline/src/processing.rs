@@ -1,0 +1,28 @@
+mod job_registry;
+mod output_parent_cleanup;
+pub mod plan;
+mod plan_signature;
+pub use crate::execution::preview_config;
+pub mod run;
+mod terminal_outcomes;
+pub mod title_output;
+mod types;
+
+pub use abb_processing_core::{
+    classify_run_terminal, OperationKind, OperationResultSummary, RunTerminalClass,
+};
+pub use job_registry::MaxConcurrentJobsCapabilities;
+pub use title_output::{OutputUpdate, OutputUpdateStatus};
+pub use types::{
+    ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
+    ProcessingPreflightPlan, SupplementalProcessingAsset, TitleSource,
+};
+
+pub use crate::audio::AudioHandling;
+pub use crate::execution::{CancellationChecker, ProgressEventListener, PREVIEW_SECONDS};
+pub use crate::execution::{EventStage, ProgressEvent};
+pub(crate) use crate::execution::{
+    JobIdentity, OutputConfig, ProcessingContext, ProcessingSession,
+};
+pub use job_registry::{JobRegistry, RegisteredJob};
+pub use title_output::TitleOutput;

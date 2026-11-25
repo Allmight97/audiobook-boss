@@ -1,9 +1,9 @@
 use super::*;
-use crate::errors::AppError;
 use crate::metadata_lookup::{MetadataLookupResponse, MetadataSource, OnlineMetadataResult};
 use crate::session::lookup::{
     LookupApplyMode, LookupSnapshot, LookupSource, LookupStatus, QueueStep,
 };
+use abb_media_pipeline::errors::AppError;
 
 fn result(title: &str) -> OnlineMetadataResult {
     OnlineMetadataResult {

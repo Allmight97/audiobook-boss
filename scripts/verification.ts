@@ -50,22 +50,34 @@ interface Receipt extends Inputs {
 	observedAfter?: Inputs;
 }
 
+const isNegation = (pattern: string) => pattern.startsWith('!');
+
+export function laneMatcher(patterns: string[]): (file: string) => boolean {
+	const included = patterns.filter((pattern) => !isNegation(pattern));
+	if (included.length === 0) return () => false;
+	const ignore = patterns.filter(isNegation).map((pattern) => pattern.slice(1));
+	return picomatch(included, { dot: true, ignore });
+}
+
+export function unmappedPaths(map: LaneMap, lanes: string[], files: string[]): string[] {
+	const known = laneMatcher(
+		[...lanes.flatMap((lane) => map[lane] ?? []), ...(map['no-lane'] ?? [])].filter(
+			(pattern) => !isNegation(pattern),
+		),
+	);
+	return files.filter((file) => !known(file));
+}
+
 export function requiredLanes(
 	map: LaneMap,
 	lanes: string[],
 	files: string[],
 	exists: (file: string) => boolean,
 ): string[] {
-	const known = picomatch(
-		[...lanes.flatMap((lane) => map[lane] ?? []), ...(map['no-lane'] ?? [])].flat(
-			Number.POSITIVE_INFINITY,
-		),
-		{ dot: true },
-	);
-	const unmapped = files.filter((file) => exists(file) && !known(file));
+	const unmapped = unmappedPaths(map, lanes, files.filter(exists));
 	if (unmapped.length > 0) throw new Error(`Unmapped verification paths: ${unmapped.join(', ')}`);
 	return lanes.filter((lane) => {
-		const matches = picomatch(map[lane] ?? [], { dot: true });
+		const matches = laneMatcher(map[lane] ?? []);
 		return files.some((file) => matches(file));
 	});
 }
@@ -174,11 +186,13 @@ export interface PathChoice {
 
 export function explainPath(yaml: string, lanes: string[], file: string): PathChoice[] {
 	const map = laneMap(yaml, lanes);
-	const chosen = lanes.flatMap((lane) =>
-		(map[lane] ?? [])
-			.filter((pattern) => picomatch(pattern, { dot: true })(file))
-			.map((pattern) => ({ lane, pattern })),
-	);
+	const chosen = lanes
+		.filter((lane) => laneMatcher(map[lane] ?? [])(file))
+		.flatMap((lane) =>
+			(map[lane] ?? [])
+				.filter((pattern) => !isNegation(pattern) && picomatch(pattern, { dot: true })(file))
+				.map((pattern) => ({ lane, pattern })),
+		);
 	if (chosen.length > 0) return chosen;
 	const reasons = noLaneReasons(yaml);
 	return (map['no-lane'] ?? [])
@@ -368,7 +382,7 @@ export function toolingRatchetIdentity(root: string): { head: string; mergeBase:
 }
 
 function inputs(root: string, lane: string, { map, table }: Config): Inputs {
-	const matches = picomatch(map[lane] ?? [], { dot: true });
+	const matches = laneMatcher(map[lane] ?? []);
 	const common = new Set([
 		'scripts/verification.ts',
 		'scripts/verify.sh',

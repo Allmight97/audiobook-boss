@@ -100,6 +100,21 @@ fn start_engine(app: &tauri::App) -> abb_engine::Result<abb_engine::Engine> {
     })
 }
 
+const PRODUCTION_IDENTIFIER: &str = "com.audiobook-boss";
+
+fn refuses_production_identity(is_dev: bool, debug_build: bool, identifier: &str) -> bool {
+    (is_dev || debug_build) && identifier == PRODUCTION_IDENTIFIER
+}
+
+fn production_identity_refusal() -> String {
+    format!(
+        "This development build carries the installed app's identity \
+         ({PRODUCTION_IDENTIFIER}), so it would use your real settings, stored \
+         credentials, and output folder. Launch it with `bun run tauri dev`, \
+         or build the app with `bun run app:build`."
+    )
+}
+
 fn quit_with_startup_dialog(app: &tauri::App, title: &str, message: String) {
     if let Some(window) = app.get_webview_window("main") {
         if let Err(error) = window.hide() {
@@ -459,7 +474,16 @@ fn ask_to_quit(app: &tauri::AppHandle, running: &abb_engine::RunningWork) {
 
 pub fn run() {
     let context = tauri::generate_context!();
-    log_file::init_logger(&context.config().identifier);
+    let identity_refused = refuses_production_identity(
+        tauri::is_dev(),
+        cfg!(debug_assertions),
+        &context.config().identifier,
+    );
+    if identity_refused {
+        eprintln!("{}", production_identity_refusal());
+    } else {
+        log_file::init_logger(&context.config().identifier);
+    }
 
     log::info!("Starting AudioBook Boss application");
 
@@ -494,6 +518,14 @@ pub fn run() {
                 }
             }
             app.manage(commands::FrontendLink::default());
+            if identity_refused {
+                quit_with_startup_dialog(
+                    app,
+                    "Development build refused",
+                    production_identity_refusal(),
+                );
+                return Ok(());
+            }
             match start_engine(app) {
                 Ok(engine) => {
                     opened_files::import_held(app.handle(), &engine);

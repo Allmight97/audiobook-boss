@@ -4,7 +4,7 @@ harness_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${harness_dir}/../.." && pwd)"
 eval "$("${repo_root}/scripts/setup.sh" --print-env)"
 
-features=(layout crash)
+features=(corpus)
 if [[ $# -gt 0 ]]; then
 	features=("$@")
 fi

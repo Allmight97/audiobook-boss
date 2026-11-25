@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::errors::{AppError, Result};
+use abb_media_pipeline::errors::{AppError, Result};
 
 #[derive(Debug)]
 pub(crate) struct StagedTempFile {

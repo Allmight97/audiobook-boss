@@ -1,5 +1,7 @@
 use super::output_to_open;
-use crate::processing::{ProcessCommandResult, ProcessResultEntry, ProcessResultStatus};
+use abb_media_pipeline::processing::{
+    ProcessCommandResult, ProcessResultEntry, ProcessResultStatus,
+};
 
 fn result(entries: &[(ProcessResultStatus, &str)]) -> ProcessCommandResult {
     ProcessCommandResult::new(

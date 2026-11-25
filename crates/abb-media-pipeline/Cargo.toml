@@ -1,0 +1,45 @@
+[package]
+name = "abb-media-pipeline"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+publish = false
+
+[lib]
+doctest = false
+
+[dependencies]
+abb-media-core = { path = "../abb-media-core" }
+abb-metadata-core = { path = "../abb-metadata-core" }
+abb-output-artifact-core = { path = "../abb-output-artifact-core" }
+abb-processing-core = { path = "../abb-processing-core" }
+abb-ffmpeg = { path = "../abb-ffmpeg" }
+faac-sys = { path = "../../vendor/faac-sys" }
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
+mp4ameta = "0.13.0"
+serde = { version = "1.0.228", features = ["derive"] }
+thiserror = "2.0.18"
+tokio = { version = "1.53.3", features = ["fs", "macros", "rt", "sync"] }
+tokio-util = { version = "0.7.20", features = ["rt"] }
+uuid = { version = "1.28.0", features = ["v4"] }
+log = "0.4.29"
+specta.workspace = true
+specta-typescript.workspace = true
+
+[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
+keepawake = "0.6.1"
+
+[features]
+default = []
+bundled-ffmpeg = ["abb-ffmpeg/bundled-ffmpeg"]
+
+[dev-dependencies]
+abb-test-fixtures = { path = "../abb-test-fixtures" }
+tempfile = "3.27.0"
+sha2 = "0.11.1"
+base64 = "0.23.1"
+serde_json = "1.0.154"
+tokio = { version = "1.53.3", features = ["test-util"] }
+
+[lints]
+workspace = true

@@ -1,13 +1,15 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::audio::{AudioIntent, AudiobookFormat, ChannelConfig, EncoderType, SampleRateConfig};
 use crate::session::{AudioEdit, MetadataField, SessionIntent, SubmissionStatus, TitlePlan};
 use crate::work_runtime::WorkOperationStatus;
+use abb_media_pipeline::audio::{
+    AudioIntent, AudiobookFormat, ChannelConfig, EncoderType, SampleRateConfig,
+};
 
 use super::integration_session_desk::{submission, Desk};
-use super::media_fixtures::{audio_duration_ts, decode_pcm_f32, MediaLane};
-use super::media_fixtures::{audio_packet_bytes, ffmpeg, ffprobe};
+use super::media_fixtures::audio_packet_bytes;
+use abb_test_fixtures::media::{ffmpeg, ffprobe};
 
 fn stream_fact(path: &Path, entry: &str) -> String {
     let out = ffprobe([
@@ -22,49 +24,6 @@ fn stream_fact(path: &Path, entry: &str) -> String {
         path.to_str().expect("utf8"),
     ]);
     String::from_utf8(out).expect("utf8").trim().to_string()
-}
-
-fn exact_wav(path: &Path, rate: u32, samples: u64) {
-    ffmpeg([
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-f",
-        "lavfi",
-        "-i",
-        &format!("sine=frequency=440:sample_rate={rate}"),
-        "-af",
-        &format!("atrim=end_sample={samples}"),
-        "-c:a",
-        "pcm_s16le",
-        "-y",
-        path.to_str().expect("utf8"),
-    ]);
-}
-
-#[tokio::test]
-async fn a_native_aac_upsample_keeps_every_sample_of_the_book() {
-    let dir = tempfile::TempDir::new().expect("dir");
-    for (sources, rate, expected) in [
-        (vec![22_117_u64], 44_100_u32, 44_234_u64),
-        (vec![22_117, 11_003], 44_100, 66_240),
-        (vec![22_117], 48_000, 48_146),
-    ] {
-        let inputs: Vec<_> = sources
-            .iter()
-            .enumerate()
-            .map(|(i, n)| {
-                let p = dir.path().join(format!("{rate}-{}-{i}.wav", sources.len()));
-                exact_wav(&p, 22_050, *n);
-                p
-            })
-            .collect();
-        let lane = MediaLane::for_inputs(inputs).with_sample_rate(SampleRateConfig::Explicit(rate));
-        let output = lane.process(None).await;
-        assert_eq!(audio_duration_ts(&output), expected, "declared");
-        assert_eq!(decode_pcm_f32(&output).len() as u64, expected, "decoded");
-        assert!(lane.residual_workspace_dirs().is_empty());
-    }
 }
 
 fn stereo_pink_noise(path: &Path) {

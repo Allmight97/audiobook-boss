@@ -1,4 +1,4 @@
-use crate::errors::{AppError, Result};
+use abb_media_pipeline::errors::{AppError, Result};
 
 pub(in crate::remote_source) fn api_key_header_value(
     key: &str,

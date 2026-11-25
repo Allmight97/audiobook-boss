@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use super::super::exports::{OutputEdit, OutputEdits};
 use super::{MetadataStatus, SaveItem, SessionState, StageOutcome, WriteOutcome};
-use crate::errors::{AppErrorEnvelope, Result};
+use abb_media_pipeline::errors::{AppErrorEnvelope, Result};
 
 #[derive(Debug)]
 pub(crate) struct SavePlan {

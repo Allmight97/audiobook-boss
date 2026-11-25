@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
-use crate::audio::AudioFile;
-use crate::metadata::{join_chapters, JoinedSource};
-use crate::processing::preview_config::title_seconds;
-use crate::processing::PREVIEW_SECONDS;
+use abb_media_pipeline::audio::AudioFile;
+use abb_media_pipeline::metadata::{join_chapters, JoinedSource};
+use abb_media_pipeline::processing::preview_config::title_seconds;
+use abb_media_pipeline::processing::PREVIEW_SECONDS;
 
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

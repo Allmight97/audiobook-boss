@@ -52,8 +52,8 @@ async fn title_audio_edits_change_only_the_named_titles_and_not_while_locked() {
 
 #[tokio::test]
 async fn a_batch_audio_edit_applies_to_every_title_or_none() {
-    use crate::audio::{EncoderType, FaacProfile, SampleRateConfig};
     use crate::session::{AudioField, AudioRefusal};
+    use abb_media_pipeline::audio::{EncoderType, FaacProfile, SampleRateConfig};
 
     let rig = rig();
     rig.load(&["alpha", "beta"]);

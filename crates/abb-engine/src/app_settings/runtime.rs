@@ -9,11 +9,11 @@ use super::{
     EncoderDefaults, IndexerConnection, LatestEdit, OutputDefaults, PinnedDefaults,
     SettingsRecovery, StartupBehavior,
 };
-use crate::audio::AacDecoder;
-use crate::errors::{AppError, AppErrorEnvelope};
-use crate::power::PowerManager;
-use crate::processing::{JobRegistry, MaxConcurrentJobsCapabilities};
 use crate::ManagedJobRegistry;
+use abb_media_pipeline::audio::AacDecoder;
+use abb_media_pipeline::errors::{AppError, AppErrorEnvelope};
+use abb_media_pipeline::power::PowerManager;
+use abb_media_pipeline::processing::{JobRegistry, MaxConcurrentJobsCapabilities};
 
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -176,7 +176,7 @@ impl State {
         &mut self,
         set_aside_first: bool,
         kept: Option<String>,
-        saved: crate::errors::Result<()>,
+        saved: abb_media_pipeline::errors::Result<()>,
     ) {
         let kept_aside = kept.is_some();
         let kept = kept.or_else(|| self.persistence.kept());

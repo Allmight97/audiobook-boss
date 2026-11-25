@@ -28,9 +28,12 @@
 - Clippy still typechecks the FFmpeg bindings crate after a build, because
   Cargo treats check and build as different units.
 - Direct Cargo or upstream Tauri CLI launches bypass the per-checkout dev
-  identity that `scripts/tauri.ts` gives `bun run tauri`, so they share the
-  installed app's settings, credentials, and caches. A packaged release-mode
-  experiment needs its own explicit identifier.
+  identity that `scripts/tauri.ts` gives `bun run tauri`. The host refuses to
+  start a debug build, or any build without the `custom-protocol` feature,
+  under the installed app's identity. A release build with that feature,
+  such as an upstream `tauri build`, still shares the installed app's
+  settings, credentials, and caches, so a packaged release-mode experiment
+  needs its own explicit identifier.
 
 ## Script rules
 
@@ -137,8 +140,6 @@
   sidecar; a tee that died on a write error must not pass as drained.
 - `ffmpeg-upstream.ts --release-check` and `--pin` use `gh api` REST only,
   because cloud sessions block GraphQL.
-- `lane-paths.test.ts` uses dorny/paths-filter's matcher options, so a pass
-  there means CI selects the lane.
 - `ci-timing.ts`: a `closed` run is a pull request's closed event.
 - `github-release.sh`: a draft release has no tag until it is published, and
   `gh release view <tag>` still finds it by that pending tag name.

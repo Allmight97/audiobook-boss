@@ -2,9 +2,10 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import picomatch from 'picomatch';
 import { describe, expect, it } from 'vitest';
 import { parseDocument } from 'yaml';
+
+import { laneMatcher, laneMap, requiredLanes, unmappedPaths } from './verification';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const mapPath = path.join(repoRoot, 'scripts/lane-paths.yml');
@@ -15,16 +16,9 @@ function patternsIn(value: unknown): string[] {
 	return [];
 }
 
-function unmappedPaths(mapYaml: string, files: string[]): string[] {
-	const filters = parseDocument(mapYaml).toJS() as Record<string, unknown>;
-	const patterns = Object.values(filters).flatMap((value) => patternsIn(value));
-	const isMatch = picomatch(patterns, { dot: true });
-	return files.filter((file) => !isMatch(file));
-}
-
 function lanesFor(mapYaml: string, lane: string): (file: string) => boolean {
 	const filters = parseDocument(mapYaml).toJS() as Record<string, unknown>;
-	return picomatch(patternsIn(filters[lane]), { dot: true });
+	return laneMatcher(patternsIn(filters[lane]));
 }
 
 function noLaneEntriesWithoutReason(mapYaml: string): string[] {
@@ -35,6 +29,8 @@ function noLaneEntriesWithoutReason(mapYaml: string): string[] {
 		.map(([pattern]) => pattern);
 }
 
+const lanes = ['frontend', 'core', 'engine', 'media', 'apple', 'host', 'tooling', 'supply-chain'];
+
 describe('scripts/lane-paths.yml', () => {
 	const mapYaml = readFileSync(mapPath, 'utf8');
 
@@ -43,7 +39,7 @@ describe('scripts/lane-paths.yml', () => {
 			.split('\n')
 			.filter(Boolean);
 		expect(
-			unmappedPaths(mapYaml, tracked),
+			unmappedPaths(laneMap(mapYaml, lanes), lanes, tracked),
 			'Add each path to a lane in scripts/lane-paths.yml, or to no-lane with a reason',
 		).toEqual([]);
 	});
@@ -70,15 +66,44 @@ describe('scripts/lane-paths.yml', () => {
 		}
 	});
 
+	const selected = (file: string) =>
+		requiredLanes(laneMap(mapYaml, lanes), lanes, [file], () => true);
+
+	it('runs only tooling for guidance inside a crate, since no Rust build reads it', () => {
+		for (const file of [
+			'crates/abb-engine/AGENTS.md',
+			'crates/abb-engine/src/session/AGENTS.md',
+			'crates/abb-metadata-core/AGENTS.md',
+		]) {
+			expect(selected(file), file).toEqual(['tooling']);
+		}
+	});
+
+	it('does not trigger host or engine for frontend-only package.json edits', () => {
+		const bindingsCheck = readFileSync(
+			path.join(repoRoot, 'scripts/check-generated-bindings.sh'),
+			'utf8',
+		);
+		expect(bindingsCheck).toContain('cargo run --locked');
+		expect(bindingsCheck).not.toMatch(/^\s*bun run bindings:generate/m);
+		expect(selected('package.json')).not.toContain('host');
+		expect(selected('package.json')).not.toContain('engine');
+		expect(selected('package.json')).toContain('frontend');
+		expect(selected('package.json')).toContain('tooling');
+	});
+
 	it('gives every no-lane entry a reason', () => {
 		expect(noLaneEntriesWithoutReason(mapYaml)).toEqual([]);
 	});
 
 	it('reports a path that no filter names', () => {
 		const oldTooling = 'tooling:\n  - .github/workflows/**\n  - scripts/*.sh\n';
-		expect(unmappedPaths(oldTooling, ['scripts/verify.sh', '.cursor/environment.json'])).toEqual([
-			'.cursor/environment.json',
-		]);
+		expect(
+			unmappedPaths(laneMap(oldTooling, lanes), lanes, [
+				'scripts/verify.sh',
+				'.cursor/environment.json',
+			]),
+		).toEqual(['.cursor/environment.json']);
 	});
 
 	it('reports a no-lane entry without a reason', () => {

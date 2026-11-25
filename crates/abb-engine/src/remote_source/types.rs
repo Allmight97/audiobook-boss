@@ -398,7 +398,7 @@ pub enum PdfHandoff {
         path: PathBuf,
     },
     NotSaved {
-        error: crate::errors::AppErrorEnvelope,
+        error: abb_media_pipeline::errors::AppErrorEnvelope,
     },
 }
 
@@ -406,7 +406,7 @@ pub enum PdfHandoff {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum HandoffRefusal {
     ImportFailed {
-        error: crate::errors::AppErrorEnvelope,
+        error: abb_media_pipeline::errors::AppErrorEnvelope,
     },
     NothingAdded,
 }

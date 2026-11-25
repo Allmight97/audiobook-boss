@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::audio::{AudioFile, TitleStatus};
+use abb_media_pipeline::audio::{AudioFile, TitleStatus};
 
 pub(super) fn publish(
     files: &mut [AudioFile],

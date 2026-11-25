@@ -15,7 +15,7 @@ pub(super) fn test_runtime_with(
 ) -> RemoteSourceRuntime {
     let (settings, _, _) = crate::app_settings::SettingsRuntime::start(
         root.path().to_path_buf(),
-        crate::power::PowerManager::default(),
+        abb_media_pipeline::power::PowerManager::default(),
     );
     build_runtime(root, settings, vault, events, None)
 }
@@ -84,7 +84,7 @@ fn build_runtime(
 ) -> RemoteSourceRuntime {
     let host = crate::host::Host::new(
         events.unwrap_or_else(|| Arc::new(crate::DiscardEvents)),
-        crate::power::PowerManager::default(),
+        abb_media_pipeline::power::PowerManager::default(),
     );
     let ui = Arc::new(Mutex::new(ui::UiState::seeded(
         &settings.indexer_connection(),
@@ -93,7 +93,7 @@ fn build_runtime(
         inner: Arc::new(RemoteSourceRuntimeInner {
             ui: ui.clone(),
             ui_host: host.clone(),
-            power: crate::power::PowerManager::default(),
+            power: abb_media_pipeline::power::PowerManager::default(),
             settings,
             vault: vault.unwrap_or_else(|| Box::<MemoryVault>::default()),
             lifecycle: RemoteAcquisitionLifecycle::new(

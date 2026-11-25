@@ -1,13 +1,13 @@
 use super::super::lane_tests::awaiting_handoff;
 use super::super::{RemoteUiIntent, UiAction, UiState};
 use super::*;
-use crate::errors::{AppError, AppErrorEnvelope};
 use crate::remote_source::job_state;
 use crate::remote_source::providers::audible::AudibleRequestError;
 use crate::remote_source::{
     AcquisitionSnapshot, ProviderId, RemoteAcquisitionFailureKind, RemoteLibraryResponse,
     RemoteSourceAccountState,
 };
+use abb_media_pipeline::errors::{AppError, AppErrorEnvelope};
 use abb_remote_source_core::AcquisitionStage;
 
 const WARNING: &str = "Sign-in won't be remembered after a restart.";

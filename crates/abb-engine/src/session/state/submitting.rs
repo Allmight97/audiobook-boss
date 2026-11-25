@@ -8,12 +8,12 @@ use super::super::submission::{
     SubmissionStatus, SubmitRefusal, SubmittedTitle,
 };
 use super::{SessionState, StageOutcome};
-use crate::audio::AudioFile;
-use crate::metadata::PatchOp;
-use crate::output_artifact::PlannedOutput;
-use crate::processing::title_output::UpdateReply;
-use crate::processing::TitleOutput;
 use crate::work_runtime::OperationId;
+use abb_media_pipeline::audio::AudioFile;
+use abb_media_pipeline::metadata::PatchOp;
+use abb_media_pipeline::output_artifact::PlannedOutput;
+use abb_media_pipeline::processing::title_output::UpdateReply;
+use abb_media_pipeline::processing::TitleOutput;
 
 pub(super) enum Submission {
     Idle,

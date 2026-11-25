@@ -1,11 +1,11 @@
 use super::{Rest, Session};
 use crate::app_settings::{PinnedDefaults, SettingsOutcome, SettingsRun, SettingsSnapshot};
-use crate::audio::EncoderSettingsCapabilities;
 use crate::host::EngineEvent;
 use crate::session::audio::AudioDefaults;
 use crate::session::audio_choice::AudioEdit;
 use crate::session::intent::SessionOutcome;
 use crate::session::output::OutputPlan;
+use abb_media_pipeline::audio::EncoderSettingsCapabilities;
 
 impl Session {
     pub(crate) fn start_from_defaults(

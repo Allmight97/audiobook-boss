@@ -15,15 +15,15 @@ use super::submission::{Draft, SubmitRefusal};
 use super::tag_cache::ReadTicket;
 use super::working_set::{SelectionModifiers, WorkingSet};
 use crate::app_settings::{SettingsRun, SettingsRuntime};
-use crate::audio::{self};
-use crate::errors::{AppError, AppErrorEnvelope, Result};
 use crate::host::{EngineEvent, Host};
-use crate::metadata::AudiobookMetadata;
 use crate::metadata_lookup::{MetadataLookupResponse, MetadataSource};
-use crate::output_artifact::CollisionPolicy;
 use crate::remote_source::{RemoteRevisions, RemoteUiResult};
 use crate::work_runtime::WorkRuntime;
 use crate::ManagedJobRegistry;
+use abb_media_pipeline::audio::{self};
+use abb_media_pipeline::errors::{AppError, AppErrorEnvelope, Result};
+use abb_media_pipeline::metadata::AudiobookMetadata;
+use abb_media_pipeline::output_artifact::CollisionPolicy;
 
 const READ_CONCURRENCY: usize = 8;
 
@@ -60,7 +60,7 @@ pub(crate) struct SessionDeps {
     pub(crate) temporary_root: PathBuf,
     pub(crate) settings: SettingsRuntime,
     pub(crate) tasks: crate::engine_tasks::EngineTasks,
-    pub(crate) roots: crate::processing::run::ProcessingRoots,
+    pub(crate) roots: abb_media_pipeline::processing::run::ProcessingRoots,
     pub(crate) remove_staged: RemoveStaged,
 }
 
@@ -555,7 +555,7 @@ fn draft_rejected(block: GateBlock) -> SessionOutcome {
 
 fn read_tags(path: &Path) -> Result<AudiobookMetadata> {
     let validated = audio::validate_input_audio_path(path)?;
-    crate::metadata::read_metadata(validated.to_string_lossy().as_ref())
+    abb_media_pipeline::metadata::read_metadata(validated.to_string_lossy().as_ref())
 }
 
 async fn read_all(tickets: Vec<ReadTicket>) -> Vec<(ReadTicket, Result<AudiobookMetadata>)> {

@@ -12,7 +12,7 @@ use rustls_pki_types::pem::PemObject;
 use rustls_pki_types::PrivatePkcs1KeyDer;
 
 use super::provider_private_failure;
-use crate::errors::{AppError, Result};
+use abb_media_pipeline::errors::{AppError, Result};
 
 const SIGNING_ALGORITHM: &str = "SHA256withRSA:1.0";
 const MIN_DEVICE_KEY_BITS: usize = 2048;
