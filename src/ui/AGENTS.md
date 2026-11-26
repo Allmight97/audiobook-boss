@@ -57,10 +57,11 @@ One bullet per view; a view without one has no trap beyond its owner.
 - Open modals form one stack (`src/ui/foundation/internal/modal.ts`) and
   only the topmost handles Escape and Tab, because each controller listens on
   `document` and `stopPropagation` cannot order listeners on one node. The
-  listener is document-level and capture-phase, because WebKit can refuse a
-  dialog's first focus or blur to `body`, which leaves a container listener
-  deaf; WebKit also refuses focus before the backdrop's visibility transition
-  gets a style recalc, so focus retries on the next frame.
+  listener sits on `document`, because in any engine a click on dialog text
+  that cannot take focus moves focus to `body`, where a container listener
+  misses Escape (`modal.test.ts`). Focus retries on the next frame, because
+  WebKit refuses focus before the backdrop's visibility transition gets a
+  style recalc, and a dialog's content can mount after the modal opens.
 - Callers use a primitive's props, never its private class names; the
   `.app-modal-*` dialog-body classes in
   `src/ui/foundation/internal/dialogs.css` are the shared exception. No

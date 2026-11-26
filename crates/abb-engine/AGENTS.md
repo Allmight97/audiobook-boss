@@ -26,7 +26,8 @@
   never tag values or artwork bytes. Per-packet tracing stays at debug.
 - A lock that guards state a panic cannot half-apply is taken with
   `PoisonError::into_inner`, so one panic does not fail every later call
-  (session transitions, job-registry admission, `WorkRuntime::operations`).
+  (session transitions, `WorkRuntime::operations`, the pipeline's
+  job-registry admission).
 - Validate input audio paths where they enter the engine
   (`validate_input_audio_path`). Paths the engine hands back are canonical;
   compare paths in that spelling.
@@ -50,8 +51,9 @@
   (seanmonstar/reqwest#2303).
 - `Cargo.toml` keyring: the Linux Secret Service store uses
   `rt-async-io-crypto-rust`, because zbus's tokio feature is crate-wide and
-  keepawake's blocking bus calls would then start a runtime inside the
-  engine's runtime.
+  the blocking bus calls of `keepawake` (an `abb-media-pipeline` dependency)
+  would then start a runtime inside a Tokio worker. Linux already compiles
+  zbus's `async-io` through `keepawake` and `tauri-plugin-opener`.
 - `cover_source.rs`: an IP-literal host never reaches the resolver, so it is
   judged from the parsed host, not its bracketed text. A resolved address
   carries port 0 because reqwest replaces it with the URL's port.

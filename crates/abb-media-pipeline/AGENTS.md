@@ -5,6 +5,8 @@
   credentials: `abb-engine` passes it facts and paths, and
   `check-rust-tiers.sh` keeps those dependencies out. Hosts reach it only
   through `abb-engine`'s re-exports.
+- The logging, lock-poisoning, and test-helper rules in
+  `crates/abb-engine/AGENTS.md` hold in this crate too.
 - Callers request a metadata outcome; the metadata owner picks MP4 or FFmpeg
   handling from the actual media, never the caller.
 - Diagnostic records never change an operation result, and artifact IDs

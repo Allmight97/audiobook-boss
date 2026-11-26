@@ -35,8 +35,6 @@
 - After a new command or an engine behavior change, run
   `bun run bindings:generate`: `src/lib/generated/fixtures/` records real
   engine outcomes and the snapshot parts that changed.
-- A test of product behavior, including what a command reaches, belongs with
-  the engine owner that decides it.
 - In `commands/session_invoke_tests.rs`, send a numbered intent only after the
   one before it: a gap stalls the test for `MISSING_INTENT_WAIT`, then the
   number is refused as late.
