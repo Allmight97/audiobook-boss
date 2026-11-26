@@ -55,13 +55,14 @@ One bullet per view; a view without one has no trap beyond its owner.
 - `JobRow` keys injected `actions` by `id`, so a progress tick does not
   rebuild a button between press and release.
 - Open modals form one stack (`src/ui/foundation/internal/modal.ts`) and
-  only the topmost handles Escape and Tab, because each controller listens on
-  `document` and `stopPropagation` cannot order listeners on one node. The
-  listener sits on `document`, because in any engine a click on dialog text
-  that cannot take focus moves focus to `body`, where a container listener
-  misses Escape (`modal.test.ts`). Focus retries on the next frame, because
-  WebKit refuses focus before the backdrop's visibility transition gets a
-  style recalc, and a dialog's content can mount after the modal opens.
+  only the topmost handles Escape and Tab, because each controller listens in
+  the capture phase on `document` and `stopPropagation` cannot order
+  listeners on one node. Listening on `document` catches Escape even when
+  focus falls outside the dialog container (for example onto `body` after
+  clicking non-focusable dialog text; `modal.test.ts` pins Escape with focus
+  outside). Focus retries on the next frame, because WebKit can refuse focus
+  before the backdrop's visibility transition gets a style recalc, and a
+  dialog's content can mount after the modal opens.
 - Callers use a primitive's props, never its private class names; the
   `.app-modal-*` dialog-body classes in
   `src/ui/foundation/internal/dialogs.css` are the shared exception. No
