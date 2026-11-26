@@ -19,7 +19,6 @@ start_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 summary_written="false"
 rust_log_source="unset"
 tee_drain_failed="false"
-tee_pid=""
 tee_status_file="$run_dir/tee-exit-status"
 orig_stdout_fd=""
 orig_stderr_fd=""
@@ -211,25 +210,23 @@ write_summary() {
 	summary_written="true"
 }
 
-wait_for_tee_exit_within_ten_seconds() {
+wait_for_tee_status_within_ten_seconds() {
 	for _ in {1..100}; do
-		kill -0 "$tee_pid" 2>/dev/null || break
+		[[ -f "$tee_status_file" ]] && return 0
 		sleep 0.1
 	done
+	return 1
 }
 
 finish_run() {
 	local status="$?"
 	set +e
-	if [[ -n "${tee_pid:-}" ]]; then
-		exec >&"$orig_stdout_fd"
-		exec 2>&"$orig_stderr_fd"
-		wait_for_tee_exit_within_ten_seconds
-		if kill -0 "$tee_pid" 2>/dev/null; then
-			tee_drain_failed="true"
-		elif [[ "$(cat "$tee_status_file" 2>/dev/null)" != "0" ]]; then
-			tee_drain_failed="true"
-		fi
+	exec >&"$orig_stdout_fd"
+	exec 2>&"$orig_stderr_fd"
+	exec {orig_stdout_fd}>&- {orig_stderr_fd}>&-
+	if ! wait_for_tee_status_within_ten_seconds ||
+		[[ "$(cat "$tee_status_file")" != "0" ]]; then
+		tee_drain_failed="true"
 	fi
 	if [[ "$summary_written" != "true" ]]; then
 		write_summary "$status"
@@ -448,10 +445,10 @@ EOF
 
 exec {orig_stdout_fd}>&1 {orig_stderr_fd}>&2
 exec > >(
-	tee -a "$log_file"
-	printf '%s\n' "$?" > "$tee_status_file"
+	tee -i -a "$log_file"
+	tee_rc=$?
+	printf '%s\n' "$tee_rc" > "$tee_status_file.tmp" && mv "$tee_status_file.tmp" "$tee_status_file"
 ) 2>&1
-tee_pid=$!
 trap finish_run EXIT
 
 cd "$repo_root"

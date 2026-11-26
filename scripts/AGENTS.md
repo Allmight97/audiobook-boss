@@ -141,9 +141,13 @@
   lines).
 - `check-workflows.sh` runs zizmor `--offline`, so audits that query GitHub
   cannot change the result between runs.
-- `dev-tauri-log.sh`: a later process substitution makes the tee's pid
-  unwaitable in bash, so the drain signal is liveness plus the exit-status
-  sidecar; a tee that died on a write error must not pass as drained.
+- `dev-tauri-log.sh`: the drain signal is the tee's exit-status file, written
+  by rename so a partial write never reads as done, awaited for at most 10s
+  because an orphaned child can hold the pipe open. It does not `wait` the
+  tee: bash 5.3 returns 127 at once from `wait` in an EXIT trap after
+  SIGINT. A tee that died on a write error must not pass as drained. Ctrl-C
+  reaches the whole process group, so tee runs with `-i`; `trap '' INT` in
+  the process substitution does not reach tee.
 - `tauri.ts`: Bun 1.4 does not pass `process.env` changes to native
   `getenv`, so it runs the Tauri CLI as a child process to hand Cargo
   `ABB_BUILD_REVISION` (the checkout's revision at launch). Bun exits on

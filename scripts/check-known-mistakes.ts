@@ -194,12 +194,6 @@ const SHELL_ALLOWANCES: readonly (LineRecord & { kind: 'gnu' | 'silence' })[] = 
 		anchor: 'git status --short 2>/dev/null || true',
 		reason: 'the summary also runs outside a git checkout',
 	},
-	{
-		file: 'scripts/dev-tauri-log.sh',
-		kind: 'silence',
-		anchor: 'cat "$tee_status_file" 2>/dev/null',
-		reason: 'a missing status file is not "0", so it counts as failed',
-	},
 ];
 
 const PERMISSION_FAKE_SITES: readonly LineRecord[] = [
