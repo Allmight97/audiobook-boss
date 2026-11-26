@@ -100,10 +100,13 @@ pub struct ChildJobSnapshot {
     pub operation_id: OperationId,
     pub label: String,
     pub status: ChildJobStatus,
+    #[specta(type = Option<specta_typescript::Number>)]
     pub started_at_ms: Option<i64>,
+    #[specta(type = Option<specta_typescript::Number>)]
     pub finished_at_ms: Option<i64>,
     pub progress: ProgressSnapshot,
     pub source_path: Option<String>,
+    #[specta(type = Option<specta_typescript::Number>)]
     pub input_index: Option<usize>,
     pub input_id: Option<String>,
     #[serde(skip)]
@@ -143,13 +146,17 @@ pub struct ChildCounts {
 #[serde(rename_all = "camelCase")]
 pub struct OperationSnapshot {
     pub operation_id: OperationId,
+    #[specta(type = specta_typescript::Number)]
     pub sequence: u64,
+    #[specta(type = specta_typescript::Number)]
     pub revision: u64,
     pub kind: OperationKind,
     pub status: WorkOperationStatus,
     pub phase: OperationPhase,
     pub title: String,
+    #[specta(type = Option<specta_typescript::Number>)]
     pub started_at_ms: Option<i64>,
+    #[specta(type = Option<specta_typescript::Number>)]
     pub finished_at_ms: Option<i64>,
     pub cancellable: bool,
     pub cancel_requested: bool,
@@ -173,6 +180,7 @@ impl OperationSnapshot {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkOperationsSnapshot {
+    #[specta(type = specta_typescript::Number)]
     pub revision: u64,
     pub order: Vec<OperationId>,
     pub operations: Vec<OperationSnapshot>,
@@ -182,6 +190,7 @@ pub struct WorkOperationsSnapshot {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkOperationsUpdate {
+    #[specta(type = specta_typescript::Number)]
     pub revision: u64,
     pub order: Vec<OperationId>,
     pub changed: Option<OperationSnapshot>,

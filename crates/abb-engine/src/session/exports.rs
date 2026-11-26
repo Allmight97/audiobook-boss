@@ -32,9 +32,13 @@ pub(crate) struct ExportLink {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OutputEdits {
+    #[specta(type = specta_typescript::Number)]
     pub updated: usize,
+    #[specta(type = specta_typescript::Number)]
     pub elsewhere: usize,
+    #[specta(type = specta_typescript::Number)]
     pub restart_offered: usize,
+    #[specta(type = specta_typescript::Number)]
     pub failed: usize,
 }
 

@@ -11,6 +11,7 @@ use crate::remote_source::types::{
     RemoteReleaseProtocol, RemoteReleaseSearchRequest, RemoteSourceDiagnostic,
 };
 use abb_media_pipeline::errors::{AppError, Result};
+use abb_remote_source_core::{JsSafeI64, JsSafeU64};
 
 pub(super) const PROWLARR_USER_AGENT: &str = "audiobook-boss/indexer";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
@@ -454,16 +455,30 @@ fn map_release(
         });
         return None;
     }
+    let (Ok(indexer_id), Ok(size_bytes)) = (
+        JsSafeI64::try_from(raw.indexer_id),
+        JsSafeU64::try_from(raw.size.max(0).unsigned_abs()),
+    ) else {
+        diagnostics.push(RemoteSourceDiagnostic {
+            kind: RemoteAcquisitionFailureKind::ReleaseSearchFailed,
+            title_id: None,
+            message: format!(
+                "Skipped indexer hit {:?}: its indexer id or size is too large to handle exactly.",
+                raw.title
+            ),
+        });
+        return None;
+    };
 
     Some(RemoteRelease {
         detail_url: release_detail_url(raw.info_url.as_deref(), raw.comment_url.as_deref()),
         provider_id: ProviderId::Indexer,
-        key: release_key(raw.indexer_id, &raw.guid),
+        key: release_key(indexer_id.get(), &raw.guid),
         guid: raw.guid,
-        indexer_id: raw.indexer_id,
+        indexer_id,
         title: raw.title,
         indexer: raw.indexer,
-        size_bytes: u64::try_from(raw.size.max(0)).unwrap_or(0),
+        size_bytes,
         protocol: map_protocol(raw.protocol.as_deref()),
         seeders: raw
             .seeders

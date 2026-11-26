@@ -54,6 +54,7 @@ impl TitleAudio {
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioSnapshot {
+    #[specta(type = specta_typescript::Number)]
     pub revision: u64,
     pub capabilities: Option<EncoderSettingsCapabilities>,
     pub defaults: AudioChoiceView,

@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+mod js_safe;
+
+pub use js_safe::{JsSafeI64, JsSafeU64, OutsideJsSafeRange};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum AcquisitionStage {
@@ -17,8 +21,8 @@ pub struct AcquisitionProgress {
     #[specta(type = specta_typescript::Number)]
     pub percentage: f32,
     pub message: String,
-    pub bytes_downloaded: Option<u64>,
-    pub bytes_total: Option<u64>,
+    pub bytes_downloaded: Option<JsSafeU64>,
+    pub bytes_total: Option<JsSafeU64>,
     pub current_title_id: Option<String>,
     pub current_item_index: Option<u32>,
     pub total_items: Option<u32>,
@@ -27,8 +31,8 @@ pub struct AcquisitionProgress {
 pub fn acquisition_progress(
     stage: AcquisitionStage,
     fraction: Option<f32>,
-    bytes_downloaded: Option<u64>,
-    bytes_total: Option<u64>,
+    bytes_downloaded: Option<JsSafeU64>,
+    bytes_total: Option<JsSafeU64>,
 ) -> AcquisitionProgress {
     let fraction = fraction
         .filter(|value| value.is_finite())

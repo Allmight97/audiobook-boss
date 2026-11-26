@@ -54,6 +54,7 @@ pub enum LookupStatus {
     Searching,
     #[serde(rename_all = "camelCase")]
     Found {
+        #[specta(type = specta_typescript::Number)]
         count: usize,
         partial: bool,
         after: Option<QueueStep>,
@@ -83,7 +84,9 @@ pub enum LookupStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LookupQueuePosition {
+    #[specta(type = specta_typescript::Number)]
     pub index: usize,
+    #[specta(type = specta_typescript::Number)]
     pub total: usize,
     pub path: PathBuf,
     pub label: String,
@@ -92,6 +95,7 @@ pub struct LookupQueuePosition {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LookupSnapshot {
+    #[specta(type = specta_typescript::Number)]
     pub revision: u64,
     pub open: bool,
     pub title_query: String,

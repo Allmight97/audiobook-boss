@@ -54,6 +54,7 @@ impl SubmitRefusal {
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CollisionReview {
+    #[specta(type = specta_typescript::Number)]
     pub review_id: u64,
     pub outputs: Vec<PlannedOutput>,
     pub choices: abb_output_artifact_core::CollisionChoices,
@@ -84,6 +85,7 @@ pub enum SubmissionStatus {
     Submitted {
         operation_id: OperationId,
         title: String,
+        #[specta(type = specta_typescript::Number)]
         left_out: usize,
     },
     Previewing,

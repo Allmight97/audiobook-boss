@@ -234,13 +234,50 @@ async fn search_maps_query_and_category_without_indexer_ids() {
         Some("https://source.test/book/abc")
     );
     assert_eq!(outcome.releases[0].indexer, "Example");
-    assert_eq!(outcome.releases[0].indexer_id, 7);
+    assert_eq!(outcome.releases[0].indexer_id.get(), 7);
     assert_eq!(outcome.releases[0].protocol, RemoteReleaseProtocol::Torrent);
     assert_eq!(outcome.releases[0].seeders, Some(12));
     assert_eq!(outcome.releases[0].categories.len(), 1);
     assert_eq!(outcome.releases[0].categories[0].id, 3030);
     assert_eq!(outcome.releases[0].categories[0].name, "Audio/Audiobook");
     assert!(outcome.diagnostics.is_empty());
+}
+
+#[tokio::test]
+async fn search_skips_hits_whose_numbers_a_js_number_cannot_hold_exactly() {
+    let host = "prowlarr.test";
+    let body = r#"[
+        {"guid":"edge","indexerId":-9007199254740991,"title":"Edge","size":9007199254740991},
+        {"guid":"huge-size","indexerId":1,"title":"Huge Size","size":9007199254740992},
+        {"guid":"huge-id","indexerId":9007199254740992,"title":"Huge Id","size":1}
+    ]"#;
+    let stub = StubServer::start(vec![Reply::json("200 OK", body)]).await;
+
+    let outcome = ReqwestProwlarrAdapter::with_client(local_client(host, stub.address()))
+        .search(
+            &format!("http://{host}"),
+            &SecretString::from("secret-key".to_string()),
+            &ProwlarrSearchParams {
+                query: "book".to_string(),
+                category_ids: Vec::new(),
+            },
+        )
+        .await
+        .expect("search");
+
+    assert_eq!(outcome.releases.len(), 1);
+    assert_eq!(outcome.releases[0].indexer_id.get(), -9_007_199_254_740_991);
+    assert_eq!(outcome.releases[0].size_bytes.get(), 9_007_199_254_740_991);
+    let skipped: Vec<_> = outcome
+        .diagnostics
+        .iter()
+        .map(|diagnostic| (&diagnostic.kind, diagnostic.message.as_str()))
+        .collect();
+    assert_eq!(skipped.len(), 2);
+    assert!(skipped[0].1.contains("Huge Size") && skipped[1].1.contains("Huge Id"));
+    assert!(skipped
+        .iter()
+        .all(|(kind, _)| **kind == RemoteAcquisitionFailureKind::ReleaseSearchFailed));
 }
 
 #[tokio::test]
@@ -301,11 +338,11 @@ pub(super) fn release(indexer: &str, protocol: RemoteReleaseProtocol) -> RemoteR
         provider_id: ProviderId::Indexer,
         key: release_key(42, "release-guid"),
         guid: "release-guid".to_string(),
-        indexer_id: 42,
+        indexer_id: JsSafeI64::try_from(42).expect("JS-safe test value"),
         title: "Book".to_string(),
         indexer: indexer.to_string(),
         detail_url: None,
-        size_bytes: 1,
+        size_bytes: JsSafeU64::try_from(1).expect("JS-safe test value"),
         protocol,
         seeders: None,
         categories: Vec::new(),

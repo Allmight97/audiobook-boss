@@ -56,9 +56,13 @@
 - `events.rs`: Rust's orphan rule forbids implementing `tauri_specta::Event`
   here for an engine type, so each engine payload gets a host-owned event
   type.
-- `ipc_contract.rs` casts bigints to JS numbers, because the JSON IPC carries
-  bounded sizes, timestamps, counts, indices, and sequence values the
-  frontend does arithmetic on. A float may use `specta_typescript::Number`
+- The bindings export refuses every 64-bit or `usize` IPC integer
+  (`BigIntForbidden`), because a JS number holds integers exactly only up to
+  2^53 - 1. Mark a value ABB itself bounds (a count, index, revision,
+  timestamp, local file size) `specta_typescript::Number`: the frontend does
+  arithmetic on it. An integer an outside provider sends crosses as
+  `JsSafeU64` or `JsSafeI64` from `abb-remote-source-core`, which refuse a
+  larger value at the parse. A float may use `specta_typescript::Number`
   only when its Rust owner keeps it finite; add `bigint` or lossless floats
   only for a payload that needs them.
 - `cover_protocol.rs`: the scheme handler runs on the webview's thread, so

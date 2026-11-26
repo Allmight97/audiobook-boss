@@ -25,10 +25,14 @@ impl std::fmt::Display for JobId {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MaxConcurrentJobsCapabilities {
+    #[specta(type = specta_typescript::Number)]
     pub auto_effective: usize,
     #[serde(skip)]
+    #[specta(type = specta_typescript::Number)]
     pub fixed_min: usize,
     #[serde(skip)]
+    #[specta(type = specta_typescript::Number)]
     pub fixed_max: usize,
+    #[specta(type = Vec<specta_typescript::Number>)]
     pub fixed_options: Vec<usize>,
 }

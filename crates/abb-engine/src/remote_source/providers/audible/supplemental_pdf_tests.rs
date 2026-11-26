@@ -138,7 +138,7 @@ async fn supplemental_pdf_get_download_succeeds_when_head_would_fail() {
     assert_eq!(pdf.size_bytes, pdf_bytes.len() as u64);
     assert_eq!(pdf.sha256, abb_media_core::sha256_hex(pdf_bytes));
     assert_eq!(std::fs::read(&pdf.path).expect("read pdf"), pdf_bytes);
-    let length = pdf_bytes.len() as u64;
+    let length = JsSafeU64::try_from(pdf_bytes.len() as u64).expect("JS-safe test value");
     assert_eq!(heard.last(), Some(&(length, Some(length))));
 }
 

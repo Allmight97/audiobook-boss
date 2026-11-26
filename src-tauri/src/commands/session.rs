@@ -18,9 +18,20 @@ pub struct FrontendLink {
 
 type Link<'a> = tauri::State<'a, FrontendLink>;
 
+#[derive(Clone, Copy, serde::Deserialize)]
+#[serde(transparent)]
+pub struct FrontendNumber(u64);
+
+impl specta::Type for FrontendNumber {
+    fn definition(types: &mut specta::Types) -> specta::datatype::DataType {
+        specta_typescript::Number::<u64>::definition(types)
+    }
+}
+
 #[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FrontendAttachment {
+    #[specta(type = specta_typescript::Number)]
     pub client: u64,
     pub session: SessionUpdate,
     pub settings: SettingsSnapshot,
@@ -61,12 +72,16 @@ pub async fn attach_frontend(
 pub async fn session_dispatch(
     engine: EngineState<'_>,
     link: Link<'_>,
-    client: u64,
-    sequence: u64,
+    client: FrontendNumber,
+    sequence: FrontendNumber,
     intent: SessionIntent,
 ) -> CommandResult<SessionReply> {
     let run = {
-        let _turn = link.session.turn(client, sequence).await.map_err(refused)?;
+        let _turn = link
+            .session
+            .turn(client.0, sequence.0)
+            .await
+            .map_err(refused)?;
         engine.session_begin(intent)
     };
     Ok(run.finish().await)
@@ -78,14 +93,18 @@ pub async fn open_preview_output<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     engine: EngineState<'_>,
     link: Link<'_>,
-    client: u64,
-    sequence: u64,
+    client: FrontendNumber,
+    sequence: FrontendNumber,
     run_id: String,
 ) -> CommandResult<SessionReply> {
     use tauri_plugin_opener::OpenerExt;
 
     let run = {
-        let _turn = link.session.turn(client, sequence).await.map_err(refused)?;
+        let _turn = link
+            .session
+            .turn(client.0, sequence.0)
+            .await
+            .map_err(refused)?;
         engine.session_begin(SessionIntent::TakePreviewOutput { run_id })
     };
     Ok(open_preview_reply(run.finish().await, |path| {
@@ -117,13 +136,13 @@ fn open_preview_reply<E: std::fmt::Display>(
 pub async fn settings_dispatch(
     engine: EngineState<'_>,
     link: Link<'_>,
-    client: u64,
-    sequence: u64,
+    client: FrontendNumber,
+    sequence: FrontendNumber,
     intent: SettingsIntent,
 ) -> CommandResult<SettingsReply> {
     let _turn = link
         .settings
-        .turn(client, sequence)
+        .turn(client.0, sequence.0)
         .await
         .map_err(refused)?;
     Ok(engine.settings_dispatch(intent).await)

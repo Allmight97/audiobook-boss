@@ -38,6 +38,7 @@ pub enum SessionIntent {
     #[serde(rename_all = "camelCase")]
     ReorderFiles {
         title_id: String,
+        #[specta(type = specta_typescript::Number)]
         to: usize,
     },
     ToggleSort,
@@ -50,7 +51,9 @@ pub enum SessionIntent {
     #[serde(rename_all = "camelCase")]
     ReorderSources {
         title_id: String,
+        #[specta(type = specta_typescript::Number)]
         from: usize,
+        #[specta(type = specta_typescript::Number)]
         to: usize,
     },
     #[serde(rename_all = "camelCase")]
@@ -62,11 +65,13 @@ pub enum SessionIntent {
     Preview,
     #[serde(rename_all = "camelCase")]
     ChooseCollisionPolicy {
+        #[specta(type = specta_typescript::Number)]
         review_id: u64,
         policy: CollisionPolicy,
     },
     #[serde(rename_all = "camelCase")]
     CancelCollisionReview {
+        #[specta(type = specta_typescript::Number)]
         review_id: u64,
     },
     #[serde(rename_all = "camelCase")]
@@ -120,11 +125,13 @@ pub enum SessionIntent {
     },
 
     SetField {
+        #[specta(type = specta_typescript::Number)]
         binding: u64,
         field: MetadataField,
         value: String,
     },
     SetFieldAction {
+        #[specta(type = specta_typescript::Number)]
         binding: u64,
         field: MetadataField,
         action: FieldAction,
@@ -145,6 +152,7 @@ pub enum SessionIntent {
     LookupClose,
     LookupSearch,
     LookupApply {
+        #[specta(type = specta_typescript::Number)]
         index: usize,
         #[specta(type = specta_typescript::Number)]
         revision: u64,

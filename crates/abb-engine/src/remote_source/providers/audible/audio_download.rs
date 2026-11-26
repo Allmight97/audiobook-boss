@@ -11,7 +11,9 @@ use super::{
 use crate::remote_source::scoped_output::{rollback_committed_file, StagedTempFile};
 use abb_audible_core::{classify_download_response, title_ref, DownloadResponseError};
 use abb_media_pipeline::errors::{AppError, Result};
-use abb_remote_source_core::{acquisition_progress, AcquisitionProgress, AcquisitionStage};
+use abb_remote_source_core::{
+    acquisition_progress, AcquisitionProgress, AcquisitionStage, JsSafeU64,
+};
 use reqwest::header::{CONTENT_RANGE, RANGE, USER_AGENT};
 use tokio::io::AsyncWriteExt;
 
@@ -356,11 +358,12 @@ async fn stream_download_chunks(
             .filter(|total| *total > 0)
             .map(|total| state.bytes_downloaded as f32 / total as f32)
             .unwrap_or(0.2);
+        let wire = |bytes| JsSafeU64::try_from(bytes).map_err(|_| download_failure("size check"));
         progress(acquisition_progress(
             AcquisitionStage::Download,
             Some(fraction),
-            Some(state.bytes_downloaded),
-            state.bytes_total,
+            Some(wire(state.bytes_downloaded)?),
+            state.bytes_total.map(wire).transpose()?,
         ));
         file.write_all(&chunk).await?;
     }

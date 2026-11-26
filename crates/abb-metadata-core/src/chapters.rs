@@ -6,7 +6,9 @@ type Result<T> = std::result::Result<T, MetadataCoreError>;
 #[serde(rename_all = "camelCase")]
 pub struct ChapterSpec {
     pub title: Option<String>,
+    #[specta(type = specta_typescript::Number)]
     pub start_ms: i64,
+    #[specta(type = specta_typescript::Number)]
     pub end_ms: i64,
 }
 

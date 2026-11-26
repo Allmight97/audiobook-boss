@@ -20,10 +20,15 @@ impl OperationKind {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OperationResultSummary {
+    #[specta(type = specta_typescript::Number)]
     pub total: usize,
+    #[specta(type = specta_typescript::Number)]
     pub succeeded: usize,
+    #[specta(type = specta_typescript::Number)]
     pub skipped: usize,
+    #[specta(type = specta_typescript::Number)]
     pub cancelled: usize,
+    #[specta(type = specta_typescript::Number)]
     pub failed: usize,
 }
 

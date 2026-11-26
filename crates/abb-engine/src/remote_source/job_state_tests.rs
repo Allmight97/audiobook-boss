@@ -12,7 +12,12 @@ fn handed_off(handoff: AcquisitionHandoff) -> AcquisitionJobState {
 
 fn show_title_download_tick(job: &mut Registered) {
     job.show_progress(acquisition_progress_for_current_title(
-        acquisition_progress(AcquisitionStage::Download, Some(0.5), Some(1), Some(2)),
+        acquisition_progress(
+            AcquisitionStage::Download,
+            Some(0.5),
+            abb_remote_source_core::JsSafeU64::try_from(1).ok(),
+            abb_remote_source_core::JsSafeU64::try_from(2).ok(),
+        ),
         "B000000001",
         1,
         2,

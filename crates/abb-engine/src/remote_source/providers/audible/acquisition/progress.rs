@@ -1,6 +1,6 @@
 use abb_remote_source_core::{
     acquisition_progress, acquisition_progress_for_current_title, AcquisitionProgress,
-    AcquisitionStage,
+    AcquisitionStage, JsSafeU64,
 };
 
 #[derive(Clone, Copy)]
@@ -14,8 +14,8 @@ pub(in crate::remote_source::providers::audible) fn title_progress(
     context: TitleProgressContext<'_>,
     stage: AcquisitionStage,
     fraction: Option<f32>,
-    bytes_downloaded: Option<u64>,
-    bytes_total: Option<u64>,
+    bytes_downloaded: Option<JsSafeU64>,
+    bytes_total: Option<JsSafeU64>,
 ) -> AcquisitionProgress {
     with_title_progress(
         acquisition_progress(stage, fraction, bytes_downloaded, bytes_total),

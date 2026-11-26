@@ -85,6 +85,7 @@ pub struct OutputReviewRequirement {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PlannedOutput {
+    #[specta(type = specta_typescript::Number)]
     pub input_index: usize,
     pub input_path: String,
     pub kind: OutputKind,

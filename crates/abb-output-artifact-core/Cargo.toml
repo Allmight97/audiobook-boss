@@ -12,6 +12,7 @@ doctest = false
 abb-metadata-core = { path = "../abb-metadata-core" }
 serde = { version = "1.0.228", features = ["derive"] }
 specta = { workspace = true, features = ["derive"] }
+specta-typescript.workspace = true
 thiserror = "2.0.18"
 
 [lints]

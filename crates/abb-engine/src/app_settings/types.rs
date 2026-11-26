@@ -147,7 +147,7 @@ pub struct OutputDefaults {
 pub enum ConcurrencyPreference {
     #[default]
     Auto,
-    Fixed(usize),
+    Fixed(#[specta(type = specta_typescript::Number)] usize),
 }
 
 impl Default for AppSettings {

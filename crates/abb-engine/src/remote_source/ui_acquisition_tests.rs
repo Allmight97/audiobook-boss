@@ -252,7 +252,12 @@ fn download_update_bytes(count: usize) -> Vec<(bool, bool, bool, usize)> {
     for stage in [AcquisitionStage::License, AcquisitionStage::Download] {
         runtime.inner.lifecycle.update_job_progress(
             &job_id,
-            acquisition_progress(stage, Some(0.5), Some(500), Some(1_000)),
+            acquisition_progress(
+                stage,
+                Some(0.5),
+                abb_remote_source_core::JsSafeU64::try_from(500).ok(),
+                abb_remote_source_core::JsSafeU64::try_from(1000).ok(),
+            ),
         );
     }
     let sent = updates.0.lock().expect("updates");

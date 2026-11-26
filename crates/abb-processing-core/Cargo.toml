@@ -11,6 +11,7 @@ doctest = false
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
 specta = { workspace = true, features = ["derive"] }
+specta-typescript.workspace = true
 
 [lints]
 workspace = true

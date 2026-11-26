@@ -10,6 +10,7 @@ use abb_media_pipeline::processing::PREVIEW_SECONDS;
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TitleTotals {
+    #[specta(type = specta_typescript::Number)]
     pub chapter_count: usize,
     pub duration_seconds: f64,
     pub size_bytes: f64,

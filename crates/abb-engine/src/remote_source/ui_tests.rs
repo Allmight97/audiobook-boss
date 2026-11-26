@@ -4,6 +4,7 @@ use crate::remote_source::test_support::{vault_gate, MemoryVault, Reply, StubSer
 use crate::remote_source::types::{
     release_key, RemoteTitleAvailability, RemoteTitleAvailabilityStatus,
 };
+use abb_remote_source_core::{JsSafeI64, JsSafeU64};
 
 fn title(id: &str, acquirable: bool, pdf: bool) -> RemoteTitle {
     RemoteTitle {
@@ -47,11 +48,11 @@ fn release(indexer_id: i64) -> RemoteRelease {
         provider_id: ProviderId::Indexer,
         key: release_key(indexer_id, "shared-guid"),
         guid: "shared-guid".into(),
-        indexer_id,
+        indexer_id: JsSafeI64::try_from(indexer_id).expect("JS-safe test value"),
         title: format!("Book {indexer_id}"),
         indexer: "Indexer".into(),
         detail_url: None,
-        size_bytes: 100,
+        size_bytes: JsSafeU64::try_from(100).expect("JS-safe test value"),
         protocol: super::super::types::RemoteReleaseProtocol::Torrent,
         seeders: Some(10),
         categories: vec![],

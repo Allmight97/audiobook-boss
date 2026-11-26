@@ -265,7 +265,12 @@ async fn cancelled_job_keeps_terminal_state_when_background_result_arrives() {
     runtime.inner.tasks.wait().await;
     runtime.inner.lifecycle.update_job_progress(
         job_id,
-        acquisition_progress(AcquisitionStage::Download, Some(0.5), Some(5), Some(10)),
+        acquisition_progress(
+            AcquisitionStage::Download,
+            Some(0.5),
+            abb_remote_source_core::JsSafeU64::try_from(5).ok(),
+            abb_remote_source_core::JsSafeU64::try_from(10).ok(),
+        ),
     );
     runtime
         .inner
@@ -432,11 +437,11 @@ fn release(guid: &str) -> types::RemoteReleaseGrabRequest {
             provider_id: RemoteProviderId::Indexer,
             key: types::release_key(7, guid),
             guid: guid.to_string(),
-            indexer_id: 7,
+            indexer_id: abb_remote_source_core::JsSafeI64::try_from(7).expect("JS-safe test value"),
             title: "Example".to_string(),
             indexer: "Example Indexer".to_string(),
             detail_url: None,
-            size_bytes: 1,
+            size_bytes: abb_remote_source_core::JsSafeU64::try_from(1).expect("JS-safe test value"),
             protocol: types::RemoteReleaseProtocol::Torrent,
             seeders: None,
             categories: Vec::new(),

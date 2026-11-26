@@ -29,6 +29,7 @@ pub enum OutputPreview {
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OutputSnapshot {
+    #[specta(type = specta_typescript::Number)]
     pub revision: u64,
     pub directory: Option<String>,
     pub preset: NamingPreset,

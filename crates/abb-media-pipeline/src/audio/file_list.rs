@@ -11,7 +11,9 @@ pub struct FileListInfo {
     pub total_duration: f64,
     #[specta(type = specta_typescript::Number)]
     pub total_size: f64,
+    #[specta(type = specta_typescript::Number)]
     pub valid_count: usize,
+    #[specta(type = specta_typescript::Number)]
     pub invalid_count: usize,
 }
 

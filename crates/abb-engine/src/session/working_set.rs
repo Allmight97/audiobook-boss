@@ -55,6 +55,7 @@ pub enum InputNotice {
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TitlesSnapshot {
+    #[specta(type = specta_typescript::Number)]
     pub revision: u64,
     pub files: Vec<AudioFile>,
     pub title_sources_by_identity: BTreeMap<String, Vec<AudioFile>>,
@@ -71,8 +72,11 @@ pub struct TitlesSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectionSnapshot {
+    #[specta(type = specta_typescript::Number)]
     pub revision: u64,
+    #[specta(type = Vec<specta_typescript::Number>)]
     pub selected_indices: Vec<usize>,
+    #[specta(type = Option<specta_typescript::Number>)]
     pub selected_anchor: Option<usize>,
     pub can_group: bool,
 }

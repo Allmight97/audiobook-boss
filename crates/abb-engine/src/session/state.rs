@@ -48,22 +48,30 @@ pub enum MetadataStatus {
     GroupedEditsKept,
     #[serde(rename_all = "camelCase")]
     SaveComplete {
+        #[specta(type = specta_typescript::Number)]
         succeeded: usize,
+        #[specta(type = specta_typescript::Number)]
         failed: usize,
+        #[specta(type = specta_typescript::Number)]
         cancelled: usize,
+        #[specta(type = specta_typescript::Number)]
         waiting: usize,
+        #[specta(type = specta_typescript::Number)]
         held: usize,
         outputs: OutputEdits,
     },
     TagReadFailed {
         label: String,
+        #[specta(type = specta_typescript::Number)]
         more: usize,
     },
     SaveFailed {
         error: AppErrorEnvelope,
     },
     DeferredWritesFinished {
+        #[specta(type = specta_typescript::Number)]
         written: usize,
+        #[specta(type = specta_typescript::Number)]
         failed: usize,
     },
 }
@@ -85,13 +93,16 @@ pub struct CoverSnapshot {
     pub custom: bool,
     pub loading: bool,
     pub notice: Option<CoverNotice>,
+    #[specta(type = specta_typescript::Number)]
     pub notice_serial: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MetadataSnapshot {
+    #[specta(type = specta_typescript::Number)]
     pub revision: u64,
+    #[specta(type = specta_typescript::Number)]
     pub binding: u64,
     pub form: MetadataFormSnapshot,
     pub cover: CoverSnapshot,
@@ -121,6 +132,7 @@ pub struct TagPreview {
 #[derive(Debug, Clone, Default, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionUpdate {
+    #[specta(type = specta_typescript::Number)]
     pub revision: u64,
     pub titles: Option<TitlesSnapshot>,
     pub selection: Option<SelectionSnapshot>,

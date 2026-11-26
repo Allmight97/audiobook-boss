@@ -120,6 +120,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "specta",
+ "specta-typescript",
  "thiserror 2.0.21",
 ]
 
@@ -130,6 +131,7 @@ dependencies = [
  "abb-metadata-core",
  "serde",
  "specta",
+ "specta-typescript",
  "thiserror 2.0.21",
 ]
 
@@ -139,6 +141,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "specta",
+ "specta-typescript",
 ]
 
 [[package]]
@@ -146,6 +149,7 @@ name = "abb-remote-source-core"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
  "specta",
  "specta-typescript",
 ]

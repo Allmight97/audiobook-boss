@@ -40,6 +40,7 @@ pub enum SettingsOutcome {
 #[serde(rename_all = "camelCase")]
 pub struct ConcurrencySnapshot {
     pub preference: ConcurrencyPreference,
+    #[specta(type = specta_typescript::Number)]
     pub effective: usize,
     pub capabilities: MaxConcurrentJobsCapabilities,
 }
@@ -47,6 +48,7 @@ pub struct ConcurrencySnapshot {
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsSnapshot {
+    #[specta(type = specta_typescript::Number)]
     pub revision: u64,
     pub settings: AppSettings,
     pub save_error: Option<AppErrorEnvelope>,

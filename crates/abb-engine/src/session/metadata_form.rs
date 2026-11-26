@@ -213,6 +213,7 @@ pub enum SubseriesPartWarning {
 #[serde(rename_all = "camelCase")]
 pub struct MetadataFormSnapshot {
     pub mode: FormMode,
+    #[specta(type = specta_typescript::Number)]
     pub selection_count: usize,
     pub fields: Vec<FieldSnapshot>,
     pub series_part_warning: Option<SeriesPartWarning>,

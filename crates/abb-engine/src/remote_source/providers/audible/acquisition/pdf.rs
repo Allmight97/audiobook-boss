@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use abb_audible_core::{title_ref, TitleNamingFacts};
-use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage};
+use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage, JsSafeU64};
 
 use super::super::auth::Auth;
 use super::super::diagnostics::AudibleAcquisitionError;
@@ -42,7 +42,7 @@ pub(super) async fn acquire_pdf(
         Ok(title) => title,
         Err(refusal) => return Ok(AcquisitionOutcome::refused(refusal)),
     };
-    progress(download_progress(title_id, 0, None));
+    progress(download_progress(title_id, JsSafeU64::default(), None));
     let item_dir = match staging::create_item_dir(job_dir, &uuid::Uuid::new_v4().to_string()) {
         Ok(item_dir) => item_dir,
         Err(error) => {
@@ -113,7 +113,11 @@ fn refusal(error: AudibleAcquisitionError, title_id: &str) -> Result<RemoteSourc
     Ok(error.into_diagnostic(Some(title_id.to_string())))
 }
 
-fn download_progress(title_id: &str, bytes: u64, total: Option<u64>) -> AcquisitionProgress {
+fn download_progress(
+    title_id: &str,
+    bytes: JsSafeU64,
+    total: Option<JsSafeU64>,
+) -> AcquisitionProgress {
     let mut progress = title_progress(
         TitleProgressContext {
             title_id,
@@ -126,8 +130,9 @@ fn download_progress(title_id: &str, bytes: u64, total: Option<u64>) -> Acquisit
         total,
     );
     let fraction = total
+        .map(JsSafeU64::get)
         .filter(|total| *total > 0)
-        .map_or(0.0, |total| (bytes as f32 / total as f32).min(1.0));
+        .map_or(0.0, |total| (bytes.get() as f32 / total as f32).min(1.0));
     progress.percentage = DOWNLOAD_SHARE * fraction;
     progress.message = DOWNLOAD_MESSAGE.to_string();
     progress

@@ -7,6 +7,7 @@ use abb_audible_core::title_ref;
 use abb_media_core::{
     SupplementalPdfIdentity, SupplementalPdfIdentityBuilder, MAX_SUPPLEMENTAL_PDF_BYTES,
 };
+use abb_remote_source_core::JsSafeU64;
 
 use super::acquisition::generated_staging_path;
 use super::http::no_redirect_client;
@@ -192,7 +193,7 @@ struct SupplementalPdfLog<'a> {
 
 pub(super) async fn download_supplemental_pdf(
     request: SupplementalPdfRequest<'_>,
-    on_bytes: &mut impl FnMut(u64, Option<u64>),
+    on_bytes: &mut impl FnMut(JsSafeU64, Option<JsSafeU64>),
     is_cancelled: &impl Fn() -> bool,
 ) -> std::result::Result<(StagedPdf, ProvisionalCommittedFile), SupplementalPdfFailure> {
     let client =
@@ -214,7 +215,7 @@ async fn download_supplemental_pdf_with_client(
     request: SupplementalPdfRequest<'_>,
     start_url: reqwest::Url,
     transport_policy: SupplementalPdfTransportPolicy,
-    on_bytes: &mut impl FnMut(u64, Option<u64>),
+    on_bytes: &mut impl FnMut(JsSafeU64, Option<JsSafeU64>),
     is_cancelled: &impl Fn() -> bool,
 ) -> std::result::Result<(StagedPdf, ProvisionalCommittedFile), SupplementalPdfFailure> {
     if is_cancelled() {
@@ -301,7 +302,7 @@ async fn fetch_pdf_to_partial(
     log: SupplementalPdfLog<'_>,
     start_url: reqwest::Url,
     partial_path: &Path,
-    on_bytes: &mut impl FnMut(u64, Option<u64>),
+    on_bytes: &mut impl FnMut(JsSafeU64, Option<JsSafeU64>),
     is_cancelled: &impl Fn() -> bool,
 ) -> std::result::Result<SupplementalPdfIdentity, SupplementalPdfFailure> {
     let mut url = start_url;
@@ -430,7 +431,7 @@ async fn is_sign_in_page(path: &Path) -> bool {
 async fn stream_pdf_body(
     mut response: reqwest::Response,
     partial_path: &Path,
-    on_bytes: &mut impl FnMut(u64, Option<u64>),
+    on_bytes: &mut impl FnMut(JsSafeU64, Option<JsSafeU64>),
     is_cancelled: &impl Fn() -> bool,
 ) -> std::result::Result<SupplementalPdfIdentity, SupplementalPdfFailure> {
     let mut file = tokio::fs::OpenOptions::new()
@@ -440,7 +441,12 @@ async fn stream_pdf_body(
         .open(partial_path)
         .await
         .map_err(|_| SupplementalPdfFailure::new(PdfFailure::File, None))?;
-    let total = response.content_length();
+    let size_limit = |_| SupplementalPdfFailure::new(PdfFailure::SizeLimit, None);
+    let total = response
+        .content_length()
+        .map(JsSafeU64::try_from)
+        .transpose()
+        .map_err(size_limit)?;
     let mut identity = SupplementalPdfIdentityBuilder::new();
     while let Some(chunk) = response
         .chunk()
@@ -461,7 +467,10 @@ async fn stream_pdf_body(
             return Err(SupplementalPdfFailure::new(PdfFailure::SizeLimit, None));
         }
         identity.update(&chunk);
-        on_bytes(identity.size_bytes(), total);
+        on_bytes(
+            JsSafeU64::try_from(identity.size_bytes()).map_err(size_limit)?,
+            total,
+        );
         file.write_all(&chunk)
             .await
             .map_err(|_| SupplementalPdfFailure::new(PdfFailure::File, None))?;

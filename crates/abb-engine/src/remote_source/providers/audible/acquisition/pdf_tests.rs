@@ -91,13 +91,17 @@ fn a_refused_companion_file_fails_the_save_as_an_unsaved_pdf() {
 
 #[test]
 fn the_download_spans_the_whole_pdf_job_bar() {
-    assert_eq!(download_progress("B000000001", 0, None).percentage, 0.0);
+    let bytes = |value| JsSafeU64::try_from(value).expect("JS-safe test value");
     assert_eq!(
-        download_progress("B000000001", 512, Some(1024)).percentage,
+        download_progress("B000000001", bytes(0), None).percentage,
+        0.0
+    );
+    assert_eq!(
+        download_progress("B000000001", bytes(512), Some(bytes(1024))).percentage,
         DOWNLOAD_SHARE / 2.0
     );
     assert_eq!(
-        download_progress("B000000001", 1024, Some(1024)).percentage,
+        download_progress("B000000001", bytes(1024), Some(bytes(1024))).percentage,
         DOWNLOAD_SHARE
     );
 }

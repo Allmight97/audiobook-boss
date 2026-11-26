@@ -24,12 +24,13 @@ fn progress_never_goes_backward_across_stages() {
 
 #[test]
 fn a_stage_keeps_its_byte_counts_and_a_title_scope_names_its_place_in_the_batch() {
+    let bytes = |value: u64| JsSafeU64::try_from(value).ok();
     let downloading =
-        acquisition_progress(AcquisitionStage::Download, Some(0.5), Some(50), Some(100));
+        acquisition_progress(AcquisitionStage::Download, Some(0.5), bytes(50), bytes(100));
     let decrypting = acquisition_progress(AcquisitionStage::Decryption, Some(0.5), None, None);
 
-    assert_eq!(downloading.bytes_downloaded, Some(50));
-    assert_eq!(downloading.bytes_total, Some(100));
+    assert_eq!(downloading.bytes_downloaded, bytes(50));
+    assert_eq!(downloading.bytes_total, bytes(100));
     assert!(decrypting.message.to_lowercase().contains("decrypt"));
 
     let scoped_progress = acquisition_progress_for_current_title(downloading, "B000000001", 2, 3);

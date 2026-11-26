@@ -33,7 +33,6 @@ pub fn builder<R: tauri::Runtime>() -> Builder<R> {
         )
         .constant("COVER_URL_SCHEME", crate::cover_protocol::SCHEME)
         .error_handling(ErrorHandlingMode::Result)
-        .dangerously_cast_bigints_to_number()
 }
 
 pub fn export_typescript_bindings(

@@ -98,6 +98,7 @@ pub struct SupplementalProcessingAsset {
     pub title_id: String,
     pub path: PathBuf,
     pub file_name: String,
+    #[specta(type = specta_typescript::Number)]
     pub size_bytes: u64,
     pub sha256: String,
 }
@@ -116,6 +117,7 @@ pub struct ProcessingPreflightPlan {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessResultEntry {
+    #[specta(type = specta_typescript::Number)]
     pub input_index: usize,
     pub status: ProcessResultStatus,
     pub message: String,

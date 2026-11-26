@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 pub use abb_remote_source_core::AcquisitionProgress;
-use abb_remote_source_core::{acquisition_progress, AcquisitionStage};
+use abb_remote_source_core::{acquisition_progress, AcquisitionStage, JsSafeI64, JsSafeU64};
 
 const PDF_LOOKUP_MESSAGE: &str = "Looking up the title for its Supplemental PDF.";
 
@@ -112,11 +112,11 @@ pub struct RemoteRelease {
     pub provider_id: ProviderId,
     pub key: String,
     pub guid: String,
-    pub indexer_id: i64,
+    pub indexer_id: JsSafeI64,
     pub title: String,
     pub indexer: String,
     pub detail_url: Option<String>,
-    pub size_bytes: u64,
+    pub size_bytes: JsSafeU64,
     pub protocol: RemoteReleaseProtocol,
     pub seeders: Option<u32>,
     pub categories: Vec<RemoteReleaseCategory>,
@@ -271,6 +271,7 @@ pub struct MaterializedSourceFile {
     pub input_id: String,
     pub title_id: String,
     pub path: PathBuf,
+    #[specta(type = specta_typescript::Number)]
     pub size_bytes: u64,
     pub sha256: String,
 }
@@ -284,6 +285,7 @@ pub struct SupplementalAsset {
     pub title_id: String,
     pub path: PathBuf,
     pub file_name: String,
+    #[specta(type = specta_typescript::Number)]
     pub size_bytes: u64,
     pub sha256: String,
 }
@@ -387,8 +389,13 @@ pub enum AcquisitionHandoff {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum TitlesHandoff {
-    Imported { count: usize },
-    Removed { reason: HandoffRefusal },
+    Imported {
+        #[specta(type = specta_typescript::Number)]
+        count: usize,
+    },
+    Removed {
+        reason: HandoffRefusal,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
