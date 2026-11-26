@@ -6,11 +6,11 @@ unsound = "all"
 unused-ignored-advisory = "deny"
 ignore = [
   { id = "RUSTSEC-2024-0429", reason = "glib: unsound VariantStrIter only; GTK3 0.18 from tauri/wry/webkit2gtk on Linux; the fix is glib 0.20, which the GTK3 bindings do not get" },
-  { id = "RUSTSEC-2024-0370", reason = "proc-macro-error: unmaintained; compile-time only, via gtk3-macros, glib-macros, and specta" },
-  { id = "RUSTSEC-2024-0436", reason = "paste: unmaintained; compile-time only, via gtk3-macros, glib-macros, and specta" },
-  { id = "RUSTSEC-2026-0370", reason = "zvariant: unmaintained only; zbus 5 via keepawake, secret-service, and the Linux keyring store; stays until they move to zbus 6, since dropping the keyring store loses saved Audible sign-ins on restart" },
-  { id = "RUSTSEC-2026-0371", reason = "zbus_names: unmaintained only; zbus 5 via keepawake, secret-service, and the Linux keyring store; stays until they move to zbus 6, since dropping the keyring store loses saved Audible sign-ins on restart" },
-  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: unmaintained only; zbus 5 via keepawake, secret-service, and the Linux keyring store; stays until they move to zbus 6, since dropping the keyring store loses saved Audible sign-ins on restart" },
+  { id = "RUSTSEC-2024-0370", reason = "proc-macro-error: unmaintained; compile-time only, via gtk3-macros and glib-macros" },
+  { id = "RUSTSEC-2024-0436", reason = "paste: unmaintained; compile-time only, via specta" },
+  { id = "RUSTSEC-2026-0370", reason = "zvariant: unmaintained only; zbus 5 via keepawake, secret-service, zbus-secret-service-keyring-store, and tauri-plugin-opener on Linux; stays until all four move to zbus 6, since dropping the keyring store loses saved Audible sign-ins on restart" },
+  { id = "RUSTSEC-2026-0371", reason = "zbus_names: unmaintained only; zbus 5 via keepawake, secret-service, zbus-secret-service-keyring-store, and tauri-plugin-opener on Linux; stays until all four move to zbus 6, since dropping the keyring store loses saved Audible sign-ins on restart" },
+  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: unmaintained only; zbus 5 via keepawake, secret-service, zbus-secret-service-keyring-store, and tauri-plugin-opener on Linux; stays until all four move to zbus 6, since dropping the keyring store loses saved Audible sign-ins on restart" },
 ]
 
 [licenses]
