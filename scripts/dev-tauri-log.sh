@@ -445,6 +445,7 @@ EOF
 
 exec {orig_stdout_fd}>&1 {orig_stderr_fd}>&2
 exec > >(
+	set +e
 	tee -i -a "$log_file"
 	tee_rc=$?
 	printf '%s\n' "$tee_rc" > "$tee_status_file.tmp" && mv "$tee_status_file.tmp" "$tee_status_file"
