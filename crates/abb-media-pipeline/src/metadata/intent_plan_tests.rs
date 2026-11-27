@@ -1,4 +1,4 @@
-use super::{plan_metadata_outcome, plan_metadata_outcome_from};
+use super::{plan_metadata_outcome, plan_metadata_outcome_from, plan_metadata_write_for_path};
 use crate::metadata::{
     AlbumSortPatchOp, AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp,
 };
@@ -215,4 +215,24 @@ fn outcome_plan_reports_cover_art_clear_policy() {
         ),
         "explicit cover clear must suppress source cover art passthrough"
     );
+}
+
+#[test]
+fn non_series_save_plan_skips_reading_source_file() {
+    let missing = Path::new("/nonexistent/abb-no-read-required.m4b");
+    let non_series = MetadataIntentPatch {
+        title: Some(PatchOp::Set("No Pre-Read".to_string())),
+        ..Default::default()
+    };
+
+    let plan = plan_metadata_write_for_path(missing, &non_series)
+        .expect("non-series save plan should not read disk");
+    assert!(!plan.series_touched);
+
+    let series_patch = MetadataIntentPatch {
+        series: Some(PatchOp::Set("Needs Baseline".to_string())),
+        ..Default::default()
+    };
+    plan_metadata_write_for_path(missing, &series_patch)
+        .expect_err("series save plan must read source tags from disk");
 }

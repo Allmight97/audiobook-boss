@@ -92,8 +92,11 @@ fn save_metadata_with_plan_before_commit(
     let saved = remux::meta_temp(path)?;
     match route {
         Container::Mp4 => {
-            crate::diagnostics::stage("metadata_copy_source", path, || {
-                std::fs::copy(path, saved.path()).map_err(AppError::Io)
+            crate::diagnostics::stage_with("metadata_copy_source", path, || {
+                let started = std::time::Instant::now();
+                let stats = crate::file_copy::clone_or_copy_data(path, saved.path())
+                    .map_err(AppError::Io)?;
+                Ok(((), stats.log_fields(started.elapsed().as_millis())))
             })?;
             mp4ameta_bridge::write_metadata_with_plan(saved.path(), plan)?;
         }

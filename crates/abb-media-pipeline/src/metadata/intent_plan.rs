@@ -71,8 +71,12 @@ pub(crate) fn plan_metadata_write_for_path(
     patch: &MetadataIntentPatch,
 ) -> Result<MetadataWritePlan> {
     let source_metadata = crate::diagnostics::stage_with("metadata_plan_read", input_path, || {
-        let metadata = crate::metadata::read_metadata(input_path)?;
-        Ok((metadata, "skipped=false".to_string()))
+        if patch.touches_series_family() {
+            let metadata = crate::metadata::read_metadata(input_path)?;
+            Ok((metadata, "skipped=false".to_string()))
+        } else {
+            Ok((AudiobookMetadata::default(), "skipped=true".to_string()))
+        }
     })?;
     Ok(MetadataWritePlan::from_patch(patch, source_metadata)?)
 }

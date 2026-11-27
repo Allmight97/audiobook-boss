@@ -103,6 +103,7 @@ dependencies = [
  "keepawake",
  "log",
  "mp4ameta",
+ "rustix",
  "serde",
  "serde_json",
  "sha2 0.11.1",

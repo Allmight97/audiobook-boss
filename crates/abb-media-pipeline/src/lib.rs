@@ -2,6 +2,7 @@ pub mod audio;
 pub mod diagnostics;
 pub mod errors;
 pub mod execution;
+pub mod file_copy;
 pub mod file_replace;
 pub mod metadata;
 pub mod natural_order;

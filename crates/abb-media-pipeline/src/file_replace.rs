@@ -76,10 +76,14 @@ impl SiblingTemp {
             .sync_all()?;
         let sync_ms = sync_started.elapsed().as_millis();
         let chmod_started = Instant::now();
-        match std::fs::metadata(destination) {
-            Ok(existing) => std::fs::set_permissions(&self.path, existing.permissions())?,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
+        match (
+            std::fs::metadata(destination),
+            std::fs::metadata(&self.path),
+        ) {
+            (Ok(existing), Ok(temp_meta)) if existing.permissions() == temp_meta.permissions() => {}
+            (Ok(existing), _) => std::fs::set_permissions(&self.path, existing.permissions())?,
+            (Err(error), _) if error.kind() == io::ErrorKind::NotFound => {}
+            (Err(error), _) => return Err(error),
         }
         let chmod_ms = chmod_started.elapsed().as_millis();
         let rename_started = Instant::now();
