@@ -29,3 +29,8 @@
 - `claude.yml`: an empty `prompt` selects the pinned action's interactive
   mention handling, and `--tools=` is written as one inline empty value
   because that form survives the action's shell-argument parser.
+- `claude-review.yml` and `claude.yml` disable background tasks through the
+  action's `settings` input (`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"`),
+  because the pinned `claude-code-action` breaks on the first SDK `result`
+  message (ending the run before background subagents finish) and its
+  composite `env:` block shadows caller workflow env vars.
