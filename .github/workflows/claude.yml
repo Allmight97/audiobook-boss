@@ -54,4 +54,4 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           additional_permissions: "actions: read"
           prompt: ${{ github.event_name == 'workflow_dispatch' && 'Reply with exactly AUTH_OK. Do not use tools, post comments, or modify files.' || '' }}
-          claude_args: ${{ github.event_name == 'workflow_dispatch' && '--model fable --effort medium --max-turns 1 --tools=' || '--model fable --effort medium --append-system-prompt "Follow AGENTS.md at the repository root and the applicable nested AGENTS.md files. Review requests follow REVIEW.md."' }}
+          claude_args: ${{ github.event_name == 'workflow_dispatch' && '--model opus --effort high --max-turns 1 --tools=' || '--model opus --effort high --append-system-prompt "Follow AGENTS.md at the repository root and the applicable nested AGENTS.md files. Review requests follow REVIEW.md."' }}
