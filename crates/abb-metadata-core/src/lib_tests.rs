@@ -75,7 +75,7 @@ fn overlay_sets_and_clears_without_validating() {
 }
 
 #[test]
-fn a_read_fills_known_tags_and_only_text_tags_make_it_a_baseline() {
+fn a_read_fills_known_tags_without_overwriting_existing_fields() {
     let mut known = AudiobookMetadata {
         title: Some("Saved".into()),
         artist: Some("Saved Author".into()),
@@ -89,13 +89,7 @@ fn a_read_fills_known_tags_and_only_text_tags_make_it_a_baseline() {
 
     assert_eq!(known.title.as_deref(), Some("From File"));
     assert_eq!(known.artist.as_deref(), Some("Saved Author"));
-    assert!(known.has_text_tags());
-    assert!(!AudiobookMetadata::default().has_text_tags());
-    assert!(!AudiobookMetadata {
-        cover_art: Some(vec![9]),
-        ..Default::default()
-    }
-    .has_text_tags());
+    assert_eq!(known.cover_art, Some(vec![9]));
 }
 
 use super::*;

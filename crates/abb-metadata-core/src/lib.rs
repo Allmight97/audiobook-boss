@@ -71,14 +71,6 @@ impl AudiobookMetadata {
             cover_art
         );
     }
-
-    pub fn has_text_tags(&self) -> bool {
-        let without_cover = Self {
-            cover_art: None,
-            ..self.clone()
-        };
-        without_cover != Self::default()
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
