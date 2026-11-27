@@ -4,6 +4,17 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-11-26
+
+### Added
+
+- Importing a local audiobook folder (or dropping audio and PDF files together) now detects
+  companion PDFs, shows them with the PDF badge and in the File Inspector, and copies them into
+  the final destination folder alongside the exported audiobook for both pass-through and encoded
+  exports.
+- Grouped multi-part titles imported from a folder share the folder's companion PDF and copy it
+  once to the destination folder, while local source audio and PDFs are never deleted.
+
 ## [1.19.5] - 2026-11-25
 
 ### Fixed
