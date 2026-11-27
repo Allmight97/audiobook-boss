@@ -1,5 +1,21 @@
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::time::Instant;
+
+pub(crate) struct CommitTimings {
+    pub(crate) sync_ms: u128,
+    pub(crate) chmod_ms: u128,
+    pub(crate) rename_ms: u128,
+}
+
+impl CommitTimings {
+    pub(crate) fn log_fields(&self) -> String {
+        format!(
+            "sync_ms={} chmod_ms={} rename_ms={}",
+            self.sync_ms, self.chmod_ms, self.rename_ms
+        )
+    }
+}
 
 pub(crate) struct SiblingTemp {
     path: PathBuf,
@@ -33,26 +49,48 @@ impl SiblingTemp {
     }
 
     pub(crate) fn commit(self, destination: &Path) -> io::Result<()> {
-        self.commit_with(destination, replace_file)
+        self.commit_timed(destination).map(|_| ())
+    }
+
+    pub(crate) fn commit_timed(self, destination: &Path) -> io::Result<CommitTimings> {
+        self.commit_with_timed(destination, replace_file)
     }
 
     pub(crate) fn commit_with(
-        mut self,
+        self,
         destination: &Path,
         install: impl FnOnce(&Path, &Path) -> io::Result<()>,
     ) -> io::Result<()> {
+        self.commit_with_timed(destination, install).map(|_| ())
+    }
+
+    pub(crate) fn commit_with_timed(
+        mut self,
+        destination: &Path,
+        install: impl FnOnce(&Path, &Path) -> io::Result<()>,
+    ) -> io::Result<CommitTimings> {
+        let sync_started = Instant::now();
         std::fs::OpenOptions::new()
             .write(true)
             .open(&self.path)?
             .sync_all()?;
+        let sync_ms = sync_started.elapsed().as_millis();
+        let chmod_started = Instant::now();
         match std::fs::metadata(destination) {
             Ok(existing) => std::fs::set_permissions(&self.path, existing.permissions())?,
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => return Err(error),
         }
+        let chmod_ms = chmod_started.elapsed().as_millis();
+        let rename_started = Instant::now();
         install(&self.path, destination)?;
+        let rename_ms = rename_started.elapsed().as_millis();
         self.committed = true;
-        Ok(())
+        Ok(CommitTimings {
+            sync_ms,
+            chmod_ms,
+            rename_ms,
+        })
     }
 }
 

@@ -70,7 +70,10 @@ pub(crate) fn plan_metadata_write_for_path(
     input_path: &Path,
     patch: &MetadataIntentPatch,
 ) -> Result<MetadataWritePlan> {
-    let source_metadata = crate::metadata::read_metadata(input_path)?;
+    let source_metadata = crate::diagnostics::stage_with("metadata_plan_read", input_path, || {
+        let metadata = crate::metadata::read_metadata(input_path)?;
+        Ok((metadata, "skipped=false".to_string()))
+    })?;
     Ok(MetadataWritePlan::from_patch(patch, source_metadata)?)
 }
 

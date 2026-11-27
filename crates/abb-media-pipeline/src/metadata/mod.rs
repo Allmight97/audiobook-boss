@@ -108,11 +108,15 @@ fn commit_checked_save(
     saved: crate::file_replace::SiblingTemp,
     expected_fingerprint: &str,
 ) -> Result<()> {
-    check_saved_audio(original, saved.path())?;
+    crate::diagnostics::stage_with("metadata_verify_audio", original, || {
+        let bytes_read = check_saved_audio(original, saved.path())?;
+        Ok(((), format!("mode=packets bytes_read={bytes_read}")))
+    })?;
     let stat = std::fs::metadata(original).map_err(AppError::Io)?;
     validate_source_fingerprint(&stat, expected_fingerprint)?;
-    crate::diagnostics::stage("metadata_replace", original, || {
-        saved.commit(original).map_err(AppError::Io)
+    crate::diagnostics::stage_with("metadata_replace", original, || {
+        let timings = saved.commit_timed(original).map_err(AppError::Io)?;
+        Ok(((), timings.log_fields()))
     })
 }
 
@@ -159,16 +163,13 @@ struct AudioShape {
     audio_streams: Vec<AudioStreamInventory>,
 }
 
-fn check_saved_audio(original: &std::path::Path, saved: &std::path::Path) -> Result<()> {
+fn check_saved_audio(original: &std::path::Path, saved: &std::path::Path) -> Result<u64> {
     const TOLERANCE_US: u64 = 500_000;
     let original_shape = audio_shape(original)?;
     let saved_shape = audio_shape(saved)?;
     let duration_moved = original_shape
         .duration
         .moved_beyond(saved_shape.duration, TOLERANCE_US);
-    if original_shape.audio_streams == saved_shape.audio_streams && !duration_moved {
-        return Ok(());
-    }
     let totals = |streams: &[AudioStreamInventory]| {
         streams.iter().fold((0u64, 0u64), |(packets, bytes), s| {
             (packets + s.packets, bytes + s.payload_bytes)
@@ -176,6 +177,9 @@ fn check_saved_audio(original: &std::path::Path, saved: &std::path::Path) -> Res
     };
     let (orig_packets, orig_bytes) = totals(&original_shape.audio_streams);
     let (saved_packets, saved_bytes) = totals(&saved_shape.audio_streams);
+    if original_shape.audio_streams == saved_shape.audio_streams && !duration_moved {
+        return Ok(orig_bytes.saturating_add(saved_bytes));
+    }
     Err(AppError::FileValidation(format!(
         "The original '{}' was kept unchanged: the saved copy's audio did not match it (length {} vs {}, audio streams {} vs {}, packets {saved_packets} vs {orig_packets}, payload bytes {saved_bytes} vs {orig_bytes}).",
         crate::errors::sanitize_path_for_display(original),

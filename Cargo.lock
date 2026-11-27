@@ -40,6 +40,7 @@ dependencies = [
  "base64 0.23.1",
  "bogon",
  "cbc",
+ "env_logger",
  "image",
  "keyring-core",
  "linux-keyutils-keyring-store",

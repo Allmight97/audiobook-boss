@@ -75,21 +75,45 @@ impl<'a> Stage<'a> {
     }
 
     pub(crate) fn finish<T>(self, result: Result<T>) -> Result<T> {
+        self.finish_with(result, "")
+    }
+
+    pub(crate) fn finish_with<T>(self, result: Result<T>, extra_fields: &str) -> Result<T> {
         let Self {
             name,
             path,
             artifact,
             started,
         } = self;
+        let extra = format_extra_fields(extra_fields);
         match &result {
-            Ok(_) => log::info!("media_stage stage={name} status=ok artifact={artifact} elapsed_ms={} {}",
-                started.elapsed().as_millis(), file_state(path)),
-            Err(crate::errors::AppError::Cancellation(_)) => log::info!("media_stage stage={name} status=cancelled artifact={artifact} elapsed_ms={} {}",
-                started.elapsed().as_millis(), file_state(path)),
-            Err(error) => log::error!("media_stage stage={name} status=error artifact={artifact} elapsed_ms={} {} parent_state={:?} error={error}",
-                started.elapsed().as_millis(), file_state(path), path.parent().map(file_state)),
+            Ok(_) => log::info!(
+                "media_stage stage={name} status=ok artifact={artifact} elapsed_ms={} {}{extra}",
+                started.elapsed().as_millis(),
+                file_state(path)
+            ),
+            Err(crate::errors::AppError::Cancellation(_)) => log::info!(
+                "media_stage stage={name} status=cancelled artifact={artifact} elapsed_ms={} {}{extra}",
+                started.elapsed().as_millis(),
+                file_state(path)
+            ),
+            Err(error) => log::error!(
+                "media_stage stage={name} status=error artifact={artifact} elapsed_ms={} {} parent_state={:?}{extra} error={error}",
+                started.elapsed().as_millis(),
+                file_state(path),
+                path.parent().map(file_state)
+            ),
         }
         result
+    }
+}
+
+fn format_extra_fields(extra_fields: &str) -> String {
+    let trimmed = extra_fields.trim();
+    if trimmed.is_empty() {
+        String::new()
+    } else {
+        format!(" {trimmed}")
     }
 }
 
@@ -100,4 +124,16 @@ pub(crate) fn stage<T>(
 ) -> Result<T> {
     let record = Stage::start(name, path);
     record.finish(operation())
+}
+
+pub(crate) fn stage_with<T>(
+    name: &str,
+    path: &Path,
+    operation: impl FnOnce() -> Result<(T, String)>,
+) -> Result<T> {
+    let record = Stage::start(name, path);
+    match operation() {
+        Ok((value, fields)) => record.finish_with(Ok(value), &fields),
+        Err(error) => record.finish_with(Err(error), ""),
+    }
 }

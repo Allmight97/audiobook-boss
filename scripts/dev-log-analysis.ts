@@ -1,4 +1,9 @@
 import { readFileSync } from 'node:fs';
+import {
+	type MetadataStageEvent,
+	parseMetadataStageLine,
+	renderMetadataStages,
+} from './dev-log-metadata';
 
 export type SessionHealth = 'clean' | 'degraded' | 'failed' | 'interrupted' | 'indeterminate';
 
@@ -70,6 +75,7 @@ export interface DevLogAnalysis {
 	highSignalLines: string[];
 	audioDecisions: string[];
 	mediaDiagnostics: string[];
+	metadataStages: MetadataStageEvent[];
 	buildIdentities: string[];
 }
 
@@ -435,6 +441,7 @@ export function analyzeDevLog(
 	const operations = new Map<string, MutableOperation>();
 	const jobs = new Map<string, MutableJob>();
 	const outputPlanEvents: OutputPlanEvent[] = [];
+	const metadataStages: MetadataStageEvent[] = [];
 	let malformedLifecycleLines = 0;
 	let malformedOutputPlanLines = 0;
 
@@ -461,6 +468,9 @@ export function analyzeDevLog(
 			if (!event) malformedOutputPlanLines += 1;
 			else outputPlanEvents.push(event);
 		}
+
+		const metadataStage = parseMetadataStageLine(line);
+		if (metadataStage) metadataStages.push(metadataStage);
 	}
 
 	const operationOutcomes = sortedValues(operations);
@@ -669,6 +679,7 @@ export function analyzeDevLog(
 				),
 			)
 			.slice(-100),
+		metadataStages,
 		buildIdentities: [
 			...new Set(lines.filter((line) => /build_identity |build_checkout /.test(line))),
 		].slice(-20),
@@ -805,6 +816,10 @@ export function renderDevLogAnalysis(analysis: DevLogAnalysis): string {
 		'```text',
 		...analysis.audioDecisions,
 		'```',
+		'',
+		'## Metadata Stages',
+		'',
+		...renderMetadataStages(analysis.metadataStages),
 		'',
 		'## Decoding, Encoding, Metadata, and File Handoffs',
 		'',
