@@ -23,8 +23,8 @@ fn read_embedded_cover_bytes(path: &Path) -> Result<Option<Vec<u8>>> {
         )));
     }
 
-    if super::mp4_covr::looks_like_mp4_family_file(path)? {
-        return super::mp4_covr::read_bounded_mp4_cover_art(path, THUMBNAIL_MAX_ENCODED_BYTES);
+    if super::mp4::looks_like_mp4_family_file(path)? {
+        return super::mp4::read_bounded_cover_art(path, THUMBNAIL_MAX_ENCODED_BYTES);
     }
 
     super::embedded_cover::read_bounded_non_mp4_cover_art(path)

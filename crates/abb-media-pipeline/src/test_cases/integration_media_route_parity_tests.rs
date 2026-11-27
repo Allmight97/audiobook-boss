@@ -132,16 +132,12 @@ fn short_m4b_source(dir: &Path) -> PathBuf {
     let end = duration_ms(&audio);
     let source = dir.join("book.m4b");
     mux_chapters(&audio, &[("One", 0, 400), ("Two", 400, end - 60)], &source);
-    let mut tag = mp4ameta::Tag::read_from_path(&source).expect("read fixture tags");
-    tag.set_data(asin_ident(), mp4ameta::Data::Utf8(ASIN.into()));
-    tag.write_with_path(
-        &source,
-        &mp4ameta::WriteConfig {
-            write_meta_items: true,
-            ..mp4ameta::WriteConfig::NONE
-        },
-    )
-    .expect("plant ASIN");
+    let mut tag = crate::metadata::mp4::read_tag(&source).expect("read fixture tags");
+    tag.set_data(
+        asin_ident(),
+        crate::metadata::mp4::AtomData::Utf8(ASIN.into()),
+    );
+    crate::metadata::mp4::write_tag(&source, &tag).expect("plant ASIN");
     seed(&source);
     assert_eq!(planted_asin(&source), ASIN, "ASIN premise");
     let accepted_end = get_file_list_info(&[&source], AacDecoder::Auto)
@@ -161,12 +157,12 @@ fn short_m4b_source(dir: &Path) -> PathBuf {
     source
 }
 
-fn asin_ident() -> mp4ameta::ident::FreeformIdentStatic {
-    mp4ameta::FreeformIdent::new_static("com.apple.iTunes", "ASIN")
+fn asin_ident() -> crate::metadata::mp4::AtomIdent {
+    crate::metadata::mp4::AtomIdent::freeform("com.apple.iTunes", "ASIN")
 }
 
 fn planted_asin(path: &Path) -> String {
-    let tag = mp4ameta::Tag::read_from_path(path).expect("read tags");
+    let tag = crate::metadata::mp4::read_tag(path).expect("read tags");
     let asin = tag
         .strings_of(&asin_ident())
         .next()

@@ -86,8 +86,11 @@ async fn an_export_of_a_latin1_titled_file_writes_the_title_as_that_text() {
 
     let output = lane.process(Some(imported)).await;
 
-    let atoms = mp4ameta::Tag::read_from_path(&output).expect("read the exported atoms");
-    assert_eq!(atoms.title(), Some(DISPLAYED_TITLE));
+    let atoms = crate::metadata::mp4::read_tag(&output).expect("read the exported atoms");
+    assert_eq!(
+        atoms.first_fourcc_string(crate::metadata::mp4::ilst::TITLE_ATOM),
+        Some(DISPLAYED_TITLE)
+    );
     let metadata = read_metadata(&output).expect("reread");
     assert_eq!(metadata.title.as_deref(), Some(DISPLAYED_TITLE));
 }

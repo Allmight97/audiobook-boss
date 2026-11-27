@@ -1,7 +1,7 @@
 use super::container::Container;
 use super::cover_choice::CoverChoice;
 use super::field_schema::{comment_key_rank, position_keys, text_keys, KeySet, ALBUM_SORT_KEYS};
-use super::{mp4ameta_bridge, normalize_publication_date, split_series_list, AudiobookMetadata};
+use super::{mp4, normalize_publication_date, split_series_list, AudiobookMetadata};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use abb_ffmpeg::{Input, StreamFacts, Tags, Text};
 use abb_metadata_core::{PositionField, TextField};
@@ -21,7 +21,7 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
 
     if Container::of_input(&ictx).is_mp4_family() {
         drop(ictx);
-        let mut metadata = mp4ameta_bridge::read_metadata(path)?;
+        let mut metadata = mp4::read_metadata(path)?;
         metadata.cover_art = normalize_cover_art(metadata.cover_art);
         return Ok(metadata);
     }

@@ -20,8 +20,7 @@ mod field_schema;
 mod intent_plan;
 mod matroska_cover;
 mod metadata_sinks;
-mod mp4_covr;
-mod mp4ameta_bridge;
+pub mod mp4;
 mod passthrough;
 mod plan_log;
 mod remux;
@@ -98,7 +97,7 @@ fn save_metadata_with_plan_before_commit(
                     .map_err(AppError::Io)?;
                 Ok(((), stats.log_fields(started.elapsed().as_millis())))
             })?;
-            mp4ameta_bridge::write_metadata_with_plan(saved.path(), plan)?;
+            mp4::write_metadata_with_plan(saved.path(), plan)?;
         }
         route => remux::remux_into(path, saved.path(), Some(plan), None, &route)?,
     }
@@ -260,7 +259,7 @@ pub(crate) fn finish_artifact_tags(
         if route.is_mp4_family() {
             before_tag_write();
             let started = std::time::Instant::now();
-            mp4ameta_bridge::write_metadata(path, metadata)?;
+            mp4::write_metadata(path, metadata)?;
             log::info!(
                 "artifact_tag_write status=ok elapsed_ms={} artifact={}",
                 started.elapsed().as_millis(),

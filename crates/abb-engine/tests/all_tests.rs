@@ -32,10 +32,9 @@ fn book(root: &Path) -> PathBuf {
 }
 
 fn genre(path: &Path) -> Option<String> {
-    mp4ameta::Tag::read_from_path(path)
+    abb_media_pipeline::metadata::read_metadata(path)
         .expect("read real tags")
-        .genre()
-        .map(str::to_owned)
+        .genre
 }
 
 #[test]

@@ -374,18 +374,9 @@ async fn faac_he_preserve_with_repaired_chapters_keeps_reimport_timing() {
     let tool = "AudioBook Boss FAAC HE-AAC timing-2";
     assert_ffprobe_tag(&ffprobe_format_tags(&faac_output), "encoder", tool);
 
-    let mut tag = mp4ameta::Tag::read_from_path(&faac_output).expect("read FAAC tags");
-    *tag.chapter_list_mut() = vec![
-        mp4ameta::Chapter::new(std::time::Duration::ZERO, "One"),
-        mp4ameta::Chapter::new(std::time::Duration::from_millis(200), "Marker"),
-        mp4ameta::Chapter::new(std::time::Duration::from_millis(200), "Two"),
-    ];
-    tag.write_with_path(
+    crate::metadata::mp4::write_chapters(
         &faac_output,
-        &mp4ameta::WriteConfig {
-            write_chapter_list: true,
-            ..mp4ameta::WriteConfig::NONE
-        },
+        &[(0, "One"), (200, "Marker"), (200, "Two")],
     )
     .expect("write drifting chapters");
     assert_eq!(

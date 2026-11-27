@@ -1,6 +1,6 @@
+use crate::metadata::mp4::{ilst::*, read_tag, write_tag, AtomData, AtomIdent};
 use crate::metadata::{AlbumSortPatchOp, MetadataIntentPatch, PatchOp};
 use abb_test_fixtures::media::{ffmpeg, minimal_jpg_bytes, write_complete_frame_aac};
-use mp4ameta::{Data, FreeformIdent, Img, ImgFmt, Tag, WriteConfig};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -127,43 +127,54 @@ pub(crate) fn seed_mergeable_m4a(dir: &Path, stem: &str) -> PathBuf {
 }
 
 fn tag_m4b(path: &Path) {
-    let mut tag = Tag::read_from_path(path).expect("read the MP4 to tag");
-    tag.set_title("Seed Title");
-    tag.set_artist("Seed Author");
-    tag.set_album_artist("Seed Album Artist");
-    tag.set_album("Seed Album");
-    tag.set_composer("Seed Narrator");
-    tag.set_genre("Seed Genre");
-    tag.set_year("2001-02-03");
-    tag.set_comment("Seed Comment");
-    tag.set_description("Seed Description");
-    tag.set_album_sort_order("Seed Sort");
+    let mut tag = read_tag(path).expect("read the MP4 to tag");
+    tag.set_fourcc_utf8(TITLE_ATOM, "Seed Title");
+    tag.set_fourcc_utf8(ARTIST_ATOM, "Seed Author");
+    tag.set_fourcc_utf8(ALBUM_ARTIST_ATOM, "Seed Album Artist");
+    tag.set_fourcc_utf8(ALBUM_ATOM, "Seed Album");
+    tag.set_fourcc_utf8(COMPOSER_ATOM, "Seed Narrator");
+    tag.set_fourcc_utf8(GENRE_ATOM, "Seed Genre");
+    tag.set_fourcc_utf8(YEAR_ATOM, "2001-02-03");
+    tag.set_fourcc_utf8(COMMENT_ATOM, "Seed Comment");
+    tag.set_fourcc_utf8(DESCRIPTION_ATOM, "Seed Description");
+    tag.set_fourcc_utf8(ALBUM_SORT_ATOM, "Seed Sort");
     tag.set_track(0, 0);
     tag.set_disc(1, 3);
-    tag.set_tv_show_name("Show Series");
-    tag.set_tv_show_name_sort_order("Show Sort");
-    tag.set_tv_episode(5);
-    tag.set_tv_episode_name("Episode Name");
-    tag.set_movement("Movement Name");
-    tag.set_movement_index(4);
-    tag.set_show_movement();
-    let itunes = |name: &'static str| FreeformIdent::new_static("com.apple.iTunes", name);
-    tag.set_data(itunes("series"), Data::Utf8("Lower Series".to_string()));
-    tag.add_data(itunes("SERIES"), Data::Utf8("Upper Series".to_string()));
-    tag.set_data(itunes("series-part"), Data::Utf8("1".to_string()));
-    tag.add_data(itunes("SERIES-PART"), Data::Utf8("9".to_string()));
-    tag.set_data(itunes("ASIN"), Data::Utf8("B000000001".to_string()));
-    tag.add_artwork(Img::new(ImgFmt::Png, decoded(PNG_FIRST)));
-    tag.add_artwork(Img::new(ImgFmt::Jpeg, minimal_jpg_bytes()));
-    tag.add_artwork(Img::new(ImgFmt::Png, decoded(PNG_LAST)));
-    tag.write_with_path(
-        path,
-        &WriteConfig {
-            write_meta_items: true,
-            ..WriteConfig::NONE
-        },
-    )
-    .expect("seed the MP4 tags");
+    tag.set_fourcc_utf8(TV_SHOW_NAME_ATOM, "Show Series");
+    tag.set_fourcc_utf8(TV_SHOW_SORT_ATOM, "Show Sort");
+    tag.set_data(
+        AtomIdent::Fourcc(TV_EPISODE_ATOM),
+        AtomData::BeSigned(5u32.to_be_bytes().to_vec()),
+    );
+    tag.set_fourcc_utf8(TV_EPISODE_NAME_ATOM, "Episode Name");
+    tag.set_fourcc_utf8(MOVEMENT_ATOM, "Movement Name");
+    tag.set_data(
+        AtomIdent::Fourcc(MOVEMENT_INDEX_ATOM),
+        AtomData::BeSigned(4u16.to_be_bytes().to_vec()),
+    );
+    tag.set_data(
+        AtomIdent::Fourcc(SHOW_MOVEMENT_ATOM),
+        AtomData::BeSigned(vec![1]),
+    );
+    let itunes = |name: &'static str| AtomIdent::freeform("com.apple.iTunes", name);
+    tag.set_data(itunes("series"), AtomData::Utf8("Lower Series".to_string()));
+    tag.add_data(itunes("SERIES"), AtomData::Utf8("Upper Series".to_string()));
+    tag.set_data(itunes("series-part"), AtomData::Utf8("1".to_string()));
+    tag.add_data(itunes("SERIES-PART"), AtomData::Utf8("9".to_string()));
+    tag.set_data(itunes("ASIN"), AtomData::Utf8("B000000001".to_string()));
+    tag.add_data(
+        AtomIdent::Fourcc(COVR_ATOM),
+        AtomData::Png(decoded(PNG_FIRST)),
+    );
+    tag.add_data(
+        AtomIdent::Fourcc(COVR_ATOM),
+        AtomData::Jpeg(minimal_jpg_bytes()),
+    );
+    tag.add_data(
+        AtomIdent::Fourcc(COVR_ATOM),
+        AtomData::Png(decoded(PNG_LAST)),
+    );
+    write_tag(path, &tag).expect("seed the MP4 tags");
 }
 
 fn syncsafe(size: usize) -> [u8; 4] {

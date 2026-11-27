@@ -19,7 +19,7 @@
   see the source's tags.
 - MP4-family tag truth never depends on a bare remux, because FFmpeg's mov
   muxer drops series, freeform, and sort keys: `finish_artifact_tags`
-  rewrites an MP4-family artifact's tags through mp4ameta after every mux.
+  rewrites an MP4-family artifact's tags through `mp4::write_metadata` after every mux.
 - A Save never opens the original for writing: it checks a sibling copy and
   swaps it in, so a crash or a bad write leaves the original whole.
 - `tag_support::refuse_unholdable_edits` fails a Save that edits a tag the
@@ -86,12 +86,11 @@
 - Publication-date and series sequence validation stay in this module.
 - `----:com.apple.iTunes:SERIES` and `SERIES-PART` are FFmpeg read and clear
   keys, never write keys, so a stray tag from an older ABB still reads and a
-  series clear removes it; the mp4ameta sink writes them in MP4 beside the
+  series clear removes it; the `mp4` writer writes them in MP4 beside the
   lowercase keys as interoperability mirrors for readers of the uppercase
   names.
-- mp4ameta's `set_year` writes its argument to `©day` unchanged, so the MP4
-  sink stores the full normalized date there (`2001-02-03`); the name does
-  not mean year-only storage.
+- `mp4` writes the full normalized `date` string to `©day` unchanged, so it
+  stores the full date there (`2001-02-03`) rather than year-only storage.
 - MP4 artist and composer reads join repeated values with `;`, as FFmpeg's
   text projection does. A name list is one text value; nothing preserves its
   structure or a distinct album artist.
@@ -117,10 +116,9 @@
 
 ## Outside facts
 
-- `mp4_covr.rs`: mp4ameta's `Tag::read_from_path` allocates the whole artwork
-  before a size check can run, so thumbnails walk `moov/udta/meta/ilst/covr`
-  themselves. A valid MP4 can have padding before `ftyp`, and a legacy
-  QuickTime file may name itself only by its `moov`.
+- `mp4/metadata.rs`: thumbnails walk `moov/udta/meta/ilst/covr` with a strict
+  size bound before allocating artwork bytes. A valid MP4 can have padding
+  before `ftyp`, and a legacy QuickTime file may name itself only by its `moov`.
 - `matroska_cover.rs`: only a Segment may have an unknown size (streaming
   writers write it as eight bytes) and run to end of file; any other
   unknown-size element cannot be skipped by a bounded reader.

@@ -1,6 +1,6 @@
+use crate::metadata::mp4::{read_tag, AtomData, AtomIdent};
 use crate::metadata::read_metadata;
 use abb_ffmpeg::{Disposition, Medium};
-use mp4ameta::{Data, DataIdent, Tag};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fmt::Write as _;
@@ -109,24 +109,24 @@ fn reader_section(path: &Path, out: &mut String) {
     line("cover_art", tags.cover_art.as_deref().map(short_hash));
 }
 
-fn data_text(data: &Data) -> String {
+fn data_text(data: &AtomData) -> String {
     match data {
-        Data::Utf8(text) | Data::Utf16(text) => format!("{text:?}"),
-        Data::Jpeg(bytes) => format!("jpeg {}", short_hash(bytes)),
-        Data::Png(bytes) => format!("png {}", short_hash(bytes)),
-        Data::Bmp(bytes) => format!("bmp {}", short_hash(bytes)),
-        Data::Reserved(bytes) | Data::BeSigned(bytes) => format!("{bytes:?}"),
-        Data::Unknown { code, data } => format!("type {code} {data:?}"),
+        AtomData::Utf8(text) | AtomData::Utf16(text) => format!("{text:?}"),
+        AtomData::Jpeg(bytes) => format!("jpeg {}", short_hash(bytes)),
+        AtomData::Png(bytes) => format!("png {}", short_hash(bytes)),
+        AtomData::Bmp(bytes) => format!("bmp {}", short_hash(bytes)),
+        AtomData::Reserved(bytes) | AtomData::BeSigned(bytes) => format!("{bytes:?}"),
+        AtomData::Unknown { code, data } => format!("type {code} {data:?}"),
     }
 }
 
 fn atoms_section(path: &Path, out: &mut String) {
-    let tag = Tag::read_from_path(path).expect("read the MP4 atoms");
+    let tag = read_tag(path).expect("read the MP4 atoms");
     writeln!(out, "MP4 atoms, in file order:").expect("write to a String");
-    for (ident, data) in tag.data() {
+    for (ident, data) in tag.data_pairs() {
         let name = match ident {
-            DataIdent::Fourcc(fourcc) => fourcc.to_string(),
-            DataIdent::Freeform { mean, name } => format!("----:{mean}:{name}"),
+            AtomIdent::Fourcc(fourcc) => AtomIdent::Fourcc(*fourcc).to_string(),
+            AtomIdent::Freeform { mean, name } => format!("----:{mean}:{name}"),
         };
         let text = if name == "\u{a9}too" {
             "<varies>".to_string()

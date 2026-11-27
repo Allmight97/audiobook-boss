@@ -449,24 +449,36 @@ async fn metadata_two_pass_workflow(intent: crate::audio::AudioIntent) {
         .await;
         assert_eq!(outputs.len(), 2);
         for (output, title) in outputs.iter().zip(titles) {
-            let tags = mp4ameta::Tag::read_from_path(output).expect("read actual output tags");
-            assert_eq!(tags.title(), Some(*title));
-            assert_eq!(tags.artist(), Some("Edited Author"));
+            let tags = crate::metadata::mp4::read_tag(output).expect("read actual output tags");
             assert_eq!(
-                tags.album_sort_order(),
+                tags.first_fourcc_string(crate::metadata::mp4::ilst::TITLE_ATOM),
+                Some(*title)
+            );
+            assert_eq!(
+                tags.first_fourcc_string(crate::metadata::mp4::ilst::ARTIST_ATOM),
+                Some("Edited Author")
+            );
+            assert_eq!(
+                tags.first_fourcc_string(crate::metadata::mp4::ilst::ALBUM_SORT_ATOM),
                 Some(format!("Saga 02.5 - {title}").as_str())
             );
-            assert_eq!(tags.artwork().expect("written cover").data, cover);
+            assert_eq!(
+                tags.first_artwork().expect("written cover"),
+                cover.as_slice()
+            );
         }
     }
     for (index, source) in seeds.iter().enumerate() {
-        let tags = mp4ameta::Tag::read_from_path(source).expect("read untouched source");
-        assert_eq!(tags.artist(), Some("Source Author"));
+        let tags = crate::metadata::mp4::read_tag(source).expect("read untouched source");
         assert_eq!(
-            tags.album_sort_order(),
+            tags.first_fourcc_string(crate::metadata::mp4::ilst::ARTIST_ATOM),
+            Some("Source Author")
+        );
+        assert_eq!(
+            tags.first_fourcc_string(crate::metadata::mp4::ilst::ALBUM_SORT_ATOM),
             (index == 0).then_some("Stale sort")
         );
-        assert!(tags.artwork().is_none());
+        assert!(tags.first_artwork().is_none());
         save_metadata_intent(
             source,
             &MetadataIntentPatch {
@@ -475,10 +487,13 @@ async fn metadata_two_pass_workflow(intent: crate::audio::AudioIntent) {
             },
         )
         .expect("save source metadata");
-        let saved = mp4ameta::Tag::read_from_path(source).expect("read saved source");
-        assert_eq!(saved.artist(), Some("Saved Author"));
+        let saved = crate::metadata::mp4::read_tag(source).expect("read saved source");
         assert_eq!(
-            saved.album_sort_order(),
+            saved.first_fourcc_string(crate::metadata::mp4::ilst::ARTIST_ATOM),
+            Some("Saved Author")
+        );
+        assert_eq!(
+            saved.first_fourcc_string(crate::metadata::mp4::ilst::ALBUM_SORT_ATOM),
             (index == 0).then_some("Stale sort")
         );
     }

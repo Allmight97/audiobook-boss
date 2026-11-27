@@ -23,7 +23,7 @@
 - A preview cuts each file at an exact sample (`PreviewState::take`), so single
   and merged titles share one stop rule and tests can assert the length.
 - Drop FFmpeg probe, inspection, and remux contexts before reopening the same
-  path for decoder trials, processing, replacement, an mp4ameta write, or
+  path for decoder trials, processing, replacement, an MP4 tag write, or
   another library.
 - Cancel is checked again right before commit, because publishing may first
   wait for the output lock and write an edit, and a title cancelled meanwhile

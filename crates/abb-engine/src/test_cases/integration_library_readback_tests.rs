@@ -309,21 +309,21 @@ async fn ignoring_a_cue_sheet_keeps_its_chapters_out_of_the_export() {
 
 #[tokio::test]
 async fn an_m4b_with_only_uppercase_series_atoms_reads_and_exports_its_series() {
-    use mp4ameta::{Data, FreeformIdent, Tag};
+    use abb_media_pipeline::metadata::mp4::{read_tag, write_tag, AtomData, AtomIdent};
     let desk = Desk::new();
     let book = desk
         .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
         .await;
-    let mut tag = Tag::read_from_path(&book).expect("read atoms");
+    let mut tag = read_tag(&book).expect("read atoms");
     tag.set_data(
-        FreeformIdent::new_static("com.apple.iTunes", "SERIES"),
-        Data::Utf8("Dune".to_string()),
+        AtomIdent::freeform("com.apple.iTunes", "SERIES"),
+        AtomData::Utf8("Dune".to_string()),
     );
     tag.set_data(
-        FreeformIdent::new_static("com.apple.iTunes", "SERIES-PART"),
-        Data::Utf8("2".to_string()),
+        AtomIdent::freeform("com.apple.iTunes", "SERIES-PART"),
+        AtomData::Utf8("2".to_string()),
     );
-    tag.write_to_path(&book).expect("write atoms");
+    write_tag(&book, &tag).expect("write atoms");
     desk.import(&book).await;
     assert_eq!(desk.shown(MetadataField::Series), "Dune");
     assert_eq!(desk.shown(MetadataField::SeriesPart), "2");
@@ -331,14 +331,14 @@ async fn an_m4b_with_only_uppercase_series_atoms_reads_and_exports_its_series() 
     assert_eq!(tags(&book).series_part.as_deref(), Some("2"));
 
     let output = export_to(&desk, "uppercase", &encode_m4b()).await;
-    let written = Tag::read_from_path(&output).expect("read output atoms");
+    let written = read_tag(&output).expect("read output atoms");
     for (name, value) in [
         ("series", "Dune"),
         ("SERIES", "Dune"),
         ("series-part", "2"),
         ("SERIES-PART", "2"),
     ] {
-        let ident = FreeformIdent::new_static("com.apple.iTunes", name);
+        let ident = AtomIdent::freeform("com.apple.iTunes", name);
         assert_eq!(written.strings_of(&ident).next(), Some(value), "{name}");
     }
 }

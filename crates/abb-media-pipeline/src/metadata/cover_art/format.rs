@@ -1,5 +1,3 @@
-use mp4ameta::ImgFmt;
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CoverFormat {
     Jpeg,
@@ -18,13 +16,6 @@ impl CoverFormat {
         match self {
             CoverFormat::Jpeg => abb_ffmpeg::PictureKind::Jpeg,
             CoverFormat::Png => abb_ffmpeg::PictureKind::Png,
-        }
-    }
-
-    pub(crate) fn img_fmt(self) -> ImgFmt {
-        match self {
-            CoverFormat::Jpeg => ImgFmt::Jpeg,
-            CoverFormat::Png => ImgFmt::Png,
         }
     }
 }
