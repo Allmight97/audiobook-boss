@@ -15,7 +15,7 @@ pub use job_registry::MaxConcurrentJobsCapabilities;
 pub use title_output::{OutputUpdate, OutputUpdateStatus};
 pub use types::{
     ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
-    ProcessingPreflightPlan, SupplementalProcessingAsset, TitleSource,
+    ProcessingPreflightPlan, TitleSource,
 };
 
 pub use crate::audio::AudioHandling;

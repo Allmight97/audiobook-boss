@@ -8,6 +8,16 @@ use std::path::{Path, PathBuf};
 
 const FILE_HASH_BUFFER_BYTES: usize = 64 * 1024;
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SupplementalProcessingAsset {
+    pub path: PathBuf,
+    pub file_name: String,
+    #[specta(type = specta_typescript::Number)]
+    pub size_bytes: u64,
+    pub sha256: String,
+}
+
 pub struct SupplementalOutputAssetsCommitRequest<'a> {
     output_kind: super::OutputKind,
     final_audio_path: &'a Path,
@@ -153,10 +163,12 @@ fn supplemental_pdf_identity_from_inspected_file(
     Ok(identity)
 }
 
-fn ensure_pdf_source(request: &SupplementalOutputAssetCommitRequest<'_>) -> Result<()> {
-    let inspected_size = inspect_supplemental_pdf_source(request.source_path)?;
-    if request
-        .source_path
+fn inspect_and_verify_pdf(
+    source_path: &Path,
+    expected_identity: Option<&ExpectedSupplementalPdfIdentity<'_>>,
+) -> Result<SupplementalPdfIdentity> {
+    let inspected_size = inspect_supplemental_pdf_source(source_path)?;
+    if source_path
         .extension()
         .and_then(|value| value.to_str())
         .map(|value| value.eq_ignore_ascii_case("pdf"))
@@ -167,33 +179,33 @@ fn ensure_pdf_source(request: &SupplementalOutputAssetCommitRequest<'_>) -> Resu
         ));
     }
 
-    if request
-        .expected_identity
-        .as_ref()
-        .is_some_and(|expected| inspected_size != expected.size_bytes)
-    {
+    if expected_identity.is_some_and(|expected| inspected_size != expected.size_bytes) {
         return Err(AppError::FileValidation(
             "Supplemental PDF source size changed before output commit.".to_string(),
         ));
     }
 
-    let identity =
-        supplemental_pdf_identity_from_inspected_file(request.source_path, inspected_size)?;
+    let identity = supplemental_pdf_identity_from_inspected_file(source_path, inspected_size)?;
     if !identity.has_pdf_magic {
         return Err(AppError::FileValidation(
             "Supplemental asset did not pass PDF magic-byte validation.".to_string(),
         ));
     }
-    if request
-        .expected_identity
-        .as_ref()
-        .is_some_and(|expected| identity.sha256 != expected.sha256)
-    {
+    if expected_identity.is_some_and(|expected| identity.sha256 != expected.sha256) {
         return Err(AppError::FileValidation(
             "Supplemental PDF source hash changed before output commit.".to_string(),
         ));
     }
 
+    Ok(identity)
+}
+
+pub(crate) fn inspect_supplemental_pdf(source_path: &Path) -> Result<SupplementalPdfIdentity> {
+    inspect_and_verify_pdf(source_path, None)
+}
+
+fn ensure_pdf_source(request: &SupplementalOutputAssetCommitRequest<'_>) -> Result<()> {
+    inspect_and_verify_pdf(request.source_path, request.expected_identity.as_ref())?;
     Ok(())
 }
 

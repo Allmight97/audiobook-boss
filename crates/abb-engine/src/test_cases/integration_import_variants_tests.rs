@@ -366,3 +366,95 @@ async fn import_marks_a_file_with_unrepairable_chapters_and_keeps_the_rest() {
     );
     assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
 }
+
+#[tokio::test]
+async fn folder_import_passes_companion_pdf_through_to_destination_and_keeps_source_intact() {
+    let desk = Desk::new();
+    let source_dir = desk.root.path().join("I Am a Strange Loop");
+    let source_audio = desk
+        .audiobook(&source_dir.join("IAmaStrangeLoop_ep6.m4a"), 1.0)
+        .await;
+    let pdf_bytes = b"%PDF-1.7\ncompanion booklet bytes";
+    let source_pdf = source_dir.join("BK_HACH_004771.pdf");
+    fs::write(&source_pdf, pdf_bytes).expect("write companion pdf");
+
+    desk.import(&source_dir).await;
+
+    let titles = desk.engine.session_snapshot().titles.expect("titles");
+    assert_eq!(titles.files.len(), 1);
+    let input_id = titles.files[0].input_id.clone();
+    assert_eq!(titles.companions[&input_id], ["BK_HACH_004771.pdf"]);
+
+    desk.send(SessionIntent::SetTitleAudio {
+        title_ids: vec![input_id],
+        edit: crate::session::AudioEdit::Intent(abb_media_pipeline::audio::AudioIntent::Preserve),
+    })
+    .await;
+
+    let export = desk.export_and_finish().await;
+    let output_audio = desk.output_of(&export);
+    let expected_pdf = abb_output_artifact_core::supplemental_pdf_path(&output_audio);
+    assert_eq!(
+        fs::read(&expected_pdf).expect("companion pdf copied to destination"),
+        pdf_bytes
+    );
+
+    desk.send(SessionIntent::ClearAll).await;
+    assert!(desk
+        .engine
+        .session_snapshot()
+        .titles
+        .expect("titles")
+        .companions
+        .is_empty());
+    assert!(source_audio.exists(), "local source audio must remain");
+    assert_eq!(
+        fs::read(&source_pdf).expect("local source pdf must remain"),
+        pdf_bytes
+    );
+    assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
+}
+
+#[tokio::test]
+async fn grouped_folder_import_publishes_shared_companion_pdf_once() {
+    let desk = Desk::new();
+    let source_dir = desk.root.path().join("Multi Part Book");
+    write_wav(
+        &source_dir.join("Part 1.wav"),
+        1,
+        Some("Grouped Book"),
+        Some("Author"),
+    );
+    write_wav(
+        &source_dir.join("Part 2.wav"),
+        1,
+        Some("Grouped Book"),
+        Some("Author"),
+    );
+    let pdf_bytes = b"%PDF-1.7\nshared booklet";
+    fs::write(source_dir.join("Booklet.pdf"), pdf_bytes).expect("write shared pdf");
+
+    desk.import(&source_dir).await;
+    desk.send(SessionIntent::SelectAll).await;
+    desk.send(SessionIntent::GroupSelected).await;
+
+    let titles = desk.engine.session_snapshot().titles.expect("titles");
+    let group_id = titles.files[0].input_id.clone();
+    assert_eq!(titles.companions[&group_id], ["Booklet.pdf"]);
+
+    let export = desk.export_and_finish().await;
+    let output_audio = desk.output_of(&export);
+    let output_dir = output_audio.parent().expect("output parent");
+    let pdfs: Vec<PathBuf> = files_under(output_dir)
+        .into_iter()
+        .filter(|path| path.extension().is_some_and(|ext| ext == "pdf"))
+        .collect();
+    assert_eq!(
+        pdfs,
+        vec![abb_output_artifact_core::supplemental_pdf_path(
+            &output_audio
+        )]
+    );
+    assert_eq!(fs::read(&pdfs[0]).expect("read pdf"), pdf_bytes);
+    assert_eq!(desk.engine.shutdown().await, ShutdownOutcome::Settled);
+}

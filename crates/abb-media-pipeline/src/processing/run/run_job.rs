@@ -5,14 +5,14 @@ use crate::execution::{CancellationChecker, PublishGate};
 use crate::metadata::CoverArtPassthroughPolicy;
 use crate::output_artifact::{
     commit_supplemental_output_assets_for_output, OutputKind, ResolvedOutputPlan,
-    SupplementalOutputAssetsCommitRequest,
+    SupplementalOutputAssetsCommitRequest, SupplementalProcessingAsset,
 };
 use crate::power::PowerManager;
 use crate::processing::job_registry::{JobId, RegisteredJob};
 use crate::processing::ProgressEventListener;
 use crate::processing::{
     AudioHandling, JobIdentity, OperationKind, OutputConfig, ProcessPayload, ProcessingContext,
-    ProcessingSession, SupplementalProcessingAsset,
+    ProcessingSession,
 };
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -178,6 +178,7 @@ pub fn supplemental_assets_for_input(
     payload: &ProcessPayload,
     index: usize,
 ) -> Vec<SupplementalProcessingAsset> {
+    let mut seen_paths = std::collections::HashSet::new();
     payload
         .sources_for(index)
         .into_iter()
@@ -190,6 +191,7 @@ pub fn supplemental_assets_for_input(
                 .cloned()
                 .unwrap_or_default()
         })
+        .filter(|asset| seen_paths.insert(asset.path.clone()))
         .collect()
 }
 

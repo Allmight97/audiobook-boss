@@ -1,11 +1,12 @@
 use super::OperationResultSummary;
 use crate::audio;
 use crate::errors::AppErrorEnvelope;
-use crate::output_artifact::{CollisionPolicy, OutputNamingConfig, PlannedOutput};
+use crate::output_artifact::{
+    CollisionPolicy, OutputNamingConfig, PlannedOutput, SupplementalProcessingAsset,
+};
 use abb_output_artifact_core::CollisionChoices;
 pub use abb_processing_core::ProcessResultStatus;
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -88,19 +89,6 @@ impl ProcessPayload {
         }
         Ok(())
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SupplementalProcessingAsset {
-    pub asset_id: String,
-    pub input_id: String,
-    pub title_id: String,
-    pub path: PathBuf,
-    pub file_name: String,
-    #[specta(type = specta_typescript::Number)]
-    pub size_bytes: u64,
-    pub sha256: String,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]

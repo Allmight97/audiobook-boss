@@ -1,11 +1,10 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use super::state::SessionState;
 use super::tag_cache::ReadTicket;
 use crate::work_runtime::{ChildJobSnapshot, ChildJobStatus};
-use abb_media_pipeline::processing::SupplementalProcessingAsset;
 
 #[derive(Debug, Default)]
 pub(crate) struct StagedSources {
@@ -44,7 +43,7 @@ struct StagedJob {
 #[derive(Debug)]
 struct StagedTitle {
     path: PathBuf,
-    assets: Vec<SupplementalProcessingAsset>,
+    asset_paths: Vec<PathBuf>,
     finished: bool,
 }
 
@@ -54,7 +53,7 @@ impl StagedSources {
         job_id: &str,
         input_id: &str,
         path: PathBuf,
-        assets: Vec<SupplementalProcessingAsset>,
+        asset_paths: Vec<PathBuf>,
     ) {
         self.jobs
             .entry(job_id.to_string())
@@ -64,7 +63,7 @@ impl StagedSources {
                 input_id.to_string(),
                 StagedTitle {
                     path,
-                    assets,
+                    asset_paths,
                     finished: false,
                 },
             );
@@ -76,40 +75,6 @@ impl StagedSources {
             .or_default()
             .leftovers
             .extend(paths);
-    }
-
-    fn title(&self, input_id: &str) -> Option<&StagedTitle> {
-        self.jobs.values().find_map(|job| job.titles.get(input_id))
-    }
-
-    pub(crate) fn assets_for<'a>(
-        &self,
-        input_ids: impl IntoIterator<Item = &'a str>,
-    ) -> Option<HashMap<String, Vec<SupplementalProcessingAsset>>> {
-        let assets: HashMap<_, _> = input_ids
-            .into_iter()
-            .filter_map(|input_id| {
-                let title = self.title(input_id)?;
-                (!title.assets.is_empty()).then(|| (input_id.to_string(), title.assets.clone()))
-            })
-            .collect();
-        (!assets.is_empty()).then_some(assets)
-    }
-
-    pub(crate) fn companions(&self) -> BTreeMap<String, Vec<String>> {
-        self.jobs
-            .values()
-            .flat_map(|job| &job.titles)
-            .filter(|(_, title)| !title.assets.is_empty())
-            .map(|(input_id, title)| {
-                let names = title
-                    .assets
-                    .iter()
-                    .map(|asset| asset.file_name.clone())
-                    .collect();
-                (input_id.clone(), names)
-            })
-            .collect()
     }
 
     pub(crate) fn finish_export(&mut self, children: &[ChildJobSnapshot]) -> bool {
@@ -158,10 +123,7 @@ impl StagedSources {
                     && job.titles.values().all(|title| {
                         title.finished
                             && !in_use.contains(&title.path)
-                            && !title
-                                .assets
-                                .iter()
-                                .any(|asset| in_use.contains(&asset.path))
+                            && !title.asset_paths.iter().any(|path| in_use.contains(path))
                     })
                     && !job.leftovers.iter().any(|path| in_use.contains(path))
             })
@@ -177,8 +139,7 @@ impl StagedSources {
                 job.titles
                     .values()
                     .flat_map(|title| {
-                        std::iter::once(title.path.clone())
-                            .chain(title.assets.iter().map(|asset| asset.path.clone()))
+                        std::iter::once(title.path.clone()).chain(title.asset_paths.iter().cloned())
                     })
                     .chain(job.leftovers.iter().cloned())
             })
@@ -248,6 +209,7 @@ impl SessionState {
             };
         }
         self.working_set.sources_removed(&paths);
+        self.companions.remove_paths(&paths);
         self.staged.removed(job_id);
         FinishedRemoval {
             reads: self.rebind(),

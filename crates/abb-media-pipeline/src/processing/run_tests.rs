@@ -3,10 +3,10 @@ use super::run_job::{
     title_outcome,
 };
 use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
-use crate::output_artifact::{OutputFolderRecords, OutputKind};
+use crate::output_artifact::{OutputFolderRecords, OutputKind, SupplementalProcessingAsset};
 use crate::processing::job_registry::JobId;
 use crate::processing::terminal_outcomes::TitleOutcome;
-use crate::processing::{ProcessPayload, SupplementalProcessingAsset};
+use crate::processing::ProcessPayload;
 use crate::test_cases::media_fixtures::preflight_payload;
 use crate::test_cases::support::encoders::auto_encoder_settings;
 use crate::test_cases::support::session::idle_session;
@@ -494,15 +494,8 @@ async fn metadata_workflow_two_pass_preserve_writes_planned_tags() {
     metadata_two_pass_workflow(crate::audio::AudioIntent::Preserve).await;
 }
 
-fn supplemental_asset(
-    path: std::path::PathBuf,
-    input_id: &str,
-    bytes: &[u8],
-) -> SupplementalProcessingAsset {
+fn supplemental_asset(path: std::path::PathBuf, bytes: &[u8]) -> SupplementalProcessingAsset {
     SupplementalProcessingAsset {
-        asset_id: "asset-1".to_string(),
-        input_id: input_id.to_string(),
-        title_id: "B000000001".to_string(),
         path,
         file_name: "Supplemental PDF.pdf".to_string(),
         size_bytes: bytes.len() as u64,
@@ -630,7 +623,6 @@ fn preflight_refuses_a_too_long_companion_pdf_name_only_when_the_title_has_one()
         "input-1".to_string(),
         vec![supplemental_asset(
             temp_dir.path().join("book.pdf"),
-            "input-1",
             b"%PDF-",
         )],
     )]));
@@ -645,18 +637,25 @@ fn preflight_refuses_a_too_long_companion_pdf_name_only_when_the_title_has_one()
 }
 
 #[test]
-fn supplemental_assets_for_input_selects_by_file_list_input_id() {
-    let asset = SupplementalProcessingAsset {
-        asset_id: "asset-1".to_string(),
-        input_id: "current-input-2".to_string(),
-        title_id: "B000000001".to_string(),
+fn supplemental_assets_for_input_selects_by_file_list_input_id_and_deduplicates_paths() {
+    let shared = SupplementalProcessingAsset {
         path: "/staged/book.pdf".into(),
         file_name: "Supplemental PDF.pdf".to_string(),
         size_bytes: 128,
         sha256: "hash".to_string(),
     };
+    let second = SupplementalProcessingAsset {
+        path: "/staged/extra.pdf".into(),
+        file_name: "Extra.pdf".to_string(),
+        size_bytes: 64,
+        sha256: "hash-2".to_string(),
+    };
     let mut assets = HashMap::new();
-    assets.insert("current-input-2".to_string(), vec![asset.clone()]);
+    assets.insert("current-input-2".to_string(), vec![shared.clone()]);
+    assets.insert(
+        "current-input-3".to_string(),
+        vec![shared.clone(), second.clone()],
+    );
     let payload = process_payload(|payload| {
         payload.input_files = vec![
             "/books/first.m4b".to_string(),
@@ -666,11 +665,27 @@ fn supplemental_assets_for_input_selects_by_file_list_input_id() {
             Some("current-input-1".to_string()),
             Some("current-input-2".to_string()),
         ]);
+        payload.title_sources = Some(HashMap::from([(
+            "/books/second.m4b".to_string(),
+            vec![
+                crate::processing::TitleSource {
+                    path: "/books/second.m4b".to_string(),
+                    input_id: Some("current-input-2".to_string()),
+                },
+                crate::processing::TitleSource {
+                    path: "/books/third.m4b".to_string(),
+                    input_id: Some("current-input-3".to_string()),
+                },
+            ],
+        )]));
         payload.supplemental_assets_by_input_id = Some(assets);
     });
 
     assert!(supplemental_assets_for_input(&payload, 0).is_empty());
-    assert_eq!(supplemental_assets_for_input(&payload, 1), vec![asset]);
+    assert_eq!(
+        supplemental_assets_for_input(&payload, 1),
+        vec![shared, second]
+    );
 }
 
 #[tokio::test]
@@ -679,7 +694,7 @@ async fn supplemental_commit_failure_keeps_published_title_successful_with_warni
     let original_bytes = b"%PDF-1.7\nbody";
     let source = root.path().join("source.pdf");
     std::fs::write(&source, original_bytes).expect("write source pdf");
-    let asset = supplemental_asset(source.clone(), "current-input-1", original_bytes);
+    let asset = supplemental_asset(source.clone(), original_bytes);
     std::fs::write(&source, b"%PDF-1.7\nBODY").expect("change source pdf");
     let final_audio = root.path().join("Book.m4b");
     std::fs::write(&final_audio, b"published audiobook").expect("published audio");

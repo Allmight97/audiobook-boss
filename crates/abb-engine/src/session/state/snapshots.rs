@@ -84,6 +84,7 @@ impl SessionState {
 
         let listed = self.working_set.source_ids();
         self.staged.finish_unlisted(&listed);
+        self.companions.retain(&listed);
         let titles: HashSet<&str> = self
             .working_set
             .files()
@@ -91,7 +92,7 @@ impl SessionState {
             .map(|file| file.input_id.as_str())
             .collect();
         self.exports.retain_listed(&titles);
-        let companions = self.staged.companions();
+        let companions = self.companions.names();
         if self.working_set.titles_changes() != self.parts.titles_changes
             || companions != self.parts.titles.companions
             || self.source_covers.unpublished()

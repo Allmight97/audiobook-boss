@@ -13,9 +13,8 @@ use crate::work_runtime::OperationSnapshot;
 use abb_media_pipeline::audio;
 use abb_media_pipeline::errors::{AppError, AppErrorEnvelope};
 use abb_media_pipeline::output_artifact::{
-    publish_supplemental_pdf, SupplementalOutputAssetCommitRequest,
+    publish_supplemental_pdf, SupplementalOutputAssetCommitRequest, SupplementalProcessingAsset,
 };
-use abb_media_pipeline::processing::SupplementalProcessingAsset;
 
 const SESSION_GONE: &str = "ABB was closing, so the Supplemental PDF was not saved.";
 
@@ -344,22 +343,21 @@ fn list_acquired(
         let Some(acquired) = files.iter().find(|acquired| acquired.path == file.path) else {
             continue;
         };
-        let assets = assets
+        let assets: Vec<_> = assets
             .iter()
             .filter(|asset| asset.title_id == acquired.title_id)
             .map(|asset| SupplementalProcessingAsset {
-                asset_id: asset.asset_id.clone(),
-                input_id: file.input_id.clone(),
-                title_id: asset.title_id.clone(),
                 path: asset.path.clone(),
                 file_name: asset.file_name.clone(),
                 size_bytes: asset.size_bytes,
                 sha256: asset.sha256.clone(),
             })
             .collect();
+        let asset_paths = assets.iter().map(|asset| asset.path.clone()).collect();
         state
             .staged
-            .register(job_id, &file.input_id, file.path.clone(), assets);
+            .register(job_id, &file.input_id, file.path.clone(), asset_paths);
+        state.companions.attach(&file.input_id, assets);
         count += 1;
     }
     if count == 0 {

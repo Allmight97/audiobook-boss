@@ -26,10 +26,12 @@ pub use parent_dirs::ensure_output_parent_dirs;
 pub(crate) use parent_dirs::OutputParentDirCleanup;
 pub(crate) use plan::OutputPlanLedger;
 pub(crate) use review::{enforce_output_plan_review, OutputPlanReview};
-pub(crate) use supplemental::commit_supplemental_output_assets_for_output;
+pub(crate) use supplemental::{
+    commit_supplemental_output_assets_for_output, inspect_supplemental_pdf,
+};
 pub use supplemental::{
     publish_supplemental_pdf, SupplementalOutputAssetCommitRequest,
-    SupplementalOutputAssetsCommitRequest,
+    SupplementalOutputAssetsCommitRequest, SupplementalProcessingAsset,
 };
 pub use types::{
     CollisionPolicy, NamingPreset, OutputCollisionInfo, OutputCollisionKind, OutputKind,

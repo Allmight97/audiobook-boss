@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use super::{blocking, Bound, Rest, Session};
@@ -7,6 +8,7 @@ use crate::session::working_set::InputNotice;
 use abb_media_pipeline::audio;
 use abb_media_pipeline::audio::AudioFile;
 use abb_media_pipeline::errors::{AppErrorEnvelope, Result};
+use abb_media_pipeline::output_artifact::SupplementalProcessingAsset;
 
 impl Session {
     fn import_failed(&self, notice: InputNotice) -> SessionOutcome {
@@ -59,6 +61,7 @@ impl Session {
                 }
             };
         let discovered = discovery.paths;
+        let companions = discovery.companions;
         let skipped: Vec<_> = discovery
             .skipped
             .iter()
@@ -84,7 +87,9 @@ impl Session {
                 }
             };
 
-        let bound = self.list_imported(analyzed.files, skipped).await;
+        let bound = self
+            .list_imported(analyzed.files, companions, skipped)
+            .await;
         self.complete_reads(bound).await;
         SessionOutcome::Applied
     }
@@ -92,18 +97,11 @@ impl Session {
     async fn list_imported(
         &self,
         mut files: Vec<AudioFile>,
+        companions: HashMap<PathBuf, Vec<SupplementalProcessingAsset>>,
         skipped: Vec<audio::SkippedImportPath>,
     ) -> Bound {
         self.when_list_unlocked(|state| {
-            let default_audio = state.audio.request();
-            state
-                .working_set
-                .append_analyzed(std::mem::take(&mut files), &default_audio);
-            if !skipped.is_empty() {
-                state.working_set.set_notice(InputNotice::SkippedPaths {
-                    skipped: skipped.clone(),
-                });
-            }
+            state.import_local(std::mem::take(&mut files), &companions, &skipped);
             Bound::rebind(state)
         })
         .await

@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 
 use super::audio::{AudioDefaults, AudioRefusal, AudioSnapshot};
+use super::companions::Companions;
 use super::exports::{Exports, OutputEdits};
 use super::lookup::LookupSnapshot;
 use super::metadata_form::{MetadataForm, MetadataFormSnapshot};
@@ -18,6 +19,7 @@ use abb_media_pipeline::metadata::{AudiobookMetadata, MetadataIntentPatch};
 mod bound_form;
 mod cover;
 mod default_edits;
+mod import;
 mod lookup;
 mod save;
 mod snapshots;
@@ -166,6 +168,7 @@ pub(crate) struct SessionState {
     source_covers: SourceCovers,
     keeping_locations: usize,
     pub(crate) staged: StagedSources,
+    pub(crate) companions: Companions,
     pub(crate) exports: Exports,
     form: MetadataForm,
     bound: Vec<BoundTitle>,
@@ -202,6 +205,7 @@ impl Default for SessionState {
             source_covers: SourceCovers::default(),
             keeping_locations: 0,
             staged: StagedSources::default(),
+            companions: Companions::default(),
             exports: Exports::default(),
             form,
             bound: Vec::new(),

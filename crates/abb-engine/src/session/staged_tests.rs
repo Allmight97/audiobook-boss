@@ -9,16 +9,8 @@ fn path(name: &str) -> PathBuf {
     PathBuf::from(format!("/staged/{name}.m4b"))
 }
 
-fn pdf(input_id: &str) -> SupplementalProcessingAsset {
-    SupplementalProcessingAsset {
-        asset_id: format!("{input_id}-pdf"),
-        input_id: input_id.to_string(),
-        title_id: "B0".to_string(),
-        path: PathBuf::from(format!("/staged/{input_id}.pdf")),
-        file_name: format!("{input_id}.pdf"),
-        size_bytes: 10,
-        sha256: "00".to_string(),
-    }
+fn pdf_path(input_id: &str) -> PathBuf {
+    PathBuf::from(format!("/staged/{input_id}.pdf"))
 }
 
 pub(crate) fn exported(titles: &[(&str, ChildJobStatus, bool)]) -> Vec<ChildJobSnapshot> {
@@ -46,7 +38,7 @@ pub(crate) fn exported(titles: &[(&str, ChildJobStatus, bool)]) -> Vec<ChildJobS
 
 fn staged() -> StagedSources {
     let mut staged = StagedSources::default();
-    staged.register("job-1", "alpha", path("alpha"), vec![pdf("alpha")]);
+    staged.register("job-1", "alpha", path("alpha"), vec![pdf_path("alpha")]);
     staged.register("job-1", "beta", path("beta"), Vec::new());
     staged.register("job-2", "gamma", path("gamma"), Vec::new());
     staged
@@ -99,21 +91,6 @@ fn a_finished_download_waits_while_anything_reads_its_files() {
     let reading_pdf = HashSet::from([PathBuf::from("/staged/alpha.pdf")]);
     assert!(staged.removable(&reading_pdf, Instant::now()).is_empty());
     assert_eq!(staged.removable(&HashSet::new(), Instant::now()), ["job-1"]);
-}
-
-#[test]
-fn exports_take_each_title_companions_by_input_id() {
-    let staged = staged();
-
-    let assets = staged
-        .assets_for(["alpha", "beta", "unknown"])
-        .expect("assets");
-    assert_eq!(assets.keys().collect::<Vec<_>>(), ["alpha"]);
-    assert!(staged.assets_for(["beta"]).is_none());
-    assert_eq!(
-        staged.companions(),
-        BTreeMap::from([("alpha".to_string(), vec!["alpha.pdf".to_string()])])
-    );
 }
 
 #[test]

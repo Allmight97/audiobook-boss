@@ -1,5 +1,6 @@
 mod audio;
 mod audio_choice;
+mod companions;
 mod cover_address;
 pub(crate) use cover_address::remote as cover_remote_address;
 mod exports;

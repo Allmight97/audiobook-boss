@@ -348,6 +348,9 @@ fn two_books() -> Desk {
 #[path = "state/cover_tests.rs"]
 mod cover;
 
+#[path = "state/import_tests.rs"]
+mod import;
+
 #[path = "state/snapshots_tests.rs"]
 mod snapshots;
 

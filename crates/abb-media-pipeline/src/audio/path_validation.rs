@@ -40,6 +40,29 @@ pub fn validate_input_image_path(path: &Path) -> Result<PathBuf> {
     Ok(canonical)
 }
 
+pub(super) fn validate_input_pdf_path(path: &Path) -> Result<PathBuf> {
+    validate_path_characters(path)?;
+    reject_symlink(path, "PDF")?;
+    validate_file_existence_and_type(path)?;
+    if path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_none_or(|ext| !ext.eq_ignore_ascii_case("pdf"))
+    {
+        return Err(AppError::InvalidInput(
+            "Supplemental asset must have a .pdf extension.".to_string(),
+        ));
+    }
+
+    path.canonicalize().map_err(|e| {
+        AppError::FileValidation(format!(
+            "Cannot canonicalize path '{}': {}",
+            sanitize_path_for_display(path),
+            e
+        ))
+    })
+}
+
 pub(super) fn validate_input_directory_path(path: &Path) -> Result<PathBuf> {
     validate_path_characters(path)?;
     reject_symlink(path, "directory")?;

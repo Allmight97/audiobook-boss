@@ -127,7 +127,7 @@ impl SessionState {
                 has_title: self.has_title(file),
             })
             .collect();
-        let supplemental_assets = self.staged.assets_for(
+        let supplemental_assets = self.companions.assets_for(
             titles
                 .iter()
                 .filter(|title| title.is_submittable())
