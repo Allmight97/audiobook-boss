@@ -5,6 +5,7 @@ use super::boxes::{
 use super::ilst::Mp4Tag;
 use crate::errors::{AppError, Result};
 use crate::file_replace::SiblingTemp;
+use sha2::{Digest, Sha256};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
@@ -50,6 +51,8 @@ pub(crate) struct WriteTagStats {
     pub(crate) mdat_shifted: bool,
     pub(crate) bytes_written: u64,
     pub(crate) close_ms: u128,
+    pub(crate) mdat_ranges: Vec<(u64, u64)>,
+    pub(crate) streamed_mdat_hashes: Option<([u8; 32], [u8; 32])>,
 }
 
 impl WriteTagStats {
@@ -334,6 +337,8 @@ fn execute_surgical_patch(path: &Path, patch: &SurgicalPatch) -> Result<WriteTag
         mdat_shifted: false,
         bytes_written: patch.bytes_written,
         close_ms,
+        mdat_ranges: patch.mdat_ranges.clone(),
+        streamed_mdat_hashes: None,
     })
 }
 
@@ -349,24 +354,37 @@ fn execute_streaming_shift(path: &Path, streaming: &StreamingPlan) -> Result<Wri
         .create_new(true)
         .open(temp.path())
         .map_err(AppError::Io)?;
+    let mut source_hasher = Sha256::new();
+    let mut output_hasher = Sha256::new();
 
     for (idx, item) in streaming.boxes.iter().enumerate() {
         if idx == streaming.moov_idx {
             writer.write_all(&stabilized_moov).map_err(AppError::Io)?;
             continue;
         }
-        stream_single_box(&mut source, &mut writer, item, streaming.file_len)?;
+        stream_single_box(
+            &mut source,
+            &mut writer,
+            item,
+            streaming.file_len,
+            &mut source_hasher,
+            &mut output_hasher,
+        )?;
     }
     drop(writer);
     drop(source);
 
     let timings = temp.commit_timed(path).map_err(AppError::Io)?;
+    let source_hash: [u8; 32] = source_hasher.finalize().into();
+    let output_hash: [u8; 32] = output_hasher.finalize().into();
     Ok(WriteTagStats {
         layout_before: streaming.layout_before,
         layout_after: streaming.layout_before,
         mdat_shifted: true,
         bytes_written,
         close_ms: timings.sync_ms + timings.chmod_ms + timings.rename_ms,
+        mdat_ranges: collect_mdat_ranges(&streaming.boxes),
+        streamed_mdat_hashes: Some((source_hash, output_hash)),
     })
 }
 
@@ -375,11 +393,23 @@ fn stream_single_box(
     writer: &mut File,
     item: &BoxHeader,
     file_len: u64,
+    source_hasher: &mut Sha256,
+    output_hasher: &mut Sha256,
 ) -> Result<()> {
+    let is_mdat = &item.fourcc == b"mdat";
     if item.explicit_zero_size {
-        write_explicit_box_copy(source, writer, item, file_len)
+        write_explicit_box_copy(source, writer, item, file_len, source_hasher, output_hasher)
+    } else if is_mdat {
+        copy_range(source, writer, item.offset, item.content_offset(), None)?;
+        copy_range(
+            source,
+            writer,
+            item.content_offset(),
+            item.end(),
+            Some((source_hasher, output_hasher)),
+        )
     } else {
-        copy_range(source, writer, item.offset, item.end())
+        copy_range(source, writer, item.offset, item.end(), None)
     }
 }
 
@@ -388,6 +418,8 @@ fn write_explicit_box_copy(
     writer: &mut File,
     last_box: &BoxHeader,
     file_len: u64,
+    source_hasher: &mut Sha256,
+    output_hasher: &mut Sha256,
 ) -> Result<()> {
     let actual_size = file_len.saturating_sub(last_box.offset);
     if let Ok(size32) = u32::try_from(actual_size) {
@@ -405,7 +437,8 @@ fn write_explicit_box_copy(
             .write_all(&(16 + payload_len).to_be_bytes())
             .map_err(AppError::Io)?;
     }
-    copy_range(source, writer, last_box.content_offset(), file_len)
+    let hashes = (&last_box.fourcc == b"mdat").then_some((source_hasher, output_hasher));
+    copy_range(source, writer, last_box.content_offset(), file_len, hashes)
 }
 
 fn stabilize_shifted_moov(old_moov: &BoxHeader, base_moov_content: &[u8]) -> Result<Vec<u8>> {
@@ -422,7 +455,13 @@ fn stabilize_shifted_moov(old_moov: &BoxHeader, base_moov_content: &[u8]) -> Res
     Ok(candidate_box)
 }
 
-fn copy_range(source: &mut File, writer: &mut File, start: u64, end: u64) -> Result<()> {
+fn copy_range(
+    source: &mut File,
+    writer: &mut File,
+    start: u64,
+    end: u64,
+    mut hashers: Option<(&mut Sha256, &mut Sha256)>,
+) -> Result<()> {
     if start >= end {
         return Ok(());
     }
@@ -441,7 +480,13 @@ fn copy_range(source: &mut File, writer: &mut File, start: u64, end: u64) -> Res
             Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
             Err(error) => return Err(AppError::Io(error)),
         };
+        if let Some((source_hasher, _)) = hashers.as_mut() {
+            source_hasher.update(&buf[..read]);
+        }
         writer.write_all(&buf[..read]).map_err(AppError::Io)?;
+        if let Some((_, output_hasher)) = hashers.as_mut() {
+            output_hasher.update(&buf[..read]);
+        }
         remaining -= read as u64;
     }
     Ok(())

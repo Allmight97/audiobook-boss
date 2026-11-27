@@ -108,6 +108,13 @@ pub fn write_metadata(path: &Path, metadata: &AudiobookMetadata) -> Result<()> {
 }
 
 pub(crate) fn write_metadata_with_plan(path: &Path, plan: &MetadataWritePlan) -> Result<()> {
+    write_metadata_with_plan_stats(path, plan).map(|_| ())
+}
+
+pub(crate) fn write_metadata_with_plan_stats(
+    path: &Path,
+    plan: &MetadataWritePlan,
+) -> Result<writer::WriteTagStats> {
     super::super::plan_log::log_write_plan(
         plan,
         "mp4_native",
@@ -117,7 +124,8 @@ pub(crate) fn write_metadata_with_plan(path: &Path, plan: &MetadataWritePlan) ->
         let mut tag = writer::read_tag(path)?;
         apply_write_plan(&mut tag, plan)?;
         let stats = writer::write_tag_with_stats(path, &tag)?;
-        Ok(((), stats.log_fields()))
+        let fields = stats.log_fields();
+        Ok((stats, fields))
     })
 }
 

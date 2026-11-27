@@ -20,8 +20,13 @@
 - MP4-family tag truth never depends on a bare remux, because FFmpeg's mov
   muxer drops series, freeform, and sort keys: `finish_artifact_tags`
   rewrites an MP4-family artifact's tags through `mp4::write_metadata` after every mux.
-- A Save never opens the original for writing: it checks a sibling copy and
-  swaps it in, so a crash or a bad write leaves the original whole.
+- A Save protects the original across filesystems: on copy-on-write volumes
+  (`cow_clone`) or multi-link/streaming/non-MP4 saves it verifies a sibling
+  copy and atomically swaps it in; on single-link non-CoW MP4 saves where `moov`
+  updates surgically without moving `mdat`, `JournaledPatch` acquires an
+  exclusive `flock`, persists pre-images with SHA-256 checksums in a sibling
+  rollback journal, verifies structural `mdat` integrity, and rolls back on any
+  error or interrupted save.
 - `tag_support::refuse_unholdable_edits` fails a Save that edits a tag the
   container cannot store, because the muxer drops such a tag and the Save
   would report success.
@@ -133,11 +138,12 @@
   iTunes technical `COMM` records through untouched.
 - The sinks write Author to both artist and album artist, because
   Audiobookshelf and Plex group books by album artist.
-- `mod.rs` save check: before swapping a Save, ABB compares per-stream audio
-  packet counts and compressed payload bytes to EOF (any packet-read error
-  other than EOF refuses the Save), applies the 0.5 s duration check only when
-  both durations are measured, and rechecks the source file fingerprint taken
-  before the copy.
+- `verify.rs` save check: non-MP4 full remuxes compare per-stream audio packet
+  counts and compressed payload bytes to EOF with a 0.5 s measured duration
+  check; streaming MP4 shifts verify source-vs-output `mdat` SHA-256 plus
+  container open; surgical MP4 writes verify exact `mdat` byte offsets/lengths
+  plus container open without re-reading full audio payloads, and recheck the
+  source file fingerprint before commit.
 - FLAC: FFmpeg matches Vorbis comment keys case-insensitively on write and
   maps both `comment` and `COMMENT` to `DESCRIPTION` (`flacenc.c`), and on
   read maps `DESCRIPTION` back to `comment` (`oggparsevorbis.c`), so a FLAC

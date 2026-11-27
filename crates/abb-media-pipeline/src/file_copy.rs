@@ -200,6 +200,7 @@ fn copy_buffered(reader: &mut File, writer: &mut File) -> io::Result<u64> {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn clone_or_copy_data(src: &Path, dst: &Path) -> io::Result<CopyStats> {
     let file = File::open(src)?;
     let fs = filesystem_label_for_file(&file);

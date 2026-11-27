@@ -397,13 +397,16 @@ async fn metadata_save_writes_external_ffprobe_visible_mp4_tags() {
         disk: Some(PatchOp::Set((1, Some(2)))),
         ..Default::default()
     };
-    #[cfg(unix)]
-    let inode_before = std::os::unix::fs::MetadataExt::ino(&fs::metadata(&output).expect("stat"));
     save_metadata_intent(&output, &patch).expect("metadata save through mp4 path");
-    #[cfg(unix)]
-    assert_ne!(
-        std::os::unix::fs::MetadataExt::ino(&fs::metadata(&output).expect("stat")),
-        inode_before
+    let leftovers: Vec<_> = fs::read_dir(output.parent().expect("parent"))
+        .expect("list parent")
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with(".abb_"))
+        .collect();
+    assert!(
+        leftovers.is_empty(),
+        "leftover temp/journal files: {leftovers:?}"
     );
 
     let tags = ffprobe_format_tags(&output);
