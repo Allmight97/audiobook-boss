@@ -265,6 +265,37 @@ pub(crate) fn default_meta_hdlr_box() -> Vec<u8> {
     )
 }
 
+pub(crate) fn is_fragmented_moov(moov_content: &[u8]) -> Result<bool> {
+    Ok(parse_child_slices(moov_content)?
+        .iter()
+        .any(|child| &child.fourcc == b"mvex"))
+}
+
+pub(crate) fn encode_free_header(total_size: u64, force_64_bit: bool) -> Result<Vec<u8>> {
+    if !force_64_bit && total_size <= u64::from(u32::MAX) {
+        if total_size < 8 {
+            return Err(AppError::General(format!(
+                "MP4 free box header requires at least 8 bytes, got {total_size}"
+            )));
+        }
+        let mut out = Vec::with_capacity(8);
+        out.extend_from_slice(&(total_size as u32).to_be_bytes());
+        out.extend_from_slice(b"free");
+        Ok(out)
+    } else {
+        if total_size < 16 {
+            return Err(AppError::General(format!(
+                "MP4 64-bit free box header requires at least 16 bytes, got {total_size}"
+            )));
+        }
+        let mut out = Vec::with_capacity(16);
+        out.extend_from_slice(&1u32.to_be_bytes());
+        out.extend_from_slice(b"free");
+        out.extend_from_slice(&total_size.to_be_bytes());
+        Ok(out)
+    }
+}
+
 pub(crate) fn shift_moov_chunk_offsets(
     moov_content: &[u8],
     min_shifted_offset: u64,

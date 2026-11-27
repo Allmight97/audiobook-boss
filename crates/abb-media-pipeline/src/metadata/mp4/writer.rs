@@ -1,6 +1,6 @@
 use super::boxes::{
-    default_meta_hdlr_box, encode_box, meta_header_len, parse_child_slices, read_box_bytes,
-    scan_top_level, shift_moov_chunk_offsets, BoxHeader,
+    default_meta_hdlr_box, encode_box, encode_free_header, is_fragmented_moov, meta_header_len,
+    parse_child_slices, read_box_bytes, scan_top_level, shift_moov_chunk_offsets, BoxHeader,
 };
 use super::ilst::Mp4Tag;
 use crate::errors::{AppError, Result};
@@ -11,6 +11,38 @@ use std::path::Path;
 use std::time::Instant;
 
 const STREAM_CHUNK_BYTES: usize = 2 * 1024 * 1024;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ByteEdit {
+    pub(crate) offset: u64,
+    pub(crate) data: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SurgicalPatch {
+    pub(crate) edits: Vec<ByteEdit>,
+    pub(crate) final_len: u64,
+    pub(crate) layout_before: &'static str,
+    pub(crate) layout_after: &'static str,
+    pub(crate) mdat_ranges: Vec<(u64, u64)>,
+    pub(crate) bytes_written: u64,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct StreamingPlan {
+    pub(crate) moov_idx: usize,
+    pub(crate) moov: BoxHeader,
+    pub(crate) base_moov_content: Vec<u8>,
+    pub(crate) boxes: Vec<BoxHeader>,
+    pub(crate) file_len: u64,
+    pub(crate) layout_before: &'static str,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum Mp4PatchPlan {
+    Surgical(SurgicalPatch),
+    StreamingShift(StreamingPlan),
+}
 
 pub(crate) struct WriteTagStats {
     pub(crate) layout_before: &'static str,
@@ -58,23 +90,28 @@ pub fn write_tag(path: &Path, tag: &Mp4Tag) -> Result<()> {
 
 pub fn write_chapters(path: &Path, chapters: &[(u64, &str)]) -> Result<()> {
     let chpl_box = super::chpl::encode_chpl_box(chapters)?;
-    rewrite_moov_with(path, |moov_content| {
+    let plan = plan_moov_patch_with(path, |moov_content| {
         replace_udta_child(moov_content, *b"chpl", &chpl_box)
-    })
-    .map(|_| ())
+    })?;
+    execute_patch_plan(path, &plan).map(|_| ())
 }
 
 pub(crate) fn write_tag_with_stats(path: &Path, tag: &Mp4Tag) -> Result<WriteTagStats> {
+    let plan = plan_mp4_patch_for_tag(path, tag)?;
+    execute_patch_plan(path, &plan)
+}
+
+pub(crate) fn plan_mp4_patch_for_tag(path: &Path, tag: &Mp4Tag) -> Result<Mp4PatchPlan> {
     let ilst_box = tag.encode_ilst();
-    rewrite_moov_with(path, |moov_content| {
+    plan_moov_patch_with(path, |moov_content| {
         rebuild_moov_with_ilst(moov_content, &ilst_box)
     })
 }
 
-fn rewrite_moov_with(
+fn plan_moov_patch_with(
     path: &Path,
     transform: impl FnOnce(&[u8]) -> Result<Vec<u8>>,
-) -> Result<WriteTagStats> {
+) -> Result<Mp4PatchPlan> {
     let mut file = File::open(path)
         .map_err(|error| AppError::General(format!("Failed to open MP4: {error}")))?;
     let file_len = file
@@ -91,62 +128,219 @@ fn rewrite_moov_with(
     drop(file);
 
     let layout_before = layout_name(&boxes, moov_idx);
-    let moov_is_last = moov_idx + 1 == boxes.len();
-    if moov_is_last {
-        let new_moov = encode_box(*b"moov", &updated_content);
-        return write_moov_at_eof(path, moov.offset, &new_moov, layout_before);
-    }
-
-    stream_with_updated_moov(
-        path,
+    if let Some(patch) = compute_surgical_patch(
         file_len,
         &boxes,
         moov_idx,
+        &old_moov_content,
         &updated_content,
+    )? {
+        return Ok(Mp4PatchPlan::Surgical(patch));
+    }
+
+    Ok(Mp4PatchPlan::StreamingShift(StreamingPlan {
+        moov_idx,
+        moov,
+        base_moov_content: updated_content,
+        boxes,
+        file_len,
         layout_before,
+    }))
+}
+
+pub(crate) fn execute_patch_plan(path: &Path, plan: &Mp4PatchPlan) -> Result<WriteTagStats> {
+    match plan {
+        Mp4PatchPlan::Surgical(patch) => execute_surgical_patch(path, patch),
+        Mp4PatchPlan::StreamingShift(streaming) => execute_streaming_shift(path, streaming),
+    }
+}
+
+fn compute_surgical_patch(
+    file_len: u64,
+    boxes: &[BoxHeader],
+    moov_idx: usize,
+    old_moov_content: &[u8],
+    updated_content: &[u8],
+) -> Result<Option<SurgicalPatch>> {
+    let new_moov = encode_box(*b"moov", updated_content);
+    let moov = boxes[moov_idx];
+    let layout_before = layout_name(boxes, moov_idx);
+    let mdat_ranges = collect_mdat_ranges(boxes);
+
+    if moov_idx + 1 == boxes.len() {
+        let len = new_moov.len() as u64;
+        return Ok(Some(SurgicalPatch {
+            edits: vec![ByteEdit {
+                offset: moov.offset,
+                data: new_moov,
+            }],
+            final_len: moov.offset + len,
+            layout_before,
+            layout_after: "moov_end",
+            mdat_ranges,
+            bytes_written: len,
+        }));
+    }
+
+    if let Some(absorbed) = try_absorb_into_free(
+        file_len,
+        boxes,
+        moov_idx,
+        &new_moov,
+        layout_before,
+        &mdat_ranges,
+    )? {
+        return Ok(Some(absorbed));
+    }
+
+    try_relocate_moov_to_eof(
+        file_len,
+        boxes,
+        moov,
+        old_moov_content,
+        new_moov,
+        layout_before,
+        mdat_ranges,
     )
 }
 
-fn write_moov_at_eof(
-    path: &Path,
-    moov_offset: u64,
+fn try_absorb_into_free(
+    file_len: u64,
+    boxes: &[BoxHeader],
+    moov_idx: usize,
     new_moov: &[u8],
     layout_before: &'static str,
-) -> Result<WriteTagStats> {
+    mdat_ranges: &[(u64, u64)],
+) -> Result<Option<SurgicalPatch>> {
+    let moov = boxes[moov_idx];
+    let mut contiguous_end = moov.end();
+    for sibling in &boxes[moov_idx + 1..] {
+        if matches!(&sibling.fourcc, b"free" | b"skip") {
+            contiguous_end = sibling.end();
+        } else {
+            break;
+        }
+    }
+    let available = contiguous_end.saturating_sub(moov.offset);
+    let new_len = new_moov.len() as u64;
+    if available < new_len {
+        return Ok(None);
+    }
+    let remainder = available - new_len;
+    if remainder != 0 && remainder < 8 {
+        return Ok(None);
+    }
+
+    let mut data = new_moov.to_vec();
+    if remainder >= 8 {
+        let free_header = encode_free_header(remainder, remainder > u64::from(u32::MAX))?;
+        data.extend_from_slice(&free_header);
+    }
+    let bytes_written = data.len() as u64;
+    Ok(Some(SurgicalPatch {
+        edits: vec![ByteEdit {
+            offset: moov.offset,
+            data,
+        }],
+        final_len: file_len,
+        layout_before,
+        layout_after: layout_before,
+        mdat_ranges: mdat_ranges.to_vec(),
+        bytes_written,
+    }))
+}
+
+fn try_relocate_moov_to_eof(
+    file_len: u64,
+    boxes: &[BoxHeader],
+    moov: BoxHeader,
+    old_moov_content: &[u8],
+    new_moov: Vec<u8>,
+    layout_before: &'static str,
+    mdat_ranges: Vec<(u64, u64)>,
+) -> Result<Option<SurgicalPatch>> {
+    let has_moof = boxes.iter().any(|item| &item.fourcc == b"moof");
+    if has_moof || is_fragmented_moov(old_moov_content)? {
+        return Ok(None);
+    }
+    let Some(last) = boxes.last() else {
+        return Ok(None);
+    };
+    if last.explicit_zero_size && last.size > u64::from(u32::MAX) {
+        return Ok(None);
+    }
+
+    let mut edits = Vec::with_capacity(3);
+    let free_header = encode_free_header(
+        moov.size,
+        moov.header_len == 16 || moov.size > u64::from(u32::MAX),
+    )?;
+    edits.push(ByteEdit {
+        offset: moov.offset,
+        data: free_header,
+    });
+    if last.explicit_zero_size {
+        edits.push(ByteEdit {
+            offset: last.offset,
+            data: (last.size as u32).to_be_bytes().to_vec(),
+        });
+    }
+    let new_len = new_moov.len() as u64;
+    edits.push(ByteEdit {
+        offset: file_len,
+        data: new_moov,
+    });
+    let bytes_written = edits.iter().map(|edit| edit.data.len() as u64).sum();
+    Ok(Some(SurgicalPatch {
+        edits,
+        final_len: file_len + new_len,
+        layout_before,
+        layout_after: "moov_end",
+        mdat_ranges,
+        bytes_written,
+    }))
+}
+
+fn collect_mdat_ranges(boxes: &[BoxHeader]) -> Vec<(u64, u64)> {
+    boxes
+        .iter()
+        .filter(|item| &item.fourcc == b"mdat")
+        .map(|item| (item.content_offset(), item.end()))
+        .collect()
+}
+
+fn execute_surgical_patch(path: &Path, patch: &SurgicalPatch) -> Result<WriteTagStats> {
     let mut file = OpenOptions::new()
         .read(true)
         .write(true)
         .open(path)
         .map_err(AppError::Io)?;
-    file.seek(SeekFrom::Start(moov_offset))
-        .map_err(AppError::Io)?;
-    file.write_all(new_moov).map_err(AppError::Io)?;
-    file.set_len(moov_offset + new_moov.len() as u64)
-        .map_err(AppError::Io)?;
+    let orig_len = file.metadata().map_err(AppError::Io)?.len();
+    for edit in &patch.edits {
+        file.seek(SeekFrom::Start(edit.offset))
+            .map_err(AppError::Io)?;
+        file.write_all(&edit.data).map_err(AppError::Io)?;
+    }
+    if patch.final_len != orig_len {
+        file.set_len(patch.final_len).map_err(AppError::Io)?;
+    }
     let close_started = Instant::now();
     file.sync_all().map_err(AppError::Io)?;
     drop(file);
     let close_ms = close_started.elapsed().as_millis();
     Ok(WriteTagStats {
-        layout_before,
-        layout_after: "moov_end",
+        layout_before: patch.layout_before,
+        layout_after: patch.layout_after,
         mdat_shifted: false,
-        bytes_written: new_moov.len() as u64,
+        bytes_written: patch.bytes_written,
         close_ms,
     })
 }
 
-fn stream_with_updated_moov(
-    path: &Path,
-    file_len: u64,
-    boxes: &[BoxHeader],
-    moov_idx: usize,
-    base_moov_content: &[u8],
-    layout_before: &'static str,
-) -> Result<WriteTagStats> {
-    let moov = boxes[moov_idx];
-    let stabilized_moov = stabilize_shifted_moov(&moov, base_moov_content)?;
-    let bytes_written = stabilized_moov.len() as u64 + file_len.saturating_sub(moov.size);
+fn execute_streaming_shift(path: &Path, streaming: &StreamingPlan) -> Result<WriteTagStats> {
+    let moov = streaming.moov;
+    let stabilized_moov = stabilize_shifted_moov(&moov, &streaming.base_moov_content)?;
+    let bytes_written = stabilized_moov.len() as u64 + streaming.file_len.saturating_sub(moov.size);
 
     let mut source = File::open(path).map_err(AppError::Io)?;
     let temp = SiblingTemp::beside(path, "mp4", ".tmp").map_err(AppError::Io)?;
@@ -155,30 +349,38 @@ fn stream_with_updated_moov(
         .create_new(true)
         .open(temp.path())
         .map_err(AppError::Io)?;
-    copy_range(&mut source, &mut writer, 0, moov.offset)?;
-    writer.write_all(&stabilized_moov).map_err(AppError::Io)?;
-    let after_start = moov.end();
-    if after_start < file_len {
-        let last = boxes.last();
-        if last.is_some_and(|item| item.explicit_zero_size && item.offset >= after_start) {
-            let last_box = last.ok_or_else(|| AppError::General("missing last box".into()))?;
-            copy_range(&mut source, &mut writer, after_start, last_box.offset)?;
-            write_explicit_box_copy(&mut source, &mut writer, last_box, file_len)?;
-        } else {
-            copy_range(&mut source, &mut writer, after_start, file_len)?;
+
+    for (idx, item) in streaming.boxes.iter().enumerate() {
+        if idx == streaming.moov_idx {
+            writer.write_all(&stabilized_moov).map_err(AppError::Io)?;
+            continue;
         }
+        stream_single_box(&mut source, &mut writer, item, streaming.file_len)?;
     }
     drop(writer);
     drop(source);
 
     let timings = temp.commit_timed(path).map_err(AppError::Io)?;
     Ok(WriteTagStats {
-        layout_before,
-        layout_after: layout_before,
+        layout_before: streaming.layout_before,
+        layout_after: streaming.layout_before,
         mdat_shifted: true,
         bytes_written,
         close_ms: timings.sync_ms + timings.chmod_ms + timings.rename_ms,
     })
+}
+
+fn stream_single_box(
+    source: &mut File,
+    writer: &mut File,
+    item: &BoxHeader,
+    file_len: u64,
+) -> Result<()> {
+    if item.explicit_zero_size {
+        write_explicit_box_copy(source, writer, item, file_len)
+    } else {
+        copy_range(source, writer, item.offset, item.end())
+    }
 }
 
 fn write_explicit_box_copy(
@@ -193,7 +395,6 @@ fn write_explicit_box_copy(
             .write_all(&size32.to_be_bytes())
             .map_err(AppError::Io)?;
         writer.write_all(&last_box.fourcc).map_err(AppError::Io)?;
-        copy_range(source, writer, last_box.content_offset(), file_len)?;
     } else {
         let payload_len = file_len.saturating_sub(last_box.content_offset());
         writer
@@ -203,9 +404,8 @@ fn write_explicit_box_copy(
         writer
             .write_all(&(16 + payload_len).to_be_bytes())
             .map_err(AppError::Io)?;
-        copy_range(source, writer, last_box.content_offset(), file_len)?;
     }
-    Ok(())
+    copy_range(source, writer, last_box.content_offset(), file_len)
 }
 
 fn stabilize_shifted_moov(old_moov: &BoxHeader, base_moov_content: &[u8]) -> Result<Vec<u8>> {
@@ -370,3 +570,7 @@ fn replace_or_append_child(
     }
     Ok(out)
 }
+
+#[cfg(test)]
+#[path = "writer_tests.rs"]
+mod tests;
