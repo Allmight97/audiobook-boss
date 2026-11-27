@@ -664,7 +664,7 @@ export function analyzeDevLog(
 			.slice(-100),
 		mediaDiagnostics: lines
 			.filter((line) =>
-				/decode_open |decode_summary |media_stage |media_job |media_handoff |media_cleanup |metadata_plan |metadata_route |metadata_cover |metadata_chapters |metadata_chapter_mismatch |cover_art_plan |encoder_effective |encoder_config /.test(
+				/decode_open |decode_summary |media_stage |media_job |media_handoff |media_cleanup |metadata_plan |metadata_route |metadata_cover |metadata_chapters |metadata_chapter_mismatch |cover_art_plan |encoder_effective |encoder_config |supplemental_pdf_commit /.test(
 					line,
 				),
 			)

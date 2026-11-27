@@ -464,6 +464,7 @@ it('exposes build identity, stage failures and effective codec diagnostics witho
 		'media_stage stage=metadata_open_input status=error artifact=a exists=false',
 		'metadata_plan artifact=a writer=mp4ameta fields=Title=set,Comment=clear',
 		'media_cleanup reason=guard_drop session_id=s pid=1',
+		'supplemental_pdf_commit status=ok bytes=2269096',
 	].join('\n');
 	const encoding = [
 		'--- in-process-encoder run 1 ---',
@@ -482,6 +483,7 @@ it('exposes build identity, stage failures and effective codec diagnostics witho
 	expect(summary).toContain('encoder_effective encoder=aac rate=44100 channels=2');
 	expect(summary).toContain('decode_open input=/books/a.m4b decoder=faad3');
 	expect(summary).toContain('decode_summary input=/books/a.m4b decoder=faad3 packets=10');
+	expect(summary).toContain('supplemental_pdf_commit status=ok bytes=2269096');
 	expect(summary).toContain('faac_version=1.31 profile=HE-AAC-v1');
 	expect(summary).toContain('mux_finished=true');
 	expect(analysis.jobs).toEqual([]);
