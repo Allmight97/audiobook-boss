@@ -4,6 +4,25 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.20.1] - 2026-11-27
+
+### Changed
+
+- Saving metadata and cover art on M4B and MP4 audiobooks now updates tags directly instead of
+  copying or remuxing the entire audio stream, using APFS copy-on-write clones locally on macOS and
+  crash-safe journaled in-place writes on SMB network shares and other disks, while skipping
+  redundant tag reads after a book is loaded.
+
+### Fixed
+
+- Saving metadata on macOS SMB network shares no longer fails with a permission error (`EACCES`)
+  when extended attributes or ACLs cannot be copied.
+- Interrupted metadata saves automatically roll back to the original file on the next import,
+  read, cover load, or save—including after partial mid-write crashes—while refusing stale
+  journals if the file changed elsewhere, handling filenames near the filesystem length limit, and
+  preserving QuickTime cover metadata, multi-`udta` tags, non-standard freeform atoms, and
+  overflowing front-`moov` or `>4 GiB` files safely.
+
 ## [1.20.0] - 2026-11-26
 
 ### Added
