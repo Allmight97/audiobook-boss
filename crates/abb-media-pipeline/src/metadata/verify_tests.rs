@@ -38,15 +38,21 @@ fn verify_surgical_mp4_accepts_unchanged_mdat_and_rejects_shifted_mdat() {
 }
 
 #[test]
-fn verify_streaming_mp4_rejects_mismatched_mdat_sha256() {
+fn verify_streaming_mp4_rejects_mismatched_mdat_sha256_and_wrong_length() {
     let dir = TempDir::new().expect("temp dir");
     let copy = dir.path().join("book.m4b");
     fs::copy(UNTAGGED_M4B, &copy).expect("copy fixture");
+    let exact_len = fs::metadata(&copy).expect("stat").len();
 
     let digest = [0x11u8; 32];
-    verify_streaming_mp4(&copy, digest, digest).expect("matching digest");
+    verify_streaming_mp4(&copy, exact_len, digest, digest).expect("matching digest and length");
 
-    let err = verify_streaming_mp4(&copy, digest, [0x22u8; 32]).expect_err("mismatch rejected");
+    let len_err = verify_streaming_mp4(&copy, exact_len + 64, digest, digest)
+        .expect_err("length mismatch rejected");
+    assert!(len_err.to_string().contains("length mismatch"), "{len_err}");
+
+    let err = verify_streaming_mp4(&copy, exact_len, digest, [0x22u8; 32])
+        .expect_err("mismatch rejected");
     assert!(err.to_string().contains("digest mismatch"), "{err}");
     let _ = OpenOptions::new()
         .read(true)

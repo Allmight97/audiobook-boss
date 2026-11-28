@@ -152,6 +152,28 @@ pub(crate) fn try_cow_clone(src: &Path, dst: &Path) -> io::Result<bool> {
     }
 }
 
+pub(crate) fn copy_for_save(src: &Path, dst: &Path, fs: &str) -> io::Result<u64> {
+    #[cfg(target_os = "macos")]
+    {
+        if fs == "smbfs" {
+            return copy_data_only(src, dst);
+        }
+        match std::fs::copy(src, dst) {
+            Ok(bytes) => Ok(bytes),
+            Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
+                remove_temp_best_effort(dst);
+                copy_data_only(src, dst)
+            }
+            Err(error) => Err(error),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = fs;
+        std::fs::copy(src, dst)
+    }
+}
+
 pub(crate) fn copy_data_only(src: &Path, dst: &Path) -> io::Result<u64> {
     #[cfg(target_os = "macos")]
     {

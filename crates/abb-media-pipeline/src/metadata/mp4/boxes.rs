@@ -85,25 +85,65 @@ pub(crate) fn read_box_header(
 }
 
 pub(crate) fn scan_top_level(file: &mut File, file_len: u64) -> Result<Vec<BoxHeader>> {
+    scan_top_level_with(file, file_len, false)
+}
+
+pub(crate) fn scan_top_level_strict(file: &mut File, file_len: u64) -> Result<Vec<BoxHeader>> {
+    scan_top_level_with(file, file_len, true)
+}
+
+fn scan_top_level_with(file: &mut File, file_len: u64, strict: bool) -> Result<Vec<BoxHeader>> {
     let mut boxes = Vec::new();
     let mut offset = 0u64;
-    for _ in 0..MAX_SCANNED_ATOMS {
-        if offset.saturating_add(8) > file_len {
+    while offset < file_len {
+        if boxes.len() >= MAX_SCANNED_ATOMS {
+            if strict {
+                return Err(AppError::FileValidation(format!(
+                    "MP4 container exceeded the {MAX_SCANNED_ATOMS}-atom scan limit"
+                )));
+            }
+            break;
+        }
+        let remaining = file_len - offset;
+        if remaining < 8 {
+            if strict {
+                return Err(AppError::FileValidation(format!(
+                    "MP4 file has {remaining} trailing byte(s) after top-level boxes"
+                )));
+            }
             break;
         }
         file.seek(SeekFrom::Start(offset))
             .map_err(|error| AppError::General(format!("Failed to seek MP4: {error}")))?;
-        let head = read_box_header(file, offset, file_len)?;
-        if head.size < head.header_len || offset.saturating_add(head.size) > file_len {
+        let head = match read_box_header(file, offset, file_len) {
+            Ok(head) => head,
+            Err(error) if strict => {
+                return Err(AppError::FileValidation(error.to_string()));
+            }
+            Err(error) => return Err(error),
+        };
+        let next = offset.checked_add(head.size);
+        if head.size < head.header_len || next.is_none_or(|end| end > file_len) {
+            if strict {
+                return Err(AppError::FileValidation(format!(
+                    "MP4 top-level box extends past end of file (offset={offset} size={} file_len={file_len})",
+                    head.size
+                )));
+            }
             break;
         }
-        let next = offset.saturating_add(head.size);
-        let stop = head.explicit_zero_size || next >= file_len;
+        let next = next.unwrap_or(file_len);
+        let stop = head.explicit_zero_size;
         boxes.push(head);
         offset = next;
         if stop {
             break;
         }
+    }
+    if strict && offset != file_len {
+        return Err(AppError::FileValidation(format!(
+            "MP4 top-level scan ended at {offset} before end of file {file_len}"
+        )));
     }
     Ok(boxes)
 }

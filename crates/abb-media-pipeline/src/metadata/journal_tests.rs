@@ -81,22 +81,9 @@ fn recover_if_present_restores_original_bytes_when_journal_is_left_on_disk() {
     let original = fs::read(&target).expect("original");
     let patch = surgical_plan_for_title(&target, "New Crash Recovery Title");
 
-    let mut file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(&target)
-        .expect("open");
-    let (_, journal_bytes) =
-        capture_journal(&mut file, original.len() as u64, &patch).expect("cap");
-    for edit in &patch.edits {
-        file.seek(SeekFrom::Start(edit.offset)).expect("seek");
-        file.write_all(&edit.data).expect("write");
-    }
-    file.set_len(patch.final_len).expect("set_len");
-    drop(file);
-
+    plant_interrupted_patch_for_test(&target, &patch);
     let jpath = journal_path_for(&target).expect("jpath");
-    fs::write(&jpath, &journal_bytes).expect("plant journal");
+    assert!(jpath.exists());
 
     assert_eq!(
         recover_if_present(&target).expect("recover"),
@@ -151,4 +138,51 @@ fn refuses_edit_overlapping_mdat() {
     let err = apply_journaled_patch(&target, &bad, &fp, || {})
         .expect_err("overlapping mdat must be refused");
     assert!(err.to_string().contains("overlapping mdat"), "{err}");
+}
+
+#[cfg(unix)]
+#[test]
+fn flock_unsupported_classification_matches_lockless_mount_errnos() {
+    for errno in [
+        rustix::io::Errno::OPNOTSUPP,
+        rustix::io::Errno::NOTSUP,
+        rustix::io::Errno::NOLCK,
+        rustix::io::Errno::NOSYS,
+    ] {
+        assert!(is_flock_unsupported(errno), "{errno:?}");
+    }
+    for errno in [rustix::io::Errno::ACCESS, rustix::io::Errno::BADF] {
+        assert!(!is_flock_unsupported(errno), "{errno:?}");
+    }
+}
+
+#[test]
+fn rollback_and_fail_error_redacts_parent_directory_paths() {
+    let dir = TempDir::new().expect("temp dir");
+    let target = dir.path().join("book.m4b");
+    fs::copy(UNTAGGED_M4B, &target).expect("copy");
+    let jpath = journal_path_for(&target).expect("jpath");
+    let file = File::open(&target).expect("open");
+    let parsed = ParsedJournal {
+        original_file_len: 128,
+        extents: vec![JournalExtent {
+            offset: 0,
+            pre_bytes: vec![1, 2, 3, 4],
+            post_len: 4,
+            post_sha256: [0u8; 32],
+        }],
+    };
+    let err = rollback_and_fail(
+        file,
+        &jpath,
+        &target,
+        &parsed,
+        AppError::General("write boom".to_string()),
+    )
+    .expect_err("rollback must fail on read-only fd");
+    let msg = err.to_string();
+    let parent = dir.path().to_string_lossy();
+    assert!(!msg.contains(parent.as_ref()), "leaked parent dir: {msg}");
+    assert!(msg.contains("book.m4b"), "{msg}");
+    assert!(msg.contains(".abb_journal_book.m4b.jrn"), "{msg}");
 }

@@ -185,7 +185,7 @@ fn relocates_faststart_moov_with_explicit_zero_mdat_then_edits_at_eof() {
 }
 
 #[test]
-fn fragmented_mp4_falls_back_to_streaming_shift_without_relocating_moov() {
+fn fragmented_mp4_refuses_overflowing_shift_and_allows_in_place_free_fit() {
     let ftyp = encode_box(*b"ftyp", b"isom\0\0\0\0");
     let moov_base = make_stco_moov(0, "Frag", false);
     let moov_body_start = 8;
@@ -196,13 +196,23 @@ fn fragmented_mp4_falls_back_to_streaming_shift_without_relocating_moov() {
     );
     let moof = encode_box(*b"moof", &[0u8; 16]);
     let mdat = encode_box(*b"mdat", b"FRAG-AUDIO");
-    let tmp = write_temp(&[ftyp, moov, moof, mdat].concat());
+    let overflow_bytes = [ftyp.clone(), moov.clone(), moof.clone(), mdat.clone()].concat();
+    let tmp = write_temp(&overflow_bytes);
 
     let mut expanded = Mp4Tag::default();
     expanded.set_fourcc_utf8(TITLE_ATOM, "Much Larger Title Triggering Streaming");
-    let stats = write_tag_with_stats(tmp.path(), &expanded).expect("stream fragmented");
-    assert!(stats.mdat_shifted);
-    assert_eq!(stats.layout_before, "moov_front");
-    assert_eq!(stats.layout_after, "moov_front");
-    assert_eq!(read_mdat_bytes(tmp.path()), b"FRAG-AUDIO");
+    let err = write_tag_with_stats(tmp.path(), &expanded)
+        .err()
+        .expect("fragmented streaming shift must fail");
+    assert!(err.to_string().contains("fragmented MP4"), "{err}");
+    assert_eq!(std::fs::read(tmp.path()).expect("read"), overflow_bytes);
+
+    let free = encode_box(*b"free", &[0u8; 64]);
+    let padded_bytes = [ftyp, moov, free, moof, mdat].concat();
+    let padded = write_temp(&padded_bytes);
+    let mut small = Mp4Tag::default();
+    small.set_fourcc_utf8(TITLE_ATOM, "Slightly Longer");
+    let stats = write_tag_with_stats(padded.path(), &small).expect("fits in free");
+    assert!(!stats.mdat_shifted);
+    assert_eq!(read_mdat_bytes(padded.path()), b"FRAG-AUDIO");
 }

@@ -62,3 +62,45 @@ fn copy_stats_log_fields_formats_fields_cleanly() {
         "strategy=data_copy fs=smbfs bytes_written=10485760 mb_s=10.0"
     );
 }
+
+#[test]
+fn copy_for_save_preserves_bytes_and_macos_xattrs() {
+    let dir = TempDir::new().expect("temp dir");
+    let src = dir.path().join("source.bin");
+    let dst_smb = dir.path().join("smb.bin");
+    let payload = b"audiobook-copy-for-save".to_vec();
+    std::fs::write(&src, &payload).expect("write source");
+
+    assert_eq!(
+        copy_for_save(&src, &dst_smb, "smbfs").expect("smbfs data copy"),
+        payload.len() as u64
+    );
+    assert_eq!(std::fs::read(&dst_smb).expect("read smb copy"), payload);
+
+    #[cfg(target_os = "macos")]
+    {
+        let status = std::process::Command::new("/usr/bin/xattr")
+            .args(["-w", "com.abb.finder-tag", "keep-me"])
+            .arg(&src)
+            .status()
+            .expect("run xattr write");
+        assert!(status.success());
+
+        let dst_local = dir.path().join("local.bin");
+        assert_eq!(
+            copy_for_save(&src, &dst_local, "hfs").expect("local copy"),
+            payload.len() as u64
+        );
+        assert_eq!(std::fs::read(&dst_local).expect("read local"), payload);
+        let read_xattr = std::process::Command::new("/usr/bin/xattr")
+            .args(["-p", "com.abb.finder-tag"])
+            .arg(&dst_local)
+            .output()
+            .expect("run xattr read");
+        assert!(read_xattr.status.success());
+        assert_eq!(
+            String::from_utf8_lossy(&read_xattr.stdout).trim(),
+            "keep-me"
+        );
+    }
+}

@@ -331,6 +331,9 @@ async fn an_m4b_with_only_uppercase_series_atoms_reads_and_exports_its_series() 
     assert_eq!(tags(&book).series_part.as_deref(), Some("2"));
 
     let output = export_to(&desk, "uppercase", &encode_m4b()).await;
+    let ffprobe_tags = ffprobe_format_tags(&output);
+    assert_ffprobe_tag(&ffprobe_tags, "series", "Dune");
+    assert_ffprobe_tag(&ffprobe_tags, "series-part", "2");
     let written = read_tag(&output).expect("read output atoms");
     for (name, value) in [
         ("series", "Dune"),

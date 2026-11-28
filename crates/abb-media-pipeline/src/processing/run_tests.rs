@@ -10,6 +10,7 @@ use crate::processing::ProcessPayload;
 use crate::test_cases::media_fixtures::preflight_payload;
 use crate::test_cases::support::encoders::auto_encoder_settings;
 use crate::test_cases::support::session::idle_session;
+use abb_test_fixtures::media::{assert_ffprobe_tag, ffprobe_format_tags};
 use abb_test_fixtures::wav::{write_silence_wav, write_sine_wav};
 use std::collections::HashMap;
 use tempfile::TempDir;
@@ -449,19 +450,11 @@ async fn metadata_two_pass_workflow(intent: crate::audio::AudioIntent) {
         .await;
         assert_eq!(outputs.len(), 2);
         for (output, title) in outputs.iter().zip(titles) {
-            let tags = crate::metadata::mp4::read_tag(output).expect("read actual output tags");
-            assert_eq!(
-                tags.first_fourcc_string(crate::metadata::mp4::ilst::TITLE_ATOM),
-                Some(*title)
-            );
-            assert_eq!(
-                tags.first_fourcc_string(crate::metadata::mp4::ilst::ARTIST_ATOM),
-                Some("Edited Author")
-            );
-            assert_eq!(
-                tags.first_fourcc_string(crate::metadata::mp4::ilst::ALBUM_SORT_ATOM),
-                Some(format!("Saga 02.5 - {title}").as_str())
-            );
+            let ffprobe_tags = ffprobe_format_tags(output);
+            assert_ffprobe_tag(&ffprobe_tags, "title", title);
+            assert_ffprobe_tag(&ffprobe_tags, "artist", "Edited Author");
+            assert_ffprobe_tag(&ffprobe_tags, "sort_album", &format!("Saga 02.5 - {title}"));
+            let tags = crate::metadata::mp4::read_tag(output).expect("read written cover");
             assert_eq!(
                 tags.first_artwork().expect("written cover"),
                 cover.as_slice()
@@ -469,15 +462,13 @@ async fn metadata_two_pass_workflow(intent: crate::audio::AudioIntent) {
         }
     }
     for (index, source) in seeds.iter().enumerate() {
-        let tags = crate::metadata::mp4::read_tag(source).expect("read untouched source");
+        let initial_ffprobe = ffprobe_format_tags(source);
+        assert_ffprobe_tag(&initial_ffprobe, "artist", "Source Author");
         assert_eq!(
-            tags.first_fourcc_string(crate::metadata::mp4::ilst::ARTIST_ATOM),
-            Some("Source Author")
-        );
-        assert_eq!(
-            tags.first_fourcc_string(crate::metadata::mp4::ilst::ALBUM_SORT_ATOM),
+            initial_ffprobe.get("sort_album").and_then(|v| v.as_str()),
             (index == 0).then_some("Stale sort")
         );
+        let tags = crate::metadata::mp4::read_tag(source).expect("read untouched cover");
         assert!(tags.first_artwork().is_none());
         save_metadata_intent(
             source,
@@ -487,13 +478,10 @@ async fn metadata_two_pass_workflow(intent: crate::audio::AudioIntent) {
             },
         )
         .expect("save source metadata");
-        let saved = crate::metadata::mp4::read_tag(source).expect("read saved source");
+        let saved_ffprobe = ffprobe_format_tags(source);
+        assert_ffprobe_tag(&saved_ffprobe, "artist", "Saved Author");
         assert_eq!(
-            saved.first_fourcc_string(crate::metadata::mp4::ilst::ARTIST_ATOM),
-            Some("Saved Author")
-        );
-        assert_eq!(
-            saved.first_fourcc_string(crate::metadata::mp4::ilst::ALBUM_SORT_ATOM),
+            saved_ffprobe.get("sort_album").and_then(|v| v.as_str()),
             (index == 0).then_some("Stale sort")
         );
     }

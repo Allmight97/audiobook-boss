@@ -75,3 +75,27 @@ fn rewrites_stco_and_upgrades_to_co64_when_shifted_past_u32_max() {
         u64::from(u32::MAX) + 128
     );
 }
+
+#[test]
+fn strict_scan_rejects_truncated_box_and_trailing_bytes() {
+    let ftyp = encode_box(*b"ftyp", b"isom\0\0\0\0");
+    let mdat = encode_box(*b"mdat", b"0123456789abcdef");
+
+    let mut truncated_bytes = [ftyp.clone(), mdat.clone()].concat();
+    truncated_bytes.truncate(truncated_bytes.len() - 4);
+    let mut truncated = NamedTempFile::new().expect("temp truncated");
+    truncated.write_all(&truncated_bytes).expect("write");
+    truncated.flush().expect("flush");
+    let trunc_len = truncated.as_file().metadata().expect("stat").len();
+    let mut trunc_file = std::fs::File::open(truncated.path()).expect("open");
+    assert!(scan_top_level_strict(&mut trunc_file, trunc_len).is_err());
+
+    let mut stray_bytes = [ftyp, mdat].concat();
+    stray_bytes.extend_from_slice(&[1, 2, 3]);
+    let mut stray = NamedTempFile::new().expect("temp stray");
+    stray.write_all(&stray_bytes).expect("write");
+    stray.flush().expect("flush");
+    let stray_len = stray.as_file().metadata().expect("stat").len();
+    let mut stray_file = std::fs::File::open(stray.path()).expect("open");
+    assert!(scan_top_level_strict(&mut stray_file, stray_len).is_err());
+}

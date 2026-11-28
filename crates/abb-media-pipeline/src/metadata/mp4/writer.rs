@@ -1,6 +1,7 @@
 use super::boxes::{
     default_meta_hdlr_box, encode_box, encode_free_header, is_fragmented_moov, meta_header_len,
-    parse_child_slices, read_box_bytes, scan_top_level, shift_moov_chunk_offsets, BoxHeader,
+    parse_child_slices, read_box_bytes, scan_top_level, scan_top_level_strict,
+    shift_moov_chunk_offsets, BoxHeader,
 };
 use super::ilst::Mp4Tag;
 use crate::errors::{AppError, Result};
@@ -50,6 +51,7 @@ pub(crate) struct WriteTagStats {
     pub(crate) layout_after: &'static str,
     pub(crate) mdat_shifted: bool,
     pub(crate) bytes_written: u64,
+    pub(crate) expected_output_len: u64,
     pub(crate) close_ms: u128,
     pub(crate) mdat_ranges: Vec<(u64, u64)>,
     pub(crate) streamed_mdat_hashes: Option<([u8; 32], [u8; 32])>,
@@ -120,7 +122,7 @@ fn plan_moov_patch_with(
     let file_len = file
         .seek(SeekFrom::End(0))
         .map_err(|error| AppError::General(format!("Failed to stat MP4: {error}")))?;
-    let boxes = scan_top_level(&mut file, file_len)?;
+    let boxes = scan_top_level_strict(&mut file, file_len)?;
     let moov_idx = boxes
         .iter()
         .position(|item| &item.fourcc == b"moov")
@@ -139,6 +141,15 @@ fn plan_moov_patch_with(
         &updated_content,
     )? {
         return Ok(Mp4PatchPlan::Surgical(patch));
+    }
+
+    let is_fragmented =
+        boxes.iter().any(|item| &item.fourcc == b"moof") || is_fragmented_moov(&old_moov_content)?;
+    if is_fragmented {
+        return Err(AppError::FileValidation(
+            "Cannot save metadata that overflows available space in a fragmented MP4 without shifting fragment offsets"
+                .to_string(),
+        ));
     }
 
     Ok(Mp4PatchPlan::StreamingShift(StreamingPlan {
@@ -336,6 +347,7 @@ fn execute_surgical_patch(path: &Path, patch: &SurgicalPatch) -> Result<WriteTag
         layout_after: patch.layout_after,
         mdat_shifted: false,
         bytes_written: patch.bytes_written,
+        expected_output_len: patch.final_len,
         close_ms,
         mdat_ranges: patch.mdat_ranges.clone(),
         streamed_mdat_hashes: None,
@@ -345,7 +357,20 @@ fn execute_surgical_patch(path: &Path, patch: &SurgicalPatch) -> Result<WriteTag
 fn execute_streaming_shift(path: &Path, streaming: &StreamingPlan) -> Result<WriteTagStats> {
     let moov = streaming.moov;
     let stabilized_moov = stabilize_shifted_moov(&moov, &streaming.base_moov_content)?;
-    let bytes_written = stabilized_moov.len() as u64 + streaming.file_len.saturating_sub(moov.size);
+    let expected_output_len: u64 = streaming
+        .boxes
+        .iter()
+        .enumerate()
+        .map(|(idx, item)| {
+            if idx == streaming.moov_idx {
+                stabilized_moov.len() as u64
+            } else if item.explicit_zero_size && item.size > u64::from(u32::MAX) {
+                item.size + 8
+            } else {
+                item.size
+            }
+        })
+        .sum();
 
     let mut source = File::open(path).map_err(AppError::Io)?;
     let temp = SiblingTemp::beside(path, "mp4", ".tmp").map_err(AppError::Io)?;
@@ -371,8 +396,14 @@ fn execute_streaming_shift(path: &Path, streaming: &StreamingPlan) -> Result<Wri
             &mut output_hasher,
         )?;
     }
+    let written_len = writer.stream_position().map_err(AppError::Io)?;
     drop(writer);
     drop(source);
+    if written_len != expected_output_len {
+        return Err(AppError::FileValidation(format!(
+            "Streamed MP4 output length mismatch ({written_len} vs expected {expected_output_len})"
+        )));
+    }
 
     let timings = temp.commit_timed(path).map_err(AppError::Io)?;
     let source_hash: [u8; 32] = source_hasher.finalize().into();
@@ -381,7 +412,8 @@ fn execute_streaming_shift(path: &Path, streaming: &StreamingPlan) -> Result<Wri
         layout_before: streaming.layout_before,
         layout_after: streaming.layout_before,
         mdat_shifted: true,
-        bytes_written,
+        bytes_written: expected_output_len,
+        expected_output_len,
         close_ms: timings.sync_ms + timings.chmod_ms + timings.rename_ms,
         mdat_ranges: collect_mdat_ranges(&streaming.boxes),
         streamed_mdat_hashes: Some((source_hash, output_hash)),

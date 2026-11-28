@@ -12,6 +12,8 @@
 - A change to CI or validation speed quotes before and after numbers from
   `bun run ci:timing` in its commit message, so every comparison uses one
   recipe.
+- `bun scripts/bench-metadata.ts` measures local and optional remote/SMB
+  metadata save timings and verifies `mdat` SHA-256 digests on temporary copies.
 - `bun run app:build:test` builds a debug app bundle under this checkout's
   development identity and, on macOS, checks its bundle id and prints
   `test_bundle path=<path> bundle_id=<id>`. Write that identity's
@@ -42,9 +44,10 @@
 
 ## Script rules
 
-- A new script enforces a live repo invariant or simplifies a build or release
-  workflow, and has a package script or a `--help` text that prints its
-  usage (a heredoc or `USAGE` string, never a comment header).
+- A new script enforces a live repo invariant, benchmarks a tracked workflow, or
+  simplifies a build or release workflow, and has a package script or a `--help`
+  text that prints its usage (a heredoc or `USAGE` string, never a comment
+  header).
 - `check-tauri-runtime-boundary.ts` stays a text scan, only for what Oxlint's
   `no-restricted-imports` cannot name (namespace imports, star re-exports,
   `__TAURI_INVOKE`), because TypeScript 7 offers no stable compiler API

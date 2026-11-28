@@ -17,6 +17,8 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
         )));
     }
 
+    super::journal::recover_if_present(path)?;
+
     let ictx = crate::metadata::open_input(path)?;
 
     if Container::of_input(&ictx).is_mp4_family() {

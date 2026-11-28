@@ -1,5 +1,7 @@
 use super::container::{self, Container};
-use super::journal::{apply_journaled_patch, is_single_link, recover_if_present};
+use super::journal::{
+    apply_journaled_patch_locked, is_single_link, recover_if_present, try_lock_for_patch,
+};
 use super::mp4::metadata::apply_write_plan;
 use super::mp4::read_tag;
 use super::mp4::writer::{execute_patch_plan, plan_mp4_patch_for_tag, Mp4PatchPlan, WriteTagStats};
@@ -9,7 +11,7 @@ use super::verify::{commit_checked_save, verify_streaming_mp4, verify_surgical_m
 use super::{source_fingerprint, tag_support, validate_source_fingerprint, MetadataWritePlan};
 use crate::diagnostics::{artifact_id, stage, stage_with};
 use crate::errors::{AppError, Result};
-use crate::file_copy::{copy_data_only, filesystem_label_for_file, try_cow_clone, CopyStats};
+use crate::file_copy::{copy_for_save, filesystem_label_for_file, try_cow_clone, CopyStats};
 use crate::file_replace::SiblingTemp;
 use std::fs::File;
 use std::path::Path;
@@ -19,6 +21,7 @@ pub(super) fn save_metadata_with_strategy(
     plan: &MetadataWritePlan,
     before_commit: impl FnOnce(),
 ) -> Result<()> {
+    recover_if_present(path)?;
     let route = stage("metadata_classify", path, || container::classify(path))?;
     tag_support::refuse_unholdable_edits(&route, plan)?;
     let expected_fingerprint = source_fingerprint(path)?;
@@ -47,7 +50,6 @@ fn save_mp4_with_strategy(
     expected_fingerprint: &str,
     before_commit: impl FnOnce(),
 ) -> Result<()> {
-    recover_if_present(path)?;
     let source_file = File::open(path).map_err(AppError::Io)?;
     let fs = filesystem_label_for_file(&source_file);
     let single_link = is_single_link(&source_file).map_err(AppError::Io)?;
@@ -70,24 +72,32 @@ fn save_mp4_with_strategy(
     apply_write_plan(&mut tag, plan)?;
     let mp4_plan = plan_mp4_patch_for_tag(path, &tag)?;
     if single_link {
-        if let Mp4PatchPlan::Surgical(patch) = mp4_plan {
-            drop(saved);
-            let journal_stats = CopyStats {
-                strategy: "journaled_patch",
-                fs,
-                bytes_written: 0,
-            };
-            stage_with("metadata_copy_source", path, || {
-                Ok(((), journal_stats.log_fields(0)))
-            })?;
-            log_write_plan(plan, "mp4_native", &artifact_id(path));
-            return apply_journaled_patch(path, &patch, expected_fingerprint, before_commit);
+        if let Mp4PatchPlan::Surgical(patch) = &mp4_plan {
+            if let Some(locked_file) = try_lock_for_patch(path)? {
+                drop(saved);
+                let journal_stats = CopyStats {
+                    strategy: "journaled_patch",
+                    fs,
+                    bytes_written: 0,
+                };
+                stage_with("metadata_copy_source", path, || {
+                    Ok(((), journal_stats.log_fields(0)))
+                })?;
+                log_write_plan(plan, "mp4_native", &artifact_id(path));
+                return apply_journaled_patch_locked(
+                    locked_file,
+                    path,
+                    patch,
+                    expected_fingerprint,
+                    before_commit,
+                );
+            }
         }
     }
 
     stage_with("metadata_copy_source", path, || {
         let started = std::time::Instant::now();
-        let bytes_written = copy_data_only(path, saved.path()).map_err(AppError::Io)?;
+        let bytes_written = copy_for_save(path, saved.path(), fs).map_err(AppError::Io)?;
         let copy_stats = CopyStats {
             strategy: "data_copy",
             fs,
@@ -158,7 +168,12 @@ fn verify_and_replace_temp(
         {
             (
                 "mdat_sha256",
-                verify_streaming_mp4(saved.path(), src_sha, out_sha)?,
+                verify_streaming_mp4(
+                    saved.path(),
+                    write_stats.expected_output_len,
+                    src_sha,
+                    out_sha,
+                )?,
             )
         } else {
             (

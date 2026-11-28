@@ -24,9 +24,10 @@
   (`cow_clone`) or multi-link/streaming/non-MP4 saves it verifies a sibling
   copy and atomically swaps it in; on single-link non-CoW MP4 saves where `moov`
   updates surgically without moving `mdat`, `JournaledPatch` acquires an
-  exclusive `flock`, persists pre-images with SHA-256 checksums in a sibling
-  rollback journal, verifies structural `mdat` integrity, and rolls back on any
-  error or interrupted save.
+  exclusive `flock` (falling back to sibling copy-and-replace when the mount
+  does not support `flock`), persists pre-images with SHA-256 checksums in a
+  sibling rollback journal, verifies structural `mdat` integrity, and rolls back
+  before save inspection or metadata/cover reads if a prior write left a journal.
 - `tag_support::refuse_unholdable_edits` fails a Save that edits a tag the
   container cannot store, because the muxer drops such a tag and the Save
   would report success.
@@ -140,10 +141,12 @@
   Audiobookshelf and Plex group books by album artist.
 - `verify.rs` save check: non-MP4 full remuxes compare per-stream audio packet
   counts and compressed payload bytes to EOF with a 0.5 s measured duration
-  check; streaming MP4 shifts verify source-vs-output `mdat` SHA-256 plus
-  container open; surgical MP4 writes verify exact `mdat` byte offsets/lengths
-  plus container open without re-reading full audio payloads, and recheck the
-  source file fingerprint before commit.
+  check; streaming MP4 shifts (refused on fragmented files whose fragment
+  offsets would go stale) verify source-vs-output `mdat` SHA-256, exact output
+  file length, strict full-file atom scan to EOF, and container open; surgical
+  MP4 writes verify strict full-file atom scan to EOF, non-empty unchanged
+  `mdat` byte offsets/lengths, and container open without re-reading full
+  audio payloads, and recheck the source file fingerprint before commit.
 - FLAC: FFmpeg matches Vorbis comment keys case-insensitively on write and
   maps both `comment` and `COMMENT` to `DESCRIPTION` (`flacenc.c`), and on
   read maps `DESCRIPTION` back to `comment` (`oggparsevorbis.c`), so a FLAC

@@ -1,8 +1,8 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { inspectMp4File } from './bench-metadata';
+import { cleanupScratchRoots, hasBenchmarkFailure, inspectMp4File } from './bench-metadata';
 
 function box(type: string, payload: Buffer): Buffer {
 	const out = Buffer.alloc(8 + payload.length);
@@ -32,5 +32,22 @@ describe('inspectMp4File', () => {
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
+	});
+
+	it('flags nonzero exit codes and audio digest mismatches while cleaning scratch dirs', () => {
+		expect(
+			hasBenchmarkFailure([
+				{ rc: 0, audioHashMatch: true },
+				{ rc: 0, audioHashMatch: null },
+			]),
+		).toBe(false);
+		expect(hasBenchmarkFailure([{ rc: 1, audioHashMatch: true }])).toBe(true);
+		expect(hasBenchmarkFailure([{ rc: 0, audioHashMatch: false }])).toBe(true);
+
+		const scratch = path.join(tmpdir(), `abb-bench-clean-${process.pid}`);
+		mkdirSync(scratch, { recursive: true });
+		writeFileSync(path.join(scratch, 'copy.m4b'), 'bytes');
+		cleanupScratchRoots([scratch]);
+		expect(existsSync(scratch)).toBe(false);
 	});
 });

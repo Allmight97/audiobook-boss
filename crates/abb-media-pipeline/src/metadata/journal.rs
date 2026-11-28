@@ -61,13 +61,47 @@ pub(crate) fn recover_if_present(target: &Path) -> Result<RecoveryOutcome> {
         return Ok(RecoveryOutcome::DiscardedCorrupt);
     };
 
-    restore_from_parsed(target, &parsed)?;
-    std::fs::remove_file(&journal_path).map_err(AppError::Io)?;
+    let restored = restore_from_parsed(target, &journal_path, &parsed)?;
+    if !restored {
+        return Ok(RecoveryOutcome::None);
+    }
     log::warn!(
         "Rolled back interrupted metadata write for {} from journal",
         artifact_id(target)
     );
     Ok(RecoveryOutcome::RolledBack)
+}
+
+#[cfg(unix)]
+pub(crate) fn is_flock_unsupported(errno: rustix::io::Errno) -> bool {
+    errno == rustix::io::Errno::OPNOTSUPP
+        || errno == rustix::io::Errno::NOTSUP
+        || errno == rustix::io::Errno::NOLCK
+        || errno == rustix::io::Errno::NOSYS
+}
+
+pub(crate) fn try_lock_for_patch(target: &Path) -> Result<Option<File>> {
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(target)
+        .map_err(AppError::Io)?;
+    if !is_single_link(&file).map_err(AppError::Io)? {
+        return Ok(None);
+    }
+    #[cfg(unix)]
+    if let Err(errno) = rustix::fs::flock(&file, rustix::fs::FlockOperation::LockExclusive) {
+        if is_flock_unsupported(errno) {
+            log::info!(
+                "journaled_patch flock unsupported errno={} artifact={}; falling back to data_copy",
+                errno.raw_os_error(),
+                artifact_id(target)
+            );
+            return Ok(None);
+        }
+        return Err(AppError::Io(io::Error::from(errno)));
+    }
+    Ok(Some(file))
 }
 
 pub(crate) fn is_single_link(file: &File) -> io::Result<bool> {
@@ -83,6 +117,7 @@ pub(crate) fn is_single_link(file: &File) -> io::Result<bool> {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn apply_journaled_patch(
     target: &Path,
     patch: &SurgicalPatch,
@@ -98,6 +133,24 @@ pub(crate) fn apply_journaled_patch(
     )
 }
 
+pub(crate) fn apply_journaled_patch_locked(
+    file: File,
+    target: &Path,
+    patch: &SurgicalPatch,
+    expected_fingerprint: &str,
+    before_commit: impl FnOnce(),
+) -> Result<()> {
+    apply_journaled_patch_locked_with_hooks(
+        file,
+        target,
+        patch,
+        expected_fingerprint,
+        before_commit,
+        || Ok(()),
+    )
+}
+
+#[cfg(test)]
 pub(crate) fn apply_journaled_patch_with_hooks(
     target: &Path,
     patch: &SurgicalPatch,
@@ -106,8 +159,7 @@ pub(crate) fn apply_journaled_patch_with_hooks(
     after_writes_before_verify: impl FnOnce() -> Result<()>,
 ) -> Result<()> {
     ensure_edits_disjoint_from_mdat(patch)?;
-    let journal_path = journal_path_for(target)?;
-    let mut file = OpenOptions::new()
+    let file = OpenOptions::new()
         .read(true)
         .write(true)
         .open(target)
@@ -120,6 +172,27 @@ pub(crate) fn apply_journaled_patch_with_hooks(
     #[cfg(unix)]
     rustix::fs::flock(&file, rustix::fs::FlockOperation::LockExclusive)
         .map_err(|errno| AppError::Io(io::Error::from(errno)))?;
+
+    apply_journaled_patch_locked_with_hooks(
+        file,
+        target,
+        patch,
+        expected_fingerprint,
+        before_commit,
+        after_writes_before_verify,
+    )
+}
+
+fn apply_journaled_patch_locked_with_hooks(
+    mut file: File,
+    target: &Path,
+    patch: &SurgicalPatch,
+    expected_fingerprint: &str,
+    before_commit: impl FnOnce(),
+    after_writes_before_verify: impl FnOnce() -> Result<()>,
+) -> Result<()> {
+    ensure_edits_disjoint_from_mdat(patch)?;
+    let journal_path = journal_path_for(target)?;
 
     let initial_stat = file.metadata().map_err(AppError::Io)?;
     validate_source_fingerprint(&initial_stat, expected_fingerprint)?;
@@ -170,8 +243,8 @@ pub(crate) fn apply_journaled_patch_with_hooks(
     }
 
     crate::diagnostics::stage_with("metadata_replace", target, || {
-        drop(file);
         std::fs::remove_file(&journal_path).map_err(AppError::Io)?;
+        drop(file);
         Ok(((), "sync_ms=0 chmod_ms=0 rename_ms=0".to_string()))
     })
 }
@@ -282,22 +355,35 @@ fn rollback_and_fail(
             Err(AppError::General(format!(
                 "{original_error}; rollback on '{}' also failed (journal kept at {}): {rollback_error}",
                 crate::errors::sanitize_path_for_display(target),
-                journal_path.display()
+                crate::errors::sanitize_path_for_display(journal_path)
             )))
         }
     }
 }
 
-fn restore_from_parsed(target: &Path, parsed: &ParsedJournal) -> Result<()> {
+fn restore_from_parsed(target: &Path, journal_path: &Path, parsed: &ParsedJournal) -> Result<bool> {
     let mut file = OpenOptions::new()
         .read(true)
         .write(true)
         .open(target)
         .map_err(AppError::Io)?;
     #[cfg(unix)]
-    rustix::fs::flock(&file, rustix::fs::FlockOperation::LockExclusive)
-        .map_err(|errno| AppError::Io(io::Error::from(errno)))?;
-    restore_with_open_file(&mut file, parsed)
+    if let Err(errno) = rustix::fs::flock(&file, rustix::fs::FlockOperation::LockExclusive) {
+        if !is_flock_unsupported(errno) {
+            return Err(AppError::Io(io::Error::from(errno)));
+        }
+    }
+    if !journal_path.exists() {
+        return Ok(false);
+    }
+    restore_with_open_file(&mut file, parsed)?;
+    match std::fs::remove_file(journal_path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(AppError::Io(error)),
+    }
+    drop(file);
+    Ok(true)
 }
 
 fn restore_with_open_file(file: &mut File, parsed: &ParsedJournal) -> Result<()> {
@@ -326,7 +412,7 @@ fn remove_journal_best_effort(journal_path: &Path) {
         if error.kind() != io::ErrorKind::NotFound {
             log::warn!(
                 "Failed to remove journal {}: {error}",
-                journal_path.display()
+                artifact_id(journal_path)
             );
         }
     }
@@ -410,6 +496,25 @@ fn read_u64_be(bytes: &[u8], at: usize) -> Option<u64> {
 fn read_u32_be(bytes: &[u8], at: usize) -> Option<u32> {
     let slice: [u8; 4] = bytes.get(at..at + 4)?.try_into().ok()?;
     Some(u32::from_be_bytes(slice))
+}
+
+#[cfg(test)]
+pub(crate) fn plant_interrupted_patch_for_test(target: &Path, patch: &SurgicalPatch) {
+    let original_len = std::fs::metadata(target).expect("stat target").len();
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(target)
+        .expect("open target");
+    let (_, journal_bytes) = capture_journal(&mut file, original_len, patch).expect("capture");
+    for edit in &patch.edits {
+        file.seek(SeekFrom::Start(edit.offset)).expect("seek");
+        file.write_all(&edit.data).expect("write");
+    }
+    file.set_len(patch.final_len).expect("set_len");
+    drop(file);
+    let journal_path = journal_path_for(target).expect("journal path");
+    std::fs::write(&journal_path, &journal_bytes).expect("plant journal");
 }
 
 #[cfg(test)]

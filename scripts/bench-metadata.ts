@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from 'node:child_process';
+import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
 	closeSync,
@@ -214,13 +214,43 @@ function editArgs(mode: BenchOptions['edit'], iteration: number): string[] {
 	return ['--set', `title=Bench Title Iteration ${iteration} Extended`];
 }
 
-function runSingleSave(
+const activeScratchRoots = new Set<string>();
+let activeChild: ChildProcess | null = null;
+let signalCleanupRegistered = false;
+
+export function cleanupScratchRoots(roots: Iterable<string>): void {
+	for (const root of roots) {
+		rmSync(root, { recursive: true, force: true });
+	}
+}
+
+export function hasBenchmarkFailure(
+	records: readonly { rc: number; audioHashMatch: boolean | null }[],
+): boolean {
+	return records.some((record) => record.rc !== 0 || record.audioHashMatch === false);
+}
+
+function registerSignalCleanup(): void {
+	if (signalCleanupRegistered) return;
+	signalCleanupRegistered = true;
+	const handleSignal = (exitCode: number) => {
+		if (activeChild && activeChild.exitCode === null) {
+			activeChild.kill('SIGTERM');
+		}
+		cleanupScratchRoots(activeScratchRoots);
+		process.exit(exitCode);
+	};
+	process.once('SIGINT', () => handleSignal(130));
+	process.once('SIGTERM', () => handleSignal(143));
+}
+
+async function runSingleSave(
 	abbDevBin: string,
 	copyPath: string,
 	stateDir: string,
 	mode: BenchOptions['edit'],
 	iteration: number,
-): { rc: number; wallMs: number; maxRssMb: number | null; stages: MetadataStageEvent[] } {
+): Promise<{ rc: number; wallMs: number; maxRssMb: number | null; stages: MetadataStageEvent[] }> {
 	const cmdArgs = [
 		copyPath,
 		...editArgs(mode, iteration),
@@ -232,67 +262,113 @@ function runSingleSave(
 	const wrapperArgs =
 		process.platform === 'darwin' ? ['-l', abbDevBin, ...cmdArgs] : ['-v', abbDevBin, ...cmdArgs];
 	const started = performance.now();
-	const result = spawnSync('/usr/bin/time', wrapperArgs, {
-		encoding: 'utf8',
-		env: { ...process.env, RUST_LOG: 'info' },
+	return await new Promise((resolve) => {
+		const stderrChunks: Buffer[] = [];
+		const child = spawn('/usr/bin/time', wrapperArgs, {
+			env: { ...process.env, RUST_LOG: 'info' },
+			stdio: ['ignore', 'ignore', 'pipe'],
+		});
+		activeChild = child;
+		child.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+		child.on('error', () => {
+			activeChild = null;
+			const stderr = Buffer.concat(stderrChunks).toString('utf8');
+			resolve({
+				rc: 1,
+				wallMs: Math.round(performance.now() - started),
+				maxRssMb: parseMaxRssMb(stderr),
+				stages: [],
+			});
+		});
+		child.on('close', (code) => {
+			activeChild = null;
+			const wallMs = Math.round(performance.now() - started);
+			const stderr = Buffer.concat(stderrChunks).toString('utf8');
+			const stages = stderr
+				.split('\n')
+				.map(parseMetadataStageLine)
+				.filter((stage): stage is MetadataStageEvent => stage !== null);
+			resolve({
+				rc: code ?? 1,
+				wallMs,
+				maxRssMb: parseMaxRssMb(stderr),
+				stages,
+			});
+		});
 	});
-	const wallMs = Math.round(performance.now() - started);
-	const stages = (result.stderr ?? '')
-		.split('\n')
-		.map(parseMetadataStageLine)
-		.filter((stage): stage is MetadataStageEvent => stage !== null);
-	return {
-		rc: result.status ?? 1,
-		wallMs,
-		maxRssMb: parseMaxRssMb(result.stderr ?? ''),
-		stages,
-	};
 }
 
-function benchLocation(
+async function benchSingleFile(
+	location: 'local' | 'remote',
+	scratchRoot: string,
+	source: string,
+	options: BenchOptions,
+	abbDevBin: string,
+): Promise<BenchRunRecord[]> {
+	const baseName = path.basename(source);
+	const totalRuns = options.runs + 1;
+	const records: BenchRunRecord[] = [];
+	const runNext = async (index: number): Promise<void> => {
+		if (index >= totalRuns) return;
+		const copyPath = path.join(scratchRoot, `${index}-${baseName}`);
+		const stateDir = path.join(scratchRoot, `state-${index}`);
+		copyFileSync(source, copyPath);
+		const fileBytes = statSync(copyPath).size;
+		const before = inspectMp4File(copyPath);
+		const run = await runSingleSave(abbDevBin, copyPath, stateDir, options.edit, index);
+		const after = inspectMp4File(copyPath);
+		const audioHashMatch =
+			before?.mdatSha256 && after?.mdatSha256 ? before.mdatSha256 === after.mdatSha256 : null;
+		records.push({
+			location,
+			file: baseName,
+			fileBytes,
+			runKind: index === 0 ? 'cold' : 'warm',
+			iteration: index,
+			rc: run.rc,
+			wallMs: run.wallMs,
+			maxRssMb: run.maxRssMb,
+			layoutBefore: before?.layout ?? 'non_mp4',
+			layoutAfter: after?.layout ?? 'non_mp4',
+			freeBytesBefore: before?.freeBytes ?? 0,
+			freeBytesAfter: after?.freeBytes ?? 0,
+			audioHashMatch,
+			stages: run.stages,
+		});
+		await runNext(index + 1);
+	};
+	await runNext(0);
+	return records;
+}
+
+async function benchLocation(
 	location: 'local' | 'remote',
 	parentDir: string,
 	options: BenchOptions,
 	abbDevBin: string,
-): BenchRunRecord[] {
+): Promise<BenchRunRecord[]> {
 	const scratchRoot = path.join(parentDir, `.abb-bench-${Date.now()}-${process.pid}`);
 	mkdirSync(scratchRoot, { recursive: true });
+	activeScratchRoots.add(scratchRoot);
 	const records: BenchRunRecord[] = [];
+	const runSource = async (index: number): Promise<void> => {
+		if (index >= options.sources.length) return;
+		const fileRecords = await benchSingleFile(
+			location,
+			scratchRoot,
+			options.sources[index],
+			options,
+			abbDevBin,
+		);
+		records.push(...fileRecords);
+		await runSource(index + 1);
+	};
 	try {
-		for (const source of options.sources) {
-			const baseName = path.basename(source);
-			const totalRuns = options.runs + 1;
-			for (let index = 0; index < totalRuns; index += 1) {
-				const copyPath = path.join(scratchRoot, `${index}-${baseName}`);
-				const stateDir = path.join(scratchRoot, `state-${index}`);
-				copyFileSync(source, copyPath);
-				const fileBytes = statSync(copyPath).size;
-				const before = inspectMp4File(copyPath);
-				const run = runSingleSave(abbDevBin, copyPath, stateDir, options.edit, index);
-				const after = inspectMp4File(copyPath);
-				const audioHashMatch =
-					before?.mdatSha256 && after?.mdatSha256 ? before.mdatSha256 === after.mdatSha256 : null;
-				records.push({
-					location,
-					file: baseName,
-					fileBytes,
-					runKind: index === 0 ? 'cold' : 'warm',
-					iteration: index,
-					rc: run.rc,
-					wallMs: run.wallMs,
-					maxRssMb: run.maxRssMb,
-					layoutBefore: before?.layout ?? 'non_mp4',
-					layoutAfter: after?.layout ?? 'non_mp4',
-					freeBytesBefore: before?.freeBytes ?? 0,
-					freeBytesAfter: after?.freeBytes ?? 0,
-					audioHashMatch,
-					stages: run.stages,
-				});
-			}
-		}
+		await runSource(0);
 		return records;
 	} finally {
 		rmSync(scratchRoot, { recursive: true, force: true });
+		activeScratchRoots.delete(scratchRoot);
 	}
 }
 
@@ -325,27 +401,29 @@ function printSummary(records: readonly BenchRunRecord[]): void {
 	}
 }
 
-function main(): void {
+async function main(): Promise<void> {
 	const repoRoot = path.resolve(import.meta.dirname, '..');
 	const options = parseArgs(process.argv.slice(2), repoRoot);
 	if (!options) {
 		console.log(USAGE);
 		return;
 	}
+	registerSignalCleanup();
 	const abbDevBin = buildAbbDev(repoRoot);
-	const records = benchLocation('local', options.localDir, options, abbDevBin);
+	const records = await benchLocation('local', options.localDir, options, abbDevBin);
 	if (options.remoteDir) {
-		records.push(...benchLocation('remote', options.remoteDir, options, abbDevBin));
+		records.push(...(await benchLocation('remote', options.remoteDir, options, abbDevBin)));
 	}
 	if (options.json) console.log(JSON.stringify(records, null, 2));
 	else printSummary(records);
+	if (hasBenchmarkFailure(records)) {
+		process.exitCode = 1;
+	}
 }
 
 if (import.meta.main) {
-	try {
-		main();
-	} catch (error) {
+	main().catch((error) => {
 		console.error(error instanceof Error ? error.message : String(error));
 		process.exitCode = 1;
-	}
+	});
 }

@@ -32,9 +32,10 @@ fn book(root: &Path) -> PathBuf {
 }
 
 fn genre(path: &Path) -> Option<String> {
-    abb_media_pipeline::metadata::read_metadata(path)
-        .expect("read real tags")
-        .genre
+    abb_test_fixtures::media::ffprobe_format_tags(path)
+        .get("genre")
+        .and_then(|value| value.as_str())
+        .map(str::to_string)
 }
 
 #[test]

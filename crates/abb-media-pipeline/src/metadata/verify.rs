@@ -1,4 +1,4 @@
-use super::mp4::boxes::scan_top_level;
+use super::mp4::boxes::{scan_top_level_strict, BoxHeader};
 use super::{open_input, validate_source_fingerprint};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::file_replace::SiblingTemp;
@@ -9,28 +9,25 @@ use std::path::Path;
 pub(crate) fn verify_surgical_mp4(path: &Path, expected_mdat_ranges: &[(u64, u64)]) -> Result<u64> {
     let mut file = File::open(path).map_err(AppError::Io)?;
     let file_len = file.seek(SeekFrom::End(0)).map_err(AppError::Io)?;
-    let boxes = scan_top_level(&mut file, file_len)?;
+    let boxes = scan_top_level_strict(&mut file, file_len)?;
     let actual_mdat: Vec<(u64, u64)> = boxes
         .iter()
         .filter(|item| &item.fourcc == b"mdat")
         .map(|item| (item.content_offset(), item.end()))
         .collect();
+    if expected_mdat_ranges.is_empty() || actual_mdat.is_empty() {
+        return Err(AppError::FileValidation(format!(
+            "MP4 '{}' contains no mdat audio data boxes",
+            sanitize_path_for_display(path)
+        )));
+    }
     if actual_mdat != expected_mdat_ranges {
         return Err(AppError::FileValidation(format!(
             "MP4 audio data ranges changed unexpectedly for '{}' ({actual_mdat:?} vs {expected_mdat_ranges:?})",
             sanitize_path_for_display(path)
         )));
     }
-    let header_and_moov_bytes: u64 = boxes
-        .iter()
-        .map(|item| {
-            if &item.fourcc == b"moov" {
-                item.size
-            } else {
-                item.header_len
-            }
-        })
-        .sum();
+    let bytes_read = header_and_moov_bytes(&boxes);
     drop(file);
     let input = open_input(path)?;
     if input.streams().is_empty() {
@@ -39,11 +36,12 @@ pub(crate) fn verify_surgical_mp4(path: &Path, expected_mdat_ranges: &[(u64, u64
             sanitize_path_for_display(path)
         )));
     }
-    Ok(header_and_moov_bytes)
+    Ok(bytes_read)
 }
 
 pub(crate) fn verify_streaming_mp4(
     path: &Path,
+    expected_output_len: u64,
     source_mdat_sha256: [u8; 32],
     output_mdat_sha256: [u8; 32],
 ) -> Result<u64> {
@@ -55,7 +53,19 @@ pub(crate) fn verify_streaming_mp4(
     }
     let mut file = File::open(path).map_err(AppError::Io)?;
     let file_len = file.seek(SeekFrom::End(0)).map_err(AppError::Io)?;
-    let boxes = scan_top_level(&mut file, file_len)?;
+    if file_len != expected_output_len {
+        return Err(AppError::FileValidation(format!(
+            "Streamed MP4 '{}' length mismatch ({file_len} vs expected {expected_output_len})",
+            sanitize_path_for_display(path)
+        )));
+    }
+    let boxes = scan_top_level_strict(&mut file, file_len)?;
+    if !boxes.iter().any(|item| &item.fourcc == b"mdat") {
+        return Err(AppError::FileValidation(format!(
+            "Streamed MP4 '{}' contains no mdat box",
+            sanitize_path_for_display(path)
+        )));
+    }
     drop(file);
     let input = open_input(path)?;
     if input.streams().is_empty() {
@@ -64,7 +74,11 @@ pub(crate) fn verify_streaming_mp4(
             sanitize_path_for_display(path)
         )));
     }
-    let bytes_read: u64 = boxes
+    Ok(header_and_moov_bytes(&boxes))
+}
+
+fn header_and_moov_bytes(boxes: &[BoxHeader]) -> u64 {
+    boxes
         .iter()
         .map(|item| {
             if &item.fourcc == b"moov" {
@@ -73,8 +87,7 @@ pub(crate) fn verify_streaming_mp4(
                 item.header_len
             }
         })
-        .sum();
-    Ok(bytes_read)
+        .sum()
 }
 
 pub(super) fn commit_checked_save(
