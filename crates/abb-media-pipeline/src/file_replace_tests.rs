@@ -20,6 +20,24 @@ fn write_atomically_keeps_the_replaced_file_permissions() {
 }
 
 #[test]
+fn commit_timed_succeeds_when_permissions_already_match_destination() {
+    let root = TempDir::new().expect("temp root");
+    let destination = root.path().join("book.m4b");
+    std::fs::write(&destination, b"old").expect("write original");
+
+    let temp = SiblingTemp::beside(&destination, "meta", ".tmp").expect("temp path");
+    std::fs::write(temp.path(), b"new").expect("write temp");
+    let perms = std::fs::metadata(&destination)
+        .expect("stat dest")
+        .permissions();
+    std::fs::set_permissions(temp.path(), perms).expect("match permissions");
+
+    let timings = temp.commit_timed(&destination).expect("commit timed");
+    let _ = timings.log_fields();
+    assert_eq!(std::fs::read(&destination).expect("read replaced"), b"new");
+}
+
+#[test]
 fn replace_file_overwrites_existing_destination() {
     let root = TempDir::new().expect("temp root");
     let source = root.path().join("source.m4b");

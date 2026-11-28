@@ -183,14 +183,29 @@ fn clearing_the_series_on_an_mp3_removes_a_user_text_frame_in_upper_case() {
 async fn repeated_mp4_contributors_remain_visible_and_survive_unrelated_edits() {
     let lane = MediaLane::with_fixtures(&[0.3]);
     let output = lane.process(None).await;
-    let mut tag = mp4ameta::Tag::read_from_path(&output).expect("fixture value");
-    tag.set_artists(["First Author".to_string(), "Second Author".to_string()]);
-    tag.set_album_artists([
-        "First Album Author".to_string(),
-        "Second Album Author".to_string(),
-    ]);
-    tag.set_composers(["First Narrator".to_string(), "Second Narrator".to_string()]);
-    tag.write_to_path(&output).expect("fixture value");
+    let mut tag = crate::metadata::mp4::read_tag(&output).expect("fixture value");
+    tag.set_all(
+        crate::metadata::mp4::AtomIdent::Fourcc(crate::metadata::mp4::ilst::ARTIST_ATOM),
+        vec![
+            crate::metadata::mp4::AtomData::Utf8("First Author".to_string()),
+            crate::metadata::mp4::AtomData::Utf8("Second Author".to_string()),
+        ],
+    );
+    tag.set_all(
+        crate::metadata::mp4::AtomIdent::Fourcc(crate::metadata::mp4::ilst::ALBUM_ARTIST_ATOM),
+        vec![
+            crate::metadata::mp4::AtomData::Utf8("First Album Author".to_string()),
+            crate::metadata::mp4::AtomData::Utf8("Second Album Author".to_string()),
+        ],
+    );
+    tag.set_all(
+        crate::metadata::mp4::AtomIdent::Fourcc(crate::metadata::mp4::ilst::COMPOSER_ATOM),
+        vec![
+            crate::metadata::mp4::AtomData::Utf8("First Narrator".to_string()),
+            crate::metadata::mp4::AtomData::Utf8("Second Narrator".to_string()),
+        ],
+    );
+    crate::metadata::mp4::write_tag(&output, &tag).expect("fixture value");
 
     let metadata = read_metadata(&output).expect("fixture value");
     assert_eq!(
@@ -212,22 +227,25 @@ async fn repeated_mp4_contributors_remain_visible_and_survive_unrelated_edits() 
         },
     )
     .expect("fixture value");
-    let mut tag = mp4ameta::Tag::read_from_path(&output).expect("fixture value");
+    let mut tag = crate::metadata::mp4::read_tag(&output).expect("fixture value");
     assert_eq!(
-        tag.artists().collect::<Vec<_>>(),
+        tag.fourcc_strings(crate::metadata::mp4::ilst::ARTIST_ATOM)
+            .collect::<Vec<_>>(),
         ["First Author", "Second Author"]
     );
     assert_eq!(
-        tag.album_artists().collect::<Vec<_>>(),
+        tag.fourcc_strings(crate::metadata::mp4::ilst::ALBUM_ARTIST_ATOM)
+            .collect::<Vec<_>>(),
         ["First Album Author", "Second Album Author"]
     );
     assert_eq!(
-        tag.composers().collect::<Vec<_>>(),
+        tag.fourcc_strings(crate::metadata::mp4::ilst::COMPOSER_ATOM)
+            .collect::<Vec<_>>(),
         ["First Narrator", "Second Narrator"]
     );
 
-    tag.remove_artists();
-    tag.write_to_path(&output).expect("fixture value");
+    tag.remove_fourcc(crate::metadata::mp4::ilst::ARTIST_ATOM);
+    crate::metadata::mp4::write_tag(&output, &tag).expect("fixture value");
     assert_eq!(
         read_metadata(&output)
             .expect("fixture value")
@@ -379,13 +397,16 @@ async fn metadata_save_writes_external_ffprobe_visible_mp4_tags() {
         disk: Some(PatchOp::Set((1, Some(2)))),
         ..Default::default()
     };
-    #[cfg(unix)]
-    let inode_before = std::os::unix::fs::MetadataExt::ino(&fs::metadata(&output).expect("stat"));
-    save_metadata_intent(&output, &patch).expect("metadata save through mp4ameta path");
-    #[cfg(unix)]
-    assert_ne!(
-        std::os::unix::fs::MetadataExt::ino(&fs::metadata(&output).expect("stat")),
-        inode_before
+    save_metadata_intent(&output, &patch).expect("metadata save through mp4 path");
+    let leftovers: Vec<_> = fs::read_dir(output.parent().expect("parent"))
+        .expect("list parent")
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with(".abb_"))
+        .collect();
+    assert!(
+        leftovers.is_empty(),
+        "leftover temp/journal files: {leftovers:?}"
     );
 
     let tags = ffprobe_format_tags(&output);

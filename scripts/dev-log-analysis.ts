@@ -1,4 +1,9 @@
 import { readFileSync } from 'node:fs';
+import {
+	type MetadataStageEvent,
+	extractMetadataStages,
+	renderMetadataStages,
+} from './dev-log-metadata';
 
 export type SessionHealth = 'clean' | 'degraded' | 'failed' | 'interrupted' | 'indeterminate';
 
@@ -70,6 +75,7 @@ export interface DevLogAnalysis {
 	highSignalLines: string[];
 	audioDecisions: string[];
 	mediaDiagnostics: string[];
+	metadataStages: MetadataStageEvent[];
 	buildIdentities: string[];
 }
 
@@ -669,6 +675,7 @@ export function analyzeDevLog(
 				),
 			)
 			.slice(-100),
+		metadataStages: extractMetadataStages(lines),
 		buildIdentities: [
 			...new Set(lines.filter((line) => /build_identity |build_checkout /.test(line))),
 		].slice(-20),
@@ -805,6 +812,10 @@ export function renderDevLogAnalysis(analysis: DevLogAnalysis): string {
 		'```text',
 		...analysis.audioDecisions,
 		'```',
+		'',
+		'## Metadata Stages',
+		'',
+		...renderMetadataStages(analysis.metadataStages),
 		'',
 		'## Decoding, Encoding, Metadata, and File Handoffs',
 		'',

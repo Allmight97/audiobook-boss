@@ -462,7 +462,7 @@ it('exposes build identity, stage failures and effective codec diagnostics witho
 		'decode_open input=/books/a.m4b decoder=faad3 rate=44100 channels=2 object_type=5 frame_samples=2048 decoder_delay=962 bit_rate=64000',
 		'decode_summary input=/books/a.m4b decoder=faad3 packets=10 emitted_samples=20480 delay_trimmed=962',
 		'media_stage stage=metadata_open_input status=error artifact=a exists=false',
-		'metadata_plan artifact=a writer=mp4ameta fields=Title=set,Comment=clear',
+		'metadata_plan artifact=a writer=mp4_native fields=Title=set,Comment=clear',
 		'media_cleanup reason=guard_drop session_id=s pid=1',
 		'supplemental_pdf_commit status=ok bytes=2269096',
 	].join('\n');

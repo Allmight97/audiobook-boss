@@ -1,6 +1,6 @@
 use crate::metadata::read_metadata;
 use abb_ffmpeg::{Disposition, Medium};
-use mp4ameta::{Data, DataIdent, Tag};
+use abb_test_fixtures::mp4_atoms::{read_ilst_atoms, RawAtomData};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fmt::Write as _;
@@ -109,31 +109,30 @@ fn reader_section(path: &Path, out: &mut String) {
     line("cover_art", tags.cover_art.as_deref().map(short_hash));
 }
 
-fn data_text(data: &Data) -> String {
+fn data_text(data: &RawAtomData) -> String {
     match data {
-        Data::Utf8(text) | Data::Utf16(text) => format!("{text:?}"),
-        Data::Jpeg(bytes) => format!("jpeg {}", short_hash(bytes)),
-        Data::Png(bytes) => format!("png {}", short_hash(bytes)),
-        Data::Bmp(bytes) => format!("bmp {}", short_hash(bytes)),
-        Data::Reserved(bytes) | Data::BeSigned(bytes) => format!("{bytes:?}"),
-        Data::Unknown { code, data } => format!("type {code} {data:?}"),
+        RawAtomData::Utf8(text) | RawAtomData::Utf16(text) => format!("{text:?}"),
+        RawAtomData::Jpeg(bytes) => format!("jpeg {}", short_hash(bytes)),
+        RawAtomData::Png(bytes) => format!("png {}", short_hash(bytes)),
+        RawAtomData::Bmp(bytes) => format!("bmp {}", short_hash(bytes)),
+        RawAtomData::Reserved(bytes) | RawAtomData::BeSigned(bytes) => format!("{bytes:?}"),
+        RawAtomData::Unknown { code, data } => format!("type {code} {data:?}"),
     }
 }
 
 fn atoms_section(path: &Path, out: &mut String) {
-    let tag = Tag::read_from_path(path).expect("read the MP4 atoms");
+    let entries = read_ilst_atoms(path);
     writeln!(out, "MP4 atoms, in file order:").expect("write to a String");
-    for (ident, data) in tag.data() {
-        let name = match ident {
-            DataIdent::Fourcc(fourcc) => fourcc.to_string(),
-            DataIdent::Freeform { mean, name } => format!("----:{mean}:{name}"),
-        };
-        let text = if name == "\u{a9}too" {
-            "<varies>".to_string()
-        } else {
-            data_text(data)
-        };
-        writeln!(out, "  {name} {text}").expect("write to a String");
+    for entry in &entries {
+        let name = entry.ident.display_name();
+        for datum in &entry.data {
+            let text = if name == "\u{a9}too" {
+                "<varies>".to_string()
+            } else {
+                data_text(datum)
+            };
+            writeln!(out, "  {name} {text}").expect("write to a String");
+        }
     }
 }
 

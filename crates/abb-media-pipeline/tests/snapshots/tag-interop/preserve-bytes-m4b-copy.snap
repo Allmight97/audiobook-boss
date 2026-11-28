@@ -1,5 +1,5 @@
 # untouched
-sha256: 69647ddd8be5e7aa490e185688d8f27ace088c8c5210c69ff96c3e811d721e6b
+sha256: 102242fde84ed9bd4e8a60203c384932ce99f9ec83e157e4a6fc44d7b2b80e38
 chapters: [(Some("One"), 0, 250), (Some("Two"), 250, 500)]
 container: mov,mp4,m4a,3gp,3g2,mj2
 format tags, in file order:
@@ -81,7 +81,7 @@ MP4 atoms, in file order:
   stik [2]
 
 # set-all
-sha256: f6a03dc9659f99b89ce038f78b76990ef97476bd8173532cd79bed3f8289f500
+sha256: 10920339aa00546bdaa5a1a7358ad30bfc921c4e182d8e2ea4794fd5653512a7
 chapters: [(Some("One"), 0, 250), (Some("Two"), 250, 500)]
 container: mov,mp4,m4a,3gp,3g2,mj2
 format tags, in file order:

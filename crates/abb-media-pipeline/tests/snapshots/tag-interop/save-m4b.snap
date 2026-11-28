@@ -77,7 +77,7 @@ MP4 atoms, in file order:
   covr png 73 bytes sha256 661e96d71ecc8d91
 
 # save untouched
-sha256: 37a2a17d4c69e8f20a8c41872ca6af687b5c7b4905e01f935167cdb6287d5ed9
+sha256: 19b60165f29cce285bb2a22a44ac309b38f911e0cb8fd75c9e1407f5a7d4d6dd
 container: mov,mp4,m4a,3gp,3g2,mj2
 format tags, in file order:
   major_brand="M4A "
@@ -158,7 +158,7 @@ MP4 atoms, in file order:
   stik [2]
 
 # save set-all
-sha256: cbac2a89bc18faf6b28d85c2dcd8392e7130ec4e5cb5c368ab8c9a8589e2985a
+sha256: 617da580cdbd069de52c3f593d681f0534f40cb8768b5cf4e3c969bd9f305656
 container: mov,mp4,m4a,3gp,3g2,mj2
 format tags, in file order:
   major_brand="M4A "
@@ -225,7 +225,7 @@ MP4 atoms, in file order:
   stik [2]
 
 # save clear-all
-sha256: b54da4d8481878f7ce51cb56f12e372113b8d5c6fe8ab8397cf1f584bf365bd7
+sha256: d2503a381b730f25d8b2701a90a2f01add228c463d095b82ea535f340835c6c4
 container: mov,mp4,m4a,3gp,3g2,mj2
 format tags, in file order:
   major_brand="M4A "

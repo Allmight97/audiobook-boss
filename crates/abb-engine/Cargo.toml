@@ -27,6 +27,7 @@ tokio = { version = "1.53.3", features = ["fs", "io-util", "macros", "net", "rt"
 tokio-util = { version = "0.7.20", features = ["rt"] }
 uuid = { version = "1.28.0", features = ["v4"] }
 log = "0.4.29"
+env_logger = "0.11.10"
 abb-ffmpeg = { path = "../abb-ffmpeg" }
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls", "http2", "stream", "json", "query", "form"] }
 bogon = "0.3"
@@ -58,7 +59,6 @@ bundled-ffmpeg = ["abb-media-pipeline/bundled-ffmpeg", "abb-ffmpeg/bundled-ffmpe
 [dev-dependencies]
 abb-test-fixtures = { path = "../abb-test-fixtures" }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
-mp4ameta = "0.13.0"
 tempfile = "3.27.0"
 aes = "0.9.3"
 cbc = "0.2.1"

@@ -783,6 +783,9 @@ fn parity_command(args: Vec<String>) -> AbbDevStatus {
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"))
+        .target(env_logger::Target::Stderr)
+        .init();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let status = if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         AbbDevStatus::Help

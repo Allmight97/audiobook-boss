@@ -187,17 +187,26 @@ fn a_late_read_cannot_revive_a_removed_or_reset_file_and_reimport_reads_again() 
 }
 
 #[test]
-fn a_cover_only_read_is_not_a_complete_baseline() {
-    let mut cache = TagCache::default();
-    read(
-        &mut cache,
+fn cover_only_and_untagged_reads_complete_baseline_without_rereading() {
+    let mut cover_only_cache = TagCache::default();
+    assert!(read(
+        &mut cover_only_cache,
         AudiobookMetadata {
             cover_art: Some(vec![1, 2, 3]),
             ..Default::default()
         },
+    ));
+    assert!(cover_only_cache.has_source_read(path()));
+    assert_eq!(
+        cover_only_cache.effective_cover(path()),
+        Some(vec![1, 2, 3])
     );
+    assert!(cover_only_cache.begin_read(path()).is_none());
 
-    assert!(!cache.has_source_read(path()));
-    assert_eq!(cache.effective_cover(path()), Some(vec![1, 2, 3]));
-    assert!(cache.begin_read(path()).is_some());
+    let mut untagged_cache = TagCache::default();
+    assert!(read(&mut untagged_cache, AudiobookMetadata::default()));
+    assert!(untagged_cache.has_source_read(path()));
+    assert!(untagged_cache.begin_read(path()).is_none());
+    untagged_cache.stage(path(), &clear_author());
+    assert!(untagged_cache.pending(path()).is_none());
 }

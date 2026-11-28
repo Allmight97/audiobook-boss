@@ -19,9 +19,15 @@
   see the source's tags.
 - MP4-family tag truth never depends on a bare remux, because FFmpeg's mov
   muxer drops series, freeform, and sort keys: `finish_artifact_tags`
-  rewrites an MP4-family artifact's tags through mp4ameta after every mux.
-- A Save never opens the original for writing: it checks a sibling copy and
-  swaps it in, so a crash or a bad write leaves the original whole.
+  rewrites an MP4-family artifact's tags through `mp4::write_metadata` after every mux.
+- A Save protects the original across filesystems: on copy-on-write volumes
+  (`cow_clone`) or multi-link/streaming/non-MP4 saves it verifies a sibling
+  copy and atomically swaps it in; on single-link non-CoW MP4 saves where `moov`
+  updates surgically without moving `mdat`, `JournaledPatch` acquires an
+  exclusive `flock` (falling back to sibling copy-and-replace when the mount
+  does not support `flock`), persists pre-images with SHA-256 checksums in a
+  sibling rollback journal, verifies structural `mdat` integrity, and rolls back
+  before save inspection or metadata/cover reads if a prior write left a journal.
 - `tag_support::refuse_unholdable_edits` fails a Save that edits a tag the
   container cannot store, because the muxer drops such a tag and the Save
   would report success.
@@ -86,12 +92,11 @@
 - Publication-date and series sequence validation stay in this module.
 - `----:com.apple.iTunes:SERIES` and `SERIES-PART` are FFmpeg read and clear
   keys, never write keys, so a stray tag from an older ABB still reads and a
-  series clear removes it; the mp4ameta sink writes them in MP4 beside the
+  series clear removes it; the `mp4` writer writes them in MP4 beside the
   lowercase keys as interoperability mirrors for readers of the uppercase
   names.
-- mp4ameta's `set_year` writes its argument to `©day` unchanged, so the MP4
-  sink stores the full normalized date there (`2001-02-03`); the name does
-  not mean year-only storage.
+- `mp4` writes the full normalized `date` string to `©day` unchanged, so it
+  stores the full date there (`2001-02-03`) rather than year-only storage.
 - MP4 artist and composer reads join repeated values with `;`, as FFmpeg's
   text projection does. A name list is one text value; nothing preserves its
   structure or a distinct album artist.
@@ -117,10 +122,9 @@
 
 ## Outside facts
 
-- `mp4_covr.rs`: mp4ameta's `Tag::read_from_path` allocates the whole artwork
-  before a size check can run, so thumbnails walk `moov/udta/meta/ilst/covr`
-  themselves. A valid MP4 can have padding before `ftyp`, and a legacy
-  QuickTime file may name itself only by its `moov`.
+- `mp4/metadata.rs`: thumbnails walk `moov/udta/meta/ilst/covr` with a strict
+  size bound before allocating artwork bytes. A valid MP4 can have padding
+  before `ftyp`, and a legacy QuickTime file may name itself only by its `moov`.
 - `matroska_cover.rs`: only a Segment may have an unknown size (streaming
   writers write it as eight bytes) and run to end of file; any other
   unknown-size element cannot be skipped by a bounded reader.
@@ -135,11 +139,17 @@
   iTunes technical `COMM` records through untouched.
 - The sinks write Author to both artist and album artist, because
   Audiobookshelf and Plex group books by album artist.
-- `mod.rs` save check: before swapping a Save, ABB compares per-stream audio
-  packet counts and compressed payload bytes to EOF (any packet-read error
-  other than EOF refuses the Save), applies the 0.5 s duration check only when
-  both durations are measured, and rechecks the source file fingerprint taken
-  before the copy.
+- `verify.rs` save check: non-MP4 full remuxes compare per-stream audio packet
+  counts and compressed payload bytes to EOF with a 0.5 s measured duration
+  check; streaming MP4 shifts (refused on fragmented files whose fragment
+  offsets would go stale) verify source-vs-output `mdat` SHA-256 by re-reading
+  output `mdat` payloads from disk, exact output file length, strict full-file
+  atom scan to EOF, indexed audio byte ranges inside `mdat`, and per-stream
+  audio packet counts, payload bytes, and measured duration against the source;
+  surgical
+  MP4 writes verify strict full-file atom scan to EOF, non-empty unchanged
+  `mdat` byte offsets/lengths, and container open without re-reading full
+  audio payloads, and recheck the source file fingerprint before commit.
 - FLAC: FFmpeg matches Vorbis comment keys case-insensitively on write and
   maps both `comment` and `COMMENT` to `DESCRIPTION` (`flacenc.c`), and on
   read maps `DESCRIPTION` back to `comment` (`oggparsevorbis.c`), so a FLAC

@@ -1,7 +1,7 @@
 use super::media_fixtures::MediaLane;
 use crate::audio::{get_file_list_info, AacDecoder};
 use crate::metadata::{read_metadata, save_metadata_intent, MetadataIntentPatch, PatchOp};
-use abb_test_fixtures::media::write_sine_mp3_with;
+use abb_test_fixtures::media::{assert_ffprobe_tag, ffprobe_format_tags, write_sine_mp3_with};
 use abb_test_fixtures::wav::{riff_inam_bytes, write_wav_with_raw_title};
 use std::path::Path;
 use tempfile::TempDir;
@@ -86,8 +86,7 @@ async fn an_export_of_a_latin1_titled_file_writes_the_title_as_that_text() {
 
     let output = lane.process(Some(imported)).await;
 
-    let atoms = mp4ameta::Tag::read_from_path(&output).expect("read the exported atoms");
-    assert_eq!(atoms.title(), Some(DISPLAYED_TITLE));
+    assert_ffprobe_tag(&ffprobe_format_tags(&output), "title", DISPLAYED_TITLE);
     let metadata = read_metadata(&output).expect("reread");
     assert_eq!(metadata.title.as_deref(), Some(DISPLAYED_TITLE));
 }

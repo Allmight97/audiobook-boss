@@ -18,15 +18,17 @@ mod embedded_cover;
 mod ffmpeg_dict;
 mod field_schema;
 mod intent_plan;
+mod journal;
 mod matroska_cover;
 mod metadata_sinks;
-mod mp4_covr;
-mod mp4ameta_bridge;
+pub(crate) mod mp4;
 mod passthrough;
 mod plan_log;
 mod remux;
 mod tag_support;
 mod thumbnail;
+mod verify;
+mod write_strategy;
 
 pub(crate) use abb_metadata_core::MetadataWritePlan;
 pub use abb_metadata_core::{
@@ -69,6 +71,10 @@ pub(crate) fn open_input(path: &std::path::Path) -> Result<abb_ffmpeg::Input> {
     Ok(abb_ffmpeg::Input::open(path, &abb_ffmpeg::SecretOptions::default())?.input)
 }
 
+pub(crate) fn recover_journal_if_present(path: &std::path::Path) -> Result<()> {
+    journal::recover_if_present(path).map(|_| ())
+}
+
 pub fn save_metadata_intent(path: &std::path::Path, patch: &MetadataIntentPatch) -> Result<()> {
     let plan = plan_metadata_write_for_path(path, patch)?;
     save_metadata_with_plan(path, &plan)
@@ -81,142 +87,15 @@ pub(crate) fn save_metadata_with_plan(
     save_metadata_with_plan_before_commit(path, plan, || {})
 }
 
+#[cfg(test)]
+use verify::commit_checked_save;
+
 fn save_metadata_with_plan_before_commit(
     path: &std::path::Path,
     plan: &MetadataWritePlan,
     before_commit: impl FnOnce(),
 ) -> Result<()> {
-    let route = crate::diagnostics::stage("metadata_classify", path, || container::classify(path))?;
-    tag_support::refuse_unholdable_edits(&route, plan)?;
-    let expected_fingerprint = source_fingerprint(path)?;
-    let saved = remux::meta_temp(path)?;
-    match route {
-        Container::Mp4 => {
-            crate::diagnostics::stage("metadata_copy_source", path, || {
-                std::fs::copy(path, saved.path()).map_err(AppError::Io)
-            })?;
-            mp4ameta_bridge::write_metadata_with_plan(saved.path(), plan)?;
-        }
-        route => remux::remux_into(path, saved.path(), Some(plan), None, &route)?,
-    }
-    before_commit();
-    commit_checked_save(path, saved, &expected_fingerprint)
-}
-
-fn commit_checked_save(
-    original: &std::path::Path,
-    saved: crate::file_replace::SiblingTemp,
-    expected_fingerprint: &str,
-) -> Result<()> {
-    check_saved_audio(original, saved.path())?;
-    let stat = std::fs::metadata(original).map_err(AppError::Io)?;
-    validate_source_fingerprint(&stat, expected_fingerprint)?;
-    crate::diagnostics::stage("metadata_replace", original, || {
-        saved.commit(original).map_err(AppError::Io)
-    })
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct AudioStreamInventory {
-    packets: u64,
-    payload_bytes: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AudioDuration {
-    Measured(i64),
-    Estimated(i64),
-    Unknown,
-}
-
-impl AudioDuration {
-    fn from_input(input: &abb_ffmpeg::Input) -> Self {
-        match (input.duration_micros(), input.duration_is_estimated()) {
-            (Some(us), false) => Self::Measured(us),
-            (Some(us), true) => Self::Estimated(us),
-            (None, _) => Self::Unknown,
-        }
-    }
-
-    fn moved_beyond(self, saved: Self, tolerance_us: u64) -> bool {
-        matches!(
-            (self, saved),
-            (Self::Measured(original_us), Self::Measured(saved_us))
-                if original_us.abs_diff(saved_us) > tolerance_us
-        )
-    }
-
-    fn display(self) -> String {
-        match self {
-            Self::Measured(us) | Self::Estimated(us) => format!("{:.1} s", us as f64 / 1_000_000.0),
-            Self::Unknown => "unknown".to_string(),
-        }
-    }
-}
-
-struct AudioShape {
-    duration: AudioDuration,
-    audio_streams: Vec<AudioStreamInventory>,
-}
-
-fn check_saved_audio(original: &std::path::Path, saved: &std::path::Path) -> Result<()> {
-    const TOLERANCE_US: u64 = 500_000;
-    let original_shape = audio_shape(original)?;
-    let saved_shape = audio_shape(saved)?;
-    let duration_moved = original_shape
-        .duration
-        .moved_beyond(saved_shape.duration, TOLERANCE_US);
-    if original_shape.audio_streams == saved_shape.audio_streams && !duration_moved {
-        return Ok(());
-    }
-    let totals = |streams: &[AudioStreamInventory]| {
-        streams.iter().fold((0u64, 0u64), |(packets, bytes), s| {
-            (packets + s.packets, bytes + s.payload_bytes)
-        })
-    };
-    let (orig_packets, orig_bytes) = totals(&original_shape.audio_streams);
-    let (saved_packets, saved_bytes) = totals(&saved_shape.audio_streams);
-    Err(AppError::FileValidation(format!(
-        "The original '{}' was kept unchanged: the saved copy's audio did not match it (length {} vs {}, audio streams {} vs {}, packets {saved_packets} vs {orig_packets}, payload bytes {saved_bytes} vs {orig_bytes}).",
-        crate::errors::sanitize_path_for_display(original),
-        saved_shape.duration.display(),
-        original_shape.duration.display(),
-        saved_shape.audio_streams.len(),
-        original_shape.audio_streams.len(),
-    )))
-}
-
-fn audio_shape(path: &std::path::Path) -> Result<AudioShape> {
-    let mut input = open_input(path)?;
-    let streams = input.streams();
-    let mut stream_to_audio = vec![None; streams.len()];
-    let mut audio_streams = Vec::new();
-    for stream in &streams {
-        if stream.medium == abb_ffmpeg::Medium::Audio {
-            let ordinal = audio_streams.len();
-            stream_to_audio[stream.index] = Some(ordinal);
-            audio_streams.push(AudioStreamInventory {
-                packets: 0,
-                payload_bytes: 0,
-            });
-        }
-    }
-    let duration = AudioDuration::from_input(&input);
-    let mut packet = abb_ffmpeg::Packet::new()?;
-    while input.read_packet(&mut packet)? {
-        if let Some(ordinal) = stream_to_audio
-            .get(packet.stream_index())
-            .copied()
-            .flatten()
-        {
-            audio_streams[ordinal].packets += 1;
-            audio_streams[ordinal].payload_bytes += packet.data().len() as u64;
-        }
-    }
-    Ok(AudioShape {
-        duration,
-        audio_streams,
-    })
+    write_strategy::save_metadata_with_strategy(path, plan, before_commit)
 }
 
 pub(crate) fn finalize_artifact_metadata(
@@ -253,7 +132,7 @@ pub(crate) fn finish_artifact_tags(
         if route.is_mp4_family() {
             before_tag_write();
             let started = std::time::Instant::now();
-            mp4ameta_bridge::write_metadata(path, metadata)?;
+            mp4::write_metadata(path, metadata)?;
             log::info!(
                 "artifact_tag_write status=ok elapsed_ms={} artifact={}",
                 started.elapsed().as_millis(),

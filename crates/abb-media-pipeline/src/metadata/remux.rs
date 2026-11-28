@@ -41,8 +41,9 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
         passthrough,
         output_format,
     )?;
-    crate::diagnostics::stage("metadata_replace", input_path, || {
-        temp.commit(input_path).map_err(AppError::Io)
+    crate::diagnostics::stage_with("metadata_replace", input_path, || {
+        let timings = temp.commit_timed(input_path).map_err(AppError::Io)?;
+        Ok(((), timings.log_fields()))
     })
 }
 

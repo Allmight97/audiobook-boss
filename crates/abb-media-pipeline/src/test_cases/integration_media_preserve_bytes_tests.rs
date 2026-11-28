@@ -8,7 +8,6 @@ use crate::audio::{
     get_file_list_info, AacDecoder, AudioIntent, OutputAudio, SampleRateConfig, TitleAudioRequest,
 };
 use abb_test_fixtures::media::decode_pcm_f32;
-use mp4ameta::{Chapter, Tag, WriteConfig};
 use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::fs;
@@ -18,20 +17,7 @@ use tempfile::TempDir;
 
 fn chaptered_seed(dir: &Path, chapters: &[(u64, &str)]) -> PathBuf {
     let path = seed_m4b(dir);
-    let mut tag = Tag::read_from_path(&path).expect("read the seed tags");
-    *tag.chapter_list_mut() = chapters
-        .iter()
-        .map(|(start_ms, title)| Chapter::new(Duration::from_millis(*start_ms), *title))
-        .collect();
-    tag.write_with_path(
-        &path,
-        &WriteConfig {
-            write_meta_items: true,
-            write_chapter_list: true,
-            ..WriteConfig::NONE
-        },
-    )
-    .expect("write the seed chapters");
+    crate::metadata::mp4::write_chapters(&path, chapters).expect("write the seed chapters");
     path
 }
 
