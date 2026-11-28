@@ -306,30 +306,47 @@ pub(crate) fn parse_child_slices_strict(content: &[u8]) -> Result<Vec<ChildSlice
     Ok(slices)
 }
 
-fn looks_like_child_at(slice: &[u8]) -> bool {
+fn looks_like_child_at(slice: &[u8], available_len: u64) -> bool {
     if slice.len() < 8 {
         return false;
     }
-    let size = u32::from_be_bytes([slice[0], slice[1], slice[2], slice[3]]) as usize;
+    let size32 = u32::from_be_bytes([slice[0], slice[1], slice[2], slice[3]]);
     let fourcc = &slice[4..8];
-    size >= 8
-        && size <= slice.len()
-        && fourcc
-            .iter()
-            .all(|byte| byte.is_ascii_graphic() || *byte == b' ')
+    if !fourcc
+        .iter()
+        .all(|byte| byte.is_ascii_graphic() || *byte == b' ')
+    {
+        return false;
+    }
+    if size32 == 1 {
+        if slice.len() < 16 {
+            return false;
+        }
+        let size64 = u64::from_be_bytes([
+            slice[8], slice[9], slice[10], slice[11], slice[12], slice[13], slice[14], slice[15],
+        ]);
+        size64 >= 16 && size64 <= available_len
+    } else {
+        let size = u64::from(size32);
+        size >= 8 && size <= available_len
+    }
 }
 
-pub(crate) fn meta_header_len(content: &[u8]) -> usize {
-    if content.len() >= 4
-        && content[0..4] == [0, 0, 0, 0]
-        && (content.len() == 4 || looks_like_child_at(&content[4..]))
+pub(crate) fn meta_header_len_with_total(probe: &[u8], total_len: u64) -> usize {
+    if probe.len() >= 4
+        && probe[0..4] == [0, 0, 0, 0]
+        && (total_len == 4 || looks_like_child_at(&probe[4..], total_len.saturating_sub(4)))
     {
         return 4;
     }
-    if looks_like_child_at(content) {
+    if looks_like_child_at(probe, total_len) {
         return 0;
     }
-    usize::from(content.len() >= 4) * 4
+    usize::from(total_len >= 4) * 4
+}
+
+pub(crate) fn meta_header_len(content: &[u8]) -> usize {
+    meta_header_len_with_total(content, content.len() as u64)
 }
 
 pub(crate) fn encode_box(fourcc: [u8; 4], content: &[u8]) -> Vec<u8> {

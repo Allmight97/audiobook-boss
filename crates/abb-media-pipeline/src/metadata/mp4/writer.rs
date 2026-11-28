@@ -612,6 +612,15 @@ fn udta_has_meta(moov_content: &[u8], udta: &ChildSlice) -> bool {
         .is_ok_and(|children| children.iter().any(|child| &child.fourcc == b"meta"))
 }
 
+fn udta_has_ilst(moov_content: &[u8], udta: &ChildSlice) -> bool {
+    let udta_body = udta.content(moov_content);
+    parse_child_slices(udta_body).is_ok_and(|children| {
+        children
+            .iter()
+            .any(|child| &child.fourcc == b"meta" && meta_has_ilst(udta_body, child))
+    })
+}
+
 fn meta_has_ilst(udta_content: &[u8], meta: &ChildSlice) -> bool {
     let meta_body = meta.content(udta_content);
     let skip = meta_header_len(meta_body);
@@ -624,7 +633,13 @@ fn rebuild_moov_with_ilst(moov_content: &[u8], new_ilst_box: &[u8]) -> Result<Ve
     let target_idx = children
         .iter()
         .enumerate()
-        .find(|(_, child)| &child.fourcc == b"udta" && udta_has_meta(moov_content, child))
+        .find(|(_, child)| &child.fourcc == b"udta" && udta_has_ilst(moov_content, child))
+        .or_else(|| {
+            children
+                .iter()
+                .enumerate()
+                .find(|(_, child)| &child.fourcc == b"udta" && udta_has_meta(moov_content, child))
+        })
         .or_else(|| {
             children
                 .iter()

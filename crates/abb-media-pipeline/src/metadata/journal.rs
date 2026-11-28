@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 const JOURNAL_MAGIC: &[u8; 8] = b"ABBJRN01";
+const ANCHOR_WINDOW_BYTES: u64 = 4096;
 const FLOCK_WAIT_BUDGET: Duration = Duration::from_secs(2);
 const FLOCK_POLL_STEP: Duration = Duration::from_millis(25);
 
@@ -22,17 +23,24 @@ pub(crate) enum RecoveryOutcome {
 }
 
 #[derive(Debug)]
+struct JournalAnchor {
+    offset: u64,
+    len: u32,
+    sha256: [u8; 32],
+}
+
+#[derive(Debug)]
 struct JournalExtent {
     offset: u64,
     pre_bytes: Vec<u8>,
-    post_len: u32,
-    post_sha256: [u8; 32],
+    post_bytes: Vec<u8>,
 }
 
 #[derive(Debug)]
 struct ParsedJournal {
     original_file_len: u64,
     target_file_len: u64,
+    anchors: Vec<JournalAnchor>,
     extents: Vec<JournalExtent>,
 }
 
@@ -240,10 +248,11 @@ fn apply_journaled_patch_locked_with_hooks(
     let initial_stat = file.metadata().map_err(AppError::Io)?;
     validate_source_fingerprint(&initial_stat, expected_fingerprint)?;
     let original_file_len = initial_stat.len();
-    let (extents, journal_bytes) = capture_journal(&mut file, original_file_len, patch)?;
+    let (anchors, extents, journal_bytes) = capture_journal(&mut file, original_file_len, patch)?;
     let parsed = ParsedJournal {
         original_file_len,
         target_file_len: patch.final_len,
+        anchors,
         extents,
     };
 
@@ -317,7 +326,8 @@ fn capture_journal(
     file: &mut File,
     original_file_len: u64,
     patch: &SurgicalPatch,
-) -> Result<(Vec<JournalExtent>, Vec<u8>)> {
+) -> Result<(Vec<JournalAnchor>, Vec<JournalExtent>, Vec<u8>)> {
+    let anchors = capture_anchors(file, original_file_len, patch)?;
     let mut extents = Vec::with_capacity(patch.edits.len() + 1);
     for edit in &patch.edits {
         let pre_len = if edit.offset < original_file_len {
@@ -327,14 +337,10 @@ fn capture_journal(
             0
         };
         let pre_bytes = read_exact_or_eof(file, edit.offset, pre_len)?;
-        let post_sha256: [u8; 32] = Sha256::digest(&edit.data).into();
-        let post_len = u32::try_from(edit.data.len())
-            .map_err(|_| AppError::General("Patch extent exceeds u32 length".to_string()))?;
         extents.push(JournalExtent {
             offset: edit.offset,
             pre_bytes,
-            post_len,
-            post_sha256,
+            post_bytes: edit.data.clone(),
         });
     }
     if patch.final_len < original_file_len {
@@ -345,12 +351,93 @@ fn capture_journal(
         extents.push(JournalExtent {
             offset: patch.final_len,
             pre_bytes,
-            post_len: 0,
-            post_sha256: Sha256::digest([]).into(),
+            post_bytes: Vec::new(),
         });
     }
-    let bytes = encode_journal(original_file_len, patch.final_len, &extents)?;
-    Ok((extents, bytes))
+    let bytes = encode_journal(original_file_len, patch.final_len, &anchors, &extents)?;
+    Ok((anchors, extents, bytes))
+}
+
+fn untouched_intervals(original_file_len: u64, patch: &SurgicalPatch) -> Vec<(u64, u64)> {
+    let mut covered = Vec::with_capacity(patch.edits.len() + 1);
+    for edit in &patch.edits {
+        let start = edit.offset.min(original_file_len);
+        let end = edit
+            .offset
+            .saturating_add(edit.data.len() as u64)
+            .min(original_file_len);
+        if start < end {
+            covered.push((start, end));
+        }
+    }
+    if patch.final_len < original_file_len {
+        covered.push((patch.final_len, original_file_len));
+    }
+    covered.sort_unstable();
+    let mut untouched = Vec::new();
+    let mut cursor = 0u64;
+    for (start, end) in covered {
+        if cursor < start {
+            untouched.push((cursor, start));
+        }
+        cursor = cursor.max(end);
+    }
+    if cursor < original_file_len {
+        untouched.push((cursor, original_file_len));
+    }
+    untouched
+}
+
+fn capture_anchors(
+    file: &mut File,
+    original_file_len: u64,
+    patch: &SurgicalPatch,
+) -> Result<Vec<JournalAnchor>> {
+    let intervals = untouched_intervals(original_file_len, patch);
+    if intervals.is_empty() {
+        return Ok(Vec::new());
+    }
+    let first = intervals[0];
+    let largest = intervals
+        .iter()
+        .copied()
+        .max_by_key(|(start, end)| end - start)
+        .unwrap_or(first);
+    let last = intervals[intervals.len() - 1];
+
+    let mut windows: Vec<(u64, u32)> = Vec::with_capacity(3);
+    push_anchor_window(
+        &mut windows,
+        first.0,
+        (first.1 - first.0).min(ANCHOR_WINDOW_BYTES),
+    );
+    let largest_len = (largest.1 - largest.0).min(ANCHOR_WINDOW_BYTES);
+    let largest_off = largest.0 + ((largest.1 - largest.0) - largest_len) / 2;
+    push_anchor_window(&mut windows, largest_off, largest_len);
+    let last_len = (last.1 - last.0).min(ANCHOR_WINDOW_BYTES);
+    push_anchor_window(&mut windows, last.1 - last_len, last_len);
+
+    let mut anchors = Vec::with_capacity(windows.len());
+    for (offset, len) in windows {
+        let bytes = read_exact_or_eof(file, offset, len as usize)?;
+        let sha256: [u8; 32] = Sha256::digest(&bytes).into();
+        anchors.push(JournalAnchor {
+            offset,
+            len,
+            sha256,
+        });
+    }
+    Ok(anchors)
+}
+
+fn push_anchor_window(windows: &mut Vec<(u64, u32)>, offset: u64, len: u64) {
+    let Ok(len) = u32::try_from(len) else {
+        return;
+    };
+    if len == 0 || windows.contains(&(offset, len)) {
+        return;
+    }
+    windows.push((offset, len));
 }
 
 fn read_exact_or_eof(file: &mut File, offset: u64, len: usize) -> Result<Vec<u8>> {
@@ -446,17 +533,20 @@ fn classify_target_against_journal(
     parsed: &ParsedJournal,
 ) -> Result<TargetJournalMatch> {
     let current_len = file.metadata().map_err(AppError::Io)?.len();
-    if current_len != parsed.original_file_len && current_len != parsed.target_file_len {
+    let min_len = parsed.original_file_len.min(parsed.target_file_len);
+    let max_len = parsed.original_file_len.max(parsed.target_file_len);
+    if current_len < min_len || current_len > max_len {
+        return Ok(TargetJournalMatch::Mismatch);
+    }
+    if !anchors_match(file, current_len, &parsed.anchors)? {
         return Ok(TargetJournalMatch::Mismatch);
     }
     let mut all_pre = current_len == parsed.original_file_len;
     for extent in &parsed.extents {
-        let matches_pre = extent_matches_pre(file, current_len, parsed.original_file_len, extent)?;
-        let matches_post = extent_matches_post(file, current_len, parsed.target_file_len, extent)?;
-        if !matches_pre && !matches_post {
-            return Ok(TargetJournalMatch::Mismatch);
+        match classify_extent(file, current_len, extent)? {
+            Some(matches_all_pre) => all_pre &= matches_all_pre,
+            None => return Ok(TargetJournalMatch::Mismatch),
         }
-        all_pre &= matches_pre;
     }
     if all_pre {
         Ok(TargetJournalMatch::AlreadyOriginal)
@@ -465,43 +555,46 @@ fn classify_target_against_journal(
     }
 }
 
-fn extent_matches_pre(
-    file: &mut File,
-    current_len: u64,
-    original_file_len: u64,
-    extent: &JournalExtent,
-) -> Result<bool> {
-    if extent.pre_bytes.is_empty() {
-        return Ok(current_len == original_file_len && extent.offset >= current_len);
+fn anchors_match(file: &mut File, current_len: u64, anchors: &[JournalAnchor]) -> Result<bool> {
+    for anchor in anchors {
+        let Some(end) = anchor.offset.checked_add(u64::from(anchor.len)) else {
+            return Ok(false);
+        };
+        if end > current_len {
+            return Ok(false);
+        }
+        let actual = read_exact_or_eof(file, anchor.offset, anchor.len as usize)?;
+        let digest: [u8; 32] = Sha256::digest(&actual).into();
+        if digest != anchor.sha256 {
+            return Ok(false);
+        }
     }
-    let Some(end) = extent.offset.checked_add(extent.pre_bytes.len() as u64) else {
-        return Ok(false);
-    };
-    if end > current_len {
-        return Ok(false);
-    }
-    Ok(read_exact_or_eof(file, extent.offset, extent.pre_bytes.len())? == extent.pre_bytes)
+    Ok(true)
 }
 
-fn extent_matches_post(
+fn classify_extent(
     file: &mut File,
     current_len: u64,
-    target_file_len: u64,
     extent: &JournalExtent,
-) -> Result<bool> {
-    if extent.post_len == 0 {
-        return Ok(current_len == target_file_len && extent.offset >= current_len);
+) -> Result<Option<bool>> {
+    let max_span = extent.pre_bytes.len().max(extent.post_bytes.len()) as u64;
+    let present_len =
+        usize::try_from(current_len.saturating_sub(extent.offset).min(max_span)).unwrap_or(0);
+    let actual = read_exact_or_eof(file, extent.offset, present_len)?;
+    for (idx, &byte) in actual.iter().enumerate() {
+        let matches = match (extent.pre_bytes.get(idx), extent.post_bytes.get(idx)) {
+            (Some(&pre), Some(&post)) => byte == pre || byte == post,
+            (Some(&pre), None) => byte == pre,
+            (None, Some(&post)) => byte == post || byte == 0,
+            (None, None) => false,
+        };
+        if !matches {
+            return Ok(None);
+        }
     }
-    let post_len = extent.post_len as usize;
-    let Some(end) = extent.offset.checked_add(u64::from(extent.post_len)) else {
-        return Ok(false);
-    };
-    if end > current_len {
-        return Ok(false);
-    }
-    let actual = read_exact_or_eof(file, extent.offset, post_len)?;
-    let digest: [u8; 32] = Sha256::digest(&actual).into();
-    Ok(digest == extent.post_sha256)
+    Ok(Some(
+        present_len == extent.pre_bytes.len() && actual == extent.pre_bytes,
+    ))
 }
 
 fn sync_parent_dir_best_effort(path: &Path) {
@@ -576,23 +669,34 @@ fn remove_journal_best_effort(journal_path: &Path) {
 fn encode_journal(
     original_file_len: u64,
     target_file_len: u64,
+    anchors: &[JournalAnchor],
     extents: &[JournalExtent],
 ) -> Result<Vec<u8>> {
+    let anchor_count = u32::try_from(anchors.len())
+        .map_err(|_| AppError::General("Too many journal anchors".to_string()))?;
     let count = u32::try_from(extents.len())
         .map_err(|_| AppError::General("Too many journal extents".to_string()))?;
     let mut out = Vec::new();
     out.extend_from_slice(JOURNAL_MAGIC);
     out.extend_from_slice(&original_file_len.to_be_bytes());
     out.extend_from_slice(&target_file_len.to_be_bytes());
+    out.extend_from_slice(&anchor_count.to_be_bytes());
+    for anchor in anchors {
+        out.extend_from_slice(&anchor.offset.to_be_bytes());
+        out.extend_from_slice(&anchor.len.to_be_bytes());
+        out.extend_from_slice(&anchor.sha256);
+    }
     out.extend_from_slice(&count.to_be_bytes());
     for extent in extents {
         let pre_len = u32::try_from(extent.pre_bytes.len())
             .map_err(|_| AppError::General("Pre-image extent exceeds u32".to_string()))?;
+        let post_len = u32::try_from(extent.post_bytes.len())
+            .map_err(|_| AppError::General("Post-image extent exceeds u32".to_string()))?;
         out.extend_from_slice(&extent.offset.to_be_bytes());
         out.extend_from_slice(&pre_len.to_be_bytes());
         out.extend_from_slice(&extent.pre_bytes);
-        out.extend_from_slice(&extent.post_len.to_be_bytes());
-        out.extend_from_slice(&extent.post_sha256);
+        out.extend_from_slice(&post_len.to_be_bytes());
+        out.extend_from_slice(&extent.post_bytes);
     }
     let checksum: [u8; 32] = Sha256::digest(&out).into();
     out.extend_from_slice(&checksum);
@@ -600,48 +704,81 @@ fn encode_journal(
 }
 
 fn parse_and_verify_journal(bytes: &[u8]) -> Option<ParsedJournal> {
-    if bytes.len() < 8 + 8 + 8 + 4 + 32 || &bytes[0..8] != JOURNAL_MAGIC {
+    if bytes.len() < 8 + 8 + 8 + 4 + 4 + 32 || &bytes[0..8] != JOURNAL_MAGIC {
         return None;
     }
     let payload_len = bytes.len() - 32;
-    let actual_digest: [u8; 32] = Sha256::digest(&bytes[..payload_len]).into();
+    let payload = &bytes[..payload_len];
+    let actual_digest: [u8; 32] = Sha256::digest(payload).into();
     if actual_digest.as_slice() != &bytes[payload_len..] {
         return None;
     }
-    let original_file_len = read_u64_be(bytes, 8)?;
-    let target_file_len = read_u64_be(bytes, 16)?;
-    let count = read_u32_be(bytes, 24)? as usize;
-    let mut pos = 28usize;
-    let mut extents = Vec::with_capacity(count.min(1024));
-    for _ in 0..count {
-        let offset = read_u64_be(&bytes[..payload_len], pos)?;
-        let pre_len = read_u32_be(&bytes[..payload_len], pos + 8)? as usize;
-        pos += 12;
-        if pos.checked_add(pre_len + 36)? > payload_len {
-            return None;
-        }
-        let pre_bytes = bytes[pos..pos + pre_len].to_vec();
-        pos += pre_len;
-        let post_len = read_u32_be(&bytes[..payload_len], pos)?;
-        pos += 4;
-        let mut post_sha256 = [0u8; 32];
-        post_sha256.copy_from_slice(&bytes[pos..pos + 32]);
-        pos += 32;
-        extents.push(JournalExtent {
-            offset,
-            pre_bytes,
-            post_len,
-            post_sha256,
-        });
-    }
-    if pos != payload_len {
+    let original_file_len = read_u64_be(payload, 8)?;
+    let target_file_len = read_u64_be(payload, 16)?;
+    let mut pos = 24usize;
+    let anchors = parse_anchors(payload, &mut pos)?;
+    let extents = parse_extents(payload, &mut pos)?;
+    if pos != payload.len() {
         return None;
     }
     Some(ParsedJournal {
         original_file_len,
         target_file_len,
+        anchors,
         extents,
     })
+}
+
+fn parse_anchors(payload: &[u8], pos: &mut usize) -> Option<Vec<JournalAnchor>> {
+    let count = read_u32_be(payload, *pos)? as usize;
+    *pos += 4;
+    let mut anchors = Vec::with_capacity(count.min(1024));
+    for _ in 0..count {
+        let end = pos.checked_add(44)?;
+        if end > payload.len() {
+            return None;
+        }
+        let offset = read_u64_be(payload, *pos)?;
+        let len = read_u32_be(payload, *pos + 8)?;
+        let mut sha256 = [0u8; 32];
+        sha256.copy_from_slice(&payload[*pos + 12..end]);
+        *pos = end;
+        anchors.push(JournalAnchor {
+            offset,
+            len,
+            sha256,
+        });
+    }
+    Some(anchors)
+}
+
+fn read_len_prefixed_bytes(payload: &[u8], pos: &mut usize) -> Option<Vec<u8>> {
+    let len = read_u32_be(payload, *pos)? as usize;
+    let start = pos.checked_add(4)?;
+    let end = start.checked_add(len)?;
+    if end > payload.len() {
+        return None;
+    }
+    *pos = end;
+    Some(payload[start..end].to_vec())
+}
+
+fn parse_extents(payload: &[u8], pos: &mut usize) -> Option<Vec<JournalExtent>> {
+    let count = read_u32_be(payload, *pos)? as usize;
+    *pos += 4;
+    let mut extents = Vec::with_capacity(count.min(1024));
+    for _ in 0..count {
+        let offset = read_u64_be(payload, *pos)?;
+        *pos += 8;
+        let pre_bytes = read_len_prefixed_bytes(payload, pos)?;
+        let post_bytes = read_len_prefixed_bytes(payload, pos)?;
+        extents.push(JournalExtent {
+            offset,
+            pre_bytes,
+            post_bytes,
+        });
+    }
+    Some(extents)
 }
 
 fn read_u64_be(bytes: &[u8], at: usize) -> Option<u64> {
@@ -662,7 +799,7 @@ pub(crate) fn plant_interrupted_patch_for_test(target: &Path, patch: &SurgicalPa
         .write(true)
         .open(target)
         .expect("open target");
-    let (_, journal_bytes) = capture_journal(&mut file, original_len, patch).expect("capture");
+    let (_, _, journal_bytes) = capture_journal(&mut file, original_len, patch).expect("capture");
     for edit in &patch.edits {
         file.seek(SeekFrom::Start(edit.offset)).expect("seek");
         file.write_all(&edit.data).expect("write");

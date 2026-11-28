@@ -322,3 +322,18 @@ fn covr_children_share_the_atom_traversal_budget() {
         read_bounded_cover_art(file.path(), 10 * 1024 * 1024).expect_err("too many covr children");
     assert!(error.to_string().contains("atom traversal limit"));
 }
+
+#[test]
+fn reads_quicktime_meta_cover_when_first_child_exceeds_64_byte_probe() {
+    let mut image = vec![0xAA; 256];
+    image[..3].copy_from_slice(&[0xFF, 0xD8, 0xFF]);
+    image[254..].copy_from_slice(&[0xFF, 0xD9]);
+    let qt = write_bytes(&build_mp4_with_covr_data_atoms(
+        &[build_data_atom(&image, JPEG_TYPE)],
+        true,
+    ));
+    let cover = read_bounded_cover_art(qt.path(), 10 * 1024 * 1024)
+        .expect("qt bounded read")
+        .expect("qt cover over 64 bytes");
+    assert_eq!(cover, image);
+}

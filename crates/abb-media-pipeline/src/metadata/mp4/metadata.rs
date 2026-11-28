@@ -1,6 +1,6 @@
 use super::boxes::{
-    meta_header_len, read_box_header, scan_top_level_prefix, BoxHeader, MAX_CONTAINER_DEPTH,
-    MAX_SCANNED_ATOMS,
+    meta_header_len_with_total, read_box_header, scan_top_level_prefix, BoxHeader,
+    MAX_CONTAINER_DEPTH, MAX_SCANNED_ATOMS,
 };
 use super::ilst::{
     parse_data_atom, AtomData, AtomIdent, Mp4Tag, ALBUM_ARTIST_ATOM, ALBUM_ATOM, ALBUM_SORT_ATOM,
@@ -396,7 +396,7 @@ fn read_meta_skip_from_file(file: &mut File, child_start: u64, content_len: u64)
         file.read_exact(&mut probe)
             .map_err(|error| AppError::General(format!("Failed to probe meta box: {error}")))?;
     }
-    Ok(meta_header_len(&probe) as u64)
+    Ok(meta_header_len_with_total(&probe, content_len) as u64)
 }
 
 fn read_covr_item_cover(

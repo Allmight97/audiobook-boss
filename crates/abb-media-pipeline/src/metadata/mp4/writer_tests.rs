@@ -395,3 +395,74 @@ fn replace_or_append_child_preserves_second_udta_and_inserts_before_quicktime_ze
     assert_eq!(udtas.len(), 2, "second udta must be preserved");
     assert_eq!(udtas[1].content(&moov_body), chpl.as_slice());
 }
+
+#[test]
+fn rebuild_moov_updates_second_udta_holding_ilst_without_duplicating_into_first_bare_meta() {
+    let ftyp = encode_box(*b"ftyp", b"isom\0\0\0\0");
+    let mdat = encode_box(*b"mdat", b"MULTI-UDTA-AUDIO");
+    let mdat_off = (ftyp.len() + 8) as u32;
+    let base_moov = make_stco_moov(mdat_off, "Old", false);
+    let moov_children = parse_child_slices(&base_moov[8..]).expect("base moov children");
+    let trak_only = &base_moov[8 + moov_children[0].start..8 + moov_children[0].end];
+    let second_udta = &base_moov[8 + moov_children[1].start..8 + moov_children[1].end];
+
+    let mut bare_meta_body = vec![0, 0, 0, 0];
+    bare_meta_body.extend_from_slice(&default_meta_hdlr_box());
+    let first_udta = encode_box(*b"udta", &encode_box(*b"meta", &bare_meta_body));
+    let combined_moov = encode_box(*b"moov", &[trak_only, &first_udta, second_udta].concat());
+
+    let tmp = write_temp(&[ftyp, mdat, combined_moov].concat());
+    assert_eq!(
+        read_tag(tmp.path())
+            .expect("read old")
+            .first_fourcc_string(TITLE_ATOM),
+        Some("Old")
+    );
+
+    let mut updated = Mp4Tag::default();
+    updated.set_fourcc_utf8(TITLE_ATOM, "New");
+    write_tag_with_stats(tmp.path(), &updated).expect("write updated title");
+
+    assert_eq!(
+        read_tag(tmp.path())
+            .expect("read new")
+            .first_fourcc_string(TITLE_ATOM),
+        Some("New")
+    );
+
+    let mut file = File::open(tmp.path()).expect("reopen");
+    let file_len = file.seek(SeekFrom::End(0)).expect("len");
+    let boxes = scan_top_level_strict(&mut file, file_len).expect("scan");
+    let moov = boxes.iter().find(|b| &b.fourcc == b"moov").expect("moov");
+    let moov_body = read_box_bytes(&mut file, moov).expect("moov body");
+    let udtas: Vec<_> = parse_child_slices(&moov_body)
+        .expect("moov children")
+        .into_iter()
+        .filter(|c| &c.fourcc == b"udta")
+        .collect();
+    assert_eq!(udtas.len(), 2);
+
+    let count_ilst = |udta: &ChildSlice| -> usize {
+        let udta_body = udta.content(&moov_body);
+        parse_child_slices(udta_body)
+            .expect("udta children")
+            .into_iter()
+            .filter(|c| &c.fourcc == b"meta")
+            .map(|meta| {
+                let meta_body = meta.content(udta_body);
+                let skip = meta_header_len(meta_body);
+                parse_child_slices(&meta_body[skip..])
+                    .expect("meta children")
+                    .into_iter()
+                    .filter(|c| &c.fourcc == b"ilst")
+                    .count()
+            })
+            .sum()
+    };
+    assert_eq!(count_ilst(&udtas[0]), 0, "bare meta must not gain ilst");
+    assert_eq!(
+        count_ilst(&udtas[1]),
+        1,
+        "second udta must keep single ilst"
+    );
+}

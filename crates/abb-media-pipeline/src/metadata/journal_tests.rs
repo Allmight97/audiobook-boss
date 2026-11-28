@@ -171,11 +171,11 @@ fn rollback_and_fail_error_redacts_parent_directory_paths() {
     let parsed = ParsedJournal {
         original_file_len: 128,
         target_file_len: 128,
+        anchors: Vec::new(),
         extents: vec![JournalExtent {
             offset: 0,
             pre_bytes: vec![1, 2, 3, 4],
-            post_len: 4,
-            post_sha256: [0u8; 32],
+            post_bytes: vec![0, 0, 0, 0],
         }],
     };
     let err = rollback_and_fail(
@@ -258,7 +258,7 @@ fn recover_handles_unstarted_and_partial_multi_extent_journals() {
         .write(true)
         .open(&target)
         .expect("open");
-    let (_, journal_bytes) =
+    let (_, _, journal_bytes) =
         capture_journal(&mut file, original.len() as u64, &multi_patch).expect("capture");
     drop(file);
     fs::write(&jpath, &journal_bytes).expect("plant unstarted journal");
@@ -393,4 +393,189 @@ fn lock_exclusive_with_budget_times_out_when_locked_by_another_handle() {
             .contains("Timed out waiting for exclusive file lock"),
         "{err}"
     );
+}
+
+#[test]
+fn recover_rolls_back_partial_mid_extent_in_place_write() {
+    let dir = TempDir::new().expect("temp dir");
+    let target = dir.path().join("partial-inplace.m4b");
+    fs::copy(UNTAGGED_M4B, &target).expect("copy");
+
+    let mut initial = mp4::read_tag(&target).expect("read");
+    initial.set_fourcc_utf8(TITLE_ATOM, "A".repeat(80));
+    mp4::write_tag(&target, &initial).expect("seed long title");
+    let original = fs::read(&target).expect("original");
+
+    let patch = surgical_plan_for_title(&target, &"B".repeat(80));
+    assert_eq!(patch.final_len, original.len() as u64);
+    assert_eq!(patch.edits.len(), 1);
+    assert!(patch.edits[0].data.len() > 32);
+
+    let jpath = journal_path_for(&target).expect("jpath");
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&target)
+        .expect("open");
+    let (_, _, journal_bytes) =
+        capture_journal(&mut file, original.len() as u64, &patch).expect("capture");
+    let first_diff = patch.edits[0]
+        .data
+        .iter()
+        .zip(original[patch.edits[0].offset as usize..].iter())
+        .position(|(a, b)| a != b)
+        .expect("must have differing bytes");
+    let partial_end = (first_diff + 16).min(patch.edits[0].data.len() - 8);
+    assert!(partial_end > first_diff);
+    assert!(
+        patch.edits[0].data[partial_end..]
+            != original[patch.edits[0].offset as usize + partial_end..]
+    );
+    file.seek(SeekFrom::Start(patch.edits[0].offset))
+        .expect("seek");
+    file.write_all(&patch.edits[0].data[..partial_end])
+        .expect("partial write");
+    file.flush().expect("flush");
+    drop(file);
+    fs::write(&jpath, &journal_bytes).expect("plant journal");
+
+    assert_eq!(
+        recover_if_present(&target).expect("recover partial in-place"),
+        RecoveryOutcome::RolledBack
+    );
+    assert!(!jpath.exists());
+    assert_eq!(fs::read(&target).expect("restored"), original);
+}
+
+#[test]
+fn recover_rolls_back_partial_extending_write_and_tombstoned_relocation() {
+    let dir = TempDir::new().expect("temp dir");
+    let grow_target = dir.path().join("partial-grow.m4b");
+    fs::copy(UNTAGGED_M4B, &grow_target).expect("copy");
+    let grow_original = fs::read(&grow_target).expect("original");
+    let grow_patch = surgical_plan_for_title(&grow_target, &"Extended Title ".repeat(12));
+    assert_eq!(grow_patch.edits.len(), 1);
+    assert!(grow_patch.final_len > grow_original.len() as u64 + 64);
+
+    let grow_jpath = journal_path_for(&grow_target).expect("grow jpath");
+    let mut grow_file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&grow_target)
+        .expect("open grow");
+    let (_, _, grow_journal_bytes) =
+        capture_journal(&mut grow_file, grow_original.len() as u64, &grow_patch).expect("capture");
+    let partial_grow_len = (grow_original.len() as u64 - grow_patch.edits[0].offset) as usize + 16;
+    grow_file
+        .seek(SeekFrom::Start(grow_patch.edits[0].offset))
+        .expect("seek grow");
+    grow_file
+        .write_all(&grow_patch.edits[0].data[..partial_grow_len])
+        .expect("partial grow write");
+    grow_file.flush().expect("flush");
+    drop(grow_file);
+    fs::write(&grow_jpath, &grow_journal_bytes).expect("plant grow journal");
+
+    assert_eq!(
+        recover_if_present(&grow_target).expect("recover partial grow"),
+        RecoveryOutcome::RolledBack
+    );
+    assert!(!grow_jpath.exists());
+    assert_eq!(
+        fs::read(&grow_target).expect("restored grow"),
+        grow_original
+    );
+
+    let reloc_target = dir.path().join("partial-reloc.m4b");
+    ffmpeg([
+        "-v",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:sample_rate=44100:duration=0.4",
+        "-c:a",
+        "aac",
+        "-movflags",
+        "+faststart",
+        "-f",
+        "mp4",
+        reloc_target.to_str().expect("utf8 path"),
+    ]);
+    let reloc_original = fs::read(&reloc_target).expect("reloc original");
+    let reloc_patch = surgical_plan_for_title(&reloc_target, &"Relocated Title ".repeat(30));
+    assert!(reloc_patch.edits.len() >= 2);
+    assert_eq!(reloc_patch.layout_before, "moov_front");
+    assert_eq!(reloc_patch.layout_after, "moov_end");
+    assert!(reloc_patch.final_len > reloc_original.len() as u64 + 64);
+
+    let reloc_jpath = journal_path_for(&reloc_target).expect("reloc jpath");
+    let mut reloc_file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&reloc_target)
+        .expect("open reloc");
+    let (_, _, reloc_journal_bytes) =
+        capture_journal(&mut reloc_file, reloc_original.len() as u64, &reloc_patch)
+            .expect("capture reloc");
+    reloc_file
+        .seek(SeekFrom::Start(reloc_patch.edits[0].offset))
+        .expect("seek tombstone");
+    reloc_file
+        .write_all(&reloc_patch.edits[0].data)
+        .expect("write tombstone");
+    let eof_edit = reloc_patch.edits.last().expect("eof edit");
+    reloc_file
+        .seek(SeekFrom::Start(eof_edit.offset))
+        .expect("seek eof");
+    reloc_file
+        .write_all(&eof_edit.data[..32])
+        .expect("partial eof bytes");
+    reloc_file
+        .write_all(&[0u8; 16])
+        .expect("zero extended tail");
+    reloc_file.flush().expect("flush");
+    drop(reloc_file);
+    fs::write(&reloc_jpath, &reloc_journal_bytes).expect("plant reloc journal");
+
+    assert_eq!(
+        recover_if_present(&reloc_target).expect("recover partial relocation"),
+        RecoveryOutcome::RolledBack
+    );
+    assert!(!reloc_jpath.exists());
+    assert_eq!(
+        fs::read(&reloc_target).expect("restored reloc"),
+        reloc_original
+    );
+}
+
+#[test]
+fn recover_refuses_when_untouched_mdat_anchor_was_replaced_with_same_length_file() {
+    let dir = TempDir::new().expect("temp dir");
+    let target = dir.path().join("anchor-tamper.m4b");
+    fs::copy(UNTAGGED_M4B, &target).expect("copy");
+    let patch = surgical_plan_for_title(&target, "Same Length Replacement Check");
+    assert!(!patch.mdat_ranges.is_empty());
+
+    let jpath = journal_path_for(&target).expect("jpath");
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&target)
+        .expect("open");
+    let original_len = file.metadata().expect("meta").len();
+    let (_, _, journal_bytes) = capture_journal(&mut file, original_len, &patch).expect("capture");
+    drop(file);
+    fs::write(&jpath, &journal_bytes).expect("plant journal");
+
+    let (mdat_start, mdat_end) = patch.mdat_ranges[0];
+    assert!(mdat_end > mdat_start + 32);
+    let mut tampered = fs::read(&target).expect("read target");
+    tampered[(mdat_start + 16) as usize] ^= 0xA5;
+    fs::write(&target, &tampered).expect("write tampered mdat");
+
+    let err = recover_if_present(&target).expect_err("anchor mismatch must refuse");
+    assert!(err.to_string().contains("stale metadata journal"), "{err}");
+    assert!(jpath.exists(), "journal must remain when refused");
+    assert_eq!(fs::read(&target).expect("target untouched"), tampered);
 }
