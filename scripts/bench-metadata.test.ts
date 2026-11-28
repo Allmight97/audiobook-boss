@@ -2,7 +2,12 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { cleanupScratchRoots, hasBenchmarkFailure, inspectMp4File } from './bench-metadata';
+import {
+	cleanupScratchRoots,
+	compareAudioHashes,
+	hasBenchmarkFailure,
+	inspectMp4File,
+} from './bench-metadata';
 
 function box(type: string, payload: Buffer): Buffer {
 	const out = Buffer.alloc(8 + payload.length);
@@ -35,12 +40,18 @@ describe('inspectMp4File', () => {
 	});
 
 	it('flags nonzero exit codes and audio digest mismatches while cleaning scratch dirs', () => {
+		expect(compareAudioHashes('abc', 'abc')).toBe(true);
+		expect(compareAudioHashes('abc', null)).toBe(false);
+		expect(compareAudioHashes(null, null)).toBeNull();
 		expect(
 			hasBenchmarkFailure([
+				{ rc: 0, audioHashMatch: compareAudioHashes(null, null) },
 				{ rc: 0, audioHashMatch: true },
-				{ rc: 0, audioHashMatch: null },
 			]),
 		).toBe(false);
+		expect(hasBenchmarkFailure([{ rc: 0, audioHashMatch: compareAudioHashes('abc', null) }])).toBe(
+			true,
+		);
 		expect(hasBenchmarkFailure([{ rc: 1, audioHashMatch: true }])).toBe(true);
 		expect(hasBenchmarkFailure([{ rc: 0, audioHashMatch: false }])).toBe(true);
 

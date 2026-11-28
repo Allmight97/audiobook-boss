@@ -142,8 +142,11 @@
 - `verify.rs` save check: non-MP4 full remuxes compare per-stream audio packet
   counts and compressed payload bytes to EOF with a 0.5 s measured duration
   check; streaming MP4 shifts (refused on fragmented files whose fragment
-  offsets would go stale) verify source-vs-output `mdat` SHA-256, exact output
-  file length, strict full-file atom scan to EOF, and container open; surgical
+  offsets would go stale) verify source-vs-output `mdat` SHA-256 by re-reading
+  output `mdat` payloads from disk, exact output file length, strict full-file
+  atom scan to EOF, indexed audio byte ranges inside `mdat`, and per-stream
+  audio packet counts, payload bytes, and measured duration against the source;
+  surgical
   MP4 writes verify strict full-file atom scan to EOF, non-empty unchanged
   `mdat` byte offsets/lengths, and container open without re-reading full
   audio payloads, and recheck the source file fingerprint before commit.

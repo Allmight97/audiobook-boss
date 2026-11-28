@@ -48,7 +48,7 @@ impl ScanBudget {
     }
 }
 
-pub fn looks_like_mp4_family_file(path: &Path) -> Result<bool> {
+pub(crate) fn looks_like_mp4_family_file(path: &Path) -> Result<bool> {
     let mut file = File::open(path).map_err(|error| {
         AppError::General(format!("Failed to open file for MP4 probe: {error}"))
     })?;
@@ -58,7 +58,10 @@ pub fn looks_like_mp4_family_file(path: &Path) -> Result<bool> {
     scan_top_level_prefix(&mut file, file_len)
 }
 
-pub fn read_bounded_cover_art(path: &Path, max_image_bytes: usize) -> Result<Option<Vec<u8>>> {
+pub(crate) fn read_bounded_cover_art(
+    path: &Path,
+    max_image_bytes: usize,
+) -> Result<Option<Vec<u8>>> {
     let mut file = File::open(path).map_err(|error| {
         AppError::General(format!("Failed to open MP4 for cover read: {error}"))
     })?;
@@ -97,12 +100,12 @@ pub fn read_bounded_cover_art(path: &Path, max_image_bytes: usize) -> Result<Opt
     Ok(None)
 }
 
-pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
+pub(crate) fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
     let tag = writer::read_tag(path)?;
     Ok(tag_to_metadata(&tag))
 }
 
-pub fn write_metadata(path: &Path, metadata: &AudiobookMetadata) -> Result<()> {
+pub(crate) fn write_metadata(path: &Path, metadata: &AudiobookMetadata) -> Result<()> {
     let plan = MetadataWritePlan::from_metadata(metadata);
     write_metadata_with_plan(path, &plan)
 }
@@ -121,7 +124,7 @@ pub(crate) fn write_metadata_with_plan_stats(
         &crate::diagnostics::artifact_id(path),
     );
     crate::diagnostics::stage_with("metadata_mp4_tags", path, || {
-        let mut tag = writer::read_tag(path)?;
+        let mut tag = writer::read_tag_strict(path)?;
         apply_write_plan(&mut tag, plan)?;
         let stats = writer::write_tag_with_stats(path, &tag)?;
         let fields = stats.log_fields();

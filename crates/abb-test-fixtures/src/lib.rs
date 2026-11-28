@@ -1,6 +1,7 @@
 pub mod fs_listing;
 pub mod log_capture;
 pub mod media;
+pub mod mp4_atoms;
 pub mod poll;
 pub mod wav;
 

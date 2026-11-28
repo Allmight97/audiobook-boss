@@ -31,6 +31,11 @@ fn validate_single_file(path: &Path, aac_decoder: AacDecoder) -> Result<AudioFil
         }
     };
 
+    if let Err(e) = crate::metadata::recover_journal_if_present(&canonical_path) {
+        audio_file.error = Some(e.to_string());
+        return Ok(audio_file);
+    }
+
     let file_size = match fs::metadata(&canonical_path) {
         Ok(metadata) => {
             audio_file.size = Some(metadata.len() as f64);

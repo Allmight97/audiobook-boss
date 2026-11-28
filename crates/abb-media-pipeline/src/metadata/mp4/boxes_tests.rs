@@ -57,7 +57,7 @@ fn rewrites_stco_and_upgrades_to_co64_when_shifted_past_u32_max() {
     let mdia = encode_box(*b"mdia", &minf);
     let trak = encode_box(*b"trak", &mdia);
 
-    let shifted = shift_moov_chunk_offsets(&trak, 100, 128).expect("upgrade stco to co64");
+    let shifted = shift_moov_chunk_offsets(&trak, &[(100, 128)]).expect("upgrade stco to co64");
     let trak_children = parse_child_slices(&shifted).expect("parse trak");
     let trak_body = trak_children[0].content(&shifted);
     let mdia_children = parse_child_slices(trak_body).expect("parse mdia");
@@ -74,6 +74,42 @@ fn rewrites_stco_and_upgrades_to_co64_when_shifted_past_u32_max() {
         u64::from_be_bytes(co64[16..24].try_into().expect("8")),
         u64::from(u32::MAX) + 128
     );
+}
+
+#[test]
+fn shift_moov_chunk_offsets_applies_multi_threshold_cumulative_deltas() {
+    let mut stco_body = vec![0, 0, 0, 0];
+    stco_body.extend_from_slice(&3u32.to_be_bytes());
+    stco_body.extend_from_slice(&50u32.to_be_bytes());
+    stco_body.extend_from_slice(&150u32.to_be_bytes());
+    stco_body.extend_from_slice(&200u32.to_be_bytes());
+    let stco = encode_box(*b"stco", &stco_body);
+    let stbl = encode_box(*b"stbl", &stco);
+    let minf = encode_box(*b"minf", &stbl);
+    let mdia = encode_box(*b"mdia", &minf);
+    let trak = encode_box(*b"trak", &mdia);
+
+    let shifted = shift_moov_chunk_offsets(&trak, &[(100, 128), (200, 8)]).expect("shift");
+    let trak_c = parse_child_slices(&shifted).expect("trak");
+    let mdia_c = parse_child_slices(trak_c[0].content(&shifted)).expect("mdia");
+    let minf_c = parse_child_slices(mdia_c[0].content(trak_c[0].content(&shifted))).expect("minf");
+    let stbl_c =
+        parse_child_slices(minf_c[0].content(mdia_c[0].content(trak_c[0].content(&shifted))))
+            .expect("stbl");
+    let stco_c = parse_child_slices(
+        stbl_c[0].content(minf_c[0].content(mdia_c[0].content(trak_c[0].content(&shifted)))),
+    )
+    .expect("stco");
+    let body = stco_c[0].content(
+        stbl_c[0].content(minf_c[0].content(mdia_c[0].content(trak_c[0].content(&shifted)))),
+    );
+    let read_u32 = |idx: usize| -> u32 {
+        let base = 8 + idx * 4;
+        u32::from_be_bytes([body[base], body[base + 1], body[base + 2], body[base + 3]])
+    };
+    assert_eq!(read_u32(0), 50);
+    assert_eq!(read_u32(1), 278);
+    assert_eq!(read_u32(2), 336);
 }
 
 #[test]
@@ -98,4 +134,23 @@ fn strict_scan_rejects_truncated_box_and_trailing_bytes() {
     let stray_len = stray.as_file().metadata().expect("stat").len();
     let mut stray_file = std::fs::File::open(stray.path()).expect("open");
     assert!(scan_top_level_strict(&mut stray_file, stray_len).is_err());
+}
+
+#[test]
+fn parse_child_slices_strict_rejects_zero_truncated_and_out_of_bounds_children() {
+    let valid = encode_box(*b"data", &[0, 0, 0, 1, 0, 0, 0, 0, b'o', b'k']);
+
+    let mut zero_sized = valid.clone();
+    zero_sized.extend_from_slice(&[0, 0, 0, 0, b'b', b'a', b'd', b' ']);
+    assert!(parse_child_slices_strict(&zero_sized).is_err());
+
+    let mut truncated_hdr = valid.clone();
+    truncated_hdr.extend_from_slice(&[0, 0, 0, 12, b'a', b'b']);
+    assert!(parse_child_slices_strict(&truncated_hdr).is_err());
+
+    let mut oversized = valid;
+    oversized.extend_from_slice(&64u32.to_be_bytes());
+    oversized.extend_from_slice(b"\xa9cmt");
+    oversized.extend_from_slice(b"short");
+    assert!(parse_child_slices_strict(&oversized).is_err());
 }

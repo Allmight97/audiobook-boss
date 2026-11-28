@@ -4,6 +4,7 @@ use std::io::{Read, Seek, SeekFrom};
 
 pub(crate) const MAX_CONTAINER_DEPTH: usize = 16;
 pub(crate) const MAX_SCANNED_ATOMS: usize = 4096;
+pub(crate) const MAX_TOP_LEVEL_BOXES: usize = 65_536;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct BoxHeader {
@@ -96,10 +97,10 @@ fn scan_top_level_with(file: &mut File, file_len: u64, strict: bool) -> Result<V
     let mut boxes = Vec::new();
     let mut offset = 0u64;
     while offset < file_len {
-        if boxes.len() >= MAX_SCANNED_ATOMS {
+        if boxes.len() >= MAX_TOP_LEVEL_BOXES {
             if strict {
                 return Err(AppError::FileValidation(format!(
-                    "MP4 container exceeded the {MAX_SCANNED_ATOMS}-atom scan limit"
+                    "MP4 container exceeded the {MAX_TOP_LEVEL_BOXES}-atom scan limit"
                 )));
             }
             break;
@@ -237,6 +238,74 @@ pub(crate) fn parse_child_slices(content: &[u8]) -> Result<Vec<ChildSlice>> {
     Ok(slices)
 }
 
+pub(crate) fn parse_child_slices_strict(content: &[u8]) -> Result<Vec<ChildSlice>> {
+    let mut slices = Vec::new();
+    let mut pos = 0usize;
+    while pos < content.len() {
+        if content.len() - pos < 8 {
+            return Err(AppError::FileValidation(
+                "Malformed MP4 container: truncated child atom header".to_string(),
+            ));
+        }
+        let size32 = u32::from_be_bytes([
+            content[pos],
+            content[pos + 1],
+            content[pos + 2],
+            content[pos + 3],
+        ]);
+        let fourcc = [
+            content[pos + 4],
+            content[pos + 5],
+            content[pos + 6],
+            content[pos + 7],
+        ];
+        let (size, header_len) = match size32 {
+            0 => {
+                return Err(AppError::FileValidation(
+                    "Malformed MP4 container: unexpected zero-sized child atom".to_string(),
+                ));
+            }
+            1 => {
+                if pos.saturating_add(16) > content.len() {
+                    return Err(AppError::FileValidation(
+                        "Malformed MP4 container: truncated 64-bit child atom header".to_string(),
+                    ));
+                }
+                let size64 = u64::from_be_bytes([
+                    content[pos + 8],
+                    content[pos + 9],
+                    content[pos + 10],
+                    content[pos + 11],
+                    content[pos + 12],
+                    content[pos + 13],
+                    content[pos + 14],
+                    content[pos + 15],
+                ]);
+                let size = usize::try_from(size64).map_err(|_| {
+                    AppError::FileValidation(
+                        "Malformed MP4 container: child atom size overflow".to_string(),
+                    )
+                })?;
+                (size, 16usize)
+            }
+            other => (other as usize, 8usize),
+        };
+        if size < header_len || pos.checked_add(size).is_none_or(|end| end > content.len()) {
+            return Err(AppError::FileValidation(
+                "Malformed MP4 container: child atom extends past parent".to_string(),
+            ));
+        }
+        slices.push(ChildSlice {
+            fourcc,
+            start: pos,
+            header_len,
+            end: pos + size,
+        });
+        pos += size;
+    }
+    Ok(slices)
+}
+
 fn looks_like_child_at(slice: &[u8]) -> bool {
     if slice.len() < 8 {
         return false;
@@ -338,19 +407,17 @@ pub(crate) fn encode_free_header(total_size: u64, force_64_bit: bool) -> Result<
 
 pub(crate) fn shift_moov_chunk_offsets(
     moov_content: &[u8],
-    min_shifted_offset: u64,
-    delta: i128,
+    shifts: &[(u64, i128)],
 ) -> Result<Vec<u8>> {
-    if delta == 0 {
+    if shifts.iter().all(|&(_, delta)| delta == 0) {
         return Ok(moov_content.to_vec());
     }
-    rewrite_container_offsets(moov_content, min_shifted_offset, delta, 0)
+    rewrite_container_offsets(moov_content, shifts, 0)
 }
 
 fn rewrite_container_offsets(
     content: &[u8],
-    min_shifted_offset: u64,
-    delta: i128,
+    shifts: &[(u64, i128)],
     depth: usize,
 ) -> Result<Vec<u8>> {
     if depth > MAX_CONTAINER_DEPTH {
@@ -368,15 +435,14 @@ fn rewrite_container_offsets(
         let body = child.content(content);
         match &child.fourcc {
             b"trak" | b"mdia" | b"minf" | b"stbl" => {
-                let updated =
-                    rewrite_container_offsets(body, min_shifted_offset, delta, depth + 1)?;
+                let updated = rewrite_container_offsets(body, shifts, depth + 1)?;
                 out.extend_from_slice(&encode_box(child.fourcc, &updated));
             }
             b"stco" => {
-                out.extend_from_slice(&rewrite_stco_box(body, min_shifted_offset, delta)?);
+                out.extend_from_slice(&rewrite_stco_box(body, shifts)?);
             }
             b"co64" => {
-                out.extend_from_slice(&rewrite_co64_box(body, min_shifted_offset, delta)?);
+                out.extend_from_slice(&rewrite_co64_box(body, shifts)?);
             }
             _ => out.extend_from_slice(&content[child.start..child.end]),
         }
@@ -388,17 +454,21 @@ fn rewrite_container_offsets(
     Ok(out)
 }
 
-fn shift_offset(offset: u64, min_shifted_offset: u64, delta: i128) -> Result<u64> {
-    if offset < min_shifted_offset {
+fn shift_offset(offset: u64, shifts: &[(u64, i128)]) -> Result<u64> {
+    let total_delta: i128 = shifts
+        .iter()
+        .filter_map(|&(min_shifted_offset, delta)| (offset >= min_shifted_offset).then_some(delta))
+        .sum();
+    if total_delta == 0 {
         return Ok(offset);
     }
-    let shifted = i128::from(offset) + delta;
+    let shifted = i128::from(offset) + total_delta;
     u64::try_from(shifted).map_err(|_| {
         AppError::General("Shifted MP4 chunk offset underflowed or overflowed u64".to_string())
     })
 }
 
-fn rewrite_stco_box(body: &[u8], min_shifted_offset: u64, delta: i128) -> Result<Vec<u8>> {
+fn rewrite_stco_box(body: &[u8], shifts: &[(u64, i128)]) -> Result<Vec<u8>> {
     if body.len() < 8 {
         return Err(AppError::General("Truncated MP4 stco atom".to_string()));
     }
@@ -419,7 +489,7 @@ fn rewrite_stco_box(body: &[u8], min_shifted_offset: u64, delta: i128) -> Result
             body[base + 2],
             body[base + 3],
         ]));
-        let shifted = shift_offset(orig, min_shifted_offset, delta)?;
+        let shifted = shift_offset(orig, shifts)?;
         if shifted > u64::from(u32::MAX) {
             needs_64 = true;
         }
@@ -441,7 +511,7 @@ fn rewrite_stco_box(body: &[u8], min_shifted_offset: u64, delta: i128) -> Result
     Ok(encode_box(fourcc, &new_body))
 }
 
-fn rewrite_co64_box(body: &[u8], min_shifted_offset: u64, delta: i128) -> Result<Vec<u8>> {
+fn rewrite_co64_box(body: &[u8], shifts: &[(u64, i128)]) -> Result<Vec<u8>> {
     if body.len() < 8 {
         return Err(AppError::General("Truncated MP4 co64 atom".to_string()));
     }
@@ -466,7 +536,7 @@ fn rewrite_co64_box(body: &[u8], min_shifted_offset: u64, delta: i128) -> Result
             body[base + 6],
             body[base + 7],
         ]);
-        let shifted = shift_offset(orig, min_shifted_offset, delta)?;
+        let shifted = shift_offset(orig, shifts)?;
         new_body.extend_from_slice(&shifted.to_be_bytes());
     }
     if body.len() > needed {

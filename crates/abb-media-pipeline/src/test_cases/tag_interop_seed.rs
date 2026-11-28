@@ -1,6 +1,8 @@
-use crate::metadata::mp4::{ilst::*, read_tag, write_tag, AtomData, AtomIdent};
 use crate::metadata::{AlbumSortPatchOp, MetadataIntentPatch, PatchOp};
 use abb_test_fixtures::media::{ffmpeg, minimal_jpg_bytes, write_complete_frame_aac};
+use abb_test_fixtures::mp4_atoms::{
+    append_ilst_items, mp4_fourcc_data, mp4_fourcc_multi, mp4_fourcc_utf8, mp4_freeform_utf8,
+};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -127,54 +129,44 @@ pub(crate) fn seed_mergeable_m4a(dir: &Path, stem: &str) -> PathBuf {
 }
 
 fn tag_m4b(path: &Path) {
-    let mut tag = read_tag(path).expect("read the MP4 to tag");
-    tag.set_fourcc_utf8(TITLE_ATOM, "Seed Title");
-    tag.set_fourcc_utf8(ARTIST_ATOM, "Seed Author");
-    tag.set_fourcc_utf8(ALBUM_ARTIST_ATOM, "Seed Album Artist");
-    tag.set_fourcc_utf8(ALBUM_ATOM, "Seed Album");
-    tag.set_fourcc_utf8(COMPOSER_ATOM, "Seed Narrator");
-    tag.set_fourcc_utf8(GENRE_ATOM, "Seed Genre");
-    tag.set_fourcc_utf8(YEAR_ATOM, "2001-02-03");
-    tag.set_fourcc_utf8(COMMENT_ATOM, "Seed Comment");
-    tag.set_fourcc_utf8(DESCRIPTION_ATOM, "Seed Description");
-    tag.set_fourcc_utf8(ALBUM_SORT_ATOM, "Seed Sort");
-    tag.set_track(0, 0);
-    tag.set_disc(1, 3);
-    tag.set_fourcc_utf8(TV_SHOW_NAME_ATOM, "Show Series");
-    tag.set_fourcc_utf8(TV_SHOW_SORT_ATOM, "Show Sort");
-    tag.set_data(
-        AtomIdent::Fourcc(TV_EPISODE_ATOM),
-        AtomData::BeSigned(5u32.to_be_bytes().to_vec()),
-    );
-    tag.set_fourcc_utf8(TV_EPISODE_NAME_ATOM, "Episode Name");
-    tag.set_fourcc_utf8(MOVEMENT_ATOM, "Movement Name");
-    tag.set_data(
-        AtomIdent::Fourcc(MOVEMENT_INDEX_ATOM),
-        AtomData::BeSigned(4u16.to_be_bytes().to_vec()),
-    );
-    tag.set_data(
-        AtomIdent::Fourcc(SHOW_MOVEMENT_ATOM),
-        AtomData::BeSigned(vec![1]),
-    );
-    let itunes = |name: &'static str| AtomIdent::freeform("com.apple.iTunes", name);
-    tag.set_data(itunes("series"), AtomData::Utf8("Lower Series".to_string()));
-    tag.add_data(itunes("SERIES"), AtomData::Utf8("Upper Series".to_string()));
-    tag.set_data(itunes("series-part"), AtomData::Utf8("1".to_string()));
-    tag.add_data(itunes("SERIES-PART"), AtomData::Utf8("9".to_string()));
-    tag.set_data(itunes("ASIN"), AtomData::Utf8("B000000001".to_string()));
-    tag.add_data(
-        AtomIdent::Fourcc(COVR_ATOM),
-        AtomData::Png(decoded(PNG_FIRST)),
-    );
-    tag.add_data(
-        AtomIdent::Fourcc(COVR_ATOM),
-        AtomData::Jpeg(minimal_jpg_bytes()),
-    );
-    tag.add_data(
-        AtomIdent::Fourcc(COVR_ATOM),
-        AtomData::Png(decoded(PNG_LAST)),
-    );
-    write_tag(path, &tag).expect("seed the MP4 tags");
+    let png_first = decoded(PNG_FIRST);
+    let jpg_mid = minimal_jpg_bytes();
+    let png_last = decoded(PNG_LAST);
+    let items = vec![
+        mp4_fourcc_utf8(*b"\xa9nam", "Seed Title"),
+        mp4_fourcc_utf8(*b"\xa9ART", "Seed Author"),
+        mp4_fourcc_utf8(*b"aART", "Seed Album Artist"),
+        mp4_fourcc_utf8(*b"\xa9alb", "Seed Album"),
+        mp4_fourcc_utf8(*b"\xa9wrt", "Seed Narrator"),
+        mp4_fourcc_utf8(*b"\xa9gen", "Seed Genre"),
+        mp4_fourcc_utf8(*b"\xa9day", "2001-02-03"),
+        mp4_fourcc_utf8(*b"\xa9cmt", "Seed Comment"),
+        mp4_fourcc_utf8(*b"desc", "Seed Description"),
+        mp4_fourcc_utf8(*b"soal", "Seed Sort"),
+        mp4_fourcc_data(*b"trkn", 0, &[0, 0, 0, 0, 0, 0, 0, 0]),
+        mp4_fourcc_data(*b"disk", 0, &[0, 0, 0, 1, 0, 3, 0, 0]),
+        mp4_fourcc_utf8(*b"tvsh", "Show Series"),
+        mp4_fourcc_utf8(*b"sosn", "Show Sort"),
+        mp4_fourcc_data(*b"tves", 21, &5u32.to_be_bytes()),
+        mp4_fourcc_utf8(*b"tven", "Episode Name"),
+        mp4_fourcc_utf8(*b"\xa9mvn", "Movement Name"),
+        mp4_fourcc_data(*b"\xa9mvi", 21, &4u16.to_be_bytes()),
+        mp4_fourcc_data(*b"shwm", 21, &[1]),
+        mp4_freeform_utf8("com.apple.iTunes", "series", "Lower Series"),
+        mp4_freeform_utf8("com.apple.iTunes", "SERIES", "Upper Series"),
+        mp4_freeform_utf8("com.apple.iTunes", "series-part", "1"),
+        mp4_freeform_utf8("com.apple.iTunes", "SERIES-PART", "9"),
+        mp4_freeform_utf8("com.apple.iTunes", "ASIN", "B000000001"),
+        mp4_fourcc_multi(
+            *b"covr",
+            &[
+                (14, png_first.as_slice()),
+                (13, jpg_mid.as_slice()),
+                (14, png_last.as_slice()),
+            ],
+        ),
+    ];
+    append_ilst_items(path, &items);
 }
 
 fn syncsafe(size: usize) -> [u8; 4] {

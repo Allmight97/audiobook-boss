@@ -143,6 +143,32 @@ fn mp4_plan_clear_removes_string_atoms_rather_than_blanking() {
         series_part: Some("9".to_string()),
         ..Default::default()
     });
+    assert_eq!(tag.first_fourcc_string(TITLE_ATOM), Some("Temp Title"));
+    assert_eq!(tag.first_fourcc_string(ARTIST_ATOM), Some("Temp Artist"));
+    assert_eq!(
+        tag.first_fourcc_string(ALBUM_ARTIST_ATOM),
+        Some("Temp Artist")
+    );
+    assert_eq!(
+        tag.strings_of(&AtomIdent::freeform("com.apple.iTunes", "series"))
+            .next(),
+        Some("Temp Series")
+    );
+    assert_eq!(
+        tag.strings_of(&AtomIdent::freeform("com.apple.iTunes", "series-part"))
+            .next(),
+        Some("9")
+    );
+    assert_eq!(
+        tag.strings_of(&AtomIdent::freeform("com.apple.iTunes", "SERIES"))
+            .next(),
+        Some("Temp Series")
+    );
+    assert_eq!(
+        tag.strings_of(&AtomIdent::freeform("com.apple.iTunes", "SERIES-PART"))
+            .next(),
+        Some("9")
+    );
 
     let clear_plan = MetadataWritePlan::from_metadata(&AudiobookMetadata {
         title: Some("   ".to_string()),
@@ -158,6 +184,16 @@ fn mp4_plan_clear_removes_string_atoms_rather_than_blanking() {
     assert_eq!(tag.first_fourcc_string(ALBUM_ARTIST_ATOM), None);
     assert_eq!(
         tag.strings_of(&AtomIdent::freeform("com.apple.iTunes", "series"))
+            .next(),
+        None
+    );
+    assert_eq!(
+        tag.strings_of(&AtomIdent::freeform("com.apple.iTunes", "series-part"))
+            .next(),
+        None
+    );
+    assert_eq!(
+        tag.strings_of(&AtomIdent::freeform("com.apple.iTunes", "SERIES"))
             .next(),
         None
     );

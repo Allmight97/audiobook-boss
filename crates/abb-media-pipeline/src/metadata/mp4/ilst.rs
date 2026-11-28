@@ -1,4 +1,4 @@
-use super::boxes::{encode_box, encode_full_box, parse_child_slices};
+use super::boxes::{encode_box, encode_full_box, parse_child_slices, parse_child_slices_strict};
 use crate::errors::{AppError, Result};
 use std::fmt;
 
@@ -33,13 +33,13 @@ const BE_SIGNED_TYPE: u32 = 21;
 pub(crate) const BMP_TYPE: u32 = 27;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AtomIdent {
+pub(crate) enum AtomIdent {
     Fourcc([u8; 4]),
     Freeform { mean: String, name: String },
 }
 
 impl AtomIdent {
-    pub fn freeform(mean: impl Into<String>, name: impl Into<String>) -> Self {
+    pub(crate) fn freeform(mean: impl Into<String>, name: impl Into<String>) -> Self {
         Self::Freeform {
             mean: mean.into(),
             name: name.into(),
@@ -62,7 +62,7 @@ impl fmt::Display for AtomIdent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AtomData {
+pub(crate) enum AtomData {
     Reserved(Vec<u8>),
     Utf8(String),
     Utf16(String),
@@ -71,6 +71,7 @@ pub enum AtomData {
     BeSigned(Vec<u8>),
     Bmp(Vec<u8>),
     Unknown { code: u32, data: Vec<u8> },
+    RawBox(Vec<u8>),
 }
 
 impl AtomData {
@@ -98,10 +99,14 @@ impl AtomData {
             Self::BeSigned(_) => BE_SIGNED_TYPE,
             Self::Bmp(_) => BMP_TYPE,
             Self::Unknown { code, .. } => *code,
+            Self::RawBox(_) => RESERVED_TYPE,
         }
     }
 
     fn encode(&self) -> Vec<u8> {
+        if let Self::RawBox(bytes) = self {
+            return bytes.clone();
+        }
         let code = self.type_code();
         let payload = match self {
             Self::Reserved(bytes)
@@ -115,6 +120,7 @@ impl AtomData {
                 .encode_utf16()
                 .flat_map(|unit| unit.to_be_bytes())
                 .collect(),
+            Self::RawBox(_) => unreachable!(),
         };
         let mut content = Vec::with_capacity(8 + payload.len());
         content.push(0);
@@ -128,142 +134,173 @@ impl AtomData {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IlstItem {
-    pub ident: AtomIdent,
-    pub data: Vec<AtomData>,
+pub(crate) struct IlstItem {
+    pub(crate) ident: AtomIdent,
+    pub(crate) data: Vec<AtomData>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum IlstEntry {
+    Item(IlstItem),
+    Raw(Vec<u8>),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Mp4Tag {
-    pub items: Vec<IlstItem>,
+pub(crate) struct Mp4Tag {
+    entries: Vec<IlstEntry>,
 }
 
 impl Mp4Tag {
-    pub fn parse_ilst(ilst_content: &[u8]) -> Result<Self> {
-        let mut items = Vec::new();
-        for slice in parse_child_slices(ilst_content)? {
+    pub(crate) fn items(&self) -> impl Iterator<Item = &IlstItem> {
+        self.entries.iter().filter_map(|entry| match entry {
+            IlstEntry::Item(item) => Some(item),
+            IlstEntry::Raw(_) => None,
+        })
+    }
+
+    pub(crate) fn parse_ilst(ilst_content: &[u8]) -> Result<Self> {
+        Self::parse_ilst_with(ilst_content, false)
+    }
+
+    pub(crate) fn parse_ilst_strict(ilst_content: &[u8]) -> Result<Self> {
+        Self::parse_ilst_with(ilst_content, true)
+    }
+
+    fn parse_ilst_with(ilst_content: &[u8], strict: bool) -> Result<Self> {
+        let slices = if strict {
+            parse_child_slices_strict(ilst_content)?
+        } else {
+            parse_child_slices(ilst_content)?
+        };
+        let mut entries = Vec::new();
+        for slice in slices {
             if &slice.fourcc == b"free" || &slice.fourcc == b"skip" {
                 continue;
             }
+            let full_item = &ilst_content[slice.start..slice.end];
             let body = slice.content(ilst_content);
-            let Some(item) = parse_ilst_item(slice.fourcc, body)? else {
-                continue;
-            };
-            items.push(item);
+            entries.push(parse_ilst_entry(slice.fourcc, body, full_item, strict)?);
         }
-        Ok(Self { items })
+        Ok(Self { entries })
     }
 
-    pub fn encode_ilst(&self) -> Vec<u8> {
+    pub(crate) fn encode_ilst(&self) -> Vec<u8> {
         let mut body = Vec::new();
-        for item in &self.items {
-            if item.data.is_empty() {
-                continue;
-            }
-            let mut children = Vec::new();
-            match &item.ident {
-                AtomIdent::Fourcc(fourcc) => {
-                    for datum in &item.data {
-                        children.extend_from_slice(&datum.encode());
+        for entry in &self.entries {
+            match entry {
+                IlstEntry::Raw(raw_box) => body.extend_from_slice(raw_box),
+                IlstEntry::Item(item) => {
+                    if item.data.is_empty() {
+                        continue;
                     }
-                    body.extend_from_slice(&encode_box(*fourcc, &children));
-                }
-                AtomIdent::Freeform { mean, name } => {
-                    children.extend_from_slice(&encode_full_box(
-                        *b"mean",
-                        0,
-                        [0; 3],
-                        mean.as_bytes(),
-                    ));
-                    children.extend_from_slice(&encode_full_box(
-                        *b"name",
-                        0,
-                        [0; 3],
-                        name.as_bytes(),
-                    ));
-                    for datum in &item.data {
-                        children.extend_from_slice(&datum.encode());
+                    let mut children = Vec::new();
+                    match &item.ident {
+                        AtomIdent::Fourcc(fourcc) => {
+                            for datum in &item.data {
+                                children.extend_from_slice(&datum.encode());
+                            }
+                            body.extend_from_slice(&encode_box(*fourcc, &children));
+                        }
+                        AtomIdent::Freeform { mean, name } => {
+                            children.extend_from_slice(&encode_full_box(
+                                *b"mean",
+                                0,
+                                [0; 3],
+                                mean.as_bytes(),
+                            ));
+                            children.extend_from_slice(&encode_full_box(
+                                *b"name",
+                                0,
+                                [0; 3],
+                                name.as_bytes(),
+                            ));
+                            for datum in &item.data {
+                                children.extend_from_slice(&datum.encode());
+                            }
+                            body.extend_from_slice(&encode_box(*b"----", &children));
+                        }
                     }
-                    body.extend_from_slice(&encode_box(*b"----", &children));
                 }
             }
         }
         encode_box(*b"ilst", &body)
     }
 
-    pub fn set_data(&mut self, ident: AtomIdent, value: AtomData) {
+    pub(crate) fn set_data(&mut self, ident: AtomIdent, value: AtomData) {
         self.set_all(ident, vec![value]);
     }
 
-    pub fn set_all(&mut self, ident: AtomIdent, values: Vec<AtomData>) {
-        if let Some(first_idx) = self.items.iter().position(|item| item.ident == ident) {
-            self.items[first_idx].data = values;
+    pub(crate) fn set_all(&mut self, ident: AtomIdent, values: Vec<AtomData>) {
+        if let Some(first_idx) = self
+            .entries
+            .iter()
+            .position(|entry| matches!(entry, IlstEntry::Item(item) if item.ident == ident))
+        {
+            if let IlstEntry::Item(item) = &mut self.entries[first_idx] {
+                item.data = values;
+            }
             let mut idx = first_idx + 1;
-            while idx < self.items.len() {
-                if self.items[idx].ident == ident {
-                    self.items.remove(idx);
+            while idx < self.entries.len() {
+                if matches!(&self.entries[idx], IlstEntry::Item(item) if item.ident == ident) {
+                    self.entries.remove(idx);
                 } else {
                     idx += 1;
                 }
             }
         } else {
-            self.items.push(IlstItem {
+            self.entries.push(IlstEntry::Item(IlstItem {
                 ident,
                 data: values,
-            });
+            }));
         }
     }
 
-    pub fn add_data(&mut self, ident: AtomIdent, value: AtomData) {
-        if let Some(existing) = self.items.iter_mut().find(|item| item.ident == ident) {
+    #[cfg(test)]
+    pub(crate) fn add_data(&mut self, ident: AtomIdent, value: AtomData) {
+        if let Some(existing) = self.entries.iter_mut().find_map(|entry| match entry {
+            IlstEntry::Item(item) if item.ident == ident => Some(item),
+            _ => None,
+        }) {
             existing.data.push(value);
         } else {
-            self.items.push(IlstItem {
+            self.entries.push(IlstEntry::Item(IlstItem {
                 ident,
                 data: vec![value],
-            });
+            }));
         }
     }
 
-    pub fn remove(&mut self, ident: &AtomIdent) {
-        self.items.retain(|item| &item.ident != ident);
+    pub(crate) fn remove(&mut self, ident: &AtomIdent) {
+        self.entries
+            .retain(|entry| !matches!(entry, IlstEntry::Item(item) if &item.ident == ident));
     }
 
-    pub fn remove_fourcc(&mut self, fourcc: [u8; 4]) {
+    pub(crate) fn remove_fourcc(&mut self, fourcc: [u8; 4]) {
         self.remove(&AtomIdent::Fourcc(fourcc));
     }
 
-    pub fn set_fourcc_utf8(&mut self, fourcc: [u8; 4], value: impl Into<String>) {
+    pub(crate) fn set_fourcc_utf8(&mut self, fourcc: [u8; 4], value: impl Into<String>) {
         self.set_data(AtomIdent::Fourcc(fourcc), AtomData::Utf8(value.into()));
     }
 
-    pub fn strings_of<'a>(&'a self, ident: &'a AtomIdent) -> impl Iterator<Item = &'a str> {
-        self.items
-            .iter()
+    pub(crate) fn strings_of<'a>(&'a self, ident: &'a AtomIdent) -> impl Iterator<Item = &'a str> {
+        self.items()
             .filter(move |item| &item.ident == ident)
             .flat_map(|item| item.data.iter().filter_map(AtomData::as_str))
     }
 
-    pub fn fourcc_strings(&self, fourcc: [u8; 4]) -> impl Iterator<Item = &str> {
-        self.items
-            .iter()
+    pub(crate) fn fourcc_strings(&self, fourcc: [u8; 4]) -> impl Iterator<Item = &str> {
+        self.items()
             .filter(move |item| item.ident == AtomIdent::Fourcc(fourcc))
             .flat_map(|item| item.data.iter().filter_map(AtomData::as_str))
     }
 
-    pub fn first_fourcc_string(&self, fourcc: [u8; 4]) -> Option<&str> {
+    pub(crate) fn first_fourcc_string(&self, fourcc: [u8; 4]) -> Option<&str> {
         self.fourcc_strings(fourcc).next()
     }
 
-    pub fn data_pairs(&self) -> impl Iterator<Item = (&AtomIdent, &AtomData)> {
-        self.items
-            .iter()
-            .flat_map(|item| item.data.iter().map(move |datum| (&item.ident, datum)))
-    }
-
-    pub fn first_be_int(&self, fourcc: [u8; 4]) -> Option<i64> {
-        self.items
-            .iter()
+    pub(crate) fn first_be_int(&self, fourcc: [u8; 4]) -> Option<i64> {
+        self.items()
             .filter(|item| item.ident == AtomIdent::Fourcc(fourcc))
             .flat_map(|item| item.data.iter())
             .find_map(|datum| match datum {
@@ -274,19 +311,19 @@ impl Mp4Tag {
             })
     }
 
-    pub fn set_track(&mut self, number: u16, total: u16) {
+    pub(crate) fn set_track(&mut self, number: u16, total: u16) {
         self.set_position_atom(TRACK_ATOM, number, total);
     }
 
-    pub fn set_disc(&mut self, number: u16, total: u16) {
+    pub(crate) fn set_disc(&mut self, number: u16, total: u16) {
         self.set_position_atom(DISC_ATOM, number, total);
     }
 
-    pub fn track(&self) -> (Option<u16>, Option<u16>) {
+    pub(crate) fn track(&self) -> (Option<u16>, Option<u16>) {
         self.read_position_atom(TRACK_ATOM)
     }
 
-    pub fn disc(&self) -> (Option<u16>, Option<u16>) {
+    pub(crate) fn disc(&self) -> (Option<u16>, Option<u16>) {
         self.read_position_atom(DISC_ATOM)
     }
 
@@ -301,8 +338,7 @@ impl Mp4Tag {
 
     fn read_position_atom(&self, fourcc: [u8; 4]) -> (Option<u16>, Option<u16>) {
         let Some(bytes) = self
-            .items
-            .iter()
+            .items()
             .filter(|item| item.ident == AtomIdent::Fourcc(fourcc))
             .flat_map(|item| item.data.iter())
             .find_map(|datum| match datum {
@@ -317,69 +353,101 @@ impl Mp4Tag {
         ((number > 0).then_some(number), (total > 0).then_some(total))
     }
 
-    pub fn first_artwork(&self) -> Option<&[u8]> {
-        self.items
-            .iter()
+    pub(crate) fn first_artwork(&self) -> Option<&[u8]> {
+        self.items()
             .filter(|item| item.ident == AtomIdent::Fourcc(COVR_ATOM))
             .flat_map(|item| item.data.iter())
             .find_map(AtomData::image_bytes)
     }
 
-    pub fn set_media_type_audiobook(&mut self) {
+    pub(crate) fn set_media_type_audiobook(&mut self) {
         self.set_data(
             AtomIdent::Fourcc(MEDIA_TYPE_ATOM),
             AtomData::BeSigned(vec![2]),
         );
     }
 
-    pub fn media_type_code(&self) -> Option<i64> {
+    #[cfg(test)]
+    pub(crate) fn media_type_code(&self) -> Option<i64> {
         self.first_be_int(MEDIA_TYPE_ATOM)
     }
 }
 
-fn parse_ilst_item(fourcc: [u8; 4], body: &[u8]) -> Result<Option<IlstItem>> {
+fn parse_ilst_entry(
+    fourcc: [u8; 4],
+    body: &[u8],
+    full_item: &[u8],
+    strict: bool,
+) -> Result<IlstEntry> {
     if &fourcc == b"----" {
-        return parse_freeform_item(body);
+        return parse_freeform_entry(body, full_item, strict);
     }
+    let child_slices = if strict {
+        parse_child_slices_strict(body)?
+    } else {
+        parse_child_slices(body)?
+    };
     let mut data = Vec::new();
-    for slice in parse_child_slices(body)? {
+    for slice in child_slices {
         if &slice.fourcc == b"data" {
             if let Some(datum) = parse_data_atom(slice.content(body))? {
                 data.push(datum);
+            } else {
+                data.push(AtomData::RawBox(body[slice.start..slice.end].to_vec()));
             }
+        } else {
+            data.push(AtomData::RawBox(body[slice.start..slice.end].to_vec()));
         }
     }
-    Ok(Some(IlstItem {
+    Ok(IlstEntry::Item(IlstItem {
         ident: AtomIdent::Fourcc(fourcc),
         data,
     }))
 }
 
-fn parse_freeform_item(body: &[u8]) -> Result<Option<IlstItem>> {
+fn parse_freeform_entry(body: &[u8], full_item: &[u8], strict: bool) -> Result<IlstEntry> {
+    let child_slices = if strict {
+        parse_child_slices_strict(body)?
+    } else {
+        parse_child_slices(body)?
+    };
     let mut mean: Option<String> = None;
     let mut name: Option<String> = None;
+    let mut invalid_header = false;
     let mut data = Vec::new();
-    for slice in parse_child_slices(body)? {
+    for slice in child_slices {
         let content = slice.content(body);
         match &slice.fourcc {
-            b"mean" if content.len() >= 4 => {
-                mean = Some(String::from_utf8_lossy(&content[4..]).into_owned());
+            b"mean" => {
+                if content.len() < 4 {
+                    invalid_header = true;
+                } else {
+                    mean = Some(String::from_utf8_lossy(&content[4..]).into_owned());
+                }
             }
-            b"name" if content.len() >= 4 => {
-                name = Some(String::from_utf8_lossy(&content[4..]).into_owned());
+            b"name" => {
+                if content.len() < 4 {
+                    invalid_header = true;
+                } else {
+                    name = Some(String::from_utf8_lossy(&content[4..]).into_owned());
+                }
             }
             b"data" => {
                 if let Some(datum) = parse_data_atom(content)? {
                     data.push(datum);
+                } else {
+                    data.push(AtomData::RawBox(body[slice.start..slice.end].to_vec()));
                 }
             }
-            _ => {}
+            _ => {
+                data.push(AtomData::RawBox(body[slice.start..slice.end].to_vec()));
+            }
         }
     }
-    let Some(name) = name else {
-        return Ok(None);
+    let Some(name) = name.filter(|_| !invalid_header) else {
+        return Ok(IlstEntry::Raw(full_item.to_vec()));
     };
-    Ok(Some(IlstItem {
+    Ok(IlstEntry::Item(IlstItem {
         ident: AtomIdent::Freeform {
             mean: mean.unwrap_or_default(),
             name,

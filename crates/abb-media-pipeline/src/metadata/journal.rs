@@ -8,9 +8,11 @@ use sha2::{Digest, Sha256};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 const JOURNAL_MAGIC: &[u8; 8] = b"ABBJRN01";
+const FLOCK_WAIT_BUDGET: Duration = Duration::from_secs(2);
+const FLOCK_POLL_STEP: Duration = Duration::from_millis(25);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RecoveryOutcome {
@@ -30,7 +32,15 @@ struct JournalExtent {
 #[derive(Debug)]
 struct ParsedJournal {
     original_file_len: u64,
+    target_file_len: u64,
     extents: Vec<JournalExtent>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TargetJournalMatch {
+    AlreadyOriginal,
+    MatchesInterruptedWrite,
+    Mismatch,
 }
 
 pub(crate) fn journal_path_for(target: &Path) -> Result<PathBuf> {
@@ -39,9 +49,15 @@ pub(crate) fn journal_path_for(target: &Path) -> Result<PathBuf> {
         .ok_or_else(|| AppError::InvalidInput("Target path has no parent folder".to_string()))?;
     let name = target
         .file_name()
-        .ok_or_else(|| AppError::InvalidInput("Target path has no file name".to_string()))?
-        .to_string_lossy();
-    Ok(parent.join(format!(".abb_journal_{name}.jrn")))
+        .ok_or_else(|| AppError::InvalidInput("Target path has no file name".to_string()))?;
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let digest: [u8; 32] = Sha256::digest(name.as_encoded_bytes()).into();
+    let mut hex = String::with_capacity(32);
+    for &byte in &digest[..16] {
+        hex.push(HEX[(byte >> 4) as usize] as char);
+        hex.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    Ok(parent.join(format!(".abb_journal_{hex}.jrn")))
 }
 
 pub(crate) fn recover_if_present(target: &Path) -> Result<RecoveryOutcome> {
@@ -80,6 +96,42 @@ pub(crate) fn is_flock_unsupported(errno: rustix::io::Errno) -> bool {
         || errno == rustix::io::Errno::NOSYS
 }
 
+#[cfg(unix)]
+fn lock_exclusive_with_budget(
+    file: &File,
+    target: &Path,
+    allow_unsupported_fallback: bool,
+    max_wait: Duration,
+    step: Duration,
+) -> Result<bool> {
+    let deadline = Instant::now() + max_wait;
+    loop {
+        match rustix::fs::flock(file, rustix::fs::FlockOperation::NonBlockingLockExclusive) {
+            Ok(()) => return Ok(true),
+            Err(errno) if allow_unsupported_fallback && is_flock_unsupported(errno) => {
+                log::info!(
+                    "journaled_patch flock unsupported errno={} artifact={}; falling back to data_copy",
+                    errno.raw_os_error(),
+                    artifact_id(target)
+                );
+                return Ok(false);
+            }
+            Err(errno)
+                if errno == rustix::io::Errno::WOULDBLOCK || errno == rustix::io::Errno::AGAIN =>
+            {
+                if Instant::now() >= deadline {
+                    return Err(AppError::FileValidation(format!(
+                        "Timed out waiting for exclusive file lock on '{}'",
+                        crate::errors::sanitize_path_for_display(target)
+                    )));
+                }
+                std::thread::sleep(step);
+            }
+            Err(errno) => return Err(AppError::Io(io::Error::from(errno))),
+        }
+    }
+}
+
 pub(crate) fn try_lock_for_patch(target: &Path) -> Result<Option<File>> {
     let file = OpenOptions::new()
         .read(true)
@@ -90,16 +142,8 @@ pub(crate) fn try_lock_for_patch(target: &Path) -> Result<Option<File>> {
         return Ok(None);
     }
     #[cfg(unix)]
-    if let Err(errno) = rustix::fs::flock(&file, rustix::fs::FlockOperation::LockExclusive) {
-        if is_flock_unsupported(errno) {
-            log::info!(
-                "journaled_patch flock unsupported errno={} artifact={}; falling back to data_copy",
-                errno.raw_os_error(),
-                artifact_id(target)
-            );
-            return Ok(None);
-        }
-        return Err(AppError::Io(io::Error::from(errno)));
+    if !lock_exclusive_with_budget(&file, target, true, FLOCK_WAIT_BUDGET, FLOCK_POLL_STEP)? {
+        return Ok(None);
     }
     Ok(Some(file))
 }
@@ -170,8 +214,7 @@ pub(crate) fn apply_journaled_patch_with_hooks(
         ));
     }
     #[cfg(unix)]
-    rustix::fs::flock(&file, rustix::fs::FlockOperation::LockExclusive)
-        .map_err(|errno| AppError::Io(io::Error::from(errno)))?;
+    lock_exclusive_with_budget(&file, target, false, FLOCK_WAIT_BUDGET, FLOCK_POLL_STEP)?;
 
     apply_journaled_patch_locked_with_hooks(
         file,
@@ -200,10 +243,12 @@ fn apply_journaled_patch_locked_with_hooks(
     let (extents, journal_bytes) = capture_journal(&mut file, original_file_len, patch)?;
     let parsed = ParsedJournal {
         original_file_len,
+        target_file_len: patch.final_len,
         extents,
     };
 
     write_atomically(&journal_path, &journal_bytes).map_err(AppError::Io)?;
+    sync_parent_dir_best_effort(&journal_path);
 
     before_commit();
     let rechecked_stat = std::fs::metadata(target).map_err(AppError::Io)?;
@@ -244,6 +289,7 @@ fn apply_journaled_patch_locked_with_hooks(
 
     crate::diagnostics::stage_with("metadata_replace", target, || {
         std::fs::remove_file(&journal_path).map_err(AppError::Io)?;
+        sync_parent_dir_best_effort(&journal_path);
         drop(file);
         Ok(((), "sync_ms=0 chmod_ms=0 rename_ms=0".to_string()))
     })
@@ -368,22 +414,131 @@ fn restore_from_parsed(target: &Path, journal_path: &Path, parsed: &ParsedJourna
         .open(target)
         .map_err(AppError::Io)?;
     #[cfg(unix)]
-    if let Err(errno) = rustix::fs::flock(&file, rustix::fs::FlockOperation::LockExclusive) {
-        if !is_flock_unsupported(errno) {
-            return Err(AppError::Io(io::Error::from(errno)));
-        }
-    }
+    let _ = lock_exclusive_with_budget(&file, target, true, FLOCK_WAIT_BUDGET, FLOCK_POLL_STEP)?;
     if !journal_path.exists() {
         return Ok(false);
     }
-    restore_with_open_file(&mut file, parsed)?;
+    match classify_target_against_journal(&mut file, parsed)? {
+        TargetJournalMatch::Mismatch => {
+            drop(file);
+            return Err(AppError::FileValidation(format!(
+                "Refusing to roll back stale metadata journal for '{}': file no longer matches the interrupted write (journal kept at {})",
+                crate::errors::sanitize_path_for_display(target),
+                crate::errors::sanitize_path_for_display(journal_path)
+            )));
+        }
+        TargetJournalMatch::AlreadyOriginal => {}
+        TargetJournalMatch::MatchesInterruptedWrite => {
+            restore_with_open_file(&mut file, parsed)?;
+        }
+    }
     match std::fs::remove_file(journal_path) {
-        Ok(()) => {}
+        Ok(()) => sync_parent_dir_best_effort(journal_path),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => return Err(AppError::Io(error)),
     }
     drop(file);
     Ok(true)
+}
+
+fn classify_target_against_journal(
+    file: &mut File,
+    parsed: &ParsedJournal,
+) -> Result<TargetJournalMatch> {
+    let current_len = file.metadata().map_err(AppError::Io)?.len();
+    if current_len != parsed.original_file_len && current_len != parsed.target_file_len {
+        return Ok(TargetJournalMatch::Mismatch);
+    }
+    let mut all_pre = current_len == parsed.original_file_len;
+    for extent in &parsed.extents {
+        let matches_pre = extent_matches_pre(file, current_len, parsed.original_file_len, extent)?;
+        let matches_post = extent_matches_post(file, current_len, parsed.target_file_len, extent)?;
+        if !matches_pre && !matches_post {
+            return Ok(TargetJournalMatch::Mismatch);
+        }
+        all_pre &= matches_pre;
+    }
+    if all_pre {
+        Ok(TargetJournalMatch::AlreadyOriginal)
+    } else {
+        Ok(TargetJournalMatch::MatchesInterruptedWrite)
+    }
+}
+
+fn extent_matches_pre(
+    file: &mut File,
+    current_len: u64,
+    original_file_len: u64,
+    extent: &JournalExtent,
+) -> Result<bool> {
+    if extent.pre_bytes.is_empty() {
+        return Ok(current_len == original_file_len && extent.offset >= current_len);
+    }
+    let Some(end) = extent.offset.checked_add(extent.pre_bytes.len() as u64) else {
+        return Ok(false);
+    };
+    if end > current_len {
+        return Ok(false);
+    }
+    Ok(read_exact_or_eof(file, extent.offset, extent.pre_bytes.len())? == extent.pre_bytes)
+}
+
+fn extent_matches_post(
+    file: &mut File,
+    current_len: u64,
+    target_file_len: u64,
+    extent: &JournalExtent,
+) -> Result<bool> {
+    if extent.post_len == 0 {
+        return Ok(current_len == target_file_len && extent.offset >= current_len);
+    }
+    let post_len = extent.post_len as usize;
+    let Some(end) = extent.offset.checked_add(u64::from(extent.post_len)) else {
+        return Ok(false);
+    };
+    if end > current_len {
+        return Ok(false);
+    }
+    let actual = read_exact_or_eof(file, extent.offset, post_len)?;
+    let digest: [u8; 32] = Sha256::digest(&actual).into();
+    Ok(digest == extent.post_sha256)
+}
+
+fn sync_parent_dir_best_effort(path: &Path) {
+    #[cfg(unix)]
+    if let Some(parent) = path.parent() {
+        let dir_path = if parent.as_os_str().is_empty() {
+            Path::new(".")
+        } else {
+            parent
+        };
+        if let Ok(dir) = File::open(dir_path) {
+            if let Err(error) = dir.sync_all() {
+                let ignorable = matches!(
+                    error.kind(),
+                    io::ErrorKind::InvalidInput
+                        | io::ErrorKind::Unsupported
+                        | io::ErrorKind::PermissionDenied
+                ) || matches!(
+                    error.raw_os_error(),
+                    Some(errno)
+                        if errno == rustix::io::Errno::INVAL.raw_os_error()
+                            || errno == rustix::io::Errno::BADF.raw_os_error()
+                            || errno == rustix::io::Errno::NOTSUP.raw_os_error()
+                            || errno == rustix::io::Errno::OPNOTSUPP.raw_os_error()
+                            || errno == rustix::io::Errno::ROFS.raw_os_error()
+                );
+                if !ignorable {
+                    log::warn!(
+                        "Parent folder fsync failed near {}: {error}",
+                        artifact_id(path)
+                    );
+                }
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = path;
 }
 
 fn restore_with_open_file(file: &mut File, parsed: &ParsedJournal) -> Result<()> {
@@ -454,7 +609,7 @@ fn parse_and_verify_journal(bytes: &[u8]) -> Option<ParsedJournal> {
         return None;
     }
     let original_file_len = read_u64_be(bytes, 8)?;
-    let _target_file_len = read_u64_be(bytes, 16)?;
+    let target_file_len = read_u64_be(bytes, 16)?;
     let count = read_u32_be(bytes, 24)? as usize;
     let mut pos = 28usize;
     let mut extents = Vec::with_capacity(count.min(1024));
@@ -484,6 +639,7 @@ fn parse_and_verify_journal(bytes: &[u8]) -> Option<ParsedJournal> {
     }
     Some(ParsedJournal {
         original_file_len,
+        target_file_len,
         extents,
     })
 }

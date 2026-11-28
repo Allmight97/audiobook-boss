@@ -25,6 +25,7 @@ Options:
   --remote-dir <dir>    Optional second scratch parent (e.g. an SMB mount) to compare.
   --runs <n>            Number of timed runs per location after 1 warmup/cold pass (default: 3).
   --edit <mode>         Edit flavor: title | series | same-len (default: title).
+  --debug               Build and benchmark debug profile instead of release.
   --json                Print JSON summary to stdout.
   --help                Print this usage text.`;
 
@@ -49,6 +50,7 @@ interface BenchOptions {
 	remoteDir?: string;
 	runs: number;
 	edit: 'title' | 'series' | 'same-len';
+	profile: 'release' | 'debug';
 	json: boolean;
 }
 
@@ -150,12 +152,17 @@ function parseArgs(argv: string[], repoRoot: string): BenchOptions | null {
 	let remoteDir: string | undefined;
 	let runs = 3;
 	let edit: BenchOptions['edit'] = 'title';
+	let profile: BenchOptions['profile'] = 'release';
 	let json = false;
 	for (let i = 0; i < argv.length; i += 1) {
 		const flag = argv[i];
 		if (flag === '--help' || flag === '-h') return null;
 		if (flag === '--json') {
 			json = true;
+			continue;
+		}
+		if (flag === '--debug') {
+			profile = 'debug';
 			continue;
 		}
 		const next = argv[i + 1];
@@ -173,10 +180,10 @@ function parseArgs(argv: string[], repoRoot: string): BenchOptions | null {
 	if (sources.length === 0) {
 		sources.push(path.join(repoRoot, 'crates/abb-media-pipeline/tests/support/untagged.m4b'));
 	}
-	return { sources, localDir, remoteDir, runs, edit, json };
+	return { sources, localDir, remoteDir, runs, edit, profile, json };
 }
 
-function buildAbbDev(repoRoot: string): string {
+function buildAbbDev(repoRoot: string, profile: BenchOptions['profile']): string {
 	const setupOut = execFileSync('bash', ['scripts/setup.sh', '--print-env'], {
 		cwd: repoRoot,
 		encoding: 'utf8',
@@ -186,13 +193,12 @@ function buildAbbDev(repoRoot: string): string {
 		const match = line.match(/^export\s+([A-Za-z_][A-Za-z0-9_]*)=(.+)$/);
 		if (match) env[match[1]] = match[2].replace(/^["']|["']$/g, '');
 	}
-	execFileSync(
-		'cargo',
-		['build', '--locked', '-p', 'abb-engine', '--features', 'bundled-ffmpeg', '--bin', 'abb-dev'],
-		{ cwd: repoRoot, env, stdio: 'inherit' },
-	);
+	const cargoArgs = ['build', '--locked'];
+	if (profile === 'release') cargoArgs.push('--release');
+	cargoArgs.push('-p', 'abb-engine', '--features', 'bundled-ffmpeg', '--bin', 'abb-dev');
+	execFileSync('cargo', cargoArgs, { cwd: repoRoot, env, stdio: 'inherit' });
 	const targetDir = env.CARGO_TARGET_DIR || path.join(repoRoot, 'target');
-	return path.join(targetDir, 'debug', 'abb-dev');
+	return path.join(targetDir, profile, 'abb-dev');
 }
 
 function parseMaxRssMb(stderr: string): number | null {
@@ -222,6 +228,15 @@ export function cleanupScratchRoots(roots: Iterable<string>): void {
 	for (const root of roots) {
 		rmSync(root, { recursive: true, force: true });
 	}
+}
+
+export function compareAudioHashes(
+	beforeMdatSha256: string | null | undefined,
+	afterMdatSha256: string | null | undefined,
+): boolean | null {
+	if (!beforeMdatSha256) return null;
+	if (!afterMdatSha256) return false;
+	return beforeMdatSha256 === afterMdatSha256;
 }
 
 export function hasBenchmarkFailure(
@@ -270,8 +285,9 @@ async function runSingleSave(
 		});
 		activeChild = child;
 		child.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
-		child.on('error', () => {
+		child.on('error', (error) => {
 			activeChild = null;
+			console.error(`Failed to run /usr/bin/time for abb-dev: ${error.message}`);
 			const stderr = Buffer.concat(stderrChunks).toString('utf8');
 			resolve({
 				rc: 1,
@@ -317,8 +333,7 @@ async function benchSingleFile(
 		const before = inspectMp4File(copyPath);
 		const run = await runSingleSave(abbDevBin, copyPath, stateDir, options.edit, index);
 		const after = inspectMp4File(copyPath);
-		const audioHashMatch =
-			before?.mdatSha256 && after?.mdatSha256 ? before.mdatSha256 === after.mdatSha256 : null;
+		const audioHashMatch = compareAudioHashes(before?.mdatSha256, after?.mdatSha256);
 		records.push({
 			location,
 			file: baseName,
@@ -409,7 +424,7 @@ async function main(): Promise<void> {
 		return;
 	}
 	registerSignalCleanup();
-	const abbDevBin = buildAbbDev(repoRoot);
+	const abbDevBin = buildAbbDev(repoRoot, options.profile);
 	const records = await benchLocation('local', options.localDir, options, abbDevBin);
 	if (options.remoteDir) {
 		records.push(...(await benchLocation('remote', options.remoteDir, options, abbDevBin)));

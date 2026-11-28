@@ -1,7 +1,7 @@
 use super::boxes::{
     default_meta_hdlr_box, encode_box, encode_free_header, is_fragmented_moov, meta_header_len,
     parse_child_slices, read_box_bytes, scan_top_level, scan_top_level_strict,
-    shift_moov_chunk_offsets, BoxHeader,
+    shift_moov_chunk_offsets, BoxHeader, ChildSlice,
 };
 use super::ilst::Mp4Tag;
 use crate::errors::{AppError, Result};
@@ -33,7 +33,6 @@ pub(crate) struct SurgicalPatch {
 #[derive(Debug, Clone)]
 pub(crate) struct StreamingPlan {
     pub(crate) moov_idx: usize,
-    pub(crate) moov: BoxHeader,
     pub(crate) base_moov_content: Vec<u8>,
     pub(crate) boxes: Vec<BoxHeader>,
     pub(crate) file_len: u64,
@@ -54,7 +53,7 @@ pub(crate) struct WriteTagStats {
     pub(crate) expected_output_len: u64,
     pub(crate) close_ms: u128,
     pub(crate) mdat_ranges: Vec<(u64, u64)>,
-    pub(crate) streamed_mdat_hashes: Option<([u8; 32], [u8; 32])>,
+    pub(crate) streamed_source_mdat_sha256: Option<[u8; 32]>,
 }
 
 impl WriteTagStats {
@@ -70,13 +69,25 @@ impl WriteTagStats {
     }
 }
 
-pub fn read_tag(path: &Path) -> Result<Mp4Tag> {
+pub(crate) fn read_tag(path: &Path) -> Result<Mp4Tag> {
+    read_tag_with(path, false)
+}
+
+pub(crate) fn read_tag_strict(path: &Path) -> Result<Mp4Tag> {
+    read_tag_with(path, true)
+}
+
+fn read_tag_with(path: &Path, strict: bool) -> Result<Mp4Tag> {
     let mut file = File::open(path)
         .map_err(|error| AppError::General(format!("Failed to open MP4 tags: {error}")))?;
     let file_len = file
         .seek(SeekFrom::End(0))
         .map_err(|error| AppError::General(format!("Failed to inspect MP4 size: {error}")))?;
-    let boxes = scan_top_level(&mut file, file_len)?;
+    let boxes = if strict {
+        scan_top_level_strict(&mut file, file_len)?
+    } else {
+        scan_top_level(&mut file, file_len)?
+    };
     let Some(moov) = boxes.iter().find(|item| &item.fourcc == b"moov") else {
         return Err(AppError::General(
             "MP4 file contains no moov atom".to_string(),
@@ -86,14 +97,20 @@ pub fn read_tag(path: &Path) -> Result<Mp4Tag> {
     let Some(ilst_bytes) = find_ilst_slice(&moov_bytes)? else {
         return Ok(Mp4Tag::default());
     };
-    Mp4Tag::parse_ilst(ilst_bytes)
+    if strict {
+        Mp4Tag::parse_ilst_strict(ilst_bytes)
+    } else {
+        Mp4Tag::parse_ilst(ilst_bytes)
+    }
 }
 
-pub fn write_tag(path: &Path, tag: &Mp4Tag) -> Result<()> {
+#[cfg(test)]
+pub(crate) fn write_tag(path: &Path, tag: &Mp4Tag) -> Result<()> {
     write_tag_with_stats(path, tag).map(|_| ())
 }
 
-pub fn write_chapters(path: &Path, chapters: &[(u64, &str)]) -> Result<()> {
+#[cfg(test)]
+pub(crate) fn write_chapters(path: &Path, chapters: &[(u64, &str)]) -> Result<()> {
     let chpl_box = super::chpl::encode_chpl_box(chapters)?;
     let plan = plan_moov_patch_with(path, |moov_content| {
         replace_udta_child(moov_content, *b"chpl", &chpl_box)
@@ -154,7 +171,6 @@ fn plan_moov_patch_with(
 
     Ok(Mp4PatchPlan::StreamingShift(StreamingPlan {
         moov_idx,
-        moov,
         base_moov_content: updated_content,
         boxes,
         file_len,
@@ -350,13 +366,24 @@ fn execute_surgical_patch(path: &Path, patch: &SurgicalPatch) -> Result<WriteTag
         expected_output_len: patch.final_len,
         close_ms,
         mdat_ranges: patch.mdat_ranges.clone(),
-        streamed_mdat_hashes: None,
+        streamed_source_mdat_sha256: None,
     })
 }
 
+fn box_header_growth(item: &BoxHeader) -> u64 {
+    if item.explicit_zero_size && item.size > u64::from(u32::MAX) {
+        8
+    } else {
+        0
+    }
+}
+
 fn execute_streaming_shift(path: &Path, streaming: &StreamingPlan) -> Result<WriteTagStats> {
-    let moov = streaming.moov;
-    let stabilized_moov = stabilize_shifted_moov(&moov, &streaming.base_moov_content)?;
+    let stabilized_moov = stabilize_shifted_moov(
+        &streaming.boxes,
+        streaming.moov_idx,
+        &streaming.base_moov_content,
+    )?;
     let expected_output_len: u64 = streaming
         .boxes
         .iter()
@@ -364,10 +391,8 @@ fn execute_streaming_shift(path: &Path, streaming: &StreamingPlan) -> Result<Wri
         .map(|(idx, item)| {
             if idx == streaming.moov_idx {
                 stabilized_moov.len() as u64
-            } else if item.explicit_zero_size && item.size > u64::from(u32::MAX) {
-                item.size + 8
             } else {
-                item.size
+                item.size + box_header_growth(item)
             }
         })
         .sum();
@@ -380,21 +405,22 @@ fn execute_streaming_shift(path: &Path, streaming: &StreamingPlan) -> Result<Wri
         .open(temp.path())
         .map_err(AppError::Io)?;
     let mut source_hasher = Sha256::new();
-    let mut output_hasher = Sha256::new();
+    let mut output_mdat_ranges = Vec::new();
 
     for (idx, item) in streaming.boxes.iter().enumerate() {
         if idx == streaming.moov_idx {
             writer.write_all(&stabilized_moov).map_err(AppError::Io)?;
             continue;
         }
-        stream_single_box(
+        if let Some(range) = stream_single_box(
             &mut source,
             &mut writer,
             item,
             streaming.file_len,
             &mut source_hasher,
-            &mut output_hasher,
-        )?;
+        )? {
+            output_mdat_ranges.push(range);
+        }
     }
     let written_len = writer.stream_position().map_err(AppError::Io)?;
     drop(writer);
@@ -407,7 +433,6 @@ fn execute_streaming_shift(path: &Path, streaming: &StreamingPlan) -> Result<Wri
 
     let timings = temp.commit_timed(path).map_err(AppError::Io)?;
     let source_hash: [u8; 32] = source_hasher.finalize().into();
-    let output_hash: [u8; 32] = output_hasher.finalize().into();
     Ok(WriteTagStats {
         layout_before: streaming.layout_before,
         layout_after: streaming.layout_before,
@@ -415,8 +440,8 @@ fn execute_streaming_shift(path: &Path, streaming: &StreamingPlan) -> Result<Wri
         bytes_written: expected_output_len,
         expected_output_len,
         close_ms: timings.sync_ms + timings.chmod_ms + timings.rename_ms,
-        mdat_ranges: collect_mdat_ranges(&streaming.boxes),
-        streamed_mdat_hashes: Some((source_hash, output_hash)),
+        mdat_ranges: output_mdat_ranges,
+        streamed_source_mdat_sha256: Some(source_hash),
     })
 }
 
@@ -426,22 +451,25 @@ fn stream_single_box(
     item: &BoxHeader,
     file_len: u64,
     source_hasher: &mut Sha256,
-    output_hasher: &mut Sha256,
-) -> Result<()> {
+) -> Result<Option<(u64, u64)>> {
     let is_mdat = &item.fourcc == b"mdat";
     if item.explicit_zero_size {
-        write_explicit_box_copy(source, writer, item, file_len, source_hasher, output_hasher)
+        write_explicit_box_copy(source, writer, item, file_len, source_hasher)
     } else if is_mdat {
         copy_range(source, writer, item.offset, item.content_offset(), None)?;
+        let start = writer.stream_position().map_err(AppError::Io)?;
         copy_range(
             source,
             writer,
             item.content_offset(),
             item.end(),
-            Some((source_hasher, output_hasher)),
-        )
+            Some(source_hasher),
+        )?;
+        let end = writer.stream_position().map_err(AppError::Io)?;
+        Ok(Some((start, end)))
     } else {
-        copy_range(source, writer, item.offset, item.end(), None)
+        copy_range(source, writer, item.offset, item.end(), None)?;
+        Ok(None)
     }
 }
 
@@ -451,12 +479,11 @@ fn write_explicit_box_copy(
     last_box: &BoxHeader,
     file_len: u64,
     source_hasher: &mut Sha256,
-    output_hasher: &mut Sha256,
-) -> Result<()> {
+) -> Result<Option<(u64, u64)>> {
     let actual_size = file_len.saturating_sub(last_box.offset);
-    if let Ok(size32) = u32::try_from(actual_size) {
+    if box_header_growth(last_box) == 0 {
         writer
-            .write_all(&size32.to_be_bytes())
+            .write_all(&(actual_size as u32).to_be_bytes())
             .map_err(AppError::Io)?;
         writer.write_all(&last_box.fourcc).map_err(AppError::Io)?;
     } else {
@@ -469,22 +496,48 @@ fn write_explicit_box_copy(
             .write_all(&(16 + payload_len).to_be_bytes())
             .map_err(AppError::Io)?;
     }
-    let hashes = (&last_box.fourcc == b"mdat").then_some((source_hasher, output_hasher));
-    copy_range(source, writer, last_box.content_offset(), file_len, hashes)
+    let is_mdat = &last_box.fourcc == b"mdat";
+    let start = writer.stream_position().map_err(AppError::Io)?;
+    copy_range(
+        source,
+        writer,
+        last_box.content_offset(),
+        file_len,
+        is_mdat.then_some(source_hasher),
+    )?;
+    let end = writer.stream_position().map_err(AppError::Io)?;
+    Ok(is_mdat.then_some((start, end)))
 }
 
-fn stabilize_shifted_moov(old_moov: &BoxHeader, base_moov_content: &[u8]) -> Result<Vec<u8>> {
+fn stabilize_shifted_moov(
+    boxes: &[BoxHeader],
+    moov_idx: usize,
+    base_moov_content: &[u8],
+) -> Result<Vec<u8>> {
+    let old_moov = boxes[moov_idx];
+    let header_growth_shifts: Vec<(u64, i128)> = boxes[moov_idx + 1..]
+        .iter()
+        .filter_map(|item| {
+            let growth = box_header_growth(item);
+            (growth > 0).then_some((item.content_offset(), i128::from(growth)))
+        })
+        .collect();
     let mut candidate_box = encode_box(*b"moov", base_moov_content);
     for _ in 0..16 {
         let delta = i128::from(candidate_box.len() as u64) - i128::from(old_moov.size);
-        let shifted = shift_moov_chunk_offsets(base_moov_content, old_moov.end(), delta)?;
+        let mut shifts = Vec::with_capacity(1 + header_growth_shifts.len());
+        shifts.push((old_moov.end(), delta));
+        shifts.extend_from_slice(&header_growth_shifts);
+        let shifted = shift_moov_chunk_offsets(base_moov_content, &shifts)?;
         let next_box = encode_box(*b"moov", &shifted);
         if next_box.len() == candidate_box.len() {
             return Ok(next_box);
         }
         candidate_box = next_box;
     }
-    Ok(candidate_box)
+    Err(AppError::FileValidation(
+        "Failed to converge shifted MP4 chunk offsets".to_string(),
+    ))
 }
 
 fn copy_range(
@@ -492,7 +545,7 @@ fn copy_range(
     writer: &mut File,
     start: u64,
     end: u64,
-    mut hashers: Option<(&mut Sha256, &mut Sha256)>,
+    mut source_hasher: Option<&mut Sha256>,
 ) -> Result<()> {
     if start >= end {
         return Ok(());
@@ -512,13 +565,10 @@ fn copy_range(
             Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
             Err(error) => return Err(AppError::Io(error)),
         };
-        if let Some((source_hasher, _)) = hashers.as_mut() {
-            source_hasher.update(&buf[..read]);
+        if let Some(hasher) = source_hasher.as_deref_mut() {
+            hasher.update(&buf[..read]);
         }
         writer.write_all(&buf[..read]).map_err(AppError::Io)?;
-        if let Some((_, output_hasher)) = hashers.as_mut() {
-            output_hasher.update(&buf[..read]);
-        }
         remaining -= read as u64;
     }
     Ok(())
@@ -557,17 +607,44 @@ fn find_ilst_slice(moov_content: &[u8]) -> Result<Option<&[u8]>> {
     Ok(None)
 }
 
-fn rebuild_moov_with_ilst(moov_content: &[u8], new_ilst_box: &[u8]) -> Result<Vec<u8>> {
-    let new_udta = match parse_child_slices(moov_content)?
-        .into_iter()
-        .find(|child| &child.fourcc == b"udta")
-    {
-        Some(udta) => rebuild_udta_with_ilst(udta.content(moov_content), new_ilst_box)?,
-        None => build_fresh_udta_with_ilst(new_ilst_box),
-    };
-    replace_or_append_child(moov_content, *b"udta", &new_udta)
+fn udta_has_meta(moov_content: &[u8], udta: &ChildSlice) -> bool {
+    parse_child_slices(udta.content(moov_content))
+        .is_ok_and(|children| children.iter().any(|child| &child.fourcc == b"meta"))
 }
 
+fn meta_has_ilst(udta_content: &[u8], meta: &ChildSlice) -> bool {
+    let meta_body = meta.content(udta_content);
+    let skip = meta_header_len(meta_body);
+    parse_child_slices(&meta_body[skip..])
+        .is_ok_and(|children| children.iter().any(|child| &child.fourcc == b"ilst"))
+}
+
+fn rebuild_moov_with_ilst(moov_content: &[u8], new_ilst_box: &[u8]) -> Result<Vec<u8>> {
+    let children = parse_child_slices(moov_content)?;
+    let target_idx = children
+        .iter()
+        .enumerate()
+        .find(|(_, child)| &child.fourcc == b"udta" && udta_has_meta(moov_content, child))
+        .or_else(|| {
+            children
+                .iter()
+                .enumerate()
+                .find(|(_, child)| &child.fourcc == b"udta")
+        })
+        .map(|(idx, _)| idx);
+    let new_udta = match target_idx {
+        Some(idx) => rebuild_udta_with_ilst(children[idx].content(moov_content), new_ilst_box)?,
+        None => build_fresh_udta_with_ilst(new_ilst_box),
+    };
+    Ok(replace_child_at_or_append(
+        moov_content,
+        &children,
+        target_idx,
+        &new_udta,
+    ))
+}
+
+#[cfg(test)]
 fn replace_udta_child(
     moov_content: &[u8],
     child_fourcc: [u8; 4],
@@ -586,16 +663,25 @@ fn replace_udta_child(
 }
 
 fn rebuild_udta_with_ilst(udta_content: &[u8], new_ilst_box: &[u8]) -> Result<Vec<u8>> {
-    let new_meta = match parse_child_slices(udta_content)?
-        .into_iter()
-        .find(|child| &child.fourcc == b"meta")
-    {
-        Some(meta) => rebuild_meta_with_ilst(meta.content(udta_content), new_ilst_box)?,
+    let children = parse_child_slices(udta_content)?;
+    let target_idx = children
+        .iter()
+        .enumerate()
+        .find(|(_, child)| &child.fourcc == b"meta" && meta_has_ilst(udta_content, child))
+        .or_else(|| {
+            children
+                .iter()
+                .enumerate()
+                .find(|(_, child)| &child.fourcc == b"meta")
+        })
+        .map(|(idx, _)| idx);
+    let new_meta = match target_idx {
+        Some(idx) => rebuild_meta_with_ilst(children[idx].content(udta_content), new_ilst_box)?,
         None => build_fresh_meta_with_ilst(new_ilst_box),
     };
     Ok(encode_box(
         *b"udta",
-        &replace_or_append_child(udta_content, *b"meta", &new_meta)?,
+        &replace_child_at_or_append(udta_content, &children, target_idx, &new_meta),
     ))
 }
 
@@ -618,34 +704,49 @@ fn build_fresh_udta_with_ilst(new_ilst_box: &[u8]) -> Vec<u8> {
     encode_box(*b"udta", &build_fresh_meta_with_ilst(new_ilst_box))
 }
 
+fn replace_child_at_or_append(
+    container_content: &[u8],
+    children: &[ChildSlice],
+    target_idx: Option<usize>,
+    replacement_box: &[u8],
+) -> Vec<u8> {
+    let mut out = Vec::with_capacity(container_content.len() + replacement_box.len());
+    let mut cursor = 0usize;
+    for (idx, child) in children.iter().enumerate() {
+        if child.start > cursor {
+            out.extend_from_slice(&container_content[cursor..child.start]);
+        }
+        if target_idx == Some(idx) {
+            out.extend_from_slice(replacement_box);
+        } else {
+            out.extend_from_slice(&container_content[child.start..child.end]);
+        }
+        cursor = child.end;
+    }
+    if target_idx.is_none() {
+        out.extend_from_slice(replacement_box);
+    }
+    if cursor < container_content.len() {
+        out.extend_from_slice(&container_content[cursor..]);
+    }
+    out
+}
+
 fn replace_or_append_child(
     container_content: &[u8],
     target_fourcc: [u8; 4],
     replacement_box: &[u8],
 ) -> Result<Vec<u8>> {
     let children = parse_child_slices(container_content)?;
-    let mut out = Vec::with_capacity(container_content.len() + replacement_box.len());
-    let mut replaced = false;
-    let mut cursor = 0usize;
-    for child in children {
-        if child.start > cursor {
-            out.extend_from_slice(&container_content[cursor..child.start]);
-        }
-        if child.fourcc == target_fourcc && !replaced {
-            out.extend_from_slice(replacement_box);
-            replaced = true;
-        } else if child.fourcc != target_fourcc {
-            out.extend_from_slice(&container_content[child.start..child.end]);
-        }
-        cursor = child.end;
-    }
-    if cursor < container_content.len() {
-        out.extend_from_slice(&container_content[cursor..]);
-    }
-    if !replaced {
-        out.extend_from_slice(replacement_box);
-    }
-    Ok(out)
+    let target_idx = children
+        .iter()
+        .position(|child| child.fourcc == target_fourcc);
+    Ok(replace_child_at_or_append(
+        container_content,
+        &children,
+        target_idx,
+        replacement_box,
+    ))
 }
 
 #[cfg(test)]

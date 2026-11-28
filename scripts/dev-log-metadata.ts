@@ -101,6 +101,12 @@ export function parseMetadataStageLine(line: string): MetadataStageEvent | null 
 	};
 }
 
+export function extractMetadataStages(lines: readonly string[]): MetadataStageEvent[] {
+	return lines
+		.map(parseMetadataStageLine)
+		.filter((event): event is MetadataStageEvent => event !== null);
+}
+
 export function renderMetadataStages(stages: readonly MetadataStageEvent[]): string[] {
 	if (stages.length === 0) return ['No completed metadata stages were captured.'];
 	const recent = stages.slice(-40);

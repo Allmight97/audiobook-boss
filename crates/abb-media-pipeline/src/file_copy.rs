@@ -170,7 +170,7 @@ pub(crate) fn copy_for_save(src: &Path, dst: &Path, fs: &str) -> io::Result<u64>
     #[cfg(not(target_os = "macos"))]
     {
         let _ = fs;
-        std::fs::copy(src, dst)
+        copy_data_only(src, dst)
     }
 }
 

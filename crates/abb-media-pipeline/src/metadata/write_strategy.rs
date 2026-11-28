@@ -3,8 +3,9 @@ use super::journal::{
     apply_journaled_patch_locked, is_single_link, recover_if_present, try_lock_for_patch,
 };
 use super::mp4::metadata::apply_write_plan;
-use super::mp4::read_tag;
-use super::mp4::writer::{execute_patch_plan, plan_mp4_patch_for_tag, Mp4PatchPlan, WriteTagStats};
+use super::mp4::writer::{
+    execute_patch_plan, plan_mp4_patch_for_tag, read_tag_strict, Mp4PatchPlan, WriteTagStats,
+};
 use super::plan_log::log_write_plan;
 use super::remux;
 use super::verify::{commit_checked_save, verify_streaming_mp4, verify_surgical_mp4};
@@ -68,7 +69,7 @@ fn save_mp4_with_strategy(
         return commit_temp_mp4(path, saved, plan, expected_fingerprint, before_commit);
     }
 
-    let mut tag = read_tag(path)?;
+    let mut tag = read_tag_strict(path)?;
     apply_write_plan(&mut tag, plan)?;
     let mp4_plan = plan_mp4_patch_for_tag(path, &tag)?;
     if single_link {
@@ -164,15 +165,14 @@ fn verify_and_replace_temp(
 ) -> Result<()> {
     before_commit();
     stage_with("metadata_verify_audio", original, || {
-        let (mode, bytes_read) = if let Some((src_sha, out_sha)) = write_stats.streamed_mdat_hashes
-        {
+        let (mode, bytes_read) = if let Some(src_sha) = write_stats.streamed_source_mdat_sha256 {
             (
-                "mdat_sha256",
+                "mdat_sha256_and_packets",
                 verify_streaming_mp4(
+                    original,
                     saved.path(),
                     write_stats.expected_output_len,
                     src_sha,
-                    out_sha,
                 )?,
             )
         } else {

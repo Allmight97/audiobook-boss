@@ -1,7 +1,9 @@
 use super::super::ilst::TITLE_ATOM;
 use super::*;
+use crate::metadata::verify::verify_streaming_mp4;
+use abb_test_fixtures::media::{assert_ffprobe_tag, ffmpeg, ffprobe_format_tags};
 use std::io::Write;
-use tempfile::NamedTempFile;
+use tempfile::{NamedTempFile, TempDir};
 
 fn make_stco_moov(chunk_offset: u32, title: &str, quicktime_meta: bool) -> Vec<u8> {
     let mut stco_body = vec![0, 0, 0, 0];
@@ -215,4 +217,181 @@ fn fragmented_mp4_refuses_overflowing_shift_and_allows_in_place_free_fit() {
     let stats = write_tag_with_stats(padded.path(), &small).expect("fits in free");
     assert!(!stats.mdat_shifted);
     assert_eq!(read_mdat_bytes(padded.path()), b"FRAG-AUDIO");
+}
+
+#[test]
+fn stabilize_shifted_moov_adds_eight_bytes_for_upgraded_open_ended_mdat_over_4gib() {
+    let ftyp = encode_box(*b"ftyp", b"isom\0\0\0\0");
+    let mut co64_body = vec![0, 0, 0, 0];
+    co64_body.extend_from_slice(&2u32.to_be_bytes());
+    let early_offset = 100u64;
+    let mdat_header_offset = u64::from(u32::MAX) - 100;
+    let mdat_payload_offset = mdat_header_offset + 8;
+    co64_body.extend_from_slice(&early_offset.to_be_bytes());
+    co64_body.extend_from_slice(&mdat_payload_offset.to_be_bytes());
+    let co64 = encode_box(*b"co64", &co64_body);
+    let stbl = encode_box(*b"stbl", &co64);
+    let minf = encode_box(*b"minf", &stbl);
+    let mdia = encode_box(*b"mdia", &minf);
+    let trak = encode_box(*b"trak", &mdia);
+    let mut tag = Mp4Tag::default();
+    tag.set_fourcc_utf8(TITLE_ATOM, "Before");
+    let meta = build_fresh_udta_with_ilst(&tag.encode_ilst());
+    let old_moov_bytes = encode_box(*b"moov", &[trak.clone(), meta].concat());
+
+    let moov_offset = ftyp.len() as u64;
+    let old_moov = BoxHeader {
+        fourcc: *b"moov",
+        offset: moov_offset,
+        size: old_moov_bytes.len() as u64,
+        header_len: 8,
+        explicit_zero_size: false,
+    };
+    let open_ended_mdat = BoxHeader {
+        fourcc: *b"mdat",
+        offset: old_moov.end(),
+        size: u64::from(u32::MAX) + 1024,
+        header_len: 8,
+        explicit_zero_size: true,
+    };
+
+    tag.set_fourcc_utf8(TITLE_ATOM, "Much Longer Streaming Shift Title");
+    let updated_content =
+        rebuild_moov_with_ilst(&old_moov_bytes[8..], &tag.encode_ilst()).expect("rebuild");
+    let stabilized = stabilize_shifted_moov(
+        &[
+            BoxHeader {
+                fourcc: *b"ftyp",
+                offset: 0,
+                size: ftyp.len() as u64,
+                header_len: 8,
+                explicit_zero_size: false,
+            },
+            old_moov,
+            open_ended_mdat,
+        ],
+        1,
+        &updated_content,
+    )
+    .expect("stabilize");
+
+    let delta = i128::from(stabilized.len() as u64) - i128::from(old_moov.size);
+    let moov_children = parse_child_slices(&stabilized[8..]).expect("moov children");
+    let trak_body = moov_children[0].content(&stabilized[8..]);
+    let mdia_c = parse_child_slices(trak_body).expect("mdia");
+    let minf_c = parse_child_slices(mdia_c[0].content(trak_body)).expect("minf");
+    let stbl_c = parse_child_slices(minf_c[0].content(mdia_c[0].content(trak_body))).expect("stbl");
+    let co64_c =
+        parse_child_slices(stbl_c[0].content(minf_c[0].content(mdia_c[0].content(trak_body))))
+            .expect("co64");
+    let body =
+        co64_c[0].content(stbl_c[0].content(minf_c[0].content(mdia_c[0].content(trak_body))));
+    let shifted_early = u64::from_be_bytes(body[8..16].try_into().expect("8"));
+    let shifted_mdat = u64::from_be_bytes(body[16..24].try_into().expect("8"));
+    assert_eq!(shifted_early, early_offset);
+    assert_eq!(
+        i128::from(shifted_mdat),
+        i128::from(mdat_payload_offset) + delta + 8
+    );
+}
+
+#[test]
+fn streaming_shift_preserves_decodable_aac_packets_and_passes_verify_streaming_mp4() {
+    let dir = TempDir::new().expect("temp dir");
+    let original = dir.path().join("original-faststart.m4b");
+    ffmpeg([
+        "-v",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:sample_rate=44100:duration=0.4",
+        "-c:a",
+        "aac",
+        "-movflags",
+        "+faststart",
+        "-f",
+        "mp4",
+        original.to_str().expect("utf8 path"),
+    ]);
+    let copy = dir.path().join("streamed.m4b");
+    std::fs::copy(&original, &copy).expect("copy");
+
+    let mut file = File::open(&copy).expect("open");
+    let file_len = file.seek(SeekFrom::End(0)).expect("len");
+    let boxes = scan_top_level_strict(&mut file, file_len).expect("scan");
+    let moov_idx = boxes
+        .iter()
+        .position(|item| &item.fourcc == b"moov")
+        .expect("moov");
+    assert_eq!(layout_name(&boxes, moov_idx), "moov_front");
+    let old_moov_content = read_box_bytes(&mut file, &boxes[moov_idx]).expect("moov bytes");
+    drop(file);
+
+    let mut tag = read_tag(&copy).expect("read tag");
+    tag.set_fourcc_utf8(
+        TITLE_ATOM,
+        "Streaming Shift Title That Expands Moov Before Mdat",
+    );
+    let updated_content =
+        rebuild_moov_with_ilst(&old_moov_content, &tag.encode_ilst()).expect("rebuild");
+    let plan = StreamingPlan {
+        moov_idx,
+        base_moov_content: updated_content,
+        boxes,
+        file_len,
+        layout_before: "moov_front",
+    };
+
+    let stats = execute_streaming_shift(&copy, &plan).expect("streaming shift");
+    assert!(stats.mdat_shifted);
+    let src_sha = stats.streamed_source_mdat_sha256.expect("source mdat hash");
+    let verified_bytes = verify_streaming_mp4(&original, &copy, stats.expected_output_len, src_sha)
+        .expect("verify streaming");
+    assert!(verified_bytes > 0);
+    assert_ffprobe_tag(
+        &ffprobe_format_tags(&copy),
+        "title",
+        "Streaming Shift Title That Expands Moov Before Mdat",
+    );
+}
+
+#[test]
+fn replace_or_append_child_preserves_second_udta_and_inserts_before_quicktime_zero_terminator() {
+    let ftyp = encode_box(*b"ftyp", b"qt  \0\0\0\0");
+    let mdat = encode_box(*b"mdat", b"QT-AUDIO");
+    let chpl = encode_box(*b"chpl", &[1, 0, 0, 0, 0]);
+    let second_udta = encode_box(*b"udta", &chpl);
+    let mut qt_udta_body = encode_box(*b"name", b"Clip");
+    qt_udta_body.extend_from_slice(&[0, 0, 0, 0]);
+    let first_udta = encode_box(*b"udta", &qt_udta_body);
+    let mdat_off = (ftyp.len() + 8) as u32;
+    let base_moov = make_stco_moov(mdat_off, "Initial", true);
+    let moov_children = parse_child_slices(&base_moov[8..]).expect("base moov children");
+    let trak_only = &base_moov[8 + moov_children[0].start..8 + moov_children[0].end];
+    let combined_moov = encode_box(*b"moov", &[trak_only, &first_udta, &second_udta].concat());
+
+    let tmp = write_temp(&[ftyp, mdat, combined_moov].concat());
+    let mut updated = Mp4Tag::default();
+    updated.set_fourcc_utf8(TITLE_ATOM, "QuickTime Terminated Title");
+    write_tag_with_stats(tmp.path(), &updated).expect("write into terminated qt udta");
+
+    assert_eq!(
+        read_tag(tmp.path())
+            .expect("read back from before zero terminator")
+            .first_fourcc_string(TITLE_ATOM),
+        Some("QuickTime Terminated Title")
+    );
+    let mut file = File::open(tmp.path()).expect("reopen");
+    let file_len = file.seek(SeekFrom::End(0)).expect("len");
+    let boxes = scan_top_level_strict(&mut file, file_len).expect("strict scan");
+    let moov = boxes.iter().find(|b| &b.fourcc == b"moov").expect("moov");
+    let moov_body = read_box_bytes(&mut file, moov).expect("moov body");
+    let udtas: Vec<_> = parse_child_slices(&moov_body)
+        .expect("moov children")
+        .into_iter()
+        .filter(|c| &c.fourcc == b"udta")
+        .collect();
+    assert_eq!(udtas.len(), 2, "second udta must be preserved");
+    assert_eq!(udtas[1].content(&moov_body), chpl.as_slice());
 }

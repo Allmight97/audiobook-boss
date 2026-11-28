@@ -2,9 +2,12 @@ use super::mp4::boxes::{scan_top_level_strict, BoxHeader};
 use super::{open_input, validate_source_fingerprint};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::file_replace::SiblingTemp;
+use sha2::{Digest, Sha256};
 use std::fs::File;
-use std::io::{Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
+
+const VERIFY_CHUNK_BYTES: usize = 1024 * 1024;
 
 pub(crate) fn verify_surgical_mp4(path: &Path, expected_mdat_ranges: &[(u64, u64)]) -> Result<u64> {
     let mut file = File::open(path).map_err(AppError::Io)?;
@@ -40,41 +43,128 @@ pub(crate) fn verify_surgical_mp4(path: &Path, expected_mdat_ranges: &[(u64, u64
 }
 
 pub(crate) fn verify_streaming_mp4(
-    path: &Path,
+    original: &Path,
+    saved: &Path,
     expected_output_len: u64,
     source_mdat_sha256: [u8; 32],
-    output_mdat_sha256: [u8; 32],
 ) -> Result<u64> {
-    if source_mdat_sha256 != output_mdat_sha256 {
-        return Err(AppError::FileValidation(format!(
-            "Streamed MP4 '{}' audio payload digest mismatch",
-            sanitize_path_for_display(path)
-        )));
-    }
-    let mut file = File::open(path).map_err(AppError::Io)?;
+    let mut file = File::open(saved).map_err(AppError::Io)?;
     let file_len = file.seek(SeekFrom::End(0)).map_err(AppError::Io)?;
     if file_len != expected_output_len {
         return Err(AppError::FileValidation(format!(
             "Streamed MP4 '{}' length mismatch ({file_len} vs expected {expected_output_len})",
-            sanitize_path_for_display(path)
+            sanitize_path_for_display(saved)
         )));
     }
     let boxes = scan_top_level_strict(&mut file, file_len)?;
-    if !boxes.iter().any(|item| &item.fourcc == b"mdat") {
+    let mdat_ranges: Vec<(u64, u64)> = boxes
+        .iter()
+        .filter(|item| &item.fourcc == b"mdat")
+        .map(|item| (item.content_offset(), item.end()))
+        .collect();
+    if mdat_ranges.is_empty() {
         return Err(AppError::FileValidation(format!(
             "Streamed MP4 '{}' contains no mdat box",
-            sanitize_path_for_display(path)
+            sanitize_path_for_display(saved)
+        )));
+    }
+    let (actual_output_sha256, mdat_bytes) = hash_file_ranges(&mut file, &mdat_ranges)?;
+    if actual_output_sha256 != source_mdat_sha256 {
+        return Err(AppError::FileValidation(format!(
+            "Streamed MP4 '{}' audio payload digest mismatch",
+            sanitize_path_for_display(saved)
         )));
     }
     drop(file);
+    check_indexed_audio_within_mdat(saved, &mdat_ranges)?;
+    let packet_bytes = check_saved_audio(original, saved)?;
+    Ok(header_and_moov_bytes(&boxes)
+        .saturating_add(mdat_bytes)
+        .saturating_add(packet_bytes))
+}
+
+fn check_indexed_audio_within_mdat(path: &Path, mdat_ranges: &[(u64, u64)]) -> Result<()> {
     let input = open_input(path)?;
-    if input.streams().is_empty() {
+    let audio_streams: Vec<usize> = input
+        .streams()
+        .into_iter()
+        .filter(|stream| stream.medium == abb_ffmpeg::Medium::Audio)
+        .map(|stream| stream.index)
+        .collect();
+    if audio_streams.is_empty() {
         return Err(AppError::FileValidation(format!(
-            "Streamed MP4 '{}' contains no playable streams",
+            "Streamed MP4 '{}' contains no playable audio streams",
             sanitize_path_for_display(path)
         )));
     }
-    Ok(header_and_moov_bytes(&boxes))
+    for stream_index in audio_streams {
+        let Some(ranges) = input.indexed_byte_ranges(stream_index) else {
+            return Err(AppError::FileValidation(format!(
+                "Streamed MP4 '{}' is missing indexed audio byte ranges",
+                sanitize_path_for_display(path)
+            )));
+        };
+        for (pos, size) in ranges {
+            let Ok(start) = u64::try_from(pos) else {
+                return Err(AppError::FileValidation(format!(
+                    "Streamed MP4 '{}' contains negative audio packet offset",
+                    sanitize_path_for_display(path)
+                )));
+            };
+            let Ok(len) = u64::try_from(size) else {
+                return Err(AppError::FileValidation(format!(
+                    "Streamed MP4 '{}' contains negative audio packet size",
+                    sanitize_path_for_display(path)
+                )));
+            };
+            let Some(end) = start.checked_add(len) else {
+                return Err(AppError::FileValidation(format!(
+                    "Streamed MP4 '{}' audio packet range overflowed u64",
+                    sanitize_path_for_display(path)
+                )));
+            };
+            if !mdat_ranges
+                .iter()
+                .any(|&(mdat_start, mdat_end)| start >= mdat_start && end <= mdat_end)
+            {
+                return Err(AppError::FileValidation(format!(
+                    "Streamed MP4 '{}' audio packet range [{start}..{end}) falls outside mdat",
+                    sanitize_path_for_display(path)
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn hash_file_ranges(file: &mut File, ranges: &[(u64, u64)]) -> Result<([u8; 32], u64)> {
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; VERIFY_CHUNK_BYTES];
+    let mut total_bytes = 0u64;
+    for &(start, end) in ranges {
+        if start >= end {
+            continue;
+        }
+        file.seek(SeekFrom::Start(start)).map_err(AppError::Io)?;
+        let mut remaining = end - start;
+        while remaining > 0 {
+            let want = usize::try_from(remaining.min(buf.len() as u64)).unwrap_or(buf.len());
+            let read = match file.read(&mut buf[..want]) {
+                Ok(0) => {
+                    return Err(AppError::FileValidation(
+                        "Unexpected EOF while hashing MP4 audio data".to_string(),
+                    ));
+                }
+                Ok(n) => n,
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(error) => return Err(AppError::Io(error)),
+            };
+            hasher.update(&buf[..read]);
+            total_bytes = total_bytes.saturating_add(read as u64);
+            remaining -= read as u64;
+        }
+    }
+    Ok((hasher.finalize().into(), total_bytes))
 }
 
 fn header_and_moov_bytes(boxes: &[BoxHeader]) -> u64 {

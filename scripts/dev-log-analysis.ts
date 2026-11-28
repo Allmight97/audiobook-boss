@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import {
 	type MetadataStageEvent,
-	parseMetadataStageLine,
+	extractMetadataStages,
 	renderMetadataStages,
 } from './dev-log-metadata';
 
@@ -441,7 +441,6 @@ export function analyzeDevLog(
 	const operations = new Map<string, MutableOperation>();
 	const jobs = new Map<string, MutableJob>();
 	const outputPlanEvents: OutputPlanEvent[] = [];
-	const metadataStages: MetadataStageEvent[] = [];
 	let malformedLifecycleLines = 0;
 	let malformedOutputPlanLines = 0;
 
@@ -468,9 +467,6 @@ export function analyzeDevLog(
 			if (!event) malformedOutputPlanLines += 1;
 			else outputPlanEvents.push(event);
 		}
-
-		const metadataStage = parseMetadataStageLine(line);
-		if (metadataStage) metadataStages.push(metadataStage);
 	}
 
 	const operationOutcomes = sortedValues(operations);
@@ -679,7 +675,7 @@ export function analyzeDevLog(
 				),
 			)
 			.slice(-100),
-		metadataStages,
+		metadataStages: extractMetadataStages(lines),
 		buildIdentities: [
 			...new Set(lines.filter((line) => /build_identity |build_checkout /.test(line))),
 		].slice(-20),

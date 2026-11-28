@@ -21,7 +21,7 @@ mod intent_plan;
 mod journal;
 mod matroska_cover;
 mod metadata_sinks;
-pub mod mp4;
+pub(crate) mod mp4;
 mod passthrough;
 mod plan_log;
 mod remux;
@@ -69,6 +69,10 @@ pub use passthrough::{
 
 pub(crate) fn open_input(path: &std::path::Path) -> Result<abb_ffmpeg::Input> {
     Ok(abb_ffmpeg::Input::open(path, &abb_ffmpeg::SecretOptions::default())?.input)
+}
+
+pub(crate) fn recover_journal_if_present(path: &std::path::Path) -> Result<()> {
+    journal::recover_if_present(path).map(|_| ())
 }
 
 pub fn save_metadata_intent(path: &std::path::Path, patch: &MetadataIntentPatch) -> Result<()> {

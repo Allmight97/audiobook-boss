@@ -309,21 +309,20 @@ async fn ignoring_a_cue_sheet_keeps_its_chapters_out_of_the_export() {
 
 #[tokio::test]
 async fn an_m4b_with_only_uppercase_series_atoms_reads_and_exports_its_series() {
-    use abb_media_pipeline::metadata::mp4::{read_tag, write_tag, AtomData, AtomIdent};
+    use abb_test_fixtures::mp4_atoms::{
+        append_ilst_items, mp4_freeform_utf8, read_freeform_strings,
+    };
     let desk = Desk::new();
     let book = desk
         .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
         .await;
-    let mut tag = read_tag(&book).expect("read atoms");
-    tag.set_data(
-        AtomIdent::freeform("com.apple.iTunes", "SERIES"),
-        AtomData::Utf8("Dune".to_string()),
+    append_ilst_items(
+        &book,
+        &[
+            mp4_freeform_utf8("com.apple.iTunes", "SERIES", "Dune"),
+            mp4_freeform_utf8("com.apple.iTunes", "SERIES-PART", "2"),
+        ],
     );
-    tag.set_data(
-        AtomIdent::freeform("com.apple.iTunes", "SERIES-PART"),
-        AtomData::Utf8("2".to_string()),
-    );
-    write_tag(&book, &tag).expect("write atoms");
     desk.import(&book).await;
     assert_eq!(desk.shown(MetadataField::Series), "Dune");
     assert_eq!(desk.shown(MetadataField::SeriesPart), "2");
@@ -334,14 +333,13 @@ async fn an_m4b_with_only_uppercase_series_atoms_reads_and_exports_its_series() 
     let ffprobe_tags = ffprobe_format_tags(&output);
     assert_ffprobe_tag(&ffprobe_tags, "series", "Dune");
     assert_ffprobe_tag(&ffprobe_tags, "series-part", "2");
-    let written = read_tag(&output).expect("read output atoms");
     for (name, value) in [
         ("series", "Dune"),
         ("SERIES", "Dune"),
         ("series-part", "2"),
         ("SERIES-PART", "2"),
     ] {
-        let ident = AtomIdent::freeform("com.apple.iTunes", name);
-        assert_eq!(written.strings_of(&ident).next(), Some(value), "{name}");
+        let values = read_freeform_strings(&output, "com.apple.iTunes", name);
+        assert_eq!(values.first().map(String::as_str), Some(value), "{name}");
     }
 }
